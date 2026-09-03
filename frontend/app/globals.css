@@ -1,178 +1,205 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
-/*
- * Console surfaces.
- *
- * Panels are sheet metal: seams and bezel highlights rather than drop
- * shadows, small radii, and a faint machined texture. Everything that reads
- * as a "card" elsewhere is a panel bolted into a frame here.
- */
+@custom-variant dark (&:is(.dark *));
+
+/* ------------------------------------------------------------------ */
+/* Sovereign Workbench design tokens                                   */
+/* ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --background: #f7f7f5;
+  --surface: #ffffff;
+  --surface-sunken: #f2f1ee;
+
+  /* text */
+  --foreground: #0a0a0a;
+  --foreground-secondary: #5f5b57;
+  --foreground-muted: #8a8783;
+
+  /* lines */
+  --border: #dcdad6;
+  --border-strong: #c8c5bf;
+  --grid: #eceae6;
+
+  /* dark contrast */
+  --ink: #090909;
+  --ink-surface: #121211;
+  --ink-foreground: #f5f5f2;
+  --ink-muted: #9a978f;
+  --ink-border: #242422;
+  --ink-grid: #1a1a19;
+
+  /* status */
+  --sovereign: #16a34a;
+  --active: #0284c7;
+  --approval: #d97706;
+  --critical: #dc2626;
+
+  --radius: 4px;
+
+  /* shadcn compatibility mappings */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: #0a0a0a;
+  --primary-foreground: #f7f7f5;
+  --secondary: var(--surface-sunken);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-sunken);
+  --muted-foreground: var(--foreground-muted);
+  --accent: var(--surface-sunken);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--critical);
+  --destructive-foreground: #ffffff;
+  --input: var(--border);
+  --ring: #8a8783;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-grid: var(--grid);
+
+  --color-ink: var(--ink);
+  --color-ink-surface: var(--ink-surface);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-border: var(--ink-border);
+  --color-ink-grid: var(--ink-grid);
+
+  --color-sovereign: var(--sovereign);
+  --color-active: var(--active);
+  --color-approval: var(--approval);
+  --color-critical: var(--critical);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border-token: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 10px;
+}
 
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
-
-  html,
-  body {
-    height: 100%;
-  }
-
-  body {
-    @apply bg-ground text-ink font-sans antialiased;
-    /* Faint brushed texture across the console ground. */
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(47, 191, 158, 0.05), transparent 60%),
-      repeating-linear-gradient(
-        0deg,
-        rgba(214, 227, 231, 0.012) 0px,
-        rgba(214, 227, 231, 0.012) 1px,
-        transparent 1px,
-        transparent 3px
-      );
-  }
-
-  ::selection {
-    background: rgba(201, 162, 39, 0.3);
-    color: #f2f7f8;
-  }
-
-  /* Keyboard focus must stay obvious on a dark console. */
-  :focus-visible {
-    outline: 2px solid #c9a227;
-    outline-offset: 2px;
-    border-radius: 2px;
-  }
-
-  /* Recessed scrollbars, in keeping with the panel metaphor. */
   * {
-    scrollbar-width: thin;
-    scrollbar-color: #1d3540 transparent;
+    border-color: var(--border);
   }
-
-  *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-
-  *::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.25);
-  }
-
-  *::-webkit-scrollbar-thumb {
-    background: #1d3540;
-    border-radius: 0;
-    border: 2px solid transparent;
-    background-clip: content-box;
-  }
-
-  *::-webkit-scrollbar-thumb:hover {
-    background: #2a4a57;
-    background-clip: content-box;
+  ::selection {
+    background: #0a0a0a;
+    color: #f7f7f5;
   }
 }
 
-@layer components {
-  /* A bolted panel: the base surface for every region of the console. */
-  .panel {
-    @apply rounded-panel border border-seam bg-panel shadow-bezel;
-  }
-
-  .panel-raised {
-    @apply rounded-panel border border-seam bg-raised shadow-bezel;
-  }
-
-  /* A recessed readout window, the way an instrument displays a value. */
-  .readout {
-    @apply rounded-chip border border-seam bg-ground/70 shadow-recess;
-  }
-
-  /* Panel header lettering: machine-stamped, tight, small. */
-  .stamp {
-    @apply font-sans text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-ink-dim;
-  }
-
-  /* Instrument data: tags, hashes, counters, readings, timestamps. */
-  .instrument {
-    @apply font-mono text-readout tabular-nums;
-  }
-
-  /* Drafting vellum: documents, evidence excerpts, drafted deliverables. */
-  .vellum {
-    @apply rounded-panel bg-vellum text-vellum-ink;
-    background-image: repeating-linear-gradient(
-      90deg,
-      rgba(27, 42, 47, 0.028) 0px,
-      rgba(27, 42, 47, 0.028) 1px,
-      transparent 1px,
-      transparent 26px
-    );
-  }
-
-  /* The process line along which agent stages are threaded. */
-  .flowline {
-    background-image: repeating-linear-gradient(
-      90deg,
-      rgba(47, 191, 158, 0.85) 0px,
-      rgba(47, 191, 158, 0.85) 7px,
-      transparent 7px,
-      transparent 14px
-    );
-    background-size: 28px 100%;
-  }
-
-  .flowline-idle {
-    background-image: repeating-linear-gradient(
-      90deg,
-      rgba(85, 112, 123, 0.55) 0px,
-      rgba(85, 112, 123, 0.55) 7px,
-      transparent 7px,
-      transparent 14px
-    );
-    background-size: 28px 100%;
-  }
-
-  /* Vertical variant for the stacked timeline. */
-  .flowline-v {
-    background-image: repeating-linear-gradient(
-      180deg,
-      rgba(47, 191, 158, 0.85) 0px,
-      rgba(47, 191, 158, 0.85) 7px,
-      transparent 7px,
-      transparent 14px
-    );
-    background-size: 100% 28px;
-  }
-
-  .flowline-v-idle {
-    background-image: repeating-linear-gradient(
-      180deg,
-      rgba(85, 112, 123, 0.5) 0px,
-      rgba(85, 112, 123, 0.5) 7px,
-      transparent 7px,
-      transparent 14px
-    );
-    background-size: 100% 28px;
-  }
+/* ------------------------------------------------------------------ */
+/* Utilities                                                           */
+/* ------------------------------------------------------------------ */
+@utility tech-grid {
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 56px 56px;
 }
 
-@keyframes flow-v {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 0 28px;
-  }
+@utility tech-grid-ink {
+  background-image:
+    linear-gradient(to right, var(--ink-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ink-grid) 1px, transparent 1px);
+  background-size: 56px 56px;
 }
 
-.animate-flow-v {
-  animation: flow-v 1.1s linear infinite;
+/* ------------------------------------------------------------------ */
+/* Motion                                                              */
+/* ------------------------------------------------------------------ */
+@keyframes sov-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.82); }
+}
+.sov-pulse { animation: sov-pulse 2.4s ease-in-out infinite; }
+
+@keyframes sov-blink {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0.15; }
+}
+.sov-blink { animation: sov-blink 1.6s steps(1) infinite; }
+
+@keyframes sov-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Respect a reader who does not want motion: keep state legible, drop the
-   ambient movement. */
+@keyframes sov-line-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes sov-dash {
+  to { stroke-dashoffset: -1000; }
+}
+
+@keyframes sov-trace {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes sov-drift {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(6px, -8px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes sov-spin-slow {
+  to { transform: rotate(360deg); }
+}
+.sov-spin-slow { animation: sov-spin-slow 3s linear infinite; }
+
+.reveal {
+  opacity: 0;
+}
+.reveal.in-view {
+  animation: sov-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.arrow-shift {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.group:hover .arrow-shift {
+  transform: translateX(4px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -180,5 +207,9 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1 !important;
   }
 }
