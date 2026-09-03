@@ -65,6 +65,57 @@ NUMERIC_ASSERTION = re.compile(
 )
 
 
+class EvidenceLedger:
+    """Owns evidence identity for one task run.
+
+    Identifiers are what a citation points at, so they must be unique across
+    the whole run. Assigning them at each collection site produced collisions
+    the moment two attachments were read — both started at ``F1`` — which made
+    two different sources indistinguishable in the finished document.
+
+    Prefixes stay meaningful: S for retrieved sources, F for attached files,
+    V for what the vision model read, C for recomputed figures, X for sandbox
+    output.
+    """
+
+    PREFIXES = {
+        "knowledge_base": "S",
+        "uploaded_file": "F",
+        "vision_extraction": "V",
+        "computation": "C",
+    }
+
+    def __init__(self, existing: list[EvidenceItem]) -> None:
+        self._items = existing
+        self._counters: dict[str, int] = {}
+        for item in existing:
+            prefix = "".join(character for character in item.id if character.isalpha())
+            digits = "".join(character for character in item.id if character.isdigit())
+            if prefix and digits:
+                self._counters[prefix] = max(self._counters.get(prefix, 0), int(digits))
+
+    def _next_id(self, prefix: str) -> str:
+        self._counters[prefix] = self._counters.get(prefix, 0) + 1
+        return f"{prefix}{self._counters[prefix]}"
+
+    def add(self, item: EvidenceItem, *, prefix: str | None = None) -> EvidenceItem:
+        """Append one item under a freshly allocated identifier."""
+        chosen = prefix or self.PREFIXES.get(item.kind, "E")
+        item.id = self._next_id(chosen)
+        self._items.append(item)
+        return item
+
+    def extend(self, items: list[EvidenceItem], *, prefix: str | None = None) -> list[EvidenceItem]:
+        return [self.add(item, prefix=prefix) for item in items]
+
+    @property
+    def items(self) -> list[EvidenceItem]:
+        return self._items
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+
 def _strip_reasoning(text: str) -> str:
     """Remove chain-of-thought blocks some reasoning models emit."""
     return THINK_BLOCK.sub("", text or "").strip()
@@ -498,6 +549,7 @@ class AgentOrchestrator:
         # Bound to the task up front: evidence gathered before a failure must
         # survive that failure, otherwise a partial run looks like it found
         # nothing at all.
+        ledger = EvidenceLedger(task.evidence)
         evidence: list[EvidenceItem] = task.evidence
         extraction: dict[str, Any] | None = None
         sandbox_result: SandboxResult | None = None
@@ -528,10 +580,10 @@ class AgentOrchestrator:
                 self._mark_step(task, {"vision_extract", "vision_analysis"}, "running")
                 extraction, raw_extraction = await self._vision_extraction(task, user, images)
                 if extraction:
-                    for index, finding in enumerate(extraction.get("findings") or [], start=1):
-                        evidence.append(
+                    for finding in extraction.get("findings") or []:
+                        ledger.add(
                             EvidenceItem(
-                                id=f"V{index}",
+                                id="pending",
                                 source_document=task.files[0].filename if task.files else "visual input",
                                 location=str(finding.get("location") or "visual observation"),
                                 excerpt=str(finding.get("description", "")),
@@ -541,9 +593,9 @@ class AgentOrchestrator:
                         )
                     transcription = str(extraction.get("transcription") or "")
                     if transcription:
-                        evidence.append(
+                        ledger.add(
                             EvidenceItem(
-                                id="V0",
+                                id="pending",
                                 source_document=task.files[0].filename if task.files else "visual input",
                                 location="transcribed content",
                                 excerpt=transcription[:1500],
@@ -567,9 +619,9 @@ class AgentOrchestrator:
                         "data; its raw reading was used instead."
                     )
                     extraction = {"transcription": raw_extraction}
-                    evidence.append(
+                    ledger.add(
                         EvidenceItem(
-                            id="V0",
+                            id="pending",
                             source_document=task.files[0].filename if task.files else "visual input",
                             location="transcribed content",
                             excerpt=raw_extraction[:1500],
@@ -592,7 +644,7 @@ class AgentOrchestrator:
                 )
                 if call.ok:
                     for item in call.output.get("evidence", []):
-                        evidence.append(EvidenceItem(**item))
+                        ledger.add(EvidenceItem(**item))
 
             # ------------------------------------------------- retrieval
             if profile.requires_retrieval:
@@ -610,8 +662,9 @@ class AgentOrchestrator:
                     task, context, "knowledge_search", {"query": query[:800]}
                 )
                 if call.ok:
-                    retrieved = [EvidenceItem(**item) for item in call.output.get("evidence", [])]
-                    evidence.extend(retrieved)
+                    retrieved = ledger.extend(
+                        [EvidenceItem(**item) for item in call.output.get("evidence", [])]
+                    )
                     await self._emit(
                         task,
                         "task.evidence",
@@ -634,7 +687,7 @@ class AgentOrchestrator:
                     task, TaskStatus.EXECUTING, "Generating and running code in the sandbox"
                 )
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "running")
-                sandbox_result = await self._run_code_stage(task, user, context, evidence)
+                sandbox_result = await self._run_code_stage(task, user, context, ledger)
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "done")
 
             # ---------------------------------------------- reasoning
@@ -653,9 +706,9 @@ class AgentOrchestrator:
             checks.append(calculation_check)
             for entry in checked_calculations:
                 if entry.get("recomputed") is not None:
-                    evidence.append(
+                    ledger.add(
                         EvidenceItem(
-                            id=f"C{len(evidence) + 1}",
+                            id="pending",
                             source_document="independent sandbox recomputation",
                             location=str(entry.get("label", "calculation")),
                             excerpt=(
@@ -807,7 +860,7 @@ class AgentOrchestrator:
         task: Task,
         user: User,
         context: ToolContext,
-        evidence: list[EvidenceItem],
+        ledger: EvidenceLedger,
     ) -> SandboxResult | None:
         assert task.profile is not None
 
@@ -823,7 +876,7 @@ class AgentOrchestrator:
             )
             if call.ok:
                 context_lines.append("Spreadsheet structure:\n" + call.output.get("stdout", "")[:2000])
-        for item in evidence[:4]:
+        for item in ledger.items[:4]:
             context_lines.append(f"[{item.id}] {item.excerpt[:400]}")
 
         prompt = self.config.prompt(
@@ -869,9 +922,9 @@ class AgentOrchestrator:
             },
         )
         if result.ok and result.stdout.strip():
-            evidence.append(
+            ledger.add(
                 EvidenceItem(
-                    id=f"X{len(evidence) + 1}",
+                    id="pending",
                     source_document="sandbox execution",
                     location=f"exit {result.exit_code}, {result.duration_ms}ms",
                     excerpt=result.stdout[:1200],

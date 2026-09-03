@@ -21,6 +21,7 @@ from fastapi import (
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from backend.api.dependencies import CurrentUser, SessionToken, require_permission
+from backend.api.task_service import get_task_service
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus

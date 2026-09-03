@@ -13,7 +13,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
-import { useEventStream, useSovereignty } from "@/lib/hooks";
+import { useSovereignty } from "@/lib/hooks";
+import { useStream } from "@/lib/stream";
 import type { ModelsStatus, SandboxSelfTest } from "@/lib/types";
 import { Shell } from "@/components/Shell";
 import {
@@ -27,7 +28,7 @@ import {
 } from "@/components/primitives";
 
 export default function SecurityPage() {
-  const { sovereignty: pushed } = useEventStream();
+  const { sovereignty: pushed } = useStream();
   const sovereignty = useSovereignty(pushed, 4000);
   const [models, setModels] = useState<ModelsStatus | null>(null);
   const [policies, setPolicies] = useState<Record<string, any> | null>(null);

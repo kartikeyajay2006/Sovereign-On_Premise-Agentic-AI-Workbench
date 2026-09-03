@@ -1,170 +1,327 @@
 "use client";
 
 /**
- * The console: submit work, watch the agent work, read what it produced.
+ * The front door.
  *
- * Left is the request and its result; right is the execution trace. The two
- * are side by side deliberately — an operator should never have to choose
- * between seeing the answer and seeing how it was reached.
+ * Written for someone who has never seen this before: what problem it solves,
+ * how it works, what it hands back, and how the central promise is proved
+ * rather than asserted. The 3D scene carries the argument visually — work
+ * circulating inside a closed boundary, outbound attempts turned back.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { api } from "@/lib/api";
-import { useEventStream, useTask } from "@/lib/hooks";
-import type { User } from "@/lib/types";
-import { Shell } from "@/components/Shell";
-import { Composer } from "@/components/Composer";
-import { ProcessFlow } from "@/components/ProcessFlow";
-import {
-  AnswerPanel,
-  DeliverablePanel,
-  EvidencePanel,
-  VerificationPanel,
-} from "@/components/ResultPanels";
-import { Chip, Panel, classificationSignal, formatDuration } from "@/components/primitives";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { ContainmentScene } from "@/components/three/ContainmentScene";
+import { Wordmark } from "@/components/primitives";
+import { getToken } from "@/lib/api";
 
-const RUNNING = ["received", "classified", "planned", "retrieving", "executing", "verifying"];
+const STEPS = [
+  {
+    title: "You ask, and attach whatever it needs",
+    body: "A scanned inspection report, a drawing, a spreadsheet, or nothing at all. Plain language: “read this report and draft an approval note against our SOP.”",
+  },
+  {
+    title: "It picks the right model for each part",
+    body: "Reading a scan needs a vision model. Reasoning about it needs a different one. The workbench chooses per step and tells you why it chose each.",
+  },
+  {
+    title: "It grounds the answer in your own documents",
+    body: "Your SOPs and manuals are searched locally. Every factual claim is linked back to the document and section it came from.",
+  },
+  {
+    title: "It checks its own work, then asks a human",
+    body: "Figures are recalculated independently. Code is run in a locked sandbox. Anything sensitive waits for an approver before release.",
+  },
+];
 
-function ProfileStrip({ task }: { task: NonNullable<ReturnType<typeof useTask>["task"]> }) {
-  const profile = task.profile;
-  if (!profile) return null;
+const OUTPUTS = [
+  { format: "Word", detail: "Approval notes and reports, with citations and a provenance block" },
+  { format: "Excel", detail: "Analysis workbooks with the evidence sheet attached" },
+  { format: "PowerPoint", detail: "Board packs built from verified findings" },
+  { format: "Code", detail: "Scripts that have actually been run and checked" },
+];
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -3 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-wrap items-center gap-1.5"
-    >
-      <Chip signal="inert">{profile.input_type.replace(/_/g, " ")}</Chip>
-      <Chip signal="brass">{profile.task_type.replace(/_/g, " ")}</Chip>
-      <Chip signal="inert">{profile.complexity.replace(/_/g, " ")}</Chip>
-      <Chip signal={classificationSignal(profile.sensitivity)}>{profile.sensitivity}</Chip>
-      {profile.deliverable_format && (
-        <Chip signal="inert">{profile.deliverable_format.toUpperCase()}</Chip>
-      )}
-      {task.duration_ms != null && (
-        <span className="instrument text-[0.6875rem] text-ink-faint">
-          {formatDuration(task.duration_ms)}
-        </span>
-      )}
-    </motion.div>
-  );
-}
+const PROOFS = [
+  {
+    heading: "Nothing leaves the machine",
+    body: "A monitor samples every network connection this platform's processes make and counts anything heading outside. The count is on screen at all times. It is a measurement, not a promise.",
+  },
+  {
+    heading: "Code runs in a locked box",
+    body: "Generated code is inspected before it runs and confined while it runs — no network route, limited memory and time. You can trigger the break-in test yourself from the Security page.",
+  },
+  {
+    heading: "The log cannot be edited quietly",
+    body: "Every classification, model choice, tool call and approval is recorded and cryptographically chained to the previous entry. Alter one line and the chain reports exactly where.",
+  },
+];
 
-export default function ConsolePage() {
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const { task, refresh } = useTask(taskId);
-  const { events } = useEventStream(taskId ?? undefined);
+export default function LandingPage() {
+  const [signedIn, setSignedIn] = useState(false);
 
-  useEffect(() => {
-    api
-      .me()
-      .then(setUser)
-      .catch(() => setUser(null));
-  }, []);
-
-  // Resume whatever was last running, so a refresh does not lose the operator.
-  useEffect(() => {
-    if (taskId) return;
-    api
-      .listTasks(1)
-      .then((summaries) => {
-        if (summaries.length) setTaskId(summaries[0].id);
-      })
-      .catch(() => undefined);
-  }, [taskId]);
-
-  const running = Boolean(task && RUNNING.includes(task.status));
-
-  const decide = useCallback(
-    async (decision: "approve" | "reject", comment: string) => {
-      if (!taskId) return;
-      await api.decide(taskId, decision, comment);
-      await refresh();
-    },
-    [taskId, refresh],
-  );
-
-  const latestStage = [...events]
-    .reverse()
-    .find((event) => event.event === "task.stage")?.data?.message as string | undefined;
+  useEffect(() => setSignedIn(Boolean(getToken())), []);
 
   return (
-    <Shell>
-      <div className="grid h-full grid-cols-1 gap-px overflow-hidden bg-seam xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.85fr)]">
-        {/* ------------------------------------------- request + result */}
-        <div className="min-h-0 overflow-y-auto bg-ground">
-          <div className="mx-auto max-w-[880px] space-y-4 p-5">
+    <div className="min-h-screen">
+      {/* ------------------------------------------------------------ nav */}
+      <header className="sticky top-0 z-20 border-b border-seam bg-panel/85 backdrop-blur">
+        <div className="mx-auto flex max-w-[1180px] items-center gap-4 px-5 py-3">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Wordmark />
+            <span className="text-[0.9375rem] font-bold tracking-tight text-ink">
+              Sovereign Workbench
+            </span>
+          </Link>
+
+          <nav className="ml-auto flex items-center gap-1">
+            <a
+              href="#how"
+              className="hidden rounded-chip px-3 py-1.5 text-[0.875rem] text-ink-dim transition-colors hover:text-ink sm:block"
+            >
+              How it works
+            </a>
+            <a
+              href="#proof"
+              className="hidden rounded-chip px-3 py-1.5 text-[0.875rem] text-ink-dim transition-colors hover:text-ink sm:block"
+            >
+              The proof
+            </a>
+            <Link
+              href={signedIn ? "/console" : "/sign-in"}
+              className="rounded-chip bg-brass px-3.5 py-1.5 text-[0.875rem] font-semibold text-ground transition-colors hover:bg-[#dbb42f]"
+            >
+              {signedIn ? "Open workspace" : "Sign in"}
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* ---------------------------------------------------------- hero */}
+      <section className="relative overflow-hidden border-b border-seam">
+        <div className="mx-auto grid max-w-[1180px] items-center gap-8 px-5 py-14 lg:grid-cols-[1.05fr_0.95fr] lg:py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: [0.2, 0.7, 0.3, 1] }}
+          >
+            <p className="instrument text-[0.8125rem] text-live">
+              runs entirely on your own machine
+            </p>
+
+            <h1 className="mt-4 text-[2.5rem] font-bold leading-[1.06] tracking-tight text-ink sm:text-[3.25rem]">
+              An AI assistant for work
+              <br />
+              that cannot leave the building.
+            </h1>
+
+            <p className="mt-5 max-w-[54ch] text-[1.0625rem] leading-relaxed text-ink-dim">
+              Refineries, defence manufacturers and government offices produce approval
+              notes, engineering calculations and drawing reviews every day. That material
+              cannot be pasted into a cloud AI tool. This workbench does the same work on
+              a machine you control, and proves nothing left it.
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <Link
+                href={signedIn ? "/console" : "/sign-in"}
+                className="rounded-chip bg-brass px-5 py-2.5 text-[0.9375rem] font-semibold text-ground transition-colors hover:bg-[#dbb42f]"
+              >
+                {signedIn ? "Open the workspace" : "Try the workbench"}
+              </Link>
+              <a
+                href="#how"
+                className="rounded-chip border border-seam px-5 py-2.5 text-[0.9375rem] text-ink transition-colors hover:border-brass/50 hover:text-brass"
+              >
+                See how it works
+              </a>
+            </div>
+
+            <dl className="mt-9 grid max-w-[520px] grid-cols-3 gap-px overflow-hidden rounded-panel border border-seam bg-seam">
+              {[
+                ["Cloud services used", "none"],
+                ["Data sent outside", "none"],
+                ["Every claim", "cited"],
+              ].map(([term, value]) => (
+                <div key={term} className="bg-panel px-3.5 py-3">
+                  <dt className="text-[0.625rem] text-ink-faint">{term}</dt>
+                  <dd className="instrument mt-0.5 text-[0.9375rem] text-live">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.15, ease: [0.2, 0.7, 0.3, 1] }}
+            className="relative"
+          >
+            <ContainmentScene className="h-[340px] w-full sm:h-[420px] lg:h-[480px]" />
+            <p className="mt-1 text-center text-[0.75rem] text-ink-faint">
+              Your documents, the models and the tools all sit inside one boundary.
+              Anything heading outward is turned back at it.
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* --------------------------------------------------- the problem */}
+      <section className="border-b border-seam bg-panel/40">
+        <div className="mx-auto max-w-[1180px] px-5 py-14">
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <h2 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-ink">
+              Today the choice is a bad one:
+              <br />
+              do it by hand, or paste it somewhere it should not go.
+            </h2>
+            <div className="space-y-4 text-[1rem] leading-relaxed text-ink-dim">
+              <p>
+                Piping diagrams, vendor negotiations, unreleased designs, inspection
+                findings — company policy keeps all of it on site. So the productivity
+                that everyone else gets from AI assistants simply is not available, and
+                the work goes on being done manually.
+              </p>
+              <p>
+                Or worse: someone quietly pastes a confidential drawing into a public tool
+                because the deadline is real and the policy feels abstract.
+              </p>
+              <p className="text-ink">
+                Open-weight models are now good enough that neither compromise is
+                necessary. This is that assistant, built to run where the data already
+                lives.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------ how it works */}
+      <section id="how" className="border-b border-seam">
+        <div className="mx-auto max-w-[1180px] px-5 py-14">
+          <h2 className="text-[1.75rem] font-semibold tracking-tight text-ink">
+            How a request is handled
+          </h2>
+          <p className="mt-2 max-w-[62ch] text-[1rem] leading-relaxed text-ink-dim">
+            The workbench does not answer in one shot. It plans, gathers what it needs,
+            does the work, then tries to prove itself wrong before showing you anything.
+          </p>
+
+          <ol className="mt-8 grid gap-px overflow-hidden rounded-panel border border-seam bg-seam md:grid-cols-2">
+            {STEPS.map((step, index) => (
+              <motion.li
+                key={step.title}
+                initial={{ opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.4, delay: index * 0.05 }}
+                className="bg-panel p-6"
+              >
+                <div className="flex items-baseline gap-3">
+                  <span className="instrument text-[0.875rem] text-brass">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="text-[1.0625rem] font-semibold text-ink">{step.title}</h3>
+                </div>
+                <p className="mt-2 pl-9 text-[0.9375rem] leading-relaxed text-ink-dim">
+                  {step.body}
+                </p>
+              </motion.li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* -------------------------------------------------------- outputs */}
+      <section className="border-b border-seam bg-panel/40">
+        <div className="mx-auto max-w-[1180px] px-5 py-14">
+          <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
             <div>
-              <h1 className="text-[1.375rem] font-semibold tracking-tight text-ink">
-                What needs doing?
-              </h1>
-              <p className="mt-1 max-w-[60ch] text-[0.875rem] leading-relaxed text-ink-dim">
-                Local models read your documents, ground the answer in your own
-                procedures, and produce a filed deliverable. Nothing is sent off this
-                machine.
+              <h2 className="text-[1.75rem] font-semibold tracking-tight text-ink">
+                You get a filed document, not a chat reply
+              </h2>
+              <p className="mt-3 max-w-[46ch] text-[1rem] leading-relaxed text-ink-dim">
+                Each one carries its sources, the calculations behind it, which models
+                produced it, what was checked, and who approved it.
               </p>
             </div>
 
-            <Composer onSubmitted={setTaskId} busy={running} />
-
-            <AnimatePresence mode="wait">
-              {task && (
-                <motion.div
-                  key={task.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-seam pt-4">
-                    <ProfileStrip task={task} />
-                    {running && latestStage && (
-                      <span className="text-[0.75rem] text-brass">{latestStage}</span>
-                    )}
-                  </div>
-
-                  <AnswerPanel task={task} />
-
-                  <DeliverablePanel
-                    task={task}
-                    canApprove={Boolean(user?.permissions.includes("approval.decide"))}
-                    onApprove={decide}
-                  />
-
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <EvidencePanel evidence={task.evidence} />
-                    <VerificationPanel report={task.verification} />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div className="grid gap-px overflow-hidden rounded-panel border border-seam bg-seam sm:grid-cols-2">
+              {OUTPUTS.map((output) => (
+                <div key={output.format} className="bg-panel p-5">
+                  <div className="text-[1rem] font-semibold text-brass">{output.format}</div>
+                  <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-dim">
+                    {output.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* ------------------------------------------------ agent trace */}
-        <aside className="flex min-h-0 flex-col overflow-hidden bg-panel">
-          <Panel
-            title="Execution trace"
-            action={
-              running ? (
-                <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-brass">
-                  running
-                </span>
-              ) : (
-                <span className="text-[0.6875rem] text-ink-faint">idle</span>
-              )
-            }
-            className="h-full border-0"
-            bodyClassName="min-h-0 flex-1 p-0"
+      {/* ---------------------------------------------------------- proof */}
+      <section id="proof" className="border-b border-seam">
+        <div className="mx-auto max-w-[1180px] px-5 py-14">
+          <h2 className="text-[1.75rem] font-semibold tracking-tight text-ink">
+            Why you can believe the claim
+          </h2>
+          <p className="mt-2 max-w-[62ch] text-[1rem] leading-relaxed text-ink-dim">
+            “It all stays local” is easy to say. Each of these is something you can watch
+            happening, or test yourself, from inside the application.
+          </p>
+
+          <div className="mt-8 grid gap-px overflow-hidden rounded-panel border border-seam bg-seam md:grid-cols-3">
+            {PROOFS.map((proof, index) => (
+              <motion.div
+                key={proof.heading}
+                initial={{ opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.4, delay: index * 0.06 }}
+                className="bg-panel p-6"
+              >
+                <h3 className="text-[1.0625rem] font-semibold text-ink">{proof.heading}</h3>
+                <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-dim">
+                  {proof.body}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------ cta */}
+      <section className="border-b border-seam">
+        <div className="mx-auto max-w-[1180px] px-5 py-16 text-center">
+          <h2 className="text-[2rem] font-semibold tracking-tight text-ink">
+            Try it on a real inspection report
+          </h2>
+          <p className="mx-auto mt-3 max-w-[52ch] text-[1rem] leading-relaxed text-ink-dim">
+            A sample scanned report and two procedures are already loaded, so you can run
+            the full workflow — read, retrieve, calculate, verify, approve — without
+            preparing anything.
+          </p>
+          <Link
+            href={signedIn ? "/console" : "/sign-in"}
+            className="mt-7 inline-block rounded-chip bg-brass px-6 py-3 text-[0.9375rem] font-semibold text-ground transition-colors hover:bg-[#dbb42f]"
           >
-            <ProcessFlow task={task} events={events} running={running} />
-          </Panel>
-        </aside>
-      </div>
-    </Shell>
+            {signedIn ? "Open the workspace" : "Sign in and start"}
+          </Link>
+        </div>
+      </section>
+
+      <footer className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 px-5 py-8">
+        <div className="flex items-center gap-2.5">
+          <Wordmark size={18} />
+          <span className="text-[0.8125rem] text-ink-dim">
+            Sovereign On-Premise Agentic AI Workbench
+          </span>
+        </div>
+        <span className="text-[0.75rem] text-ink-faint">
+          Local models · local documents · local tools · no external calls
+        </span>
+      </footer>
+    </div>
   );
 }

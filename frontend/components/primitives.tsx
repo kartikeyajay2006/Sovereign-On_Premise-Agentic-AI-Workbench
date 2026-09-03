@@ -36,6 +36,20 @@ const SIGNAL_BORDER: Record<Signal, string> = {
   brass: "border-brass/40",
 };
 
+/** The platform mark: three vessels on a header — a plant mimic in miniature. */
+export function Wordmark({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 22 22" aria-hidden className="shrink-0">
+      <rect x="1.5" y="1.5" width="19" height="19" rx="2" stroke="#C9A227" strokeWidth="1.2" fill="none" />
+      <path d="M4.5 15.5h13" stroke="#2FBF9E" strokeWidth="1.2" strokeLinecap="round" />
+      <rect x="5" y="6" width="3.5" height="6" rx="1.4" stroke="#D6E3E7" strokeWidth="1.1" fill="none" />
+      <rect x="9.5" y="4.5" width="3.5" height="7.5" rx="1.4" stroke="#D6E3E7" strokeWidth="1.1" fill="none" />
+      <rect x="14" y="7.5" width="3.5" height="4.5" rx="1.4" stroke="#D6E3E7" strokeWidth="1.1" fill="none" />
+    </svg>
+  );
+}
+
+
 export function Panel({
   title,
   action,

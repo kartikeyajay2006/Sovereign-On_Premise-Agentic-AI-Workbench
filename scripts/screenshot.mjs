@@ -19,12 +19,13 @@ const WEB = process.env.WEB_URL ?? "http://127.0.0.1:3000";
 const CHROME = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 
 const SCREENS = [
-  { path: "/", name: "console", wait: 2500 },
-  { path: "/tasks", name: "tasks", wait: 2500 },
+  { path: "/", name: "landing", wait: 3500 },
+  { path: "/console", name: "console", wait: 2500 },
+  { path: "/history", name: "history", wait: 2500 },
   { path: "/approvals", name: "approvals", wait: 2200 },
-  { path: "/registry", name: "registry", wait: 2200 },
+  { path: "/library", name: "library", wait: 2200 },
   { path: "/security", name: "security", wait: 3000 },
-  { path: "/audit", name: "audit", wait: 2500 },
+  { path: "/record", name: "record", wait: 2500 },
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -77,7 +78,9 @@ async function main() {
   console.log(`signed in as ${session.user.display_name} (${session.user.role})`);
 
   for (const screen of SCREENS) {
-    await page.goto(`${WEB}${screen.path}`, { waitUntil: "networkidle2" });
+    // Not networkidle: the console holds a Server-Sent Events connection open
+    // by design, so the network never goes idle on a healthy page.
+    await page.goto(`${WEB}${screen.path}`, { waitUntil: "domcontentloaded" });
     await sleep(screen.wait);
     const file = join(OUT, `${screen.name}.png`);
     await page.screenshot({ path: file, fullPage: false });

@@ -35,7 +35,7 @@ const DEPARTMENTS = [
 ];
 const LEVELS = ["normal", "confidential", "sensitive", "restricted"];
 
-export default function RegistryPage() {
+export default function LibraryPage() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -107,17 +107,17 @@ export default function RegistryPage() {
       <div className="h-full overflow-y-auto">
         <div className="mx-auto max-w-[1180px] space-y-4 p-5">
           <div>
-            <h1 className="text-[1.375rem] font-semibold tracking-tight text-ink">Registry</h1>
-            <p className="mt-1 max-w-[70ch] text-[0.875rem] leading-relaxed text-ink-dim">
-              The knowledge base is what answers are grounded in. Everything indexed here
-              keeps its department, revision and classification, so a citation points at a
-              real place in a real document.
+            <h1 className="text-[1.5rem] font-semibold tracking-tight text-ink">Library</h1>
+            <p className="mt-1.5 max-w-[70ch] text-[0.9375rem] leading-relaxed text-ink-dim">
+              Add the procedures and manuals your organisation actually works to. The
+              workbench searches them when answering, and every claim it makes points
+              back to the document and section it came from.
             </p>
           </div>
 
           {/* -------------------------------------------------- search */}
           <Panel
-            title="Search the knowledge base"
+            title="Search your reference documents"
             action={
               mode && (
                 <span className="instrument text-[0.6875rem] text-ink-faint">
@@ -190,7 +190,7 @@ export default function RegistryPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             {/* --------------------------------------- knowledge base */}
             <Panel
-              title={`Knowledge base · ${documents.length}`}
+              title={`Reference documents · ${documents.length}`}
               action={
                 canIngest && (
                   <div className="flex items-center gap-1.5">
@@ -233,9 +233,9 @@ export default function RegistryPage() {
               }
             >
               {documents.length === 0 ? (
-                <EmptyState heading="No documents indexed">
-                  Add the SOPs and manuals this site works to. Answers will cite them by
-                  section.
+                <EmptyState heading="No reference documents yet">
+                  Add a procedure or manual and the workbench will cite it by section
+                  whenever it is relevant.
                 </EmptyState>
               ) : (
                 <ul className="space-y-2">
@@ -280,11 +280,11 @@ export default function RegistryPage() {
             </Panel>
 
             {/* ------------------------------------------ attachments */}
-            <Panel title={`Attachments · ${files.length}`}>
+            <Panel title={`Files you uploaded · ${files.length}`}>
               {files.length === 0 ? (
                 <EmptyState heading="Nothing uploaded yet">
-                  Files attached to a task on the console appear here with their hash and
-                  quarantine result.
+                  Files you attach to a request in the workspace appear here, with the
+                  fingerprint used to prove they were not altered.
                 </EmptyState>
               ) : (
                 <ul className="space-y-2">

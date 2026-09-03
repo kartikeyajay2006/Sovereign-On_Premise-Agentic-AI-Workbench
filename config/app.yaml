@@ -88,7 +88,10 @@ sandbox:
   max_cpu_seconds: 30
   max_output_bytes: 262144
   max_written_file_bytes: 26214400
-  max_processes: 32
+  # Process cap expressed as headroom above the user's existing processes.
+  # RLIMIT_NPROC is per-user, so an absolute cap breaks every fork on a busy
+  # workstation. Runaway forking is still contained.
+  process_headroom: 64
   network_enabled: false
   # Docker runtime options, used when runtime=docker.
   docker_image: python:3.11-slim

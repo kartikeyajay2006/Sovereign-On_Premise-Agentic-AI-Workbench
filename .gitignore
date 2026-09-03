@@ -31,3 +31,4 @@ storage/*.db-shm
 # Frontend build output and vendored browser tooling
 frontend/.next/
 frontend/out/
+frontend/tsconfig.tsbuildinfo

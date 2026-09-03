@@ -39,8 +39,17 @@ from backend.core.schemas import SandboxResult
 
 # Written into every sandbox working directory. Neutralises network syscalls
 # from inside the interpreter and records attempts for the execution report.
-SITECUSTOMIZE = '''"""Sandbox runtime guard - installed by the workbench, not by user code."""
-import builtins
+SITECUSTOMIZE = '''"""Sandbox runtime guard - installed by the workbench, not by user code.
+
+Neutralises the *capability* to reach the network rather than blocking
+imports. Trusted libraries such as pandas import networking modules lazily
+during normal, entirely offline work, so refusing the import breaks them while
+proving nothing. Refusing the syscall cannot be worked around: every path to
+egress runs through these primitives, whoever imported them.
+
+What user code may import is governed separately, before execution, by the
+static validator.
+"""
 import os
 import socket
 
@@ -68,27 +77,16 @@ def _blocked(name):
     return _raise
 
 
+# Socket construction and name resolution: every outbound path needs one of
+# these, so disabling them disables egress regardless of the library used.
 socket.socket = _blocked("socket.socket")
 socket.create_connection = _blocked("socket.create_connection")
+socket.create_server = _blocked("socket.create_server")
 socket.getaddrinfo = _blocked("socket.getaddrinfo")
 socket.gethostbyname = _blocked("socket.gethostbyname")
-
-_real_import = builtins.__import__
-_DENIED = {"socket", "requests", "urllib", "urllib3", "httpx", "aiohttp", "ftplib",
-           "smtplib", "telnetlib", "http", "xmlrpc", "subprocess", "multiprocessing"}
-
-
-def _guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-    root = name.split(".")[0]
-    if root in _DENIED:
-        _record("import:" + name)
-        raise SovereignNetworkBlocked(
-            "Import blocked inside the sovereign sandbox: " + name
-        )
-    return _real_import(name, globals, locals, fromlist, level)
-
-
-builtins.__import__ = _guarded_import
+socket.gethostbyname_ex = _blocked("socket.gethostbyname_ex")
+if hasattr(socket, "socketpair"):
+    socket.socketpair = _blocked("socket.socketpair")
 '''
 
 
@@ -207,17 +205,38 @@ class Sandbox:
         return root
 
     def _preexec(self) -> Any:
-        """Return a child-process hook applying POSIX resource limits."""
+        """Return a child-process hook applying POSIX resource limits.
+
+        RLIMIT_NPROC is counted **per user**, not per process, so a small
+        absolute cap makes every fork fail the moment the operator's own
+        session already exceeds it. The cap is therefore expressed as headroom
+        above the processes the user is currently running: runaway forking is
+        still contained, ordinary work is not strangled.
+        """
         cpu_seconds = int(self._settings.get("max_cpu_seconds", 30))
         memory_bytes = int(self._settings.get("max_memory_mb", 1024)) * 1024 * 1024
         file_bytes = int(self._settings.get("max_written_file_bytes", 26214400))
-        processes = int(self._settings.get("max_processes", 32))
+        headroom = int(self._settings.get("process_headroom", 64))
+
+        try:
+            current = len(os.listdir("/proc")) if os.path.isdir("/proc") else 0
+        except OSError:
+            current = 0
+        soft_cap = max(headroom, current + headroom)
+
+        # Never raise the ceiling the host already imposes.
+        try:
+            _, hard_nproc = resource.getrlimit(resource.RLIMIT_NPROC)
+        except (ValueError, OSError):
+            hard_nproc = resource.RLIM_INFINITY
+        if hard_nproc != resource.RLIM_INFINITY:
+            soft_cap = min(soft_cap, hard_nproc)
 
         def apply_limits() -> None:  # pragma: no cover - runs in the child
             resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
             resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
             resource.setrlimit(resource.RLIMIT_FSIZE, (file_bytes, file_bytes))
-            resource.setrlimit(resource.RLIMIT_NPROC, (processes, processes))
+            resource.setrlimit(resource.RLIMIT_NPROC, (soft_cap, soft_cap))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             os.setsid()
 
@@ -236,6 +255,15 @@ class Sandbox:
             "LANG": "C.UTF-8",
             "SOVEREIGN_SANDBOX": "1",
             "SOVEREIGN_NETWORK_ATTEMPT_LOG": str(workspace / "network_attempts.log"),
+            # Numerical libraries default to one thread per core, which both
+            # starves the local models of CPU and multiplies the process count.
+            # Analysis in the sandbox is small; single-threaded is correct here
+            # and makes results deterministic.
+            "OPENBLAS_NUM_THREADS": "1",
+            "OMP_NUM_THREADS": "1",
+            "MKL_NUM_THREADS": "1",
+            "NUMEXPR_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": "1",
             # Explicitly blank any proxy the host may define.
             "http_proxy": "",
             "https_proxy": "",

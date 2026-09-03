@@ -56,7 +56,7 @@ const CATEGORIES = [
   "system",
 ];
 
-export default function AuditPage() {
+export default function RecordPage() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [chain, setChain] = useState<AuditChainStatus | null>(null);
   const [category, setCategory] = useState("");
@@ -95,12 +95,13 @@ export default function AuditPage() {
         <div className="mx-auto max-w-[1180px] space-y-4 p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-[1.375rem] font-semibold tracking-tight text-ink">
-                Audit trail
+              <h1 className="text-[1.5rem] font-semibold tracking-tight text-ink">
+                Record
               </h1>
-              <p className="mt-1 max-w-[70ch] text-[0.875rem] leading-relaxed text-ink-dim">
-                Every classification, model choice, tool call, policy decision and
-                approval, in order, hash-chained so the record cannot be quietly edited.
+              <p className="mt-1.5 max-w-[70ch] text-[0.9375rem] leading-relaxed text-ink-dim">
+                Everything this machine did, in order. Each entry is cryptographically
+                linked to the one before it, so if any line were edited or removed the
+                check below would say exactly where.
               </p>
             </div>
             {canExport && (

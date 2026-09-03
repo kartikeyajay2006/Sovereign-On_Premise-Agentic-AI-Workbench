@@ -16,7 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Chip, Lamp, Signal, formatDuration } from "./primitives";
 import type { StreamEvent, Task } from "@/lib/types";
 
-type StageState = "pending" | "running" | "done" | "failed" | "skipped";
+type StageState = "pending" | "running" | "waiting" | "done" | "failed" | "skipped";
 
 interface Stage {
   key: string;
@@ -31,9 +31,18 @@ interface Stage {
 const STATE_SIGNAL: Record<StageState, Signal> = {
   pending: "inert",
   running: "brass",
+  waiting: "hold",
   done: "live",
   failed: "alarm",
   skipped: "inert",
+};
+
+/** What each state is called on screen, in words rather than jargon. */
+const STATE_LABEL: Partial<Record<StageState, string>> = {
+  running: "working",
+  waiting: "waiting for you",
+  failed: "failed",
+  skipped: "not needed",
 };
 
 /** Derive the stage list from the task record, enriched by live events. */
@@ -61,6 +70,25 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
 
   const failed = task.status === "failed" || task.status === "blocked";
 
+  // Once the run has moved past execution, nothing is still "working". A stage
+  // that produced no result by then was skipped, not left running — showing it
+  // as in-progress on a finished task is simply wrong.
+  const stillRunning = [
+    "received",
+    "classified",
+    "planned",
+    "retrieving",
+    "executing",
+    "verifying",
+  ].includes(task.status);
+
+  /** Resolve a stage that has no output yet, honouring the run's real state. */
+  const pendingState = (started: boolean): StageState => {
+    if (failed) return "skipped";
+    if (!stillRunning) return "skipped";
+    return started ? "running" : "pending";
+  };
+
   // Classify
   stages.push({
     key: "classify",
@@ -85,7 +113,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
     detail: task.plan
       ? `${task.plan.steps.length} step${task.plan.steps.length === 1 ? "" : "s"}`
       : "producing an execution plan",
-    state: task.plan ? "done" : reached(["planned"]) ? "running" : "pending",
+    state: task.plan ? "done" : pendingState(reached(["planned"])),
     model: task.routing.find((decision) => decision.requested_role === "reasoning")
       ?.selected_display_name,
     meta: task.plan?.steps.map((step) => `${step.id}. ${step.objective}`).slice(0, 6),
@@ -103,11 +131,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
         : "vision extraction from the scan",
       state: task.evidence.some((item) => item.kind === "vision_extraction")
         ? "done"
-        : failed
-          ? "failed"
-          : reached(["executing"])
-            ? "running"
-            : "pending",
+        : pendingState(reached(["executing"])),
       model: vision?.selected_display_name,
       reason: vision?.reason,
       meta: Array.isArray(extraction?.data?.findings)
@@ -127,13 +151,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
       detail: retrieved.length
         ? `${retrieved.length} passage${retrieved.length === 1 ? "" : "s"} from local SOPs`
         : "searching the local knowledge base",
-      state: retrieved.length
-        ? "done"
-        : failed
-          ? "failed"
-          : reached(["retrieving"])
-            ? "running"
-            : "pending",
+      state: retrieved.length ? "done" : pendingState(reached(["retrieving"])),
       meta: retrieved
         .slice(0, 4)
         .map((item) => `[${item.id}] ${item.source_document}${item.location ? ` — ${item.location}` : ""}`),
@@ -153,11 +171,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
         ? sandboxCall.ok
           ? "done"
           : "failed"
-        : failed
-          ? "failed"
-          : reached(["executing"])
-            ? "running"
-            : "pending",
+        : pendingState(reached(["executing"])),
       model: task.routing.find((decision) => decision.requested_role === "coding")
         ?.selected_display_name,
       meta: sandboxCall
@@ -182,11 +196,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
       ? task.verification.valid
         ? "done"
         : "failed"
-      : failed
-        ? "skipped"
-        : reached(["verifying"])
-          ? "running"
-          : "pending",
+      : pendingState(reached(["verifying"])),
     meta: task.verification?.checks.map(
       (check) => `${check.passed ? "pass" : "FAIL"} — ${check.name.replace(/_/g, " ")}`,
     ),
@@ -209,7 +219,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
           : task.approval.decision === "rejected"
             ? "failed"
             : task.status === "awaiting_approval"
-              ? "running"
+              ? "waiting"
               : "pending",
       meta: task.approval.reasons.slice(0, 3),
     });
@@ -226,10 +236,8 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
       state: task.deliverables.some((item) => item.released)
         ? "done"
         : task.deliverables.length
-          ? "running"
-          : failed
-            ? "skipped"
-            : "pending",
+          ? "waiting"
+          : pendingState(false),
       meta: task.deliverables.map(
         (item) => `${item.released ? "released" : "held"} · sha256 ${item.sha256.slice(0, 16)}…`,
       ),
@@ -242,6 +250,7 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
 function StageNode({ stage, index }: { stage: Stage; index: number }) {
   const signal = STATE_SIGNAL[stage.state];
   const active = stage.state === "running";
+  const label = STATE_LABEL[stage.state];
 
   return (
     <motion.li
@@ -266,7 +275,9 @@ function StageNode({ stage, index }: { stage: Stage; index: number }) {
               ? "border-live/60 bg-live/10"
               : stage.state === "failed"
                 ? "border-alarm/60 bg-alarm/10"
-                : "border-seam bg-panel"
+                : stage.state === "waiting"
+                  ? "border-hold/60 bg-hold/10"
+                  : "border-seam bg-panel"
         }`}
       >
         <Lamp signal={signal} pulse={active} size={6} />
@@ -286,9 +297,19 @@ function StageNode({ stage, index }: { stage: Stage; index: number }) {
               {stage.model}
             </span>
           )}
-          {active && (
-            <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-brass">
-              working
+          {label && (
+            <span
+              className={`text-[0.6875rem] ${
+                stage.state === "running"
+                  ? "text-brass"
+                  : stage.state === "waiting"
+                    ? "text-hold"
+                    : stage.state === "failed"
+                      ? "text-alarm"
+                      : "text-ink-faint"
+              }`}
+            >
+              {label}
             </span>
           )}
         </div>
