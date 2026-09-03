@@ -68,3 +68,9 @@ docker compose -f infrastructure/docker-compose.yml up --build
 4. A multimodal (image/scanned-document) understanding task.
 5. Zero external network calls at any point, shown live via a network monitor — the
    actual proof of the sovereignty claim.
+
+## Contributors
+
+- [Kartikeya Jay](https://github.com/kartikeyajay2006)
+- [Ankit Pandey](https://github.com/ankitpandey)
+
