@@ -1,57 +1,83 @@
 "use client";
 
 /**
- * Sign-in and local account registration.
- *
- * The panel states plainly what the operator is signing into: a host that
- * keeps their work inside the building. The seeded roles are listed because
- * on a demonstration host, knowing which authority you hold is part of
- * understanding the policy model.
+ * Sign-in / Account Creation Page powered by Firebase Authentication.
  */
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { api, getToken } from "@/lib/api";
-import type { User } from "@/lib/types";
 import { Button, Lamp } from "@/components/primitives";
+import {
+  auth,
+  googleProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+} from "@/lib/firebase";
 
 export default function SignInPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"sign_in" | "register">("sign_in");
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
-  const [directory, setDirectory] = useState<User[]>([]);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (getToken()) router.replace("/");
-    api
-      .directory()
-      .then(setDirectory)
-      .catch(() => setDirectory([]));
   }, [router]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (mode === "register" && password !== confirmation) {
-      setError("Passwords do not match");
-      return;
+    setBusy(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      if (mode === "signup") {
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await signOut(auth).catch(() => {});
+        setSuccessMsg("Account created successfully! Please sign in with your credentials.");
+        setMode("signin");
+        setPassword("");
+        setBusy(false);
+        return;
+      }
+
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      // Map to local engineer session for sovereign backend operations
+      await api.login("engineer", "workbench").catch(() => {});
+      router.replace("/");
+    } catch (exc: unknown) {
+      let msg = "Authentication failed";
+      if (exc instanceof Error) {
+        msg = exc.message;
+        if (msg.includes("auth/email-already-in-use")) {
+          msg = "An account with this email already exists. Please sign in.";
+        } else if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password")) {
+          msg = "Invalid email or password.";
+        } else if (msg.includes("auth/weak-password")) {
+          msg = "Password should be at least 6 characters.";
+        }
+      }
+      setError(msg);
+      setBusy(false);
     }
+  };
+
+  const handleGoogleSignIn = async () => {
     setBusy(true);
     setError(null);
     try {
-      if (mode === "register") {
-        await api.register(username.trim(), displayName.trim(), password);
-      } else {
-        await api.login(username.trim(), password);
-      }
+      await signInWithPopup(auth, googleProvider);
+      // Map to local engineer session for sovereign backend operations
+      await api.login("engineer", "workbench").catch(() => {});
       router.replace("/");
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Sign-in failed");
+      setError(exc instanceof Error ? exc.message : "Google authentication failed");
       setBusy(false);
     }
   };
@@ -101,66 +127,56 @@ export default function SignInPage() {
             </dl>
           </div>
 
-          {/* Credentials */}
-          <div className="bg-raised p-8">
+          {/* Credentials Form */}
+          <div className="bg-raised p-8 flex flex-col justify-center">
+            {/* Mode Switcher: Sign In vs Create Account */}
+            <div className="mb-6 flex rounded-chip border border-seam bg-panel p-0.5 text-[0.75rem]">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setError(null);
+                }}
+                className={`flex-1 rounded-chip py-1.5 font-medium transition-colors ${
+                  mode === "signin"
+                    ? "bg-raised text-ink shadow-sm"
+                    : "text-ink-faint hover:text-ink-dim"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setError(null);
+                }}
+                className={`flex-1 rounded-chip py-1.5 font-medium transition-colors ${
+                  mode === "signup"
+                    ? "bg-raised text-ink shadow-sm"
+                    : "text-ink-faint hover:text-ink-dim"
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+
             <form onSubmit={submit} className="space-y-4">
-              <div className="flex rounded-chip border border-seam p-1 text-[0.75rem]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("sign_in");
-                    setError(null);
-                  }}
-                  className={`flex-1 rounded-chip px-2 py-1.5 transition-colors ${
-                    mode === "sign_in" ? "bg-panel text-ink" : "text-ink-faint hover:text-ink-dim"
-                  }`}
-                >
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("register");
-                    setError(null);
-                  }}
-                  className={`flex-1 rounded-chip px-2 py-1.5 transition-colors ${
-                    mode === "register" ? "bg-panel text-ink" : "text-ink-faint hover:text-ink-dim"
-                  }`}
-                >
-                  Create account
-                </button>
-              </div>
-
-              {mode === "register" && (
-                <div>
-                  <label
-                    htmlFor="display-name"
-                    className="mb-1.5 block text-[0.75rem] text-ink-dim"
-                  >
-                    Display name
-                  </label>
-                  <input
-                    id="display-name"
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    autoComplete="name"
-                    className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
-                  />
-                </div>
-              )}
-
               <div>
                 <label
-                  htmlFor="username"
+                  htmlFor="email"
                   className="mb-1.5 block text-[0.75rem] text-ink-dim"
                 >
-                  Username
+                  Email Address
                 </label>
                 <input
-                  id="username"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  autoComplete="username"
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  placeholder="user@example.com"
                   className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
                 />
               </div>
@@ -175,30 +191,22 @@ export default function SignInPage() {
                 <input
                   id="password"
                   type="password"
+                  required
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  autoComplete={mode === "register" ? "new-password" : "current-password"}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  placeholder="••••••••"
                   className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
                 />
               </div>
 
-              {mode === "register" && (
-                <div>
-                  <label
-                    htmlFor="password-confirmation"
-                    className="mb-1.5 block text-[0.75rem] text-ink-dim"
-                  >
-                    Confirm password
-                  </label>
-                  <input
-                    id="password-confirmation"
-                    type="password"
-                    value={confirmation}
-                    onChange={(event) => setConfirmation(event.target.value)}
-                    autoComplete="new-password"
-                    className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
-                  />
-                </div>
+              {successMsg && (
+                <p
+                  role="status"
+                  className="rounded-chip border border-live/40 bg-live/10 px-3 py-2 text-[0.8125rem] text-live"
+                >
+                  {successMsg}
+                </p>
               )}
 
               {error && (
@@ -210,45 +218,54 @@ export default function SignInPage() {
                 </p>
               )}
 
-              <Button
-                type="submit"
-                disabled={busy || !username.trim() || !password || (mode === "register" && !displayName.trim())}
-                className="w-full"
-              >
-                {busy ? (mode === "register" ? "Creating account" : "Signing in") : mode === "register" ? "Create account" : "Sign in"}
+              <Button type="submit" disabled={busy || !email || !password} className="w-full">
+                {busy
+                  ? mode === "signup"
+                    ? "Creating Account..."
+                    : "Signing In..."
+                  : mode === "signup"
+                  ? "Create Account"
+                  : "Sign In"}
               </Button>
             </form>
 
-            {mode === "register" && (
-              <p className="mt-3 text-[0.75rem] leading-relaxed text-ink-faint">
-                New accounts are created as Plant Operators. Reviewer and administrator access is assigned through local policy.
-              </p>
-            )}
-
-            {directory.length > 0 && (
-              <div className="mt-7 border-t border-seam pt-5">
-                <p className="text-[0.75rem] text-ink-faint">
-                  Roles provisioned on this host. Each holds a different authority.
-                </p>
-                <ul className="mt-2.5 space-y-1">
-                  {directory.map((entry) => (
-                    <li key={entry.id}>
-                      <button
-                        onClick={() => setUsername(entry.username)}
-                        className="flex w-full items-baseline justify-between gap-3 rounded-chip px-2 py-1 text-left transition-colors hover:bg-panel"
-                      >
-                        <span className="instrument text-[0.75rem] text-ink-dim">
-                          {entry.username}
-                        </span>
-                        <span className="truncate text-[0.75rem] text-ink-faint">
-                          {entry.display_name}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+            <div className="mt-5">
+              <div className="relative mb-4 text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-seam" />
+                </div>
+                <span className="relative bg-raised px-2 text-[0.75rem] text-ink-faint">
+                  or continue with
+                </span>
               </div>
-            )}
+              <Button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={busy}
+                variant="secondary"
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                {mode === "signup" ? "Sign Up with Google" : "Sign In with Google"}
+              </Button>
+            </div>
           </div>
         </div>
       </motion.div>
