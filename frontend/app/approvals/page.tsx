@@ -32,6 +32,9 @@ export default function ApprovalsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Approving is a granted permission, not a given. Someone who reaches this
+  // page without it should be told why, not shown a failed request.
+  const [entitled, setEntitled] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -50,14 +53,35 @@ export default function ApprovalsPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    let active = true;
     api
       .me()
-      .then(setUser)
-      .catch(() => setUser(null));
+      .then((me) => {
+        if (!active) return;
+        setUser(me);
+        const allowed = me.permissions.includes("approval.read");
+        setEntitled(allowed);
+        // Only ask for the queue when the role is actually entitled to it.
+        if (allowed) void load();
+        else setLoading(false);
+      })
+      .catch(() => {
+        if (active) {
+          setUser(null);
+          setEntitled(false);
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    if (!entitled) return;
     const timer = setInterval(() => void load(), 10000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [entitled, load]);
 
   const task = queue.find((item) => item.id === selected) ?? null;
   const canDecide = Boolean(user?.permissions.includes("approval.decide"));
@@ -70,6 +94,27 @@ export default function ApprovalsPage() {
     },
     [task, load],
   );
+
+  if (entitled === false) {
+    return (
+      <Shell>
+        <div className="flex h-full items-center justify-center p-8">
+          <div className="max-w-[46ch] text-center">
+            <h1 className="text-[1.25rem] font-semibold text-ink">
+              Approving is not part of your role
+            </h1>
+            <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-dim">
+              Documents you produce are held here until someone with approving
+              authority signs them off. Your role
+              {user ? ` (${user.role})` : ""} can submit work and collect results.
+              Approval rights are granted in local policy, in
+              <span className="instrument"> policies/access-control.yaml</span>.
+            </p>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
 
   return (
     <Shell>
