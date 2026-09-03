@@ -158,8 +158,10 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
     });
   }
 
-  // Sandbox execution
-  const sandboxCall = task.tool_calls.find((call) => call.tool === "python_exec");
+  // Sandbox execution. Several attempts may exist if the first code did not
+  // run; the last one is what counts, and the count is worth showing.
+  const sandboxCalls = task.tool_calls.filter((call) => call.tool === "python_exec");
+  const sandboxCall = sandboxCalls[sandboxCalls.length - 1];
   if (profile?.requires_code_execution || sandboxCall) {
     stages.push({
       key: "execute",
@@ -176,9 +178,14 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
         ?.selected_display_name,
       meta: sandboxCall
         ? [
+            sandboxCalls.length > 1
+              ? `corrected itself after ${sandboxCalls.length - 1} failed attempt${
+                  sandboxCalls.length > 2 ? "s" : ""
+                }`
+              : "",
             `exit code: ${String(sandboxCall.output.exit_code ?? "—")}`,
             `duration: ${formatDuration(sandboxCall.duration_ms)}`,
-          ]
+          ].filter(Boolean)
         : undefined,
     });
   }

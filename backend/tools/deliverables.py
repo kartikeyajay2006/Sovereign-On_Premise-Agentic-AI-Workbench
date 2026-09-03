@@ -120,7 +120,7 @@ class DeliverableEngine:
         sub_run.font.size = Pt(8.5)
         sub_run.font.color.rgb = RGBColor.from_string(MUTED)
 
-        meta = document.add_table(rows=0, columns=2)
+        meta = document.add_table(rows=0, cols=2)
         meta.style = "Light Grid Accent 1"
         meta_rows = [
             ("Reference", reference),
@@ -157,7 +157,7 @@ class DeliverableEngine:
         findings = content.get("findings") or []
         if findings:
             document.add_heading("Findings", level=1)
-            table = document.add_table(rows=1, columns=3)
+            table = document.add_table(rows=1, cols=3)
             table.style = "Light Grid Accent 1"
             header = table.rows[0].cells
             for index, label in enumerate(("Finding", "Severity", "Reference")):
@@ -173,7 +173,7 @@ class DeliverableEngine:
 
         if calculations:
             document.add_heading("Calculations", level=1)
-            table = document.add_table(rows=1, columns=4)
+            table = document.add_table(rows=1, cols=4)
             table.style = "Light Grid Accent 1"
             header = table.rows[0].cells
             for index, label in enumerate(
@@ -219,7 +219,7 @@ class DeliverableEngine:
                     run_.font.color.rgb = RGBColor.from_string(MUTED)
 
         document.add_heading("Provenance and verification record", level=1)
-        provenance = document.add_table(rows=0, columns=2)
+        provenance = document.add_table(rows=0, cols=2)
         provenance.style = "Light Grid Accent 1"
 
         model_lines = "; ".join(

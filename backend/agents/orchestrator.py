@@ -885,28 +885,74 @@ class AgentOrchestrator:
             context="\n\n".join(context_lines) or "no additional context",
             files="\n".join(f"- {stored.filename}" for stored in task.files) or "- none",
         )
-        try:
-            text, _ = await self._generate(
-                task,
-                user,
-                stage="code_generation",
-                system_prompt=self.config.system_prompt("coding"),
-                prompt=prompt,
+        # Generation, then execution, with a bounded retry. A small local model
+        # will occasionally emit a truncated string or a NameError; feeding the
+        # exact failure back is usually enough to fix it, and is far cheaper
+        # than failing the whole task. The budget comes from
+        # policies/approval-rules.yaml so an operator can tune it.
+        attempts = int(
+            self.config.approval_rules.get("verification", {}).get("max_replans", 2)
+        )
+        result: SandboxResult | None = None
+        feedback = ""
+
+        for attempt in range(1, max(1, attempts) + 1):
+            try:
+                text, _ = await self._generate(
+                    task,
+                    user,
+                    stage="code_generation",
+                    system_prompt=self.config.system_prompt("coding"),
+                    prompt=prompt + feedback,
+                )
+            except (InferenceError, NoEligibleModelError):
+                return result
+
+            match = CODE_FENCE.search(text)
+            code = match.group(1).strip() if match else text.strip()
+            if not code:
+                return result
+
+            await self._emit(
+                task, "task.code_generated", {"code": code, "attempt": attempt}
             )
-        except (InferenceError, NoEligibleModelError):
-            return None
+            call = await self._call_tool(task, context, "python_exec", {"code": code})
+            payload = call.output.get("result")
+            if not payload:
+                return result
 
-        match = CODE_FENCE.search(text)
-        code = match.group(1).strip() if match else text.strip()
-        if not code:
-            return None
+            result = SandboxResult(**payload)
+            if result.ok:
+                break
 
-        await self._emit(task, "task.code_generated", {"code": code})
-        call = await self._call_tool(task, context, "python_exec", {"code": code})
-        payload = call.output.get("result")
-        if not payload:
+            problem = (
+                "\n".join(result.static_violations)
+                if not result.static_validation_passed
+                else result.stderr.strip()[:800]
+            )
+            if not problem or attempt >= attempts:
+                break
+
+            await self._emit(
+                task,
+                "task.code_retry",
+                {"attempt": attempt, "problem": problem[:400]},
+            )
+            self.audit.record(
+                category="agent",
+                action="code_retry",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={"attempt": attempt, "problem": problem[:400]},
+            )
+            feedback = (
+                "\n\nYour previous attempt did not run. Fix it and return the "
+                "complete corrected script.\n\nWhat went wrong:\n" + problem
+            )
+
+        if result is None:
             return None
-        result = SandboxResult(**payload)
         await self._emit(
             task,
             "task.sandbox_result",
