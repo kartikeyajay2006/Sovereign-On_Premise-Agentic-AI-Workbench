@@ -32,15 +32,38 @@ step() { echo; echo "▸ $1"; }
 
 port_pid() { ss -lptnH "sport = :$1" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2; }
 
-stop_port() {
-  local port="$1" name="$2" pid
+# Stop by port AND by process pattern.
+#
+# Killing only the listener is not enough: a previous API process that lost the
+# port keeps running, keeps its database connection, and keeps pulling jobs off
+# the shared queue — so tasks get executed by stale code while the new process
+# looks healthy. That is a genuinely confusing failure, so both are cleared.
+stop_service() {
+  local port="$1" name="$2" pattern="$3" pid stopped=0
+
   pid="$(port_pid "$port" || true)"
   if [ -n "${pid:-}" ]; then
     kill "$pid" 2>/dev/null || true
     sleep 1
     pid="$(port_pid "$port" || true)"
     [ -n "${pid:-}" ] && kill -9 "$pid" 2>/dev/null || true
-    ok "stopped $name (port $port)"
+    stopped=1
+  fi
+
+  if [ -n "$pattern" ]; then
+    local strays
+    strays="$(pgrep -f "$pattern" 2>/dev/null | grep -v "^$$\$" || true)"
+    if [ -n "$strays" ]; then
+      echo "$strays" | xargs -r kill 2>/dev/null || true
+      sleep 1
+      strays="$(pgrep -f "$pattern" 2>/dev/null | grep -v "^$$\$" || true)"
+      [ -n "$strays" ] && echo "$strays" | xargs -r kill -9 2>/dev/null || true
+      stopped=1
+    fi
+  fi
+
+  if [ "$stopped" = "1" ]; then
+    ok "stopped $name"
   else
     echo "  ${DIM}$name was not running${RESET}"
   fi
@@ -59,8 +82,8 @@ wait_for() {
 case "${1:-}" in
   --stop)
     step "Stopping the workbench"
-    stop_port "$WEB_PORT" "web console"
-    stop_port "$API_PORT" "API"
+    stop_service "$WEB_PORT" "web console" "next-server|next start"
+    stop_service "$API_PORT" "API" "uvicorn backend.api.main"
     exit 0
     ;;
   --status)
@@ -100,8 +123,15 @@ else
 fi
 
 step "Stopping anything already running"
-stop_port "$WEB_PORT" "web console"
-stop_port "$API_PORT" "API"
+stop_service "$WEB_PORT" "web console" "next-server|next start"
+stop_service "$API_PORT" "API" "uvicorn backend.api.main"
+
+# Refuse to continue while a stray worker could still consume the job queue.
+if pgrep -f "uvicorn backend.api.main" >/dev/null 2>&1; then
+  fail "an API process is still running and would process jobs with stale code"
+  pgrep -af "uvicorn backend.api.main" | head -3
+  exit 1
+fi
 
 if [ "${1:-}" != "--dev" ]; then
   step "Building the web console"
