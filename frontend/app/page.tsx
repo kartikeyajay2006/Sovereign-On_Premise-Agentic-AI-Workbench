@@ -209,14 +209,7 @@ export default function LandingPage() {
 
           <ol className="mt-8 grid gap-px overflow-hidden rounded-panel border border-seam bg-seam md:grid-cols-2">
             {STEPS.map((step, index) => (
-              <motion.li
-                key={step.title}
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
-                className="bg-panel p-6"
-              >
+              <li key={step.title} className="bg-panel p-6">
                 <div className="flex items-baseline gap-3">
                   <span className="instrument text-[0.875rem] text-brass">
                     {String(index + 1).padStart(2, "0")}
@@ -226,7 +219,7 @@ export default function LandingPage() {
                 <p className="mt-2 pl-9 text-[0.9375rem] leading-relaxed text-ink-dim">
                   {step.body}
                 </p>
-              </motion.li>
+              </li>
             ))}
           </ol>
         </div>
@@ -272,20 +265,13 @@ export default function LandingPage() {
           </p>
 
           <div className="mt-8 grid gap-px overflow-hidden rounded-panel border border-seam bg-seam md:grid-cols-3">
-            {PROOFS.map((proof, index) => (
-              <motion.div
-                key={proof.heading}
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.4, delay: index * 0.06 }}
-                className="bg-panel p-6"
-              >
+            {PROOFS.map((proof) => (
+              <div key={proof.heading} className="bg-panel p-6">
                 <h3 className="text-[1.0625rem] font-semibold text-ink">{proof.heading}</h3>
                 <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-dim">
                   {proof.body}
                 </p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>

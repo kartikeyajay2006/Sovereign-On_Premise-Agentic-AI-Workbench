@@ -105,9 +105,12 @@ export default function ConsolePage() {
 
   return (
     <Shell>
-      <div className="grid h-full grid-cols-1 gap-px overflow-hidden bg-seam xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.85fr)]">
+      {/* Wide screens put the work and its trace side by side, each scrolling
+          on its own. Narrow screens stack them into one scrolling column —
+          two full-height panes in a fixed-height grid simply overlap. */}
+      <div className="flex h-full flex-col gap-px overflow-y-auto bg-seam xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.85fr)] xl:overflow-hidden">
         {/* ------------------------------------------- request and result */}
-        <div className="min-h-0 overflow-y-auto bg-ground">
+        <div className="bg-ground xl:min-h-0 xl:overflow-y-auto">
           <div className="mx-auto max-w-[900px] space-y-5 p-5">
             <div>
               <h1 className="text-[1.5rem] font-semibold tracking-tight text-ink">
@@ -163,7 +166,7 @@ export default function ConsolePage() {
         </div>
 
         {/* ------------------------------------------------- live trace */}
-        <aside className="flex min-h-0 flex-col overflow-hidden border-l border-seam bg-panel">
+        <aside className="flex h-[520px] shrink-0 flex-col overflow-hidden border-seam bg-panel xl:h-auto xl:min-h-0 xl:border-l">
           <header className="flex shrink-0 items-center justify-between border-b border-seam px-4 py-2.5">
             <div>
               <h2 className="text-[0.875rem] font-semibold text-ink">What it is doing</h2>

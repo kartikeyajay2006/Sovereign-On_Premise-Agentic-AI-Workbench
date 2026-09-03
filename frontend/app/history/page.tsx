@@ -67,9 +67,9 @@ export default function HistoryPage() {
 
   return (
     <Shell>
-      <div className="grid h-full grid-cols-1 gap-px overflow-hidden bg-seam lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="flex h-full flex-col gap-px overflow-y-auto bg-seam lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:overflow-hidden">
         {/* --------------------------------------------------- run list */}
-        <div className="flex min-h-0 flex-col overflow-hidden bg-panel">
+        <div className="flex max-h-[340px] shrink-0 flex-col overflow-hidden bg-panel lg:max-h-none lg:min-h-0">
           <div className="shrink-0 border-b border-seam px-4 py-3">
             <h1 className="text-[0.9375rem] font-semibold text-ink">History</h1>
             <p className="mt-0.5 text-[0.75rem] text-ink-faint">
@@ -132,7 +132,7 @@ export default function HistoryPage() {
         </div>
 
         {/* ------------------------------------------------- run record */}
-        <div className="min-h-0 overflow-y-auto bg-ground">
+        <div className="bg-ground lg:min-h-0 lg:overflow-y-auto">
           {!task ? (
             <EmptyState heading="Choose a run on the left">
               Its full record opens here — the answer, the evidence behind it, and every
