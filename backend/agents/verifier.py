@@ -32,8 +32,32 @@ from backend.core.schemas import (
 from backend.tools.sandbox import get_sandbox
 
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+# A model asked for a number will sometimes answer "19.9 mm" or "about 6.2".
+# Verification reads model output, which is untrusted input, so the figure is
+# recovered rather than assumed.
+LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 CITATION_PATTERN = re.compile(r"\[(?:S|F)\d+\]")
 NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _coerce_number(value: Any) -> float | None:
+    """Recover a number from whatever the model actually returned.
+
+    Passing model output straight to ``float()`` crashed a whole run on
+    ``"19.9 mm"``: a units suffix took down a task that had otherwise
+    succeeded. Anything unparseable yields ``None``, which the caller reports
+    as an unverifiable figure rather than an error.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str):
+        match = LEADING_NUMBER.search(value.replace(",", ""))
+        if match:
+            try:
+                return float(match.group(0))
+            except ValueError:
+                return None
+    return None
 
 
 class VerificationEngine:
@@ -199,13 +223,13 @@ class VerificationEngine:
             else:
                 recomputed_value = float(row["value"])
                 entry["recomputed"] = round(recomputed_value, 6)
-                expected = calculation.get("expected")
+                expected = _coerce_number(calculation.get("expected"))
                 if expected is None:
                     entry["matched"] = True
                     entry["note"] = "computed independently; model asserted no value"
                     verified_count += 1
                 else:
-                    expected_value = float(expected)
+                    expected_value = expected
                     denominator = abs(expected_value) or 1.0
                     difference = abs(recomputed_value - expected_value) / denominator
                     entry["matched"] = difference <= tolerance

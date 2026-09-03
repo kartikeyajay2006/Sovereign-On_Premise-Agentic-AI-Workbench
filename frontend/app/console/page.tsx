@@ -142,17 +142,34 @@ export default function ConsolePage() {
               </p>
               </div>
 
-              {task && (
-                <button
-                  onClick={() => {
-                    setTaskId(null);
-                    setDismissed(true);
-                  }}
-                  className="shrink-0 rounded-chip border border-seam px-3 py-1.5 text-[0.8125rem] text-ink-dim transition-colors hover:border-brass/50 hover:text-brass"
-                >
-                  Start something new
-                </button>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {task && (running || task.queue_ahead > 0) && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.cancelTask(task.id);
+                        await refresh();
+                      } catch {
+                        /* already finished; the next poll will show it */
+                      }
+                    }}
+                    className="rounded-chip border border-alarm/50 px-3 py-1.5 text-[0.8125rem] text-alarm transition-colors hover:bg-alarm/10"
+                  >
+                    Stop this task
+                  </button>
+                )}
+                {task && (
+                  <button
+                    onClick={() => {
+                      setTaskId(null);
+                      setDismissed(true);
+                    }}
+                    className="rounded-chip border border-seam px-3 py-1.5 text-[0.8125rem] text-ink-dim transition-colors hover:border-brass/50 hover:text-brass"
+                  >
+                    Start something new
+                  </button>
+                )}
+              </div>
             </div>
 
             <Composer

@@ -40,6 +40,7 @@ from backend.core.schemas import (
     TaskType,
     ToolCall,
     User,
+    VerificationCheck,
 )
 from backend.models_layer.client import InferenceError, get_inference_client
 from backend.models_layer.manager import get_model_manager
@@ -64,6 +65,13 @@ NUMERIC_ASSERTION = re.compile(
     r"|=\s*-?\d+(?:\.\d+)?",
     re.IGNORECASE,
 )
+
+
+class TaskCancelled(RuntimeError):
+    """Raised when the person who asked for a task asks it to stop."""
+
+    def __init__(self, task_id: str) -> None:
+        super().__init__(f"Task {task_id} was stopped by request")
 
 
 class EvidenceLedger:
@@ -161,6 +169,9 @@ class AgentOrchestrator:
         self.audit = get_audit_log()
         self.events = get_event_bus()
         self._persist: Callable[[Task], None] | None = None
+        # Set by the task service; asked between stages so a run stops at a
+        # clean boundary rather than being torn down mid-write.
+        self._is_cancelled: Callable[[str], bool] | None = None
 
     def _checkpoint(self, task: Task) -> None:
         """Write the in-flight task record, ignoring storage hiccups."""
@@ -171,6 +182,9 @@ class AgentOrchestrator:
         except Exception:
             # Losing a checkpoint must not abort a run that is otherwise fine.
             pass
+
+    def _check_cancelled(self, task: Task) -> bool:
+        return bool(self._is_cancelled and self._is_cancelled(task.id))
 
     # -- eventing ----------------------------------------------------------
     async def _emit(
@@ -185,6 +199,8 @@ class AgentOrchestrator:
         message: str,
         data: dict[str, Any] | None = None,
     ) -> None:
+        if self._check_cancelled(task):
+            raise TaskCancelled(task.id)
         task.status = status
         task.updated_at = datetime.now(timezone.utc)
         self._checkpoint(task)
@@ -804,11 +820,40 @@ class AgentOrchestrator:
 
             # -------------------------------------------- verification
             await self._stage(task, TaskStatus.VERIFYING, "Verifying evidence and calculations")
-            checks = [self.verifier.check_sources(answer_text, evidence)]
 
-            calculations = await self._extract_calculations(task, user, answer_text)
-            calculation_check, checked_calculations = self.verifier.check_calculations(calculations)
-            checks.append(calculation_check)
+            # Verification reads model output, which is untrusted: a figure
+            # returned as "19.9 mm" once crashed a run that had otherwise
+            # succeeded. A check that cannot complete is reported as a failed
+            # check, never as a failed task — refusing to verify is a result.
+            checks: list[VerificationCheck] = []
+            try:
+                checks.append(self.verifier.check_sources(answer_text, evidence))
+            except Exception as exc:
+                checks.append(
+                    VerificationCheck(
+                        name="source_verification",
+                        kind="source",
+                        passed=False,
+                        detail=f"This check could not be completed: {exc}",
+                    )
+                )
+
+            checked_calculations: list[dict[str, Any]] = []
+            try:
+                calculations = await self._extract_calculations(task, user, answer_text)
+                calculation_check, checked_calculations = self.verifier.check_calculations(
+                    calculations
+                )
+                checks.append(calculation_check)
+            except Exception as exc:
+                checks.append(
+                    VerificationCheck(
+                        name="calculation_verification",
+                        kind="calculation",
+                        passed=False,
+                        detail=f"Figures could not be recomputed: {exc}",
+                    )
+                )
             for entry in checked_calculations:
                 if entry.get("recomputed") is not None:
                     ledger.add(
@@ -903,6 +948,18 @@ class AgentOrchestrator:
                 await self._stage(task, TaskStatus.DELIVERED, "Task complete")
                 task.completed_at = datetime.now(timezone.utc)
 
+        except TaskCancelled:
+            task.status = TaskStatus.CANCELLED
+            task.error = "Stopped at your request."
+            await self._emit(task, "task.cancelled", {"reason": "stopped by request"})
+            self.audit.record(
+                category="agent",
+                action="cancelled",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={"stage": task.status.value},
+            )
         except NoEligibleModelError as exc:
             task.status = TaskStatus.BLOCKED
             task.error = str(exc)

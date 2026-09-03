@@ -106,6 +106,15 @@ def get_task(task_id: str, user: CurrentUser) -> Task:
     return task
 
 
+@router.post("/tasks/{task_id}/cancel", response_model=Task)
+async def cancel_task(task_id: str, user: CurrentUser) -> Task:
+    """Stop a task that is queued or running."""
+    try:
+        return await get_task_service().cancel(task_id, user)
+    except TaskError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @router.get("/approvals", response_model=list[Task])
 def pending_approvals(
     user: Annotated[User, Depends(require_permission("approval.read"))],

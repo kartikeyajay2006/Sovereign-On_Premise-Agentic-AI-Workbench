@@ -65,6 +65,7 @@ class TaskStatus(str, Enum):
     DELIVERED = "delivered"
     FAILED = "failed"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
 
 
 class ModelRole(str, Enum):

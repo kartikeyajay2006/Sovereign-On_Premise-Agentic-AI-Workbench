@@ -234,6 +234,8 @@ export function statusSignal(status: string | null | undefined): Signal {
     case "blocked":
     case "rejected":
       return "alarm";
+    case "cancelled":
+      return "inert";
     case "received":
     case "classified":
       return "inert";

@@ -48,11 +48,15 @@ class TaskService:
         self.audit = get_audit_log()
         self.events = get_event_bus()
         self.orchestrator = get_orchestrator()
+        self.orchestrator._is_cancelled = self.is_cancelled
         self._queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
         # Order of ids still waiting, so a caller can be told its position
         # rather than watching an apparently idle screen.
         self._waiting: list[str] = []
         self._running: str | None = None
+        # Asked to stop. Checked between stages, so a run ends at a clean
+        # boundary rather than being torn down mid-write.
+        self._cancelled: set[str] = set()
         self._workers: list[asyncio.Task[None]] = []
         self._running = False
 
@@ -305,6 +309,62 @@ class TaskService:
                 data={**state, "running_task": self._running},
             )
 
+    def is_cancelled(self, task_id: str) -> bool:
+        return task_id in self._cancelled
+
+    async def cancel(self, task_id: str, user: User) -> Task:
+        """Stop a task the user no longer wants.
+
+        A queued task is dropped immediately. A running one is asked to stop
+        and ends at its next stage boundary, so partial work and the audit
+        record stay consistent.
+        """
+        task = self.get_task(task_id)
+        if task is None:
+            raise TaskError(f"Unknown task: {task_id}")
+
+        permissions = self.config.role_permissions(user.role)
+        if task.user_id != user.id and "task.read.all" not in permissions:
+            raise TaskError("You can only stop your own tasks")
+
+        terminal = {
+            TaskStatus.DELIVERED,
+            TaskStatus.FAILED,
+            TaskStatus.REJECTED,
+            TaskStatus.BLOCKED,
+            TaskStatus.CANCELLED,
+        }
+        if task.status in terminal:
+            raise TaskError("This task has already finished")
+
+        self._cancelled.add(task_id)
+        if task_id in self._waiting:
+            self._waiting.remove(task_id)
+
+        # A task that never started can be closed out at once.
+        if self._running != task_id:
+            task.status = TaskStatus.CANCELLED
+            task.error = "Stopped before it started."
+            task.updated_at = datetime.now(timezone.utc)
+            task.completed_at = task.updated_at
+            self._persist(task)
+
+        self.audit.record(
+            category="task",
+            action="cancelled",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task_id,
+            detail={"was_running": self._running == task_id},
+        )
+        await self.events.publish(
+            "task.cancelled",
+            task_id=task_id,
+            data={"by": user.display_name, "was_running": self._running == task_id},
+        )
+        await self._publish_queue()
+        return self.get_task(task_id) or task
+
     def queue_state(self, task_id: str) -> dict[str, Any]:
         """Where this task sits in the line, for the API and the UI.
 
@@ -349,6 +409,10 @@ class TaskService:
             try:
                 if task_id in self._waiting:
                     self._waiting.remove(task_id)
+                if task_id in self._cancelled:
+                    # Dropped while it was still queued.
+                    self._cancelled.discard(task_id)
+                    continue
                 self._running = task_id
                 await self._publish_queue()
 

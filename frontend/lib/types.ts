@@ -17,7 +17,8 @@ export type TaskStatus =
   | "rejected"
   | "delivered"
   | "failed"
-  | "blocked";
+  | "blocked"
+  | "cancelled";
 
 export type Sensitivity = "normal" | "confidential" | "sensitive" | "restricted";
 export type ModelRole = "reasoning" | "coding" | "vision" | "embedding";

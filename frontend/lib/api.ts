@@ -140,6 +140,9 @@ export const api = {
     }),
 
   listTasks: (limit = 50) => request<TaskSummary[]>(`/api/tasks?limit=${limit}`),
+
+  cancelTask: (id: string) =>
+    request<Task>(`/api/tasks/${id}/cancel`, { method: "POST" }),
   getTask: (id: string) => request<Task>(`/api/tasks/${id}`),
 
   // -- files -------------------------------------------------------------

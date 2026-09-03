@@ -46,6 +46,7 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "rejected",
   failed: "did not finish",
   blocked: "stopped by policy",
+  cancelled: "stopped by you",
 };
 
 export default function HistoryPage() {
