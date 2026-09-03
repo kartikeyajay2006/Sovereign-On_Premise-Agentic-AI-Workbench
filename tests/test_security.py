@@ -277,6 +277,40 @@ class TestAuditChain:
 
         assert not log.verify_chain().valid
 
+    def test_concurrent_writers_cannot_fork_the_chain(self, tmp_path) -> None:
+        """Two processes appended at once and both claimed the same sequence.
+
+        The verifier caught it, but the write path must not allow it: the
+        read-tail-and-append is taken under an OS-level lock, so independent
+        writers serialise.
+        """
+        import multiprocessing
+
+        path = tmp_path / "audit.jsonl"
+
+        def writer(worker: int) -> None:
+            log = AuditLog(path=path)
+            for index in range(12):
+                log.record(
+                    category="test", action=f"w{worker}-{index}", actor=f"worker{worker}"
+                )
+
+        processes = [
+            multiprocessing.Process(target=writer, args=(worker,)) for worker in range(3)
+        ]
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(timeout=60)
+
+        log = AuditLog(path=path)
+        status = log.verify_chain()
+        assert status.valid, f"chain forked at event {status.broken_at}"
+        assert status.events == 36
+
+        sequences = [event.sequence for event in log.query(limit=500)]
+        assert len(sequences) == len(set(sequences)), "sequence numbers must be unique"
+
     def test_query_filters_by_task_and_category(self, tmp_path) -> None:
         log = AuditLog(path=tmp_path / "audit.jsonl")
         log.record(category="model", action="a", actor="x", task_id="task-1")

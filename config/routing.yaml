@@ -90,3 +90,19 @@ stage_capabilities:
   verification: [reasoning]
   drafting: [reasoning]
   embedding: [embedding]
+
+# Output budget per stage.
+#
+# On a CPU host the response length is the dominant cost: at roughly 4 tokens
+# per second an unbounded 1200-token budget is five minutes of wall clock. Each
+# stage is given only what its output actually needs — a plan and a calculation
+# extraction are short JSON, a transcription and a drafted note are not. These
+# override the model's generation_defaults.
+#
+# Raise them on a GPU host, where the trade does not apply.
+stage_output_tokens:
+  planning: 350
+  vision_extraction: 900
+  code_generation: 700
+  verification: 250
+  drafting: 900

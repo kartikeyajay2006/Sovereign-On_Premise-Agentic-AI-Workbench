@@ -275,12 +275,16 @@ class ModelRouter:
             return extras
         return {}
 
-    def generation_options(self, model_id: str) -> dict[str, Any]:
+    def generation_options(self, model_id: str, stage: str | None = None) -> dict[str, Any]:
         """Per-model generation defaults, straight from config/models.yaml.
 
         The context window is passed explicitly: the runtime otherwise applies
         its own small default (4096 for Ollama) regardless of what the model
         supports, which silently truncates or rejects image-bearing prompts.
+
+        When a stage is named, its output budget from routing.yaml overrides
+        the model default — response length is the dominant cost on a CPU host,
+        and a plan does not need the budget a drafted document does.
         """
         for declaration in self.config.models.get("models", []):
             if declaration.get("id") != model_id:
@@ -292,6 +296,10 @@ class ModelRouter:
             )
             if declared_context:
                 options.setdefault("num_ctx", min(declared_context, ceiling))
+
+            budgets = self.config.routing.get("stage_output_tokens") or {}
+            if stage and stage in budgets:
+                options["num_predict"] = int(budgets[stage])
             return options
         return {}
 

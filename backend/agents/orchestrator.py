@@ -276,7 +276,7 @@ class AgentOrchestrator:
             prompt=prompt,
             system=system_prompt,
             images=images,
-            options=self.router.generation_options(descriptor.id),
+            options=self.router.generation_options(descriptor.id, stage=stage),
             serving=self.router.serving_options(descriptor.id),
             format_json=format_json,
         )
@@ -342,8 +342,68 @@ class AgentOrchestrator:
         )
         return call
 
+    def _record_extraction(
+        self,
+        task: Task,
+        ledger: EvidenceLedger,
+        extraction: dict[str, Any] | None,
+        raw_extraction: str,
+        limitations: list[str],
+    ) -> None:
+        """Turn what the vision model read into citable evidence."""
+        assert task.profile is not None
+        source = task.files[0].filename if task.files else "visual input"
+
+        if not extraction:
+            limitations.append(
+                "The vision model's extraction could not be parsed as structured "
+                "data; its raw reading was used instead."
+            )
+            ledger.add(
+                EvidenceItem(
+                    id="pending",
+                    source_document=source,
+                    location="transcribed content",
+                    excerpt=raw_extraction[:1500],
+                    classification=task.profile.sensitivity,
+                    kind="vision_extraction",
+                )
+            )
+            return
+
+        for finding in extraction.get("findings") or []:
+            ledger.add(
+                EvidenceItem(
+                    id="pending",
+                    source_document=source,
+                    location=str(finding.get("location") or "visual observation"),
+                    excerpt=str(finding.get("description", "")),
+                    classification=task.profile.sensitivity,
+                    kind="vision_extraction",
+                )
+            )
+
+        transcription = str(extraction.get("transcription") or "")
+        if transcription:
+            ledger.add(
+                EvidenceItem(
+                    id="pending",
+                    source_document=source,
+                    location="transcribed content",
+                    excerpt=transcription[:1500],
+                    classification=task.profile.sensitivity,
+                    kind="vision_extraction",
+                )
+            )
+
     # -- stages ------------------------------------------------------------
-    async def _plan(self, task: Task, user: User) -> AgentPlan:
+    async def _plan(
+        self,
+        task: Task,
+        user: User,
+        *,
+        extraction: dict[str, Any] | None = None,
+    ) -> AgentPlan:
         assert task.profile is not None
         profile = task.profile
         available = self.tools.available_for(user, profile.sensitivity)
@@ -356,6 +416,20 @@ class AgentOrchestrator:
             f"- {stored.filename} ({stored.media_type}, {stored.size_bytes} bytes)"
             for stored in task.files
         ) or "- none"
+
+        # Planning happens after the scan has been read, so the plan can refer
+        # to what the document actually contains rather than guessing.
+        if extraction:
+            document_type = str(extraction.get("document_type") or "document")
+            findings = [
+                str(finding.get("description", ""))
+                for finding in (extraction.get("findings") or [])[:4]
+            ]
+            files += f"\n\nAlready read from the visual input ({document_type}):"
+            for finding in findings:
+                files += f"\n  - {finding[:160]}"
+            if not findings:
+                files += "\n  - content transcribed; no discrete findings listed"
 
         prompt = self.config.prompt(
             "task.plan",
@@ -558,51 +632,32 @@ class AgentOrchestrator:
         limitations: list[str] = []
 
         try:
-            # ---------------------------------------------------- plan
-            await self._stage(task, TaskStatus.PLANNED, "Producing an execution plan")
-            task.plan = await self._plan(task, user)
-
-            planned_actions = {step.action for step in task.plan.steps}
-
-            # ----------------------------------------- vision extraction
             images = [
                 Path(stored.stored_path)
                 for stored in task.files
                 if Path(stored.stored_path).suffix.lower()
                 in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
             ]
-            if profile.requires_vision and images:
+            reads_images = bool(profile.requires_vision and images)
+
+            # Read the visual input before planning when there is one.
+            #
+            # Two reasons. Only one generation model fits in memory on a modest
+            # host, so planning first means loading the reasoning model,
+            # evicting it for the vision model, then loading it again — a
+            # multi-gigabyte round trip for nothing. And a plan written after
+            # the document has been read is a better plan.
+            if reads_images:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
                     f"Reading {len(images)} visual input(s) with the vision model",
                 )
-                self._mark_step(task, {"vision_extract", "vision_analysis"}, "running")
-                extraction, raw_extraction = await self._vision_extraction(task, user, images)
+                extraction, raw_extraction = await self._vision_extraction(
+                    task, user, images
+                )
+                self._record_extraction(task, ledger, extraction, raw_extraction, limitations)
                 if extraction:
-                    for finding in extraction.get("findings") or []:
-                        ledger.add(
-                            EvidenceItem(
-                                id="pending",
-                                source_document=task.files[0].filename if task.files else "visual input",
-                                location=str(finding.get("location") or "visual observation"),
-                                excerpt=str(finding.get("description", "")),
-                                classification=profile.sensitivity,
-                                kind="vision_extraction",
-                            )
-                        )
-                    transcription = str(extraction.get("transcription") or "")
-                    if transcription:
-                        ledger.add(
-                            EvidenceItem(
-                                id="pending",
-                                source_document=task.files[0].filename if task.files else "visual input",
-                                location="transcribed content",
-                                excerpt=transcription[:1500],
-                                classification=profile.sensitivity,
-                                kind="vision_extraction",
-                            )
-                        )
                     await self._emit(
                         task,
                         "task.extraction",
@@ -613,22 +668,14 @@ class AgentOrchestrator:
                             "illegible": extraction.get("illegible_regions", []),
                         },
                     )
-                else:
-                    limitations.append(
-                        "The vision model's extraction could not be parsed as structured "
-                        "data; its raw reading was used instead."
-                    )
-                    extraction = {"transcription": raw_extraction}
-                    ledger.add(
-                        EvidenceItem(
-                            id="pending",
-                            source_document=task.files[0].filename if task.files else "visual input",
-                            location="transcribed content",
-                            excerpt=raw_extraction[:1500],
-                            classification=profile.sensitivity,
-                            kind="vision_extraction",
-                        )
-                    )
+
+            # ---------------------------------------------------- plan
+            await self._stage(task, TaskStatus.PLANNED, "Producing an execution plan")
+            task.plan = await self._plan(task, user, extraction=extraction)
+
+            planned_actions = {step.action for step in task.plan.steps}
+
+            if reads_images:
                 self._mark_step(task, {"vision_extract", "vision_analysis"}, "done")
 
             # ------------------------------------------ document reading

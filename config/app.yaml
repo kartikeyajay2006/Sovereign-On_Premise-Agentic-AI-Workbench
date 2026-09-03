@@ -57,7 +57,10 @@ inference:
   max_context_tokens: 8192
   # Large scans are downscaled before they reach a vision model: a 1700px
   # scan costs far more image tokens than it adds legibility.
-  max_image_edge_px: 1400
+  # A 1700px scan costs several times the image tokens of a 1100px one while
+  # adding little legibility for a vision model. This is the single largest
+  # lever on how long reading a document takes.
+  max_image_edge_px: 1100
   # Availability of registered models is re-checked at this interval.
   registry_refresh_seconds: 30
   max_concurrent_requests: 2

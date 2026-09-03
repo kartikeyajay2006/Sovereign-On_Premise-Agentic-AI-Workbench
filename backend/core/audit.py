@@ -10,6 +10,8 @@ checkable rather than merely asserted.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -39,6 +41,7 @@ class AuditLog:
         self.algorithm = algorithm or str(audit_config.get("hash_algorithm", "sha256"))
         self.enabled = bool(audit_config.get("enabled", True))
         self._lock = threading.Lock()
+        self._lock_path = self.path.with_suffix(self.path.suffix + ".lock")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.touch(exist_ok=True)
 
@@ -76,6 +79,24 @@ class AuditLog:
                     return int(record.get("sequence", 0)), str(record.get("hash", GENESIS_HASH))
         return last_sequence, last_hash
 
+    @contextlib.contextmanager
+    def _exclusive(self) -> Iterator[None]:
+        """Hold an OS-level lock for the read-tail-and-append sequence.
+
+        A threading lock only orders writers inside one process. Two processes
+        appending at once — a stray worker, an accidental double start — each
+        read the same tail and wrote the same sequence number with the same
+        predecessor hash, forking the chain. The verifier caught it, which is
+        the point, but the write path should not permit it in the first place.
+        """
+        self._lock_path.touch(exist_ok=True)
+        with self._lock_path.open("a+") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
     # -- writing -----------------------------------------------------------
     def record(
         self,
@@ -90,7 +111,7 @@ class AuditLog:
         """Append one event and return it, or ``None`` when auditing is off."""
         if not self.enabled:
             return None
-        with self._lock:
+        with self._lock, self._exclusive():
             sequence, prev_hash = self._tail()
             body = {
                 "sequence": sequence + 1,
