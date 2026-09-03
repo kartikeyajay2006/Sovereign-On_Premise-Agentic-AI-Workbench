@@ -135,13 +135,26 @@ export default function ConsolePage() {
                   transition={{ duration: 0.25 }}
                   className="space-y-4 border-t border-seam pt-5"
                 >
+                  {task.queue_ahead > 0 && (
+                    <div className="flex items-center gap-2 rounded-chip border border-hold/40 bg-hold/10 px-3 py-2">
+                      <Lamp signal="hold" pulse size={6} />
+                      <span className="text-[0.8125rem] text-hold">
+                        Waiting its turn — {task.queue_ahead} other{" "}
+                        {task.queue_ahead === 1 ? "task is" : "tasks are"} ahead of it.
+                        One task runs at a time so each gets the full machine.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <ProfileStrip task={task} />
                     {running && (
                       <span className="flex items-center gap-1.5">
                         <Lamp signal="brass" pulse size={6} />
                         <span className="text-[0.75rem] text-brass">
-                          {latestStage ?? "working"}
+                          {task.queue_ahead > 0
+                            ? `waiting behind ${task.queue_ahead}`
+                            : (latestStage ?? "working")}
                         </span>
                       </span>
                     )}

@@ -342,6 +342,9 @@ class Task(BaseModel):
     answer: str | None = None
     error: str | None = None
     duration_ms: int | None = None
+    # Where this task sits in the worker queue, when it has not started yet.
+    queue_position: int | None = None
+    queue_ahead: int = 0
 
 
 class TaskSummary(BaseModel):

@@ -49,6 +49,10 @@ class TaskService:
         self.events = get_event_bus()
         self.orchestrator = get_orchestrator()
         self._queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
+        # Order of ids still waiting, so a caller can be told its position
+        # rather than watching an apparently idle screen.
+        self._waiting: list[str] = []
+        self._running: str | None = None
         self._workers: list[asyncio.Task[None]] = []
         self._running = False
 
@@ -286,8 +290,34 @@ class TaskService:
             },
         )
 
+        self._waiting.append(task.id)
         await self._queue.put((task.id, user.id))
+        await self._publish_queue()
         return task
+
+    async def _publish_queue(self) -> None:
+        """Announce the waiting line so nobody is left guessing."""
+        for position, waiting_id in enumerate(self._waiting, start=1):
+            await self.events.publish(
+                "task.queued",
+                task_id=waiting_id,
+                data={"position": position, "ahead": position - 1,
+                      "running": self._running},
+            )
+
+    def queue_state(self, task_id: str) -> dict[str, Any]:
+        """Where this task sits in the line, for the API and the UI."""
+        if self._running == task_id:
+            return {"running": True, "position": 0, "ahead": 0, "queue_length": len(self._waiting)}
+        if task_id in self._waiting:
+            position = self._waiting.index(task_id) + 1
+            return {
+                "running": False,
+                "position": position,
+                "ahead": position - 1,
+                "queue_length": len(self._waiting),
+            }
+        return {"running": False, "position": None, "ahead": 0, "queue_length": len(self._waiting)}
 
     async def _worker(self) -> None:
         from backend.core.identity import get_identity_service
@@ -299,6 +329,11 @@ class TaskService:
             except asyncio.CancelledError:
                 return
             try:
+                if task_id in self._waiting:
+                    self._waiting.remove(task_id)
+                self._running = task_id
+                await self._publish_queue()
+
                 task = self.get_task(task_id)
                 user = identity.get_user(user_id)
                 if task is None or user is None:
@@ -328,6 +363,7 @@ class TaskService:
                     data={"reason": f"worker error: {exc}"},
                 )
             finally:
+                self._running = None
                 self._queue.task_done()
 
     async def start(self, worker_count: int = 1) -> None:

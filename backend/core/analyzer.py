@@ -240,6 +240,27 @@ class TaskAnalyzer:
             return task_type == TaskType.CODING, None, reasons
         return False, None, reasons
 
+    def _requires_code(self, task_type: TaskType, files: list[StoredFile]) -> bool:
+        """Whether this task warrants writing and running a script.
+
+        Generating code is among the slowest stages, so it is reserved for
+        requests that actually need a program: an explicit coding request, or
+        analysis over a data file. Figures asserted in prose are recomputed by
+        the verification engine either way.
+        """
+        rules = self.rules.get("code_execution") or {}
+        if task_type.value in (rules.get("always_for_task_types") or []):
+            return True
+
+        if task_type.value in (rules.get("for_task_types_with_data") or []):
+            extensions = {
+                str(item).lower() for item in (rules.get("data_file_extensions") or [])
+            }
+            return any(
+                Path(stored.filename).suffix.lower() in extensions for stored in files
+            )
+        return False
+
     # -- public API --------------------------------------------------------
     def analyze(
         self,
@@ -276,7 +297,7 @@ class TaskAnalyzer:
         produces_deliverable, deliverable_format, deliverable_reasons = self._deliverable(
             text, task_type, requested_format
         )
-        requires_code = task_type in {TaskType.CODING, TaskType.CALCULATION}
+        requires_code = self._requires_code(task_type, files)
 
         complexity, complexity_signals = self._classify_complexity(
             text,

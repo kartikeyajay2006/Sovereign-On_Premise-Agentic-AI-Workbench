@@ -88,9 +88,15 @@ def list_tasks(user: CurrentUser, limit: int = 50) -> list[TaskSummary]:
 
 @router.get("/tasks/{task_id}", response_model=Task)
 def get_task(task_id: str, user: CurrentUser) -> Task:
-    task = get_task_service().get_task(task_id)
+    service = get_task_service()
+    task = service.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    # A task that has not started should say it is waiting, and for how many.
+    queue = service.queue_state(task_id)
+    task.queue_position = queue.get("position")
+    task.queue_ahead = int(queue.get("ahead") or 0)
     permissions = get_config().role_permissions(user.role)
     if task.user_id != user.id and "task.read.all" not in permissions:
         raise HTTPException(

@@ -40,6 +40,28 @@ models:
       reasoning and agent decisions. Also serves coding until a dedicated
       coding model is registered.
 
+  - id: qwen2.5:3b
+    family: qwen2.5
+    display_name: Qwen2.5 3B
+    role: reasoning
+    capabilities: [text, reasoning, planning, analysis, summarization, coding, tool_calling]
+    context_window: 32768
+    quantization: Q4_K_M
+    parameters_b: 3.0
+    approved_classifications: [normal, confidential, restricted, sensitive]
+    serving:
+      provider: ollama
+      model: qwen2.5:3b
+    generation_defaults:
+      temperature: 0.3
+      top_p: 0.9
+    notes: >-
+      Faster reasoning model for CPU-only hosts: roughly three times the
+      throughput of the 8B at some cost in depth. The router prefers the
+      smaller of two models that both satisfy a requirement, so installing this
+      makes it the default and the timeline states the reason. Remove this
+      entry, or uninstall the model, to route back to the 8B.
+
   - id: qwen2.5-coder:7b
     family: qwen2.5-coder
     display_name: Qwen2.5 Coder 7B

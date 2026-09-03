@@ -67,6 +67,13 @@ task_types:
       patterns:
         - {match: "write a script", weight: 5}
         - {match: "write code", weight: 5}
+        # An explicit request for a program must outrank the verb it contains:
+        # "write a python script to compute X" is a coding request, not a
+        # calculation request that happens to mention Python.
+        - {match: "python script", weight: 7}
+        - {match: "write a python", weight: 7}
+        - {match: "write a program", weight: 6}
+        - {match: "script that", weight: 5}
         - {match: "python", weight: 3}
         - {match: "function", weight: 2}
         - {match: "debug", weight: 4}
@@ -216,6 +223,22 @@ retrieval:
     - "previous inspection"
   top_k: 6
   min_score: 0.15
+
+# When the agent should write and run a script.
+#
+# Writing code is one of the most expensive stages on a CPU host, and it is
+# frequently unnecessary: a request that merely mentions "calculate" while
+# asking for a document does not need a generated program. Arithmetic asserted
+# in the answer is already recomputed independently by the verification engine,
+# which is the check that actually matters.
+#
+# So a script is written when the user asked for one, or when there is a data
+# file to work over.
+code_execution:
+  always_for_task_types: [coding]
+  # Data analysis genuinely needs a program; these attachments trigger one.
+  for_task_types_with_data: [calculation, data_analysis, analysis]
+  data_file_extensions: [".csv", ".xlsx", ".xls"]
 
 # Capability requirements added to the routing request per detected feature.
 capability_map:

@@ -238,6 +238,8 @@ export interface Task {
   answer: string | null;
   error: string | null;
   duration_ms: number | null;
+  queue_position: number | null;
+  queue_ahead: number;
 }
 
 export interface TaskSummary {
