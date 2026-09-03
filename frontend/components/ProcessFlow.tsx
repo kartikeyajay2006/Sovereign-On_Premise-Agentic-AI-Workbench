@@ -100,8 +100,13 @@ function buildStages(task: Task | null, events: StreamEvent[]): Stage[] {
     meta: profile
       ? [
           `input: ${profile.input_type.replace(/_/g, " ")}`,
-          `classification: ${profile.sensitivity}`,
-          `confidence: ${(profile.confidence * 100).toFixed(0)}%`,
+          `handling: ${profile.sensitivity}`,
+          // Not confidence in the answer — how clearly the request matched a
+          // known kind of work. A percentage here reads as "the system is only
+          // half sure", which is both alarming and wrong.
+          profile.confidence >= 0.5
+            ? "recognised this kind of request"
+            : "unusual request — the checks below are stricter",
         ]
       : undefined,
   });

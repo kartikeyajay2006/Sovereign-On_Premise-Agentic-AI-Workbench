@@ -48,6 +48,7 @@ from backend.models_layer.router import NoEligibleModelError, get_model_router
 from backend.policy.gateway import get_policy_gateway
 from backend.tools.registry import ToolContext, get_tool_registry
 
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
 CODE_FENCE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
 JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
@@ -114,6 +115,15 @@ class EvidenceLedger:
 
     def __len__(self) -> int:
         return len(self._items)
+
+
+def _pdf_has_text(path: Path) -> bool:
+    from backend.rag.parsing import has_extractable_text
+
+    try:
+        return has_extractable_text(path)
+    except Exception:
+        return True
 
 
 def _strip_reasoning(text: str) -> str:
@@ -341,6 +351,54 @@ class AgentOrchestrator:
             },
         )
         return call
+
+    def _visual_inputs(
+        self, task: Task, workspace: Path, limitations: list[str]
+    ) -> list[Path]:
+        """Everything the vision model should look at.
+
+        Images are obvious. Scanned PDFs are the case that matters: a scan
+        carries no text layer, so it must be rendered to pages and read. Before
+        this the analyzer would mark such a document as needing vision, the
+        orchestrator would find no image, and the reading step was silently
+        skipped — the platform could not read the very thing it exists to read.
+
+        A born-digital PDF keeps the text path, which is faster and exact.
+        """
+        from backend.rag.parsing import ParsingError, has_extractable_text, rasterize_pdf
+
+        visual: list[Path] = []
+        for stored in task.files:
+            path = Path(stored.stored_path)
+            suffix = path.suffix.lower()
+
+            if suffix in IMAGE_SUFFIXES:
+                visual.append(path)
+                continue
+
+            if suffix == ".pdf" and not has_extractable_text(path):
+                try:
+                    pages = rasterize_pdf(path, workspace / "pages")
+                except (ParsingError, Exception) as exc:
+                    limitations.append(
+                        f"'{stored.filename}' appears to be a scan but could not be "
+                        f"rendered for the vision model: {exc}"
+                    )
+                    continue
+                if pages:
+                    visual.extend(pages)
+                    self.audit.record(
+                        category="tool",
+                        action="pdf_rasterized",
+                        actor=task.user_display_name or "system",
+                        task_id=task.id,
+                        detail={
+                            "filename": stored.filename,
+                            "pages_rendered": len(pages),
+                            "reason": "no extractable text; treated as a scan",
+                        },
+                    )
+        return visual
 
     def _record_extraction(
         self,
@@ -632,12 +690,7 @@ class AgentOrchestrator:
         limitations: list[str] = []
 
         try:
-            images = [
-                Path(stored.stored_path)
-                for stored in task.files
-                if Path(stored.stored_path).suffix.lower()
-                in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
-            ]
+            images = self._visual_inputs(task, workspace, limitations)
             reads_images = bool(profile.requires_vision and images)
 
             # Read the visual input before planning when there is one.
@@ -682,8 +735,13 @@ class AgentOrchestrator:
             text_files = [
                 stored
                 for stored in task.files
-                if Path(stored.stored_path).suffix.lower()
-                not in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
+                if Path(stored.stored_path).suffix.lower() not in IMAGE_SUFFIXES
+                # A scan already read by the vision model has no text to parse.
+                and not (
+                    Path(stored.stored_path).suffix.lower() == ".pdf"
+                    and reads_images
+                    and not _pdf_has_text(Path(stored.stored_path))
+                )
             ]
             for stored in text_files:
                 call = await self._call_tool(

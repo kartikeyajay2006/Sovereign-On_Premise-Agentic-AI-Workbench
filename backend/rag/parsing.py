@@ -90,6 +90,63 @@ def _parse_text(path: Path) -> ParsedDocument:
     )
 
 
+def has_extractable_text(path: Path, *, minimum_chars: int = 120) -> bool:
+    """Whether a PDF carries real text, or is a scan of one.
+
+    A born-digital PDF should be parsed as text: it is exact and instant. A
+    scan carries no text layer and has to be read by the vision model. The
+    difference decides which path a document takes.
+    """
+    if path.suffix.lower() != ".pdf":
+        return True
+    try:
+        parsed = _parse_pdf(path)
+    except ParsingError:
+        return False
+    return len(parsed.full_text.strip()) >= minimum_chars
+
+
+def rasterize_pdf(
+    path: Path,
+    destination: Path,
+    *,
+    max_pages: int = 4,
+    target_edge: int = 1100,
+) -> list[Path]:
+    """Render PDF pages to images so a vision model can read them.
+
+    Needed for scans: without this a scanned report is classified as needing
+    vision, finds no image to look at, and is silently skipped — the exact
+    failure this platform exists to handle.
+
+    Page count is capped because each page costs a full vision pass, which is
+    the most expensive stage on a CPU host.
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError as exc:  # pragma: no cover - surfaced at ingestion
+        raise ParsingError(
+            "PyMuPDF is not installed, so scanned PDFs cannot be rendered for "
+            "the vision model. Install it with: pip install PyMuPDF"
+        ) from exc
+
+    destination.mkdir(parents=True, exist_ok=True)
+    rendered: list[Path] = []
+
+    with fitz.open(str(path)) as document:
+        for index, page in enumerate(document[:max_pages]):
+            rectangle = page.rect
+            longest = max(rectangle.width, rectangle.height) or 1
+            # Render at the edge the vision model is given, no larger.
+            zoom = target_edge / longest
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+            target = destination / f"{path.stem}-p{index + 1}.png"
+            pixmap.save(str(target))
+            rendered.append(target)
+
+    return rendered
+
+
 def extract_title(path: Path) -> str | None:
     """Best-effort document title from its own content, not its filename."""
     if path.suffix.lower() not in {".md", ".txt"}:
