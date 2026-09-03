@@ -34,6 +34,9 @@ import {
 
 const RUNNING = ["received", "classified", "planned", "retrieving", "executing", "verifying"];
 
+/** Past this with no progress, a task is treated as abandoned, not busy. */
+const STALE_AFTER_MS = 15 * 60 * 1000;
+
 /** Plain-language reading of the profile the analyzer produced. */
 function ProfileStrip({
   task,
@@ -66,6 +69,7 @@ function ProfileStrip({
 
 export default function ConsolePage() {
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const { task, refresh } = useTask(taskId);
   const { events } = useStream(taskId ?? undefined);
@@ -77,18 +81,32 @@ export default function ConsolePage() {
       .catch(() => setUser(null));
   }, []);
 
-  // Reopen whatever was last running, so a page refresh does not lose the user.
+  // Reopen recent work after a refresh, but only if it is genuinely live.
+  //
+  // Reopening the newest task unconditionally meant a run interrupted hours
+  // earlier came back looking active, and the composer stayed disabled behind
+  // it — the application appeared stuck with no way forward.
   useEffect(() => {
-    if (taskId) return;
+    if (taskId || dismissed) return;
     api
-      .listTasks(1)
+      .listTasks(5)
       .then((summaries) => {
-        if (summaries.length) setTaskId(summaries[0].id);
+        const recent = summaries.find((summary) => {
+          const age = Date.now() - new Date(summary.updated_at).getTime();
+          const live = RUNNING.includes(summary.status);
+          return (live && age < STALE_AFTER_MS) || summary.status === "awaiting_approval";
+        });
+        if (recent) setTaskId(recent.id);
       })
       .catch(() => undefined);
-  }, [taskId]);
+  }, [taskId, dismissed]);
 
-  const running = Boolean(task && RUNNING.includes(task.status));
+  // A task that has not advanced in a long time is not treated as busy, so the
+  // composer is never permanently disabled by something that already died.
+  const stale = Boolean(
+    task && Date.now() - new Date(task.updated_at).getTime() > STALE_AFTER_MS,
+  );
+  const running = Boolean(task && RUNNING.includes(task.status) && !stale);
 
   const decide = useCallback(
     async (decision: "approve" | "reject", comment: string) => {
@@ -112,7 +130,8 @@ export default function ConsolePage() {
         {/* ------------------------------------------- request and result */}
         <div className="bg-ground xl:min-h-0 xl:overflow-y-auto">
           <div className="mx-auto max-w-[900px] space-y-5 p-5">
-            <div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
               <h1 className="text-[1.5rem] font-semibold tracking-tight text-ink">
                 What do you need done?
               </h1>
@@ -121,9 +140,28 @@ export default function ConsolePage() {
                 workbench figures out which models to use, checks your procedures, and
                 shows its working. Everything happens on this machine.
               </p>
+              </div>
+
+              {task && (
+                <button
+                  onClick={() => {
+                    setTaskId(null);
+                    setDismissed(true);
+                  }}
+                  className="shrink-0 rounded-chip border border-seam px-3 py-1.5 text-[0.8125rem] text-ink-dim transition-colors hover:border-brass/50 hover:text-brass"
+                >
+                  Start something new
+                </button>
+              )}
             </div>
 
-            <Composer onSubmitted={setTaskId} busy={running} />
+            <Composer
+              onSubmitted={(id) => {
+                setDismissed(false);
+                setTaskId(id);
+              }}
+              busy={running}
+            />
 
             <AnimatePresence mode="wait">
               {task && (
@@ -135,6 +173,17 @@ export default function ConsolePage() {
                   transition={{ duration: 0.25 }}
                   className="space-y-4 border-t border-seam pt-5"
                 >
+                  {stale && RUNNING.includes(task.status) && (
+                    <div className="flex items-start gap-2 rounded-chip border border-hold/40 bg-hold/10 px-3 py-2">
+                      <Lamp signal="hold" size={6} />
+                      <span className="text-[0.8125rem] text-hold">
+                        This run stopped making progress and was left unfinished — most
+                        likely the workbench restarted while it was working. Submit it
+                        again to run it from the start.
+                      </span>
+                    </div>
+                  )}
+
                   {task.queue_ahead > 0 && (
                     <div className="flex items-center gap-2 rounded-chip border border-hold/40 bg-hold/10 px-3 py-2">
                       <Lamp signal="hold" pulse size={6} />

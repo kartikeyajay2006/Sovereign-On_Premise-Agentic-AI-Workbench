@@ -71,6 +71,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await monitor.start()
 
     service = get_task_service()
+
+    # Anything still marked running belongs to a worker that no longer exists.
+    orphans = service.recover_orphans()
+    if orphans:
+        print(f"[workbench] closed {len(orphans)} task(s) interrupted by a restart")
+
     await service.start(worker_count=1)
 
     try:

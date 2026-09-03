@@ -297,27 +297,45 @@ class TaskService:
 
     async def _publish_queue(self) -> None:
         """Announce the waiting line so nobody is left guessing."""
-        for position, waiting_id in enumerate(self._waiting, start=1):
+        for waiting_id in list(self._waiting):
+            state = self.queue_state(waiting_id)
             await self.events.publish(
                 "task.queued",
                 task_id=waiting_id,
-                data={"position": position, "ahead": position - 1,
-                      "running": self._running},
+                data={**state, "running_task": self._running},
             )
 
     def queue_state(self, task_id: str) -> dict[str, Any]:
-        """Where this task sits in the line, for the API and the UI."""
+        """Where this task sits in the line, for the API and the UI.
+
+        A task already in progress counts as one ahead: from the caller's seat
+        they are waiting on it, and reporting "none ahead" while something else
+        holds the worker is exactly the silence that makes the application look
+        stuck.
+        """
         if self._running == task_id:
-            return {"running": True, "position": 0, "ahead": 0, "queue_length": len(self._waiting)}
+            return {
+                "running": True,
+                "position": 0,
+                "ahead": 0,
+                "queue_length": len(self._waiting),
+            }
+
+        in_progress = 1 if self._running else 0
         if task_id in self._waiting:
             position = self._waiting.index(task_id) + 1
             return {
                 "running": False,
-                "position": position,
-                "ahead": position - 1,
-                "queue_length": len(self._waiting),
+                "position": position + in_progress,
+                "ahead": position - 1 + in_progress,
+                "queue_length": len(self._waiting) + in_progress,
             }
-        return {"running": False, "position": None, "ahead": 0, "queue_length": len(self._waiting)}
+        return {
+            "running": False,
+            "position": None,
+            "ahead": 0,
+            "queue_length": len(self._waiting) + in_progress,
+        }
 
     async def _worker(self) -> None:
         from backend.core.identity import get_identity_service
@@ -373,6 +391,44 @@ class TaskService:
         self._workers = [
             asyncio.create_task(self._worker()) for _ in range(max(1, worker_count))
         ]
+
+    def recover_orphans(self) -> list[str]:
+        """Close out tasks left mid-flight by a worker that no longer exists.
+
+        A task is only ever in a running state because some worker is holding
+        it. At boot there are none, so anything still marked running was
+        abandoned — the process was killed, or the host restarted. Left alone
+        it stays "working" forever, and the workspace faithfully reports that
+        forever, which reads as the application being hung.
+        """
+        active = {
+            TaskStatus.RECEIVED.value,
+            TaskStatus.CLASSIFIED.value,
+            TaskStatus.PLANNED.value,
+            TaskStatus.RETRIEVING.value,
+            TaskStatus.EXECUTING.value,
+            TaskStatus.VERIFYING.value,
+        }
+        recovered: list[str] = []
+        for record in self.db.list_tasks(None, limit=500, statuses=sorted(active)):
+            task = Task(**record["payload"])
+            task.status = TaskStatus.FAILED
+            task.error = (
+                "This task was interrupted when the workbench stopped, so it did "
+                "not finish. Submit it again to run it from the start."
+            )
+            task.updated_at = datetime.now(timezone.utc)
+            task.completed_at = task.updated_at
+            self._persist(task)
+            self.audit.record(
+                category="task",
+                action="recovered_after_restart",
+                actor="system",
+                task_id=task.id,
+                detail={"previous_status": record["status"]},
+            )
+            recovered.append(task.id)
+        return recovered
 
     async def stop(self) -> None:
         self._running = False
