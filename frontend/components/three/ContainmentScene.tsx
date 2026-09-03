@@ -122,7 +122,7 @@ function Node({
 }
 
 /** The work moving between components. */
-function Traffic({ pulse }: { pulse: React.MutableRefObject<number> }) {
+function Traffic() {
   const count = LINKS.length;
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -233,7 +233,7 @@ function Scene() {
       {NODES.map((node, index) => (
         <Node key={node.id} position={node.position} colour={node.colour} index={index} />
       ))}
-      <Traffic pulse={pulse} />
+      <Traffic />
       <Deflection pulse={pulse} />
     </group>
   );

@@ -15,7 +15,6 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -138,17 +137,3 @@ export function useStream(taskId?: string) {
   return { events, connected: state.connected, sovereignty: state.sovereignty };
 }
 
-/** The most recent value of one event type, for screens that want just that. */
-export function useLatestEvent(name: string, taskId?: string): StreamEvent | undefined {
-  const { events } = useStream(taskId);
-  return useMemo(
-    () => [...events].reverse().find((event) => event.event === name),
-    [events, name],
-  );
-}
-
-export function useStreamConnected(): boolean {
-  return useContext(StreamContext).connected;
-}
-
-export const useNoop = () => useCallback(() => undefined, []);
