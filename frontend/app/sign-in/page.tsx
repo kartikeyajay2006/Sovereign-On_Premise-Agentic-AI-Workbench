@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Sign-in.
+ * Sign-in and local account registration.
  *
  * The panel states plainly what the operator is signing into: a host that
  * keeps their work inside the building. The seeded roles are listed because
@@ -18,8 +18,11 @@ import { Button, Lamp } from "@/components/primitives";
 
 export default function SignInPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("engineer");
+  const [mode, setMode] = useState<"sign_in" | "register">("sign_in");
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [directory, setDirectory] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,10 +37,18 @@ export default function SignInPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (mode === "register" && password !== confirmation) {
+      setError("Passwords do not match");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await api.login(username.trim(), password);
+      if (mode === "register") {
+        await api.register(username.trim(), displayName.trim(), password);
+      } else {
+        await api.login(username.trim(), password);
+      }
       router.replace("/");
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Sign-in failed");
@@ -93,6 +104,51 @@ export default function SignInPage() {
           {/* Credentials */}
           <div className="bg-raised p-8">
             <form onSubmit={submit} className="space-y-4">
+              <div className="flex rounded-chip border border-seam p-1 text-[0.75rem]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("sign_in");
+                    setError(null);
+                  }}
+                  className={`flex-1 rounded-chip px-2 py-1.5 transition-colors ${
+                    mode === "sign_in" ? "bg-panel text-ink" : "text-ink-faint hover:text-ink-dim"
+                  }`}
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("register");
+                    setError(null);
+                  }}
+                  className={`flex-1 rounded-chip px-2 py-1.5 transition-colors ${
+                    mode === "register" ? "bg-panel text-ink" : "text-ink-faint hover:text-ink-dim"
+                  }`}
+                >
+                  Create account
+                </button>
+              </div>
+
+              {mode === "register" && (
+                <div>
+                  <label
+                    htmlFor="display-name"
+                    className="mb-1.5 block text-[0.75rem] text-ink-dim"
+                  >
+                    Display name
+                  </label>
+                  <input
+                    id="display-name"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    autoComplete="name"
+                    className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
+                  />
+                </div>
+              )}
+
               <div>
                 <label
                   htmlFor="username"
@@ -121,10 +177,29 @@ export default function SignInPage() {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
+                  autoComplete={mode === "register" ? "new-password" : "current-password"}
                   className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
                 />
               </div>
+
+              {mode === "register" && (
+                <div>
+                  <label
+                    htmlFor="password-confirmation"
+                    className="mb-1.5 block text-[0.75rem] text-ink-dim"
+                  >
+                    Confirm password
+                  </label>
+                  <input
+                    id="password-confirmation"
+                    type="password"
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                    autoComplete="new-password"
+                    className="readout instrument w-full px-3 py-2 text-ink outline-none focus:border-brass/60"
+                  />
+                </div>
+              )}
 
               {error && (
                 <p
@@ -135,10 +210,20 @@ export default function SignInPage() {
                 </p>
               )}
 
-              <Button type="submit" disabled={busy || !password} className="w-full">
-                {busy ? "Signing in" : "Sign in"}
+              <Button
+                type="submit"
+                disabled={busy || !username.trim() || !password || (mode === "register" && !displayName.trim())}
+                className="w-full"
+              >
+                {busy ? (mode === "register" ? "Creating account" : "Signing in") : mode === "register" ? "Create account" : "Sign in"}
               </Button>
             </form>
+
+            {mode === "register" && (
+              <p className="mt-3 text-[0.75rem] leading-relaxed text-ink-faint">
+                New accounts are created as Plant Operators. Reviewer and administrator access is assigned through local policy.
+              </p>
+            )}
 
             {directory.length > 0 && (
               <div className="mt-7 border-t border-seam pt-5">

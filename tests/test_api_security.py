@@ -41,3 +41,44 @@ class TestBrowserSessionBoundary:
             assert logout.status_code == 204
             assert "workbench_session=\"\"" in logout.headers.get("set-cookie", "")
             assert client.get("/api/auth/me").status_code == 401
+
+    def test_registration_creates_a_least_privileged_operator_session(self) -> None:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/api/auth/register",
+                json={
+                    "username": "new_operator",
+                    "display_name": "New Operator",
+                    "password": "local-passphrase",
+                },
+            )
+            assert response.status_code == 201
+            assert response.json()["user"]["role"] == "operator"
+            assert response.json()["user"]["department"] == "operations"
+            assert client.get("/api/auth/me").status_code == 200
+
+            duplicate = client.post(
+                "/api/auth/register",
+                json={
+                    "username": "new_operator",
+                    "display_name": "Another Operator",
+                    "password": "local-passphrase",
+                },
+            )
+            assert duplicate.status_code == 400
+
+    def test_registration_supports_email_usernames(self) -> None:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/api/auth/register",
+                json={
+                    "username": "kartikeya2806jay@gmail.com",
+                    "display_name": "Kartikeya Yadav",
+                    "password": "local-passphrase",
+                },
+            )
+            assert response.status_code == 201
+            assert response.json()["user"]["username"] == "kartikeya2806jay@gmail.com"
+            assert response.json()["user"]["display_name"] == "Kartikeya Yadav"
+            assert response.json()["user"]["role"] == "operator"
+            assert client.get("/api/auth/me").status_code == 200

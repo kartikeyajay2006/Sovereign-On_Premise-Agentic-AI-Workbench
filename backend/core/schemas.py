@@ -97,6 +97,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegistrationRequest(BaseModel):
+    username: str
+    display_name: str
+    password: str
+    department: str = "operations"
+
+
 class Session(BaseModel):
     token: str
     user: User

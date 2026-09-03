@@ -59,7 +59,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(path, { ...init, headers, cache: "no-store" });
+  let response: Response;
+  try {
+    response = await fetch(path, { ...init, headers, cache: "no-store" });
+  } catch (err) {
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      throw new ApiError(
+        "Failed to connect to backend server (http://127.0.0.1:8000). Please check if the backend service is running.",
+        503
+      );
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`;
@@ -82,6 +93,25 @@ export const api = {
     const session = await request<Session>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
+    });
+    setToken(session.token);
+    return session;
+  },
+
+  async register(
+    username: string,
+    displayName: string,
+    password: string,
+    department = "operations",
+  ): Promise<Session> {
+    const session = await request<Session>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        display_name: displayName,
+        password,
+        department,
+      }),
     });
     setToken(session.token);
     return session;

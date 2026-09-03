@@ -187,6 +187,11 @@ audit:
 security:
   session_ttl_minutes: 720
   password_hash_rounds: 12
+  # New accounts are deliberately restricted to the least-privileged role.
+  # Reviewer and administrator roles are assigned only through local policy.
+  self_registration_enabled: true
+  self_registration_default_role: operator
+  self_registration_default_department: operations
   # Set via environment in production. A random value is generated per boot if
   # unset, which invalidates sessions on restart.
   secret_key: ""

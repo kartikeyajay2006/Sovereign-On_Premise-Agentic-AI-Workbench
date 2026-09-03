@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import secrets
+import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -22,10 +24,17 @@ from backend.core.schemas import Sensitivity, Session, User
 
 PBKDF2_ALGORITHM = "sha256"
 SALT_BYTES = 16
+USERNAME_PATTERN = re.compile(
+    r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$|^[a-z][a-z0-9_.-]{2,63}$"
+)
 
 
 class AuthenticationError(RuntimeError):
     """Raised when credentials are rejected or a session is invalid."""
+
+
+class RegistrationError(RuntimeError):
+    """Raised when a self-service account request does not satisfy policy."""
 
 
 def hash_password(password: str, *, rounds: int | None = None) -> str:
@@ -112,6 +121,75 @@ class IdentityService:
 
     def list_users(self) -> list[User]:
         return [self._to_user(record) for record in self.db.list_users()]
+
+    def register(
+        self,
+        *,
+        username: str,
+        display_name: str,
+        password: str,
+        department: str = "operations",
+    ) -> Session:
+        """Create a local operator account and immediately issue its session.
+
+        Public registration intentionally cannot select a privileged role. Role
+        elevation is a separate administrator-governed policy action.
+        """
+        security = self.config.settings.security
+        if not bool(security.get("self_registration_enabled", False)):
+            raise RegistrationError("Self-service registration is disabled on this host")
+
+        normalized_username = username.strip().lower()
+        normalized_display_name = " ".join(display_name.split())
+        permitted_departments = {
+            str(item.get("id"))
+            for item in self.config.access_control.get("departments", [])
+            if isinstance(item, dict) and item.get("id")
+        }
+        default_department = str(
+            security.get("self_registration_default_department", "operations")
+        )
+        requested_department = department.strip().lower() or default_department
+        role = str(security.get("self_registration_default_role", "operator"))
+
+        if not USERNAME_PATTERN.fullmatch(normalized_username):
+            raise RegistrationError(
+                "Username must be a valid email address or 3–64 characters (lowercase letters, numbers, hyphens, dots or underscores)"
+            )
+        if not (2 <= len(normalized_display_name) <= 80):
+            raise RegistrationError("Display name must be between 2 and 80 characters")
+        if len(password) < 8:
+            raise RegistrationError("Password must contain at least 8 characters")
+        if role not in self.config.access_control.get("roles", {}):
+            raise RegistrationError("Self-registration role is not defined in access policy")
+        if requested_department not in permitted_departments:
+            raise RegistrationError("Selected department is not defined in access policy")
+        if self.db.get_user_by_username(normalized_username) is not None:
+            raise RegistrationError("That username is already in use")
+
+        record = {
+            "id": str(uuid.uuid4()),
+            "username": normalized_username,
+            "display_name": normalized_display_name,
+            "role": role,
+            "department": requested_department,
+            "password_hash": hash_password(password),
+            "active": 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            self.db.insert_user(record)
+        except sqlite3.IntegrityError as exc:
+            raise RegistrationError("That username is already in use") from exc
+
+        self.audit.record(
+            category="identity",
+            action="self_registered",
+            actor=normalized_username,
+            actor_role=role,
+            detail={"department": requested_department, "role": role},
+        )
+        return self.authenticate(normalized_username, password)
 
     # -- authentication ----------------------------------------------------
     def authenticate(self, username: str, password: str) -> Session:

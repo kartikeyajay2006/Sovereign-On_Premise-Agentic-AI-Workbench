@@ -24,7 +24,11 @@ from backend.api.dependencies import CurrentUser, SessionToken, require_permissi
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
-from backend.core.identity import AuthenticationError, get_identity_service
+from backend.core.identity import (
+    AuthenticationError,
+    RegistrationError,
+    get_identity_service,
+)
 from backend.core.schemas import (
     AuditChainStatus,
     AuditEvent,
@@ -33,6 +37,7 @@ from backend.core.schemas import (
     KnowledgeSearchResponse,
     LoginRequest,
     ModelDescriptor,
+    RegistrationRequest,
     Sensitivity,
     Session,
     SovereigntyStatus,
@@ -51,6 +56,19 @@ BOOT_TIME = datetime.now(timezone.utc)
 
 
 # ------------------------------------------------------------------ identity
+def _set_session_cookie(response: Response, session: Session) -> None:
+    """Attach the browser session used by the EventSource connection."""
+    response.set_cookie(
+        key="workbench_session",
+        value=session.token,
+        max_age=int(get_config().settings.security.get("session_ttl_minutes", 720)) * 60,
+        httponly=True,
+        samesite="strict",
+        secure=False,  # Local HTTP is the supported on-premise default.
+        path="/",
+    )
+
+
 @router.post("/auth/login", response_model=Session)
 def login(payload: LoginRequest, response: Response) -> Session:
     try:
@@ -58,20 +76,27 @@ def login(payload: LoginRequest, response: Response) -> Session:
         # EventSource cannot attach an Authorization header. Keep the browser
         # session in an HttpOnly same-site cookie as well, so the SSE endpoint
         # receives the same authenticated identity as the rest of the UI.
-        response.set_cookie(
-            key="workbench_session",
-            value=session.token,
-            max_age=int(get_config().settings.security.get("session_ttl_minutes", 720)) * 60,
-            httponly=True,
-            samesite="strict",
-            secure=False,  # Local HTTP is the supported on-premise default.
-            path="/",
-        )
+        _set_session_cookie(response, session)
         return session
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
         ) from exc
+
+
+@router.post("/auth/register", response_model=Session, status_code=status.HTTP_201_CREATED)
+def register(payload: RegistrationRequest, response: Response) -> Session:
+    try:
+        session = get_identity_service().register(
+            username=payload.username,
+            display_name=payload.display_name,
+            password=payload.password,
+            department=payload.department,
+        )
+        _set_session_cookie(response, session)
+        return session
+    except RegistrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
