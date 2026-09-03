@@ -27,3 +27,7 @@ storage/*.db-shm
 # Local environment
 .env
 .env.local
+
+# Frontend build output and vendored browser tooling
+frontend/.next/
+frontend/out/

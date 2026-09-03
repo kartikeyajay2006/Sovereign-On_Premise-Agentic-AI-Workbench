@@ -9,6 +9,7 @@ pointed at a remote endpoint by configuration is not sovereign.
 from __future__ import annotations
 
 import base64
+import io
 import ipaddress
 import json
 import time
@@ -78,9 +79,37 @@ class OllamaClient:
             connect=float(inference.get("connect_timeout_seconds", 10)),
         )
         self.keep_alive = str(inference.get("keep_alive", "30m"))
+        self.max_image_edge = int(inference.get("max_image_edge_px", 1400))
 
     async def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout)
+
+    def _encode_image(self, path: Path) -> str:
+        """Base64-encode an image, downscaling oversized scans first.
+
+        A full-resolution scan costs far more image tokens than it contributes
+        legibility, and on a CPU host those tokens are the dominant cost. The
+        long edge is capped at ``inference.max_image_edge_px``.
+        """
+        try:
+            from PIL import Image
+
+            with Image.open(path) as image:
+                longest = max(image.size)
+                if longest <= self.max_image_edge:
+                    return base64.b64encode(path.read_bytes()).decode("ascii")
+
+                ratio = self.max_image_edge / longest
+                resized = image.convert("RGB").resize(
+                    (max(1, int(image.width * ratio)), max(1, int(image.height * ratio))),
+                    Image.LANCZOS,
+                )
+                buffer = io.BytesIO()
+                resized.save(buffer, format="PNG", optimize=True)
+                return base64.b64encode(buffer.getvalue()).decode("ascii")
+        except Exception:
+            # Never fail a task over a resize; send the original.
+            return base64.b64encode(path.read_bytes()).decode("ascii")
 
     # -- discovery ---------------------------------------------------------
     async def list_models(self) -> list[dict[str, Any]]:
@@ -110,6 +139,7 @@ class OllamaClient:
         images: list[Path] | None = None,
         options: dict[str, Any] | None = None,
         format_json: bool = False,
+        serving: dict[str, Any] | None = None,
     ) -> GenerationResult:
         payload: dict[str, Any] = {
             "model": model,
@@ -117,21 +147,26 @@ class OllamaClient:
             "stream": False,
             "keep_alive": self.keep_alive,
             "options": options or {},
+            **(serving or {}),
         }
         if system:
             payload["system"] = system
         if format_json:
             payload["format"] = "json"
         if images:
-            payload["images"] = [
-                base64.b64encode(path.read_bytes()).decode("ascii") for path in images
-            ]
+            payload["images"] = [self._encode_image(path) for path in images]
 
         started = time.perf_counter()
         try:
             async with await self._client() as client:
                 response = await client.post("/api/generate", json=payload)
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    # Surface the runtime's own explanation; a bare status code
+                    # is not diagnosable on an air-gapped host.
+                    raise InferenceError(
+                        f"Inference failed for model '{model}' "
+                        f"(HTTP {response.status_code}): {response.text[:400]}"
+                    )
                 body = response.json()
         except httpx.HTTPError as exc:
             raise InferenceError(f"Inference failed for model '{model}': {exc}") from exc
@@ -166,9 +201,7 @@ class OllamaClient:
         if system:
             payload["system"] = system
         if images:
-            payload["images"] = [
-                base64.b64encode(path.read_bytes()).decode("ascii") for path in images
-            ]
+            payload["images"] = [self._encode_image(path) for path in images]
         try:
             async with await self._client() as client:
                 async with client.stream("POST", "/api/generate", json=payload) as response:

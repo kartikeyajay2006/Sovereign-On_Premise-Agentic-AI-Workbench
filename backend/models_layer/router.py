@@ -131,8 +131,14 @@ class ModelRouter:
 
         requirement = dict(rule.get("require") or {})
         stage_roles = self.config.routing.get("stage_roles") or {}
+        stage_capabilities = self.config.routing.get("stage_capabilities") or {}
         if stage and stage in stage_roles:
             requirement["role"] = stage_roles[stage]
+            # A stage override replaces the rule's capabilities as well as its
+            # role. Otherwise a visual task would demand the vision capability
+            # for its planning and drafting stages too.
+            if stage in stage_capabilities:
+                requirement["capabilities"] = list(stage_capabilities[stage])
 
         role = ModelRole(requirement.get("role", ModelRole.REASONING.value))
         capabilities = list(requirement.get("capabilities") or [])
@@ -253,11 +259,40 @@ class ModelRouter:
             )
         return descriptor
 
-    def generation_options(self, model_id: str) -> dict[str, Any]:
-        """Per-model generation defaults, straight from config/models.yaml."""
+    def serving_options(self, model_id: str) -> dict[str, Any]:
+        """Top-level request fields declared for a model, e.g. thinking mode.
+
+        These sit alongside ``options`` in the runtime payload rather than
+        inside it, so they are resolved separately.
+        """
         for declaration in self.config.models.get("models", []):
-            if declaration.get("id") == model_id:
-                return dict(declaration.get("generation_defaults") or {})
+            if declaration.get("id") != model_id:
+                continue
+            serving = declaration.get("serving") or {}
+            extras: dict[str, Any] = {}
+            if "thinking" in serving:
+                extras["think"] = bool(serving["thinking"])
+            return extras
+        return {}
+
+    def generation_options(self, model_id: str) -> dict[str, Any]:
+        """Per-model generation defaults, straight from config/models.yaml.
+
+        The context window is passed explicitly: the runtime otherwise applies
+        its own small default (4096 for Ollama) regardless of what the model
+        supports, which silently truncates or rejects image-bearing prompts.
+        """
+        for declaration in self.config.models.get("models", []):
+            if declaration.get("id") != model_id:
+                continue
+            options = dict(declaration.get("generation_defaults") or {})
+            declared_context = int(declaration.get("context_window") or 0)
+            ceiling = int(
+                self.config.settings.inference.get("max_context_tokens", 8192)
+            )
+            if declared_context:
+                options.setdefault("num_ctx", min(declared_context, ceiling))
+            return options
         return {}
 
 

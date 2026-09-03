@@ -74,3 +74,15 @@ stage_roles:
   verification: reasoning
   drafting: reasoning
   embedding: embedding
+
+# When a stage override applies, these capabilities REPLACE the task-level
+# rule's requirements. Without this, a task on visual input would demand the
+# 'vision' capability even for its planning and drafting stages, forcing text
+# work onto a vision model.
+stage_capabilities:
+  vision_extraction: [vision]
+  planning: [reasoning]
+  code_generation: [coding]
+  verification: [reasoning]
+  drafting: [reasoning]
+  embedding: [embedding]

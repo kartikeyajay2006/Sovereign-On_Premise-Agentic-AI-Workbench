@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Console surfaces.
+ *
+ * Panels are sheet metal: seams and bezel highlights rather than drop
+ * shadows, small radii, and a faint machined texture. Everything that reads
+ * as a "card" elsewhere is a panel bolted into a frame here.
+ */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ground text-ink font-sans antialiased;
+    /* Faint brushed texture across the console ground. */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(47, 191, 158, 0.05), transparent 60%),
+      repeating-linear-gradient(
+        0deg,
+        rgba(214, 227, 231, 0.012) 0px,
+        rgba(214, 227, 231, 0.012) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+  }
+
+  ::selection {
+    background: rgba(201, 162, 39, 0.3);
+    color: #f2f7f8;
+  }
+
+  /* Keyboard focus must stay obvious on a dark console. */
+  :focus-visible {
+    outline: 2px solid #c9a227;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Recessed scrollbars, in keeping with the panel metaphor. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1d3540 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #1d3540;
+    border-radius: 0;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #2a4a57;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* A bolted panel: the base surface for every region of the console. */
+  .panel {
+    @apply rounded-panel border border-seam bg-panel shadow-bezel;
+  }
+
+  .panel-raised {
+    @apply rounded-panel border border-seam bg-raised shadow-bezel;
+  }
+
+  /* A recessed readout window, the way an instrument displays a value. */
+  .readout {
+    @apply rounded-chip border border-seam bg-ground/70 shadow-recess;
+  }
+
+  /* Panel header lettering: machine-stamped, tight, small. */
+  .stamp {
+    @apply font-sans text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-ink-dim;
+  }
+
+  /* Instrument data: tags, hashes, counters, readings, timestamps. */
+  .instrument {
+    @apply font-mono text-readout tabular-nums;
+  }
+
+  /* Drafting vellum: documents, evidence excerpts, drafted deliverables. */
+  .vellum {
+    @apply rounded-panel bg-vellum text-vellum-ink;
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(27, 42, 47, 0.028) 0px,
+      rgba(27, 42, 47, 0.028) 1px,
+      transparent 1px,
+      transparent 26px
+    );
+  }
+
+  /* The process line along which agent stages are threaded. */
+  .flowline {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(47, 191, 158, 0.85) 0px,
+      rgba(47, 191, 158, 0.85) 7px,
+      transparent 7px,
+      transparent 14px
+    );
+    background-size: 28px 100%;
+  }
+
+  .flowline-idle {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(85, 112, 123, 0.55) 0px,
+      rgba(85, 112, 123, 0.55) 7px,
+      transparent 7px,
+      transparent 14px
+    );
+    background-size: 28px 100%;
+  }
+
+  /* Vertical variant for the stacked timeline. */
+  .flowline-v {
+    background-image: repeating-linear-gradient(
+      180deg,
+      rgba(47, 191, 158, 0.85) 0px,
+      rgba(47, 191, 158, 0.85) 7px,
+      transparent 7px,
+      transparent 14px
+    );
+    background-size: 100% 28px;
+  }
+
+  .flowline-v-idle {
+    background-image: repeating-linear-gradient(
+      180deg,
+      rgba(85, 112, 123, 0.5) 0px,
+      rgba(85, 112, 123, 0.5) 7px,
+      transparent 7px,
+      transparent 14px
+    );
+    background-size: 100% 28px;
+  }
+}
+
+@keyframes flow-v {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 28px;
+  }
+}
+
+.animate-flow-v {
+  animation: flow-v 1.1s linear infinite;
+}
+
+/* Respect a reader who does not want motion: keep state legible, drop the
+   ambient movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

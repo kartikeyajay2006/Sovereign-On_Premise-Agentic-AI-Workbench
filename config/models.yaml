@@ -26,6 +26,11 @@ models:
     serving:
       provider: ollama
       model: qwen3:8b
+      # Qwen3 emits a <think> deliberation chain by default. The workbench
+      # strips those blocks from every answer, so on a CPU host they are pure
+      # latency — often several minutes per call. Set true where deliberation
+      # is worth the wait (a GPU host, or a hard reasoning workload).
+      thinking: false
     generation_defaults:
       temperature: 0.3
       top_p: 0.9

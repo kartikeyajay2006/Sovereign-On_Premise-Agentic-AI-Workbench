@@ -51,9 +51,22 @@ inference:
   request_timeout_seconds: 600
   connect_timeout_seconds: 10
   keep_alive: 30m
+  # Ollama defaults to a 4096-token context regardless of what the model
+  # supports. We pass the model's declared context window, capped here so a
+  # CPU-only host does not allocate an unusable KV cache.
+  max_context_tokens: 8192
+  # Large scans are downscaled before they reach a vision model: a 1700px
+  # scan costs far more image tokens than it adds legibility.
+  max_image_edge_px: 1400
   # Availability of registered models is re-checked at this interval.
   registry_refresh_seconds: 30
   max_concurrent_requests: 2
+  # Model manager (reference architecture: memory check -> load/unload).
+  # With single residency only one generation model stays in memory; switching
+  # roles evicts the previous one. Required on hosts that cannot hold two
+  # multi-gigabyte models at once. Set false on a large GPU server.
+  single_model_residency: true
+  memory_headroom_mb: 1536
 
 knowledge_base:
   chunk_size_chars: 1200
