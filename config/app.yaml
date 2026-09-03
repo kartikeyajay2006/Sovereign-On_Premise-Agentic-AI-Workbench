@@ -1,0 +1,180 @@
+# Platform settings. Every value here is overridable by an environment
+# variable using the SOVEREIGN_ prefix and __ nesting
+# (e.g. SOVEREIGN_SANDBOX__TIMEOUT_SECONDS=60).
+
+app:
+  name: Sovereign On-Premise Agentic AI Workbench
+  environment: on_premise
+  api_host: 0.0.0.0
+  api_port: 8000
+  cors_origins:
+    - http://localhost:3000
+    - http://127.0.0.1:3000
+
+storage:
+  root: storage
+  uploads: storage/uploads
+  deliverables: storage/deliverables
+  index: storage/index
+  logs: storage/logs
+  workspaces: storage/workspaces
+  database: storage/workbench.db
+  max_upload_bytes: 52428800
+  allowed_upload_extensions:
+    - .txt
+    - .md
+    - .log
+    - .pdf
+    - .docx
+    - .doc
+    - .xlsx
+    - .xls
+    - .csv
+    - .pptx
+    - .png
+    - .jpg
+    - .jpeg
+    - .webp
+    - .bmp
+    - .tiff
+    - .tif
+    - .py
+    - .js
+    - .ts
+    - .json
+    - .yaml
+    - .yml
+
+inference:
+  provider: ollama
+  base_url: http://127.0.0.1:11434
+  request_timeout_seconds: 600
+  connect_timeout_seconds: 10
+  keep_alive: 30m
+  # Availability of registered models is re-checked at this interval.
+  registry_refresh_seconds: 30
+  max_concurrent_requests: 2
+
+knowledge_base:
+  chunk_size_chars: 1200
+  chunk_overlap_chars: 180
+  min_chunk_chars: 120
+  embedding_model_role: embedding
+  # Used only when no embedding model is installed: a deterministic lexical
+  # retriever (BM25-style). Real retrieval, lower quality — never a stub.
+  lexical_fallback_enabled: true
+  default_top_k: 6
+  min_score: 0.15
+  supported_ingest_extensions: [.txt, .md, .pdf, .docx, .csv, .xlsx]
+
+sandbox:
+  enabled: true
+  runtime: subprocess           # subprocess | docker
+  timeout_seconds: 45
+  max_memory_mb: 1024
+  max_cpu_seconds: 30
+  max_output_bytes: 262144
+  max_written_file_bytes: 26214400
+  max_processes: 32
+  network_enabled: false
+  # Docker runtime options, used when runtime=docker.
+  docker_image: python:3.11-slim
+  docker_network: none
+  docker_read_only_rootfs: true
+  # Static validation: modules the generated code may never import.
+  denied_imports:
+    - socket
+    - requests
+    - urllib
+    - urllib3
+    - httpx
+    - aiohttp
+    - ftplib
+    - smtplib
+    - telnetlib
+    - subprocess
+    - multiprocessing
+    - ctypes
+    - importlib
+    - pickle
+    - shutil
+    - pty
+    - webbrowser
+    - xmlrpc
+    - http
+  denied_calls:
+    - eval
+    - exec
+    - compile
+    - __import__
+    - breakpoint
+    - open_host
+  denied_attributes:
+    - __subclasses__
+    - __globals__
+    - __builtins__
+    - __bases__
+    - __mro__
+  allowed_imports:
+    - math
+    - statistics
+    - json
+    - csv
+    - re
+    - datetime
+    - decimal
+    - fractions
+    - itertools
+    - functools
+    - collections
+    - dataclasses
+    - typing
+    - random
+    - string
+    - textwrap
+    - pathlib
+    - os
+    - sys
+    - time
+    - uuid
+    - hashlib
+    - base64
+    - numpy
+    - pandas
+    - openpyxl
+    - matplotlib
+
+agent:
+  default_step_budget: 8
+  max_step_budget: 20
+  max_replans: 2
+  step_timeout_seconds: 600
+  # Stream partial model output to the UI over SSE.
+  stream_tokens: true
+
+sovereignty:
+  monitor_enabled: true
+  poll_interval_seconds: 2
+  # Endpoints that are legitimately local. Anything outside these ranges seen
+  # from the workbench process tree is recorded as a violation.
+  allowed_cidrs:
+    - 127.0.0.0/8
+    - ::1/128
+  # Local service ports the platform itself uses.
+  known_local_ports: [8000, 3000, 11434, 5432, 6379]
+  violation_action: record_and_alert
+
+audit:
+  enabled: true
+  log_file: storage/logs/audit.jsonl
+  hash_algorithm: sha256
+  # Chain integrity is verified on startup and on demand via the API.
+  verify_on_startup: true
+
+security:
+  session_ttl_minutes: 720
+  password_hash_rounds: 12
+  # Set via environment in production. A random value is generated per boot if
+  # unset, which invalidates sessions on restart.
+  secret_key: ""
+  seed_user_password: workbench

@@ -1,0 +1,67 @@
+# Data classification levels and the controls each level demands.
+
+policy_version: 1
+
+# Ordered from least to most restrictive. `rank` is used for comparisons such
+# as "is this model approved for this classification?".
+levels:
+  - id: normal
+    rank: 0
+    label: Normal
+    colour: emerald
+    description: Routine internal work with no special handling requirement.
+    controls:
+      evidence_required: false
+      human_approval_required: false
+      retention_days: 365
+      redact_in_logs: false
+
+  - id: confidential
+    rank: 1
+    label: Confidential
+    colour: amber
+    description: Internal business information; disclosure would cause harm.
+    controls:
+      evidence_required: true
+      human_approval_required: false
+      retention_days: 730
+      redact_in_logs: false
+
+  - id: sensitive
+    rank: 2
+    label: Sensitive
+    colour: orange
+    description: Safety, statutory or incident-related work requiring review.
+    controls:
+      evidence_required: true
+      human_approval_required: true
+      retention_days: 1825
+      redact_in_logs: true
+
+  - id: restricted
+    rank: 3
+    label: Restricted
+    colour: rose
+    description: Defence-linked, contractual or unreleased design information.
+    controls:
+      evidence_required: true
+      human_approval_required: true
+      retention_days: 2555
+      redact_in_logs: true
+
+# Classification is escalated (never downgraded) when any of these are true.
+escalation_rules:
+  - when: {task_produces_deliverable: true, sensitivity_at_least: sensitive}
+    escalate_to: restricted
+    reason: Released deliverables carrying sensitive content are treated as restricted.
+  - when: {source_document_classification_at_least: restricted}
+    escalate_to: restricted
+    reason: A task inherits the highest classification of its source documents.
+
+# Egress rules. There is no "allowed" branch by design; this platform has no
+# authorised outbound destination. The list exists so the network monitor can
+# prove the set is empty rather than merely assume it.
+egress:
+  allowed_destinations: []
+  loopback_only: true
+  monitored_ports: [80, 443, 53, 8080, 8443]

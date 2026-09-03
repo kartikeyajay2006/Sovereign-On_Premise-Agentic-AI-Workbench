@@ -1,0 +1,26 @@
+# Sovereign On-Premise Agentic AI Workbench — backend dependencies.
+# All packages are installed once into the on-premise host; the platform makes
+# no network calls at runtime.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+python-multipart==0.0.20
+PyYAML==6.0.2
+httpx==0.28.1
+psutil==6.1.1
+
+# Document understanding and deliverable generation
+pypdf==5.1.0
+python-docx==1.1.2
+openpyxl==3.1.5
+python-pptx==1.0.2
+Pillow==11.1.0
+
+# Data analysis available inside the sandbox
+numpy==2.2.1
+pandas==2.2.3
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.2

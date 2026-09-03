@@ -1,0 +1,61 @@
+# Human-in-the-loop approval rules and verification thresholds.
+
+policy_version: 1
+
+# A task pauses at the approval gate when ANY rule matches.
+approval_required_when:
+  - name: sensitive_classification
+    description: Sensitive or restricted work always needs an approving authority.
+    match:
+      sensitivity_in: [sensitive, restricted]
+    approver_roles: [reviewer, administrator]
+
+  - name: released_deliverable
+    description: Any artifact that leaves the workbench needs sign-off.
+    match:
+      produces_deliverable: true
+    approver_roles: [reviewer, administrator]
+
+  - name: verification_failure
+    description: Failed verification cannot be auto-delivered; a human decides.
+    match:
+      verification_valid: false
+    approver_roles: [reviewer, administrator]
+
+  - name: low_confidence_classification
+    description: If the analyzer was unsure, a human confirms before release.
+    match:
+      classification_confidence_below: 0.35
+    approver_roles: [reviewer, engineer, administrator]
+
+  - name: safety_recommendation
+    description: Safety-related recommendations are never released unreviewed.
+    match:
+      prompt_contains_any: ["safety", "hazard", "shutdown", "incident", "statutory"]
+    approver_roles: [reviewer, administrator]
+
+# Verification engine thresholds.
+verification:
+  # A material claim is a sentence carrying a number, a limit, or a directive
+  # verb. Material claims must be supported by retrieved evidence or by a
+  # recomputed calculation, otherwise the hallucination check fails.
+  material_claim_patterns:
+    - "\\b\\d+(?:\\.\\d+)?\\s*(mm|cm|m|kg|t|bar|psi|kpa|mpa|°c|degc|%|hrs?|hours?|days?|years?)\\b"
+    - "\\b(shall|must|required to|not permitted|prohibited|mandatory)\\b"
+    - "\\b(clause|section|para|paragraph|table)\\s+[0-9ivx.]+\\b"
+  min_evidence_per_material_claim: 1
+  # Fraction of material claims that must be supported for the check to pass.
+  min_supported_fraction: 0.6
+  # Numeric results asserted by the model are recomputed independently in the
+  # sandbox; a relative difference above this fails the calculation check.
+  calculation_tolerance: 0.01
+  # Generated code must exit cleanly to pass code verification.
+  code_must_exit_zero: true
+  # Retries allowed before the task escalates to a human instead of replanning.
+  max_replans: 2
+
+# Escalation behaviour when the system cannot verify (fail-safe principle §15.7).
+on_unverifiable:
+  action: escalate_to_human
+  block_delivery: true
+  audit_event: verification_unresolved

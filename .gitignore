@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-error.log*
+
+# Runtime state — regenerated locally, never committed
+storage/uploads/*
+storage/deliverables/*
+storage/workspaces/*
+storage/index/*
+storage/logs/*
+storage/*.db
+storage/*.db-wal
+storage/*.db-shm
+!storage/**/.gitkeep
+
+# Local environment
+.env
+.env.local

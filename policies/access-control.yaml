@@ -1,0 +1,103 @@
+# Identity, role and file access policy (RBAC + light ABAC).
+# Default deny: anything not explicitly granted here is refused by the gateway.
+
+policy_version: 1
+
+roles:
+  operator:
+    description: Industrial user who submits work and receives deliverables.
+    permissions:
+      - task.create
+      - task.read.own
+      - file.upload
+      - file.read.own
+      - knowledge.search
+      - deliverable.download.own
+      - audit.read.own
+    max_data_classification: confidential
+
+  engineer:
+    description: Senior technical user; may work with restricted engineering data.
+    inherits: operator
+    permissions:
+      - knowledge.ingest
+      - task.read.department
+      - deliverable.download.department
+    max_data_classification: restricted
+
+  reviewer:
+    description: Approving authority for sensitive deliverables.
+    inherits: engineer
+    permissions:
+      - approval.read
+      - approval.decide
+      - task.read.all
+      - audit.read.all
+      - deliverable.download.all
+    max_data_classification: restricted
+
+  auditor:
+    description: Read-only oversight; can read every trace but cannot execute work.
+    permissions:
+      - audit.read.all
+      - task.read.all
+      - sovereignty.read
+    max_data_classification: restricted
+
+  administrator:
+    description: Platform operations. Manages models, policy and knowledge base.
+    inherits: reviewer
+    permissions:
+      - model.manage
+      - policy.read
+      - knowledge.manage
+      - system.manage
+    max_data_classification: restricted
+
+# Departments constrain which knowledge-base documents a user may retrieve.
+departments:
+  - id: operations
+    label: Operations
+  - id: engineering
+    label: Engineering
+  - id: inspection
+    label: Inspection & Integrity
+  - id: quality
+    label: Quality Assurance
+  - id: finance
+    label: Finance
+  - id: general
+    label: General
+
+# Seed identities created on first boot when the user table is empty.
+# Passwords are never stored in this file; they are supplied via environment
+# (SEED_USER_PASSWORD) and stored only as a salted hash.
+seed_users:
+  - username: operator
+    display_name: Plant Operator
+    role: operator
+    department: operations
+  - username: engineer
+    display_name: Integrity Engineer
+    role: engineer
+    department: inspection
+  - username: reviewer
+    display_name: Approving Authority
+    role: reviewer
+    department: engineering
+  - username: auditor
+    display_name: Internal Auditor
+    role: auditor
+    department: quality
+  - username: admin
+    display_name: Platform Administrator
+    role: administrator
+    department: general
+
+file_access:
+  # A user may read a document when department matches, or the document is
+  # marked shareable, or the user's role appears in override_roles.
+  department_isolation: true
+  override_roles: [reviewer, auditor, administrator]
+  # Uploads are always owned by, and readable by, their uploader.
+  owner_always_allowed: true

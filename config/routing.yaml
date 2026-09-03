@@ -1,0 +1,76 @@
+# Model routing rules.
+#
+# The router never names a model directly. It resolves:
+#   task profile -> required capabilities + preferred role -> candidate models
+#   -> score by (capability match, role match, approval for classification,
+#      availability, cost/size preference) -> selection + human-readable reason
+#
+# Every routing decision is recorded in the audit trail with its reason.
+
+routing_version: 1
+
+# Ordered rules. First rule whose `when` clauses all match wins.
+# `when` supports: input_types, task_types, complexities, sensitivities.
+# Omitted keys mean "any".
+rules:
+  - name: visual_understanding
+    description: Any visual input must be understood by a vision-capable model first.
+    when:
+      input_types: [image, scanned_pdf, drawing, pid_diagram]
+    require:
+      role: vision
+      capabilities: [vision]
+    fallback:
+      role: vision
+      capabilities: [vision]
+
+  - name: code_generation
+    description: Coding work prefers a dedicated coding model when one is registered.
+    when:
+      task_types: [coding, calculation, data_analysis]
+    require:
+      role: coding
+      capabilities: [coding]
+    fallback:
+      role: reasoning
+      capabilities: [coding]
+
+  - name: document_reasoning
+    description: Document generation and analysis use the reasoning model.
+    when:
+      task_types: [document_generation, analysis, summarization, question_answering]
+    require:
+      role: reasoning
+      capabilities: [reasoning]
+    fallback:
+      role: reasoning
+      capabilities: [text]
+
+  - name: default
+    description: Catch-all for unclassified work.
+    require:
+      role: reasoning
+      capabilities: [text]
+    fallback:
+      role: reasoning
+      capabilities: [text]
+
+# Scoring weights used to rank candidate models within a rule.
+scoring:
+  role_match: 50
+  capability_match_each: 15
+  classification_approved: 40
+  availability: 100          # unavailable models score below every available one
+  smaller_model_bonus: 5     # per billion parameters *below* the largest candidate
+  context_window_bonus: 0.0005  # per token of context window
+
+# Stage-level overrides: a multi-stage agent run can demand a specific role for
+# a given stage regardless of the task-level rule (e.g. the vision extraction
+# stage of a document workflow).
+stage_roles:
+  vision_extraction: vision
+  planning: reasoning
+  code_generation: coding
+  verification: reasoning
+  drafting: reasoning
+  embedding: embedding

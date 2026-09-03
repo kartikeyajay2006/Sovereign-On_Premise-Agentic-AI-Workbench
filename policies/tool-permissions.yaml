@@ -1,0 +1,87 @@
+# Tool capability policy. Default deny: a tool not listed here cannot be
+# invoked by the agent, and a role not listed on a tool cannot invoke it.
+
+policy_version: 1
+
+defaults:
+  allow_unregistered_tools: false
+  require_audit_event: true
+
+tools:
+  knowledge_search:
+    description: Semantic search over the approved local knowledge base.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: read_only
+    requires_approval: false
+
+  file_read:
+    description: Read a file the requesting user is entitled to access.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: read_only
+    requires_approval: false
+    constraints:
+      # Reads are confined to the workbench storage root; host paths are refused.
+      confine_to_storage_root: true
+      max_bytes: 10485760
+
+  file_write:
+    description: Write a generated artifact into the task workspace.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: write
+    requires_approval: false
+    constraints:
+      confine_to_storage_root: true
+      max_bytes: 26214400
+
+  python_exec:
+    description: Execute generated Python inside the secure sandbox.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: execute
+    requires_approval: false
+    constraints:
+      sandbox_required: true
+      network_allowed: false
+
+  spreadsheet_analyze:
+    description: Load and analyse an XLSX/CSV inside the sandbox.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: read_only
+    requires_approval: false
+    constraints:
+      sandbox_required: true
+
+  vision_extract:
+    description: Extract text, layout and observations from a visual input.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: sensitive
+    side_effects: read_only
+    requires_approval: false
+
+  document_generate:
+    description: Produce a DOCX/XLSX/PPTX/PDF deliverable.
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: write
+    requires_approval: false
+    constraints:
+      formats: [docx, xlsx, pptx, md]
+      release_requires_approval: true
+
+# Actions that are blocked unconditionally, for every role, with no override.
+# These are the "default deny" list from the reference architecture §5.
+hard_denied_actions:
+  - external_api_call
+  - internet_access
+  - dns_resolution
+  - cloud_model_inference
+  - credential_access
+  - host_filesystem_access
+  - privilege_escalation
+  - unregistered_model_use
+  - unregistered_tool_use
+  - sandbox_network_egress

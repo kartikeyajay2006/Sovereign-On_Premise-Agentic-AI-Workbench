@@ -1,0 +1,109 @@
+# Local model registry.
+#
+# Nothing here is hardcoded in Python. Models are declared in this file and
+# reconciled at runtime against what the local inference server actually has
+# installed (Ollama /api/tags). A model declared here but not installed is
+# reported as `unavailable` and never routed to; a model installed but not
+# declared here is reported as `unregistered` and is refused by policy
+# (default-deny on unregistered models).
+#
+# Add a new open-weight model by appending an entry here. No code changes.
+
+registry_version: 1
+
+# Capabilities are free-form tags. The router matches required capabilities
+# (produced by the task analyzer via config/routing.yaml) against these.
+models:
+  - id: qwen3:8b
+    family: qwen3
+    display_name: Qwen3 8B
+    role: reasoning
+    capabilities: [text, reasoning, planning, analysis, summarization, coding, tool_calling]
+    context_window: 32768
+    quantization: Q4_K_M
+    parameters_b: 8.0
+    approved_classifications: [normal, confidential, restricted, sensitive]
+    serving:
+      provider: ollama
+      model: qwen3:8b
+    generation_defaults:
+      temperature: 0.3
+      top_p: 0.9
+      num_predict: 1200
+    notes: >-
+      Primary local reasoning model. Handles SOP analysis, planning, document
+      reasoning and agent decisions. Also serves coding until a dedicated
+      coding model is registered.
+
+  - id: qwen2.5-coder:7b
+    family: qwen2.5-coder
+    display_name: Qwen2.5 Coder 7B
+    role: coding
+    capabilities: [text, coding, debugging, tool_calling, data_analysis]
+    context_window: 32768
+    quantization: Q4_K_M
+    parameters_b: 7.0
+    approved_classifications: [normal, confidential, restricted]
+    serving:
+      provider: ollama
+      model: qwen2.5-coder:7b
+    generation_defaults:
+      temperature: 0.1
+      top_p: 0.9
+      num_predict: 1500
+    notes: >-
+      Optional dedicated coding model. Pull with `ollama pull qwen2.5-coder:7b`.
+      When absent the router falls back per config/routing.yaml.
+
+  - id: qwen2.5vl:3b
+    family: qwen2.5-vl
+    display_name: Qwen2.5-VL 3B
+    role: vision
+    capabilities: [vision, ocr, layout_understanding, drawing_analysis, handwriting, text]
+    context_window: 32768
+    quantization: Q4_K_M
+    parameters_b: 3.0
+    approved_classifications: [normal, confidential, restricted, sensitive]
+    serving:
+      provider: ollama
+      model: qwen2.5vl:3b
+    generation_defaults:
+      temperature: 0.2
+      num_predict: 1200
+    notes: >-
+      Vision-language model for scanned PDFs, P&IDs, drawings, photographs and
+      handwriting. Pull with `ollama pull qwen2.5vl:3b`.
+
+  - id: moondream:latest
+    family: moondream
+    display_name: Moondream 2
+    role: vision
+    capabilities: [vision, ocr, text]
+    context_window: 2048
+    quantization: Q4
+    parameters_b: 1.9
+    approved_classifications: [normal, confidential]
+    serving:
+      provider: ollama
+      model: moondream:latest
+    generation_defaults:
+      temperature: 0.2
+      num_predict: 600
+    notes: >-
+      Lightweight vision fallback for low-resource hosts. Pull with
+      `ollama pull moondream`.
+
+  - id: nomic-embed-text:latest
+    family: nomic-embed
+    display_name: Nomic Embed Text
+    role: embedding
+    capabilities: [embedding]
+    context_window: 8192
+    quantization: F16
+    parameters_b: 0.137
+    approved_classifications: [normal, confidential, restricted, sensitive]
+    serving:
+      provider: ollama
+      model: nomic-embed-text:latest
+    embedding_dimensions: 768
+    notes: Local embedding model for the industrial knowledge base.

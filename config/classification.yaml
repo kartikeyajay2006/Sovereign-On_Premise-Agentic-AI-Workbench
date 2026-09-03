@@ -1,0 +1,225 @@
+# Industrial task analyzer rules.
+#
+# Converts an unstructured request (+ attached files) into a structured
+# execution profile: input type, task type, complexity, sensitivity, required
+# capabilities and required controls. All signals live here, not in code, so
+# an operator can tune classification without redeploying.
+#
+# Scoring: every matched pattern adds its weight to that class. Highest total
+# wins; ties break by the order declared here. If nothing matches, `default`
+# is used and the profile is flagged low-confidence (which raises the
+# verification bar via policies/approval-rules.yaml).
+
+classification_version: 1
+
+# ---------------------------------------------------------------- input type
+# Derived primarily from attached file extensions/MIME, with prompt hints as a
+# secondary signal. `extensions` are matched case-insensitively.
+input_types:
+  default: text
+  by_extension:
+    text: [".txt", ".md", ".log"]
+    document: [".docx", ".doc", ".odt", ".rtf"]
+    pdf: [".pdf"]
+    spreadsheet: [".xlsx", ".xls", ".csv", ".ods"]
+    presentation: [".pptx", ".ppt"]
+    image: [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"]
+    code: [".py", ".js", ".ts", ".java", ".c", ".cpp", ".go", ".rs", ".sql", ".sh"]
+  # Prompt hints that specialise a broad type into an industrial one.
+  refinements:
+    - from: [image, pdf]
+      to: scanned_pdf
+      patterns: ["scanned", "scan of", "photocopy", "handwritten", "hand written"]
+      weight: 3
+    - from: [image, pdf]
+      to: pid_diagram
+      patterns: ["p&id", "pid diagram", "piping and instrumentation", "process flow diagram", "pfd"]
+      weight: 5
+    - from: [image, pdf]
+      to: drawing
+      patterns: ["drawing", "blueprint", "schematic", "isometric", "ga drawing", "layout plan"]
+      weight: 3
+  # A mixed upload (e.g. image + spreadsheet) resolves to this.
+  multi_input_type: multimodal
+
+# ----------------------------------------------------------------- task type
+task_types:
+  default: question_answering
+  classes:
+    document_generation:
+      patterns:
+        - {match: "approval note", weight: 5}
+        - {match: "draft a", weight: 3}
+        - {match: "prepare a", weight: 3}
+        - {match: "generate a report", weight: 4}
+        - {match: "write a report", weight: 4}
+        - {match: "board pack", weight: 4}
+        - {match: "presentation", weight: 3}
+        - {match: "memo", weight: 3}
+        - {match: "docx", weight: 3}
+        - {match: "word file", weight: 4}
+        - {match: "word document", weight: 4}
+        - {match: "excel", weight: 3}
+        - {match: "spreadsheet", weight: 3}
+        - {match: "deliverable", weight: 3}
+      produces_deliverable: true
+    coding:
+      patterns:
+        - {match: "write a script", weight: 5}
+        - {match: "write code", weight: 5}
+        - {match: "python", weight: 3}
+        - {match: "function", weight: 2}
+        - {match: "debug", weight: 4}
+        - {match: "refactor", weight: 4}
+        - {match: "automate", weight: 3}
+        - {match: "parse the", weight: 2}
+        - {match: "algorithm", weight: 3}
+        - {match: "unit test", weight: 3}
+      produces_deliverable: true
+    calculation:
+      patterns:
+        - {match: "calculate", weight: 5}
+        - {match: "compute", weight: 4}
+        - {match: "how much", weight: 3}
+        - {match: "thickness", weight: 3}
+        - {match: "pressure", weight: 2}
+        - {match: "corrosion rate", weight: 5}
+        - {match: "remaining life", weight: 5}
+        - {match: "tonnage", weight: 3}
+        - {match: "efficiency", weight: 2}
+        - {match: "flow rate", weight: 3}
+      produces_deliverable: false
+    vision_analysis:
+      patterns:
+        - {match: "read this", weight: 3}
+        - {match: "extract from", weight: 4}
+        - {match: "what does this drawing", weight: 5}
+        - {match: "identify the", weight: 2}
+        - {match: "ocr", weight: 5}
+        - {match: "transcribe", weight: 4}
+        - {match: "inspect the image", weight: 4}
+      produces_deliverable: false
+    analysis:
+      patterns:
+        - {match: "analyse", weight: 4}
+        - {match: "analyze", weight: 4}
+        - {match: "review", weight: 3}
+        - {match: "assess", weight: 3}
+        - {match: "evaluate", weight: 3}
+        - {match: "findings", weight: 3}
+        - {match: "compare", weight: 3}
+        - {match: "root cause", weight: 4}
+      produces_deliverable: false
+    summarization:
+      patterns:
+        - {match: "summarise", weight: 5}
+        - {match: "summarize", weight: 5}
+        - {match: "tl;dr", weight: 4}
+        - {match: "key points", weight: 4}
+        - {match: "brief me", weight: 3}
+      produces_deliverable: false
+    question_answering:
+      patterns:
+        - {match: "what is", weight: 2}
+        - {match: "how do", weight: 2}
+        - {match: "explain", weight: 2}
+        - {match: "which sop", weight: 4}
+        - {match: "does our", weight: 3}
+      produces_deliverable: false
+
+# ---------------------------------------------------------------- complexity
+# Complexity drives the agent step budget and whether planning is mandatory.
+complexity:
+  default: simple
+  classes:
+    agentic:
+      patterns:
+        - {match: "and then", weight: 4}
+        - {match: "after that", weight: 4}
+        - {match: "step by step", weight: 3}
+        - {match: "based on our sop", weight: 4}
+        - {match: "based on the sop", weight: 4}
+        - {match: "cross-check", weight: 4}
+        - {match: "verify against", weight: 4}
+      signals:
+        multiple_files: 3
+        deliverable_required: 3
+        visual_input: 2
+        retrieval_required: 2
+    multi_step:
+      patterns:
+        - {match: "then", weight: 2}
+        - {match: "also", weight: 2}
+        - {match: "additionally", weight: 2}
+        - {match: "as well as", weight: 2}
+      signals:
+        multiple_files: 2
+        deliverable_required: 2
+    simple:
+      patterns: []
+      signals: {}
+  # Step budgets handed to the orchestrator per complexity class.
+  step_budget:
+    simple: 4
+    multi_step: 8
+    agentic: 14
+
+# --------------------------------------------------------------- sensitivity
+# Sensitivity selects the control set in policies/data-classification.yaml.
+sensitivity:
+  default: normal
+  classes:
+    restricted:
+      patterns:
+        - {match: "restricted", weight: 5}
+        - {match: "classified", weight: 5}
+        - {match: "defence", weight: 4}
+        - {match: "defense", weight: 4}
+        - {match: "tender", weight: 3}
+        - {match: "vendor negotiation", weight: 4}
+        - {match: "unreleased", weight: 4}
+    confidential:
+      patterns:
+        - {match: "confidential", weight: 5}
+        - {match: "internal only", weight: 4}
+        - {match: "p&id", weight: 3}
+        - {match: "financial", weight: 3}
+        - {match: "salary", weight: 3}
+        - {match: "commercial", weight: 2}
+        - {match: "proprietary", weight: 3}
+    sensitive:
+      patterns:
+        - {match: "safety", weight: 4}
+        - {match: "incident", weight: 3}
+        - {match: "hazard", weight: 4}
+        - {match: "shutdown", weight: 3}
+        - {match: "regulatory", weight: 3}
+        - {match: "statutory", weight: 3}
+        - {match: "approval note", weight: 3}
+    normal:
+      patterns: []
+
+# -------------------------------------------------- retrieval + capabilities
+# When retrieval should be attempted (knowledge base grounding).
+retrieval:
+  always_for_task_types: [document_generation, question_answering, analysis]
+  trigger_patterns:
+    - "sop"
+    - "standard operating procedure"
+    - "manual"
+    - "procedure"
+    - "policy"
+    - "guideline"
+    - "as per our"
+    - "according to our"
+    - "past report"
+    - "previous inspection"
+  top_k: 6
+  min_score: 0.15
+
+# Capability requirements added to the routing request per detected feature.
+capability_map:
+  visual_input: [vision]
+  code_task: [coding]
+  reasoning_task: [reasoning]
+  retrieval_task: [reasoning]
