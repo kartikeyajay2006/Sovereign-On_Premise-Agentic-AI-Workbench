@@ -72,5 +72,6 @@ docker compose -f infrastructure/docker-compose.yml up --build
 ## Contributors
 
 - [Kartikeya Jay](https://github.com/kartikeyajay2006)
-- [Ankit Pandey](https://github.com/ankitpandey)
+- [Ankit Pandey](https://github.com/ankit25bcs10610)
+
 
