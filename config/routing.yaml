@@ -31,9 +31,13 @@ rules:
     require:
       role: coding
       capabilities: [coding]
+    # A fallback must relax a requirement to mean anything: role alone is a
+    # scoring preference, not an eligibility gate, so the fallback drops the
+    # coding capability. This is safe because generated code is executed in
+    # the sandbox and fails verification if it does not run cleanly.
     fallback:
       role: reasoning
-      capabilities: [coding]
+      capabilities: [text]
 
   - name: document_reasoning
     description: Document generation and analysis use the reasoning model.

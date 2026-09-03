@@ -1,0 +1,68 @@
+name: sovereign-workbench
+
+services:
+  model-server:
+    image: ollama/ollama:0.5.7
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NO_CLOUD: "1"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - workbench_internal
+    # Port 8000 is served by the API container, which shares this local
+    # network namespace so model inference stays on 127.0.0.1.
+    ports:
+      - "127.0.0.1:8000:8000"
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    network_mode: service:model-server
+    environment:
+      SOVEREIGN_INFERENCE__BASE_URL: http://127.0.0.1:11434
+      SOVEREIGN_SECURITY__SEED_USER_PASSWORD: ${SOVEREIGN_SEED_USER_PASSWORD:-workbench}
+    volumes:
+      - workbench_storage:/workbench/storage
+    depends_on:
+      model-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKBENCH_API_URL: http://model-server:8000
+    networks:
+      - workbench_internal
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  workbench_internal:
+    internal: true
+
+volumes:
+  ollama_models:
+  workbench_storage:

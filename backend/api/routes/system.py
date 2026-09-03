@@ -13,7 +13,6 @@ from fastapi import (
     Depends,
     File,
     Form,
-    Header,
     HTTPException,
     Response,
     UploadFile,
@@ -21,7 +20,7 @@ from fastapi import (
 )
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from backend.api.dependencies import CurrentUser, require_permission
+from backend.api.dependencies import CurrentUser, SessionToken, require_permission
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
@@ -53,9 +52,22 @@ BOOT_TIME = datetime.now(timezone.utc)
 
 # ------------------------------------------------------------------ identity
 @router.post("/auth/login", response_model=Session)
-def login(payload: LoginRequest) -> Session:
+def login(payload: LoginRequest, response: Response) -> Session:
     try:
-        return get_identity_service().authenticate(payload.username, payload.password)
+        session = get_identity_service().authenticate(payload.username, payload.password)
+        # EventSource cannot attach an Authorization header. Keep the browser
+        # session in an HttpOnly same-site cookie as well, so the SSE endpoint
+        # receives the same authenticated identity as the rest of the UI.
+        response.set_cookie(
+            key="workbench_session",
+            value=session.token,
+            max_age=int(get_config().settings.security.get("session_ttl_minutes", 720)) * 60,
+            httponly=True,
+            samesite="strict",
+            secure=False,  # Local HTTP is the supported on-premise default.
+            path="/",
+        )
+        return session
     except AuthenticationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
@@ -65,11 +77,12 @@ def login(payload: LoginRequest) -> Session:
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 def logout(
     user: CurrentUser,
-    authorization: Annotated[str | None, Header()] = None,
+    token: SessionToken,
 ) -> Response:
-    if authorization and authorization.lower().startswith("bearer "):
-        get_identity_service().logout(authorization.split(" ", 1)[1].strip(), user)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    get_identity_service().logout(token, user)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie("workbench_session", path="/")
+    return response
 
 
 @router.get("/auth/me", response_model=User)
@@ -317,19 +330,39 @@ def tools_catalogue(user: CurrentUser) -> list[dict[str, Any]]:
 
 # -------------------------------------------------------------- event stream
 @router.get("/events")
-async def event_stream(task_id: str | None = None) -> StreamingResponse:
+async def event_stream(user: CurrentUser, task_id: str | None = None) -> StreamingResponse:
     """Server-Sent Events: agent timeline plus live sovereignty counters.
 
-    Authentication is by session token on the query string because EventSource
-    cannot set headers; the stream carries no task content, only progress
-    events already scoped by task id.
+    EventSource receives the HttpOnly same-site session cookie issued at login.
+    Task events are scoped to the owner unless the caller has ``task.read.all``.
+    Platform-level sovereignty heartbeats carry no task content and remain
+    visible to every authenticated user.
     """
     bus = get_event_bus()
+    service = get_task_service()
+    can_read_all = "task.read.all" in get_config().role_permissions(user.role)
+
+    if task_id:
+        requested_task = service.get_task(task_id)
+        if requested_task is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        if not can_read_all and requested_task.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You may only subscribe to your own task events",
+            )
+
+    def visible(event_task_id: str | None) -> bool:
+        if event_task_id is None or can_read_all:
+            return True
+        task = service.get_task(event_task_id)
+        return task is not None and task.user_id == user.id
 
     async def generator() -> AsyncIterator[str]:
         yield ": stream open\n\n"
         for event in bus.replay(task_id=task_id, limit=50):
-            yield _sse(event.model_dump(mode="json"))
+            if visible(event.task_id):
+                yield _sse(event.model_dump(mode="json"))
         async with bus.subscribe() as queue:
             while True:
                 try:
@@ -338,6 +371,8 @@ async def event_stream(task_id: str | None = None) -> StreamingResponse:
                     yield ": keep-alive\n\n"
                     continue
                 if task_id and event.task_id and event.task_id != task_id:
+                    continue
+                if not visible(event.task_id):
                     continue
                 yield _sse(event.model_dump(mode="json"))
 

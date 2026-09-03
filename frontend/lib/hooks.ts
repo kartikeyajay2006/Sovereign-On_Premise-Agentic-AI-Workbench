@@ -3,8 +3,8 @@
 /**
  * Live state hooks.
  *
- * `useEventStream` subscribes to the API's Server-Sent Events so the console
- * reflects agent progress as it happens rather than by polling. Polling
+ * `useEventStream` subscribes to the authenticated API Server-Sent Event
+ * stream so the console reflects agent progress as it happens rather than by polling. Polling
  * remains as a fallback for the task record itself, because a dropped stream
  * must never leave the operator looking at a stale screen.
  */

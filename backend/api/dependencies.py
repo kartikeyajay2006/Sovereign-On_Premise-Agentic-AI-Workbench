@@ -4,23 +4,26 @@ from __future__ import annotations
 
 from typing import Annotated, Callable
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 
 from backend.core.identity import AuthenticationError, get_identity_service
 from backend.core.schemas import PolicyDecision, User
 from backend.policy.gateway import get_policy_gateway
 
 
-def get_current_user(
+def get_session_token(
     authorization: Annotated[str | None, Header()] = None,
     x_session_token: Annotated[str | None, Header()] = None,
-) -> User:
-    """Resolve the caller from a bearer token or session header."""
+    session_cookie: Annotated[str | None, Cookie(alias="workbench_session")] = None,
+) -> str:
+    """Resolve a session token from an API header or the secure browser cookie."""
     token = None
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1].strip()
     elif x_session_token:
         token = x_session_token.strip()
+    elif session_cookie:
+        token = session_cookie.strip()
 
     if not token:
         raise HTTPException(
@@ -28,6 +31,14 @@ def get_current_user(
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return token
+
+
+SessionToken = Annotated[str, Depends(get_session_token)]
+
+
+def get_current_user(token: SessionToken) -> User:
+    """Resolve the authenticated caller from a verified session token."""
     try:
         return get_identity_service().resolve_session(token)
     except AuthenticationError as exc:

@@ -1,8 +1,8 @@
 # Phased Implementation Plan
 
 Budget: **~36 hours, 4 people.** Companion to [implementation-architecture.md](implementation-architecture.md)
-(what we're building) — this document is *how and when* we build it, who owns what,
-and where we stop to integrate. No implementation has started yet; this is the plan.
+(what we're building). This is the original delivery plan, retained as build and demo
+context after implementation.
 
 ## Workstream ownership
 
