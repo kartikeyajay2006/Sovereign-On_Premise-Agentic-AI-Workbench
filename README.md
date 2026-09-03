@@ -17,25 +17,57 @@ hash-chained audit log, and live sovereignty monitor are implemented. The
 production-scale items explicitly listed as deferred in the architecture are
 still deliberately out of scope for this single-machine build.
 
-## Run locally
+## Run it
 
-Install the Python dependencies, start a local Ollama runtime with the approved
-models, then run the API and frontend in separate terminals:
+First time only — install dependencies and the local models:
 
 ```bash
-python -m venv .venv
-.venv/bin/pip install -r requirements.txt
-ollama serve
-.venv/bin/uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd frontend && npm install && cd ..
 
-cd frontend && npm ci && npm run dev
+ollama serve &                    # the local model runtime
+ollama pull qwen3:8b              # reasoning
+ollama pull qwen2.5vl:3b          # reading scans and drawings
+ollama pull nomic-embed-text      # document search
 ```
 
-The default local sign-in password is `workbench`. It is intended only for the
-demo; set `SOVEREIGN_SECURITY__SEED_USER_PASSWORD` before first start on any
-shared host. Install the models declared in `config/models.yaml` before taking
-the host offline. Sample SOPs, a scanned inspection report, and a CSV coding
-fixture are in `sample_data/`.
+Then start everything with one command:
+
+```bash
+./scripts/run.sh
+```
+
+It stops anything already running, builds the console, starts the API and web
+server in the right order, and waits until both answer. Open
+**http://localhost:3000** and sign in as `engineer` with the password
+`workbench`.
+
+```bash
+./scripts/run.sh --status   # what is running
+./scripts/run.sh --stop     # stop both services
+./scripts/run.sh --dev      # frontend in development mode
+```
+
+Change the demo password before putting this on any shared machine: set
+`SOVEREIGN_SECURITY__SEED_USER_PASSWORD` before the first start. Every model
+declared in `config/models.yaml` must be pulled while the host still has
+network access; after that it runs disconnected. Sample procedures, a scanned
+inspection report and a CSV fixture are in `sample_data/`.
+
+### Adding a model
+
+Append an entry to `config/models.yaml` and pull it. No code changes: the
+registry reconciles what is declared against what is installed, and the router
+scores candidates on capability, so a new model becomes routable on the next
+refresh. A model that is installed but not declared is refused by policy.
+
+### Checking your work
+
+```bash
+.venv/bin/python -m pytest tests/ -q      # backend, including containment tests
+node scripts/check-console.mjs            # every screen, free of browser errors
+.venv/bin/python scripts/demo_e2e.py      # the full workflow end to end
+```
 
 ## Run with Docker Compose
 
@@ -58,16 +90,30 @@ docker compose -f infrastructure/docker-compose.yml up --build
 - [`docs/phased-implementation-plan.md`](docs/phased-implementation-plan.md) — the
   original phased build plan, retained as delivery and demo context.
 
-## What the demo proves
+## What you can see working
 
-1. Model auto-selection across at least two task types (text/reasoning-coding vs.
-   image/vision), visible in the Agent Timeline.
-2. An agentic task carried end-to-end: a scanned inspection report → OCR/vision
-   extraction → SOP-grounded reasoning → a drafted `APPROVAL_NOTE.docx`, with citations.
-3. A coding task generated and verified inside a sandbox.
-4. A multimodal (image/scanned-document) understanding task.
-5. Zero external network calls at any point, shown live via a network monitor — the
-   actual proof of the sovereignty claim.
+1. **The right model for each step.** A scanned report is read by the vision
+   model and reasoned about by the reasoning model. The workspace shows which
+   was chosen at each step and the grounds for choosing it.
+2. **A full job, start to finish.** Scanned inspection report → readings
+   extracted → your procedure retrieved → figures recomputed → an approval note
+   drafted as a Word file with citations → held for a human to sign.
+3. **Code that has actually been run.** Generated code executes in a sandbox
+   with no network route; if it does not run cleanly, verification fails and the
+   result is held.
+4. **Reading a scan or drawing** as a task in its own right.
+5. **The containment proof.** The Security page shows live connection counts, a
+   sandbox break-in test you can trigger yourself, and an activity log whose
+   hash chain reports exactly where it was altered, if it ever is.
+
+## A note on performance
+
+The reference hardware for this build is a laptop with no GPU, so inference is
+CPU-bound: expect roughly a minute for planning and several for reading a full
+scan. Nothing is stalled — the workspace shows each step as it happens. On a
+machine with a GPU the same pipeline runs in a fraction of the time, and
+`config/app.yaml` can then hold more than one model in memory at once
+(`single_model_residency: false`).
 
 ## Contributors
 
