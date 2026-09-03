@@ -64,10 +64,18 @@ refresh. A model that is installed but not declared is refused by policy.
 ### Checking your work
 
 ```bash
-.venv/bin/python -m pytest tests/ -q      # backend, including containment tests
-node scripts/check-console.mjs            # every screen, free of browser errors
-.venv/bin/python scripts/demo_e2e.py      # the full workflow end to end
+.venv/bin/python -m pytest tests/ -q         # backend, including containment tests
+node scripts/check-console.mjs               # every screen, free of browser errors
+.venv/bin/python scripts/demo_e2e.py         # the full workflow end to end
+.venv/bin/python scripts/audit_tool.py verify  # activity log chain integrity
 ```
+
+If the activity log ever reports **ALTERED**, `audit_tool.py verify` explains
+what happened: entries sharing a sequence number mean two service instances
+wrote at once, while a single mismatched entry means the file was edited.
+`audit_tool.py archive` retires a broken chain and starts a new one — it copies
+the old log aside unmodified and records the archive as the first entry of the
+new chain, so nothing is ever quietly rewritten.
 
 ## Run with Docker Compose
 
@@ -106,14 +114,42 @@ docker compose -f infrastructure/docker-compose.yml up --build
    sandbox break-in test you can trigger yourself, and an activity log whose
    hash chain reports exactly where it was altered, if it ever is.
 
-## A note on performance
+## Speed, and how to get more of it
 
-The reference hardware for this build is a laptop with no GPU, so inference is
-CPU-bound: expect roughly a minute for planning and several for reading a full
-scan. Nothing is stalled — the workspace shows each step as it happens. On a
-machine with a GPU the same pipeline runs in a fraction of the time, and
-`config/app.yaml` can then hold more than one model in memory at once
-(`single_model_residency: false`).
+The reference machine for this build is a laptop with no GPU, so inference runs
+on the CPU at roughly four tokens per second. That number governs everything:
+the length of a response is the cost, not the complexity of the request.
+
+A full agentic run — read a scan, retrieve procedures, compute, draft, verify —
+takes a few minutes on that hardware. Nothing is stalled; the workspace shows
+each step as it happens, and every stage is timed in the activity record.
+
+Three things already tuned for it, all in config:
+
+- **Output budgets per stage** (`config/routing.yaml → stage_output_tokens`). A
+  plan is short JSON and gets 350 tokens; a drafted document gets 900. This
+  roughly halved total run time.
+- **Scan downscaling** (`config/app.yaml → max_image_edge_px`). Image tokens
+  dominate the reading stage. Dropping to 1100px took it from 255s to 81s with
+  no loss of legibility.
+- **One model resident at a time** (`single_model_residency`). Reading happens
+  before planning so the vision and reasoning models are each loaded once.
+
+**To go faster still,** pull a smaller reasoning model and register it — the
+router prefers the smaller of two models that both satisfy the requirement, so
+it will be selected automatically and the timeline will say why:
+
+```bash
+ollama pull qwen2.5:3b     # roughly 2-3x faster than the 8B, less capable
+```
+
+Add a matching entry to `config/models.yaml`. Quality drops with size, which is
+the trade you are making; the routing reason shown in the workspace makes it
+visible rather than silent.
+
+**On a GPU machine** raise the budgets in `routing.yaml`, set
+`single_model_residency: false` so models stay loaded, and raise
+`max_context_tokens` — the trade-offs above only exist because of CPU inference.
 
 ## Contributors
 
