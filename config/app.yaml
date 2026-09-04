@@ -50,13 +50,14 @@ inference:
   base_url: http://127.0.0.1:11434
   request_timeout_seconds: 600
   connect_timeout_seconds: 10
-  keep_alive: 30m
+  # How long the runtime keeps a model resident after its last use. Long
+  # residency avoids reload cost, but on a host with little headroom it is the
+  # difference between running in memory and running in swap.
+  keep_alive: 5m
   # Ollama defaults to a 4096-token context regardless of what the model
   # supports. We pass the model's declared context window, capped here so a
   # CPU-only host does not allocate an unusable KV cache.
   max_context_tokens: 8192
-  # Large scans are downscaled before they reach a vision model: a 1700px
-  # scan costs far more image tokens than it adds legibility.
   # A 1700px scan costs several times the image tokens of a 1100px one while
   # adding little legibility for a vision model. This is the single largest
   # lever on how long reading a document takes.

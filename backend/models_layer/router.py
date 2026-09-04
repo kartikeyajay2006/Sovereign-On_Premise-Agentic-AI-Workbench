@@ -300,6 +300,14 @@ class ModelRouter:
             budgets = self.config.routing.get("stage_output_tokens") or {}
             if stage and stage in budgets:
                 options["num_predict"] = int(budgets[stage])
+
+            # The context window is the KV cache: sized per stage so a text
+            # stage does not pay for room only an image needs.
+            contexts = self.config.routing.get("stage_context_tokens") or {}
+            if stage and stage in contexts:
+                options["num_ctx"] = min(
+                    int(contexts[stage]), int(options.get("num_ctx", ceiling))
+                )
             return options
         return {}
 

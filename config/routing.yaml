@@ -106,3 +106,18 @@ stage_output_tokens:
   code_generation: 700
   verification: 250
   drafting: 900
+
+# Context window per stage — this is the KV cache, and the KV cache is memory.
+#
+# The runtime allocates it up front for the full window, so an oversized value
+# is paid for on every call whether or not the prompt needs it. On a host that
+# is already tight this is what pushes it into swap, and once a model's cache
+# is being paged in and out a seventy-second call takes twenty-five minutes.
+#
+# Reading a scan needs room for the image tokens. Text stages do not.
+stage_context_tokens:
+  vision_extraction: 6144
+  planning: 4096
+  code_generation: 4096
+  verification: 3072
+  drafting: 5120

@@ -1152,9 +1152,11 @@ class AgentOrchestrator:
     ) -> str:
         extraction_block = ""
         if extraction:
+            # Compact, not pretty-printed: indentation is tokens, and tokens
+            # are both wall-clock time and cache on a CPU host.
             extraction_block = (
                 "Content extracted from the visual input by the local vision model:\n"
-                + json.dumps(extraction, indent=2)[:4000]
+                + json.dumps(extraction, separators=(",", ":"))[:2500]
             )
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
@@ -1165,8 +1167,8 @@ class AgentOrchestrator:
         evidence_block = "\n\n".join(
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
-            + f"\n{item.excerpt[:900]}"
-            for item in evidence[:10]
+            + f"\n{item.excerpt[:500]}"
+            for item in evidence[:6]
         ) or "No local evidence was retrieved."
 
         prompt = self.config.prompt(
