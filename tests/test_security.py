@@ -320,3 +320,76 @@ class TestAuditChain:
         assert len(log.query(task_id="task-1")) == 2
         assert len(log.query(category="model")) == 2
         assert len(log.query(task_id="task-1", category="model")) == 1
+
+
+class TestApprovalGateIsActionable:
+    """A held task must always have somebody who can release it.
+
+    Two faults made that untrue. 'low_confidence_classification' held plain
+    questions that produce no artifact, so an answer sat behind a release gate
+    with nothing to release. And it nominated 'engineer' as an approver while
+    access-control.yaml withholds 'approval.decide' from that role, so the API
+    refused the very people the policy named.
+    """
+
+    @staticmethod
+    def _profile(*, deliverable: bool, confidence: float):
+        from backend.core.schemas import (
+            Complexity,
+            InputType,
+            Sensitivity,
+            TaskProfile,
+            TaskType,
+        )
+
+        return TaskProfile(
+            input_type=InputType.TEXT,
+            task_type=TaskType.QUESTION_ANSWERING,
+            complexity=Complexity.SIMPLE,
+            sensitivity=Sensitivity.NORMAL,
+            confidence=confidence,
+            step_budget=4,
+            requires_retrieval=True,
+            requires_vision=False,
+            requires_code_execution=False,
+            produces_deliverable=deliverable,
+            deliverable_format="docx" if deliverable else None,
+        )
+
+    def test_a_question_with_no_artifact_is_not_held_for_low_confidence(self) -> None:
+        from backend.policy.gateway import get_policy_gateway
+
+        required, reasons, _ = get_policy_gateway().approval_requirement(
+            self._profile(deliverable=False, confidence=0.05),
+            prompt="Who must approve continued operation after a Category 3 finding?",
+            verification_valid=True,
+        )
+        assert required is False, f"held with no artifact to release: {reasons}"
+
+    def test_the_same_task_producing_a_document_is_still_held(self) -> None:
+        from backend.policy.gateway import get_policy_gateway
+
+        required, reasons, _ = get_policy_gateway().approval_requirement(
+            self._profile(deliverable=True, confidence=0.05),
+            prompt="Draft an approval note for vessel V-2104.",
+            verification_valid=True,
+        )
+        assert required is True
+        assert any("low_confidence" in r for r in reasons)
+
+    def test_every_nominated_approver_can_actually_decide(self) -> None:
+        from backend.core.config import get_config
+        from backend.policy.gateway import get_policy_gateway
+
+        config = get_config()
+        required, _, approvers = get_policy_gateway().approval_requirement(
+            self._profile(deliverable=True, confidence=0.05),
+            prompt="Draft an approval note for vessel V-2104.",
+            verification_valid=True,
+        )
+        assert required is True
+        assert approvers, "a held task named nobody who could release it"
+        for role in approvers:
+            assert "approval.decide" in config.role_permissions(role), (
+                f"policy nominated '{role}', which cannot decide approvals"
+            )

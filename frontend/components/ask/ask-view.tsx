@@ -82,6 +82,8 @@ export function AskView() {
   const [answer, setAnswer] = useState('')
   const [evidence, setEvidence] = useState<EvidenceItem[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [held, setHeld] = useState(false)
+  const [settled, setSettled] = useState(false)
 
   const { push } = useToast()
   const answerRef = useRef<HTMLDivElement>(null)
@@ -149,6 +151,8 @@ export function AskView() {
         if (status === 'failed') {
           setError(data.task?.error || 'The workbench could not complete this question.')
         }
+        setHeld(status === 'awaiting_approval')
+        setSettled(true)
         setPhase('answered')
       }
     }
@@ -160,6 +164,7 @@ export function AskView() {
     if (name === 'task.finished') {
       if (data.task?.answer) setAnswer(data.task.answer)
       if (data.task?.evidence) setEvidence(data.task.evidence)
+      setSettled(true)
       setPhase('answered')
     }
 
@@ -217,6 +222,24 @@ export function AskView() {
   }, [])
 
   useEffect(() => {
+    if (!settled || !taskId) return
+    let live = true
+    api
+      .getTask(taskId)
+      .then((task) => {
+        if (!live) return
+        if (task.answer) setAnswer(task.answer)
+        if (task.evidence?.length) setEvidence(task.evidence)
+        if (task.error) setError(task.error)
+        setHeld(String(task.status).toLowerCase() === 'awaiting_approval')
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [settled, taskId])
+
+  useEffect(() => {
     if (phase === 'answered') forget()
     if (phase === 'answered' && answerRef.current) {
       answerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -231,6 +254,8 @@ export function AskView() {
     setAnswer('')
     setEvidence([])
     setError(null)
+    setHeld(false)
+    setSettled(false)
     setStage('Classifying the question')
 
     // Named documents go into the prompt so retrieval is steered toward them
@@ -574,6 +599,13 @@ export function AskView() {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {held && answer && (
+                <p className="rounded-xl border border-[var(--approval)]/30 bg-[var(--approval)]/[0.05] p-4 text-[13px] leading-relaxed text-foreground-secondary">
+                  This answer is readable here, but the task is held at the approval gate
+                  before anything is released. A reviewer can clear it from Approvals.
+                </p>
               )}
 
               {phase === 'answered' && !error && evidence.length === 0 && answer && (

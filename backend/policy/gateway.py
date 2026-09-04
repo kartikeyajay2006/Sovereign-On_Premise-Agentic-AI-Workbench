@@ -361,6 +361,12 @@ class PolicyGateway:
             match = rule.get("match") or {}
             hit = False
 
+            # Some gates exist to control what leaves the workbench. A task
+            # that produces no artifact releases nothing, so those gates have
+            # nothing to hold and are skipped.
+            if rule.get("requires_deliverable") and not profile.produces_deliverable:
+                continue
+
             if "sensitivity_in" in match:
                 hit = profile.sensitivity.value in match["sensitivity_in"]
             elif "produces_deliverable" in match:
@@ -380,7 +386,23 @@ class PolicyGateway:
                 reasons.append(f"{rule.get('name')}: {rule.get('description', '')}".strip())
                 approvers.update(rule.get("approver_roles") or [])
 
-        return required, reasons, sorted(approvers)
+        # A rule must not nominate a role that cannot act on it. Listing a
+        # role here while access-control.yaml withholds 'approval.decide' from
+        # it produced tasks addressed to someone the API then refused, leaving
+        # them held with nobody able to release them.
+        able = {
+            role
+            for role in approvers
+            if "approval.decide" in self.config.role_permissions(role)
+        }
+        if approvers and not able:
+            able = {
+                role
+                for role in self.config.access_control.get("roles", {})
+                if "approval.decide" in self.config.role_permissions(role)
+            }
+
+        return required, reasons, sorted(able)
 
     def controls_for(self, sensitivity: Sensitivity) -> dict[str, Any]:
         """The control set a classification level demands."""

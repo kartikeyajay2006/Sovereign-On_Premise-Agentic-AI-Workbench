@@ -24,9 +24,14 @@ approval_required_when:
 
   - name: low_confidence_classification
     description: If the analyzer was unsure, a human confirms before release.
+    # Only when there is something to release. A question that returns an
+    # answer and writes no file releases nothing, so holding it produced a
+    # queue of items that could never usefully be approved — and the answer
+    # the user asked for sat behind a gate for no benefit.
+    requires_deliverable: true
     match:
       classification_confidence_below: 0.35
-    approver_roles: [reviewer, engineer, administrator]
+    approver_roles: [reviewer, administrator]
 
   - name: safety_recommendation
     description: Safety-related recommendations are never released unreviewed.
