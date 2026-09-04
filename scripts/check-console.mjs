@@ -18,6 +18,7 @@ const CHROME = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 const ROUTES = [
   "/",
   "/sign-in",
+  "/ask",
   "/tasks",
   "/registry",
   "/approvals",

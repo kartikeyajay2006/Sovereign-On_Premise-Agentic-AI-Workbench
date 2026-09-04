@@ -10,6 +10,7 @@ import { RoleSwitcher } from './role-switcher'
 
 const LINKS = [
   { href: '/', label: 'Console' },
+  { href: '/ask', label: 'Ask' },
   { href: '/tasks', label: 'Tasks' },
   { href: '/approvals', label: 'Approvals' },
   { href: '/registry', label: 'Registry' },
