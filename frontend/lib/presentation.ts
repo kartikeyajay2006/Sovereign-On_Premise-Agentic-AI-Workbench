@@ -57,16 +57,18 @@ export const ROLES: Role[] = [
   },
 ]
 
+// The stages a run moves through. Structure only: the model that handled each
+// stage and how long it took are filled in from the run itself, because
+// showing a model name and a latency before anything has executed states two
+// things the host has not done.
 export const DEFAULT_PIPELINE: PipelineStage[] = [
-  { id: 'classify', index: '01', name: 'Classify', model: 'qwen3:8b', latencyMs: 214, status: 'pending' },
-  { id: 'plan', index: '02', name: 'Plan', model: 'qwen3:8b', latencyMs: 486, status: 'pending' },
-  { id: 'read', index: '03', name: 'Read', model: 'qwen2.5vl:3b', latencyMs: 842, status: 'pending' },
-  { id: 'retrieve', index: '04', name: 'Retrieve', model: 'bge-m3:local', latencyMs: 168, status: 'pending' },
-  { id: 'sandbox', index: '05', name: 'Sandbox', model: 'py-sandbox', latencyMs: 1290, status: 'pending' },
-  { id: 'draft', index: '06', name: 'Draft', model: 'qwen3:8b', latencyMs: 2140, status: 'pending' },
-  { id: 'verify', index: '07', name: 'Verify', model: 'qwen3:8b', latencyMs: 654, status: 'pending' },
-  { id: 'approval', index: '08', name: 'Approval', model: 'human-gate', latencyMs: 0, status: 'pending' },
-  { id: 'deliver', index: '09', name: 'Deliver', model: 'docx-writer', latencyMs: 312, status: 'pending' },
+  { id: 'classify', index: '01', name: 'Classify', model: '', latencyMs: 0, status: 'pending' },
+  { id: 'plan', index: '02', name: 'Plan', model: '', latencyMs: 0, status: 'pending' },
+  { id: 'read', index: '03', name: 'Read', model: '', latencyMs: 0, status: 'pending' },
+  { id: 'retrieve', index: '04', name: 'Retrieve', model: '', latencyMs: 0, status: 'pending' },
+  { id: 'sandbox', index: '05', name: 'Sandbox', model: '', latencyMs: 0, status: 'pending' },
+  { id: 'draft', index: '06', name: 'Draft', model: '', latencyMs: 0, status: 'pending' },
+  { id: 'verify', index: '07', name: 'Verify', model: '', latencyMs: 0, status: 'pending' },
 ]
 
 export const SOVEREIGN_NODES = [

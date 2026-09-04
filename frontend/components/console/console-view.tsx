@@ -15,7 +15,7 @@ import { FileDropzone, type UploadedFile } from '@/components/file-dropzone'
 import { ResultExperience } from '@/components/result-experience'
 import { SovButton } from '@/components/sov-button'
 import { Reveal, SectionHeading, TechnicalLabel } from '@/components/primitives'
-import { SovereigntyTopology } from '@/components/sovereignty-topology'
+import { SovereigntyTopology, type TopologyNodeId } from '@/components/sovereignty-topology'
 import { AnimatedTechnicalBackground } from '@/components/animated-technical-background'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
@@ -280,6 +280,29 @@ export function ConsoleView() {
     setUploadedFileIds([])
   }
 
+  // Which subsystem is busy right now, so the diagram shows the actual run.
+  const activeNodes: TopologyNodeId[] = (() => {
+    const running = stages.find((stage) => stage.status === 'active')
+    if (!running) return phase === 'running' ? ['agent'] : []
+    switch (running.id) {
+      case 'classify':
+      case 'plan':
+        return ['agent', 'model']
+      case 'read':
+        return ['model', 'documents']
+      case 'retrieve':
+        return ['vector', 'documents']
+      case 'sandbox':
+        return ['sandbox']
+      case 'draft':
+        return ['model', 'agent']
+      case 'verify':
+        return ['sandbox', 'audit']
+      default:
+        return ['agent']
+    }
+  })()
+
   const applyTemplate = (t: (typeof CONSOLE_TEMPLATES)[0]) => {
     // Fill in the request only. Attachments used to be invented here — file
     // rows appeared with plausible sizes for documents that had never been
@@ -485,9 +508,15 @@ export function ConsoleView() {
           </Reveal>
         )}
 
-        {/* Topology bottom bar */}
+        {/* Containment diagram — driven by the run, not on a loop */}
         <Reveal delay={160} className="mt-16">
-          <SovereigntyTopology />
+          <div className="h-[520px] w-full sm:h-[600px]">
+            <SovereigntyTopology active={phase === 'running'} activeNodes={activeNodes} />
+          </div>
+          <p className="mt-2 text-center text-[12px] text-foreground-secondary">
+            Your documents, the models and the tools all sit inside one boundary.
+            Anything heading outward is turned back at it.
+          </p>
         </Reveal>
       </div>
     </div>
