@@ -41,7 +41,8 @@ const session = await page.evaluate(
 
 if (session) {
   await page.evaluateOnNewDocument((token) => {
-    window.sessionStorage.setItem("workbench.session", token);
+    window.sessionStorage.setItem("workbench_session_token", token);
+    window.localStorage.setItem("workbench_session_token", token);
   }, session.token);
 }
 

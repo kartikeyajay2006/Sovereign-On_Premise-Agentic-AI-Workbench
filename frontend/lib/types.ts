@@ -413,10 +413,13 @@ export interface SovereigntyStatus {
 }
 
 export interface SandboxTestResult {
-  passed: boolean
   checks: { name: string; target: string; passed: boolean; detail: string }[]
+  passed: number
+  total: number
   overall: string
+  all_passed: boolean
   duration_ms: number
+  ran_at: string
 }
 
 export interface ModelDescriptor {

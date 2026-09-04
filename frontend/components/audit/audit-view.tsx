@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Download, Link2, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { AUDIT_EVENTS } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { AuditChainStatus, AuditEvent } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -26,14 +25,17 @@ const catColor: Record<string, string> = {
 
 export function AuditView() {
   const [filter, setFilter] = useState<Category | 'ALL'>('ALL')
-  const [events, setEvents] = useState<AuditEvent[]>(AUDIT_EVENTS)
+  // Empty until the real trail is read. An invented audit entry is worse
+  // than none: it is a record of something that never happened.
+  const [events, setEvents] = useState<AuditEvent[]>([])
+  const [error, setError] = useState<string | null>(null)
   const [chainStatus, setChainStatus] = useState<AuditChainStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const { push } = useToast()
 
   const loadAudit = () => {
     Promise.all([
-      api.auditEvents({ category: filter !== 'ALL' ? filter.toLowerCase() : undefined, limit: 100 }).catch(() => AUDIT_EVENTS),
+      api.auditEvents({ category: filter !== 'ALL' ? filter.toLowerCase() : undefined, limit: 100 }).catch((err) => { setError(err?.message ?? 'Could not read the activity log'); return [] as AuditEvent[] }),
       api.auditChain().catch(() => null),
     ]).then(([evs, chain]) => {
       setEvents(evs)

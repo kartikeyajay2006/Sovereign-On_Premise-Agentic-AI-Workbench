@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Search, Plus, Loader2, Trash2 } from 'lucide-react'
-import { SOPS, TASK_FILES, SEARCH_CORPUS } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { EvidenceItem, KnowledgeDocument, SopRecord, StoredFile, TaskFile } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -43,9 +42,9 @@ export function RegistryView() {
     loadData()
   }, [])
 
-  const totalChunks = docs.reduce((acc, d) => acc + (d.chunk_count || 0), 0) || SOPS.reduce((a, s) => a + s.chunks, 0)
-  const sopCount = docs.length > 0 ? docs.length : SOPS.length
-  const fileCount = files.length > 0 ? files.length : TASK_FILES.length
+  const totalChunks = docs.reduce((acc, d) => acc + (d.chunk_count || 0), 0)
+  const sopCount = docs.length
+  const fileCount = files.length
 
   return (
     <div>
@@ -99,7 +98,7 @@ export function RegistryView() {
 
 function SopTable({ docs, onRefresh }: { docs: KnowledgeDocument[]; onRefresh: () => void }) {
   const { push } = useToast()
-  const displayItems = docs.length > 0 ? docs : (SOPS as any[])
+  const displayItems = docs
 
   const handleDelete = async (id: string, title: string) => {
     try {
@@ -129,9 +128,9 @@ function SopTable({ docs, onRefresh }: { docs: KnowledgeDocument[]; onRefresh: (
             const title = s.title
             const dept = s.department
             const classification = s.classification || 'CONFIDENTIAL'
-            const chunks = s.chunk_count !== undefined ? s.chunk_count : s.chunks
-            const ingested = s.ingested_at ? new Date(s.ingested_at).toLocaleDateString() : (s.ingested || 'Today')
-            const status = s.status || 'INDEXED'
+            const chunks = s.chunk_count
+            const ingested = new Date(s.ingested_at).toLocaleDateString()
+            const status: string = s.chunk_count > 0 ? 'INDEXED' : 'EMPTY'
 
             return (
               <tr key={id} className="bg-surface transition-colors hover:bg-surface-sunken">
@@ -174,7 +173,7 @@ function SopTable({ docs, onRefresh }: { docs: KnowledgeDocument[]; onRefresh: (
 }
 
 function FilesTable({ files }: { files: StoredFile[] }) {
-  const displayItems = files.length > 0 ? files : (TASK_FILES as any[])
+  const displayItems = files
 
   return (
     <div className="overflow-x-auto border border-border">
@@ -192,10 +191,10 @@ function FilesTable({ files }: { files: StoredFile[] }) {
           {displayItems.map((f) => {
             const id = f.id
             const name = f.filename
-            const type = f.input_type || f.type || 'DOCUMENT'
-            const size = f.size_bytes ? `${Math.round(f.size_bytes / 1024)} KB` : `${f.sizeKb || 40} KB`
-            const classification = f.classification || 'CONFIDENTIAL'
-            const uploaded = f.uploaded_at ? new Date(f.uploaded_at).toLocaleDateString() : (f.uploaded || 'Today')
+            const type = f.input_type
+            const size = `${Math.round(f.size_bytes / 1024)} KB`
+            const classification = f.classification
+            const uploaded = new Date(f.uploaded_at).toLocaleDateString()
             const status = f.quarantine_passed !== false ? 'PASSED' : 'FLAGGED'
 
             return (
@@ -230,30 +229,30 @@ function FilesTable({ files }: { files: StoredFile[] }) {
 
 function SemanticSearch() {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<EvidenceItem[]>(SEARCH_CORPUS)
-  const [tookMs, setTookMs] = useState<number>(12)
+  // Results only ever come from this host's index. Searching a sample corpus
+  // when the real search fails would show passages that are not in the
+  // library, which is precisely what a citation must never do.
+  const [results, setResults] = useState<EvidenceItem[]>([])
+  const [tookMs, setTookMs] = useState<number | null>(null)
   const [mode, setMode] = useState<string>('embedding')
   const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSearch = async () => {
     if (!query.trim()) return
     setLoading(true)
+    setError(null)
     try {
       const res = await api.searchKnowledge(query.trim(), 5)
       setResults(res.results || [])
-      setTookMs(res.took_ms || 15)
+      setTookMs(res.took_ms ?? null)
       setMode(res.retrieval_mode || 'embedding')
-    } catch {
-      // Mock search fallback
-      const q = query.toLowerCase()
-      setResults(
-        SEARCH_CORPUS.filter(
-          (c) =>
-            c.excerpt.toLowerCase().includes(q) ||
-            (c.source || c.source_document || '').toLowerCase().includes(q)
-        )
-      )
+    } catch (err: any) {
+      setResults([])
+      setError(err?.message ?? 'The search could not be run')
     } finally {
+      setSearched(true)
       setLoading(false)
     }
   }
@@ -280,7 +279,7 @@ function SemanticSearch() {
 
       <div className="flex items-center justify-between font-mono text-[11px] text-foreground-muted">
         <span>Mode: <strong className="text-foreground">{mode}</strong> (local Ollama / SQLite)</span>
-        <span>Latency: <strong className="text-foreground">{tookMs}ms</strong></span>
+        <span>Latency: <strong className="text-foreground">{tookMs === null ? '—' : `${tookMs}ms`}</strong></span>
       </div>
 
       <div className="divide-y divide-border border border-border">

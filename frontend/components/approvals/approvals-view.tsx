@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Check, ShieldAlert, Loader2 } from 'lucide-react'
-import { APPROVALS } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { ApprovalItem, Task } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -20,8 +19,9 @@ const priorityColor: Record<ApprovalItem['priority'], string> = {
 }
 
 export function ApprovalsView() {
-  const [items, setItems] = useState<ApprovalItem[]>(APPROVALS)
-  const [activeId, setActiveId] = useState<string>(APPROVALS[0]?.id || '')
+  // Nothing is shown as awaiting sign-off until the queue is actually read.
+  const [items, setItems] = useState<ApprovalItem[]>([])
+  const [activeId, setActiveId] = useState<string>('')
   const [confirm, setConfirm] = useState<null | 'approve' | 'reject'>(null)
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)

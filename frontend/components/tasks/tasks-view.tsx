@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Search, X, Loader2, Download, ExternalLink } from 'lucide-react'
-import { TASKS, DEFAULT_PIPELINE } from '@/lib/mock-data'
+import { DEFAULT_PIPELINE } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { Task, TaskRecord, TaskStatus, TaskSummary } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -73,13 +73,9 @@ export function TasksView() {
     }
   }
 
-  // Map summaries to UI format, falling back to TASKS if empty
-  const items: (TaskRecord | TaskSummary)[] = useMemo(() => {
-    if (rawSummaries.length > 0) {
-      return rawSummaries
-    }
-    return TASKS
-  }, [rawSummaries])
+  // Only what this host has actually run. An empty history reads as empty:
+  // showing sample runs would put work in the record that never happened.
+  const items: (TaskRecord | TaskSummary)[] = useMemo(() => rawSummaries, [rawSummaries])
 
   const types = useMemo(() => {
     const list = new Set<string>()

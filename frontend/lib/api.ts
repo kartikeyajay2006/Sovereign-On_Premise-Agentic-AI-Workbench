@@ -6,15 +6,6 @@
  * No external network calls are ever made.
  */
 
-import {
-  APPROVALS,
-  AUDIT_EVENTS,
-  HOST_INFO,
-  SEARCH_CORPUS,
-  SOPS,
-  TASK_FILES,
-  TASKS,
-} from './mock-data'
 import type {
   ApprovalDecisionRequest,
   ApprovalItem,
@@ -70,11 +61,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  endpoint: string,
-  options: RequestInit = {},
-  fallback?: T
-): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken()
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -113,11 +100,14 @@ async function request<T>(
     if (err instanceof ApiError) {
       throw err
     }
-    if (fallback !== undefined) {
-      console.warn(`[api] Backend unreachable for ${endpoint}, using fallback:`, err.message)
-      return fallback
-    }
-    throw new ApiError(0, err.message || 'Connection failed to local backend')
+    // Deliberately no fallback to sample data.
+    //
+    // This application's whole claim is that the figures on screen are
+    // measured on this host. Quietly substituting invented numbers when the
+    // backend is unreachable would put fabricated egress counts and audit
+    // entries in front of someone auditing the platform, with nothing marking
+    // them as unreal. A failure must look like a failure.
+    throw new ApiError(0, err.message || 'Cannot reach the local workbench service')
   }
 }
 
@@ -158,7 +148,7 @@ export const api = {
   },
 
   async directory(): Promise<DirectoryUser[]> {
-    return request<DirectoryUser[]>('/auth/directory', {}, [])
+    return request<DirectoryUser[]>('/auth/directory')
   },
 
   async logout(): Promise<void> {
@@ -193,7 +183,7 @@ export const api = {
   },
 
   async listTasks(limit: number = 50): Promise<TaskSummary[]> {
-    return request<TaskSummary[]>(`/tasks?limit=${limit}`, {}, [])
+    return request<TaskSummary[]>(`/tasks?limit=${limit}`)
   },
 
   async getTask(taskId: string): Promise<Task> {
@@ -202,7 +192,7 @@ export const api = {
 
   // ------------------------------------------------------------- approvals
   async pendingApprovals(): Promise<Task[]> {
-    return request<Task[]>('/approvals', {}, [])
+    return request<Task[]>('/approvals')
   },
 
   async decideApproval(
@@ -250,7 +240,7 @@ export const api = {
   },
 
   async listFiles(): Promise<StoredFile[]> {
-    return request<StoredFile[]>('/files', {}, [])
+    return request<StoredFile[]>('/files')
   },
 
   getDownloadUrl(fileId: string): string {
@@ -263,7 +253,7 @@ export const api = {
 
   // ------------------------------------------------------------- knowledge
   async knowledgeDocuments(): Promise<KnowledgeDocument[]> {
-    return request<KnowledgeDocument[]>('/knowledge/documents', {}, [])
+    return request<KnowledgeDocument[]>('/knowledge/documents')
   },
 
   async ingestKnowledgeDocument(
@@ -314,72 +304,32 @@ export const api = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, top_k: topK, departments }),
-      },
-      {
-        query,
-        retrieval_mode: 'lexical',
-        results: SEARCH_CORPUS,
-        took_ms: 12,
-      }
-    )
+      })
   },
 
   // ----------------------------------------------------------- sovereignty
   async sovereigntyStatus(): Promise<SovereigntyStatus> {
     return request<SovereigntyStatus>(
       '/sovereignty',
-      {},
-      {
-        sovereign: true,
-        external_api_calls: 0,
-        cloud_llm_calls: 0,
-        internet_requests: 0,
-        dns_requests: 0,
-        data_leaving_host_bytes: 0,
-        unapproved_connections: 0,
-        local_connections: 3,
-        monitored_since: new Date().toISOString(),
-        last_checked: new Date().toISOString(),
-        violations: [],
-        monitor_active: true,
-        interfaces: {},
-      }
-    )
+      {})
   },
 
   async sandboxSelfTest(): Promise<SandboxTestResult> {
-    return request<SandboxTestResult>('/sovereignty/sandbox-test', {}, {
-      passed: true,
-      checks: [
-        { name: 'No Network Sockets', target: 'socket.connect', passed: true, detail: 'Blocked at AST check' },
-        { name: 'No Subprocess Spawn', target: 'subprocess.Popen', passed: true, detail: 'Blocked at AST check' },
-        { name: 'CPU Time Limit', target: 'setrlimit(RLIMIT_CPU)', passed: true, detail: 'Enforced by OS limit' },
-        { name: 'Memory Confinement', target: 'setrlimit(RLIMIT_AS)', passed: true, detail: 'Enforced at 512 MB' },
-      ],
-      overall: 'All 4 adversarial penetration tests contained',
-      duration_ms: 45,
-    })
+    return request<SandboxTestResult>('/sovereignty/sandbox-test', {})
   },
 
   // ---------------------------------------------------------------- models
   async modelsStatus(): Promise<ModelsStatus> {
-    return request<ModelsStatus>('/models/status', {}, {
-      provider: 'ollama',
-      provider_reachable: true,
-      registered: [],
-      installed_on_host: [],
-      unregistered_on_host: [],
-      roles: {},
-    })
+    return request<ModelsStatus>('/models/status', {})
   },
 
   async listModels(): Promise<ModelDescriptor[]> {
-    return request<ModelDescriptor[]>('/models', {}, [])
+    return request<ModelDescriptor[]>('/models', {})
   },
 
   // -------------------------------------------------------------- policies
   async policies(): Promise<Record<string, any>> {
-    return request<Record<string, any>>('/policies', {}, {})
+    return request<Record<string, any>>('/policies', {})
   },
 
   // ----------------------------------------------------------------- audit
@@ -396,16 +346,12 @@ export const api = {
     if (params?.limit) search.set('limit', String(params.limit))
 
     const query = search.toString() ? `?${search.toString()}` : ''
-    return request<AuditEvent[]>(`/audit${query}`, {}, AUDIT_EVENTS)
+    return request<AuditEvent[]>(`/audit${query}`)
   },
 
   async auditChain(): Promise<AuditChainStatus> {
-    return request<AuditChainStatus>('/audit/chain', {}, {
-      valid: true,
-      events: AUDIT_EVENTS.length,
-      head_hash: AUDIT_EVENTS[AUDIT_EVENTS.length - 1]?.hash || '',
-      checked_at: new Date().toISOString(),
-    })
+    // Never assume the chain is intact: that verdict is the whole point.
+    return request<AuditChainStatus>('/audit/chain')
   },
 
   getAuditExportUrl(): string {
@@ -417,21 +363,17 @@ export const api = {
     return request<SystemHealth>('/health')
   },
 
-  // ------------------------------------------------------- legacy v0 bridges
-  getHostStatus: () => request<any>('/sovereignty', {}, HOST_INFO),
-  getTasks: () => request<any>('/tasks', {}, TASKS),
-  getApprovals: () => request<any>('/approvals', {}, APPROVALS),
-  getSops: () => request<any>('/knowledge/documents', {}, SOPS),
-  getTaskFiles: () => request<any>('/files', {}, TASK_FILES),
-  getAuditEvents: () => request<any>('/audit', {}, AUDIT_EVENTS),
+  // ----------------------------------------------------------- convenience
+  getHostStatus: () => request<any>('/sovereignty'),
+  getTasks: () => request<any>('/tasks'),
+  getApprovals: () => request<any>('/approvals'),
+  getSops: () => request<any>('/knowledge/documents'),
+  getTaskFiles: () => request<any>('/files'),
+  getAuditEvents: () => request<any>('/audit'),
   search: (query: string) =>
-    request<any>(
-      '/knowledge/search',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      },
-      SEARCH_CORPUS
-    ),
+    request<any>('/knowledge/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    }),
 }

@@ -18,12 +18,11 @@ const CHROME = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 const ROUTES = [
   "/",
   "/sign-in",
-  "/console",
-  "/library",
-  "/history",
+  "/tasks",
+  "/registry",
   "/approvals",
   "/security",
-  "/record",
+  "/audit",
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,7 +52,8 @@ async function main() {
   );
 
   await page.evaluateOnNewDocument((token) => {
-    window.sessionStorage.setItem("workbench.session", token);
+    window.sessionStorage.setItem("workbench_session_token", token);
+    window.localStorage.setItem("workbench_session_token", token);
   }, session.token);
 
   let total = 0;

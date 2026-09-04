@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, AlertCircle, Loader2 } from 'lucide-react'
-import { ROLES, HOST_INFO } from '@/lib/mock-data'
+import { ROLES } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { DirectoryUser, RoleId } from '@/lib/types'
 import { SovButton } from '@/components/sov-button'
@@ -13,6 +13,18 @@ import { useRole } from '@/components/role-context'
 import { cn } from '@/lib/utils'
 
 export function SignInView() {
+  // Read from the host rather than stated. These three figures are the
+  // platform's central claim, so they must be a measurement even here, before
+  // anyone has signed in.
+  const [hostStatus, setHostStatus] = useState<any>(null)
+
+  useEffect(() => {
+    fetch('/api/status', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setHostStatus)
+      .catch(() => setHostStatus(null))
+  }, [])
+
   const router = useRouter()
   const { login } = useRole()
   const [persona, setPersona] = useState<RoleId>('engineer')
@@ -73,10 +85,10 @@ export function SignInView() {
 
         <div className="relative grid grid-cols-2 gap-px border border-border bg-border">
           {[
-            ['Host', HOST_INFO.host],
-            ['External', String(HOST_INFO.externalConnections)],
-            ['Model', HOST_INFO.model],
-            ['Audit', HOST_INFO.audit],
+            ['Host', hostStatus ? 'this machine' : 'checking…'],
+            ['External', hostStatus ? String(hostStatus.external_calls) : '—'],
+            ['Contained', hostStatus ? (hostStatus.sovereign ? 'yes' : 'NO') : '—'],
+            ['Monitoring', hostStatus?.monitor_active ? 'active' : '—'],
           ].map(([k, v]) => (
             <div key={k} className="flex flex-col gap-1 bg-surface px-4 py-3">
               <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">{k}</span>

@@ -21,7 +21,9 @@ export function RoleSwitcher() {
   }, [open])
 
   const displayName = user?.display_name || role.label
-  const subName = user?.username || role.persona
+  // Never show an invented persona in place of a real identity: this chip
+  // names whoever is about to approve or submit work.
+  const subName = user?.username || 'not signed in'
 
   return (
     <div ref={wrapRef} className="relative">

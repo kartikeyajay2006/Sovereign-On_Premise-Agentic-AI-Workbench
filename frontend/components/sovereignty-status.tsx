@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { HOST_INFO } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { SovereigntyStatus as SovereigntyStatusType } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -31,7 +30,7 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
     { label: 'Host', value: '127.0.0.1', mono: true },
     { label: 'External connections', value: String(extCalls), mono: true, tone: 'var(--sovereign)' },
     { label: 'Local services', value: `8000 · ${localConns} loopback`, mono: true },
-    { label: 'Inference model', value: HOST_INFO.model, mono: true },
+    { label: 'Inference', value: status ? `${status.local_connections} local connection(s)` : 'reading…', mono: true },
     { label: 'Sandbox confinement', value: 'CONTAINED', mono: true, tone: 'var(--sovereign)' },
     { label: 'Audit hash chain', value: 'VALID', mono: true, tone: 'var(--sovereign)' },
   ]

@@ -19,13 +19,12 @@ const WEB = process.env.WEB_URL ?? "http://127.0.0.1:3000";
 const CHROME = process.env.CHROME_PATH ?? "/usr/bin/google-chrome";
 
 const SCREENS = [
-  { path: "/", name: "landing", wait: 3500 },
-  { path: "/console", name: "console", wait: 2500 },
-  { path: "/history", name: "history", wait: 2500 },
+  { path: "/", name: "console", wait: 3000 },
+  { path: "/tasks", name: "tasks", wait: 2500 },
   { path: "/approvals", name: "approvals", wait: 2200 },
-  { path: "/library", name: "library", wait: 2200 },
-  { path: "/security", name: "security", wait: 3000 },
-  { path: "/record", name: "record", wait: 2500 },
+  { path: "/registry", name: "registry", wait: 2200 },
+  { path: "/security", name: "security", wait: 3500 },
+  { path: "/audit", name: "audit", wait: 2500 },
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -72,7 +71,8 @@ async function main() {
   });
 
   await page.evaluateOnNewDocument((token) => {
-    window.sessionStorage.setItem("workbench.session", token);
+    window.sessionStorage.setItem("workbench_session_token", token);
+    window.localStorage.setItem("workbench_session_token", token);
   }, session.token);
 
   console.log(`signed in as ${session.user.display_name} (${session.user.role})`);

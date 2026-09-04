@@ -56,6 +56,26 @@ router = APIRouter(prefix="/api", tags=["system"])
 BOOT_TIME = datetime.now(timezone.utc)
 
 
+@router.get("/status")
+def public_status() -> dict[str, Any]:
+    """Containment status, readable without signing in.
+
+    The sign-in screen states this platform keeps everything on the host. That
+    claim has to be a reading even before anyone authenticates, or it is just
+    a slogan printed on a login page.
+    """
+    monitor = get_sovereignty_monitor()
+    status = monitor.status()
+    return {
+        "name": get_config().settings.app.get("name"),
+        "sovereign": status.sovereign,
+        "external_calls": status.unapproved_connections,
+        "monitor_active": status.monitor_active,
+        "monitored_since": status.monitored_since.isoformat(),
+        "checked_at": status.last_checked.isoformat(),
+    }
+
+
 # ------------------------------------------------------------------ identity
 def _set_session_cookie(response: Response, session: Session) -> None:
     """Attach the browser session used by the EventSource connection."""
@@ -311,7 +331,7 @@ def sovereignty_status(user: CurrentUser) -> SovereigntyStatus:
 @router.get("/sovereignty/sandbox-test")
 def sandbox_self_test(user: CurrentUser) -> dict[str, Any]:
     """Prove both sandbox isolation layers actually block the network."""
-    result = get_sandbox().self_test()
+    result = get_sandbox().self_test_report()
     get_audit_log().record(
         category="security",
         action="sandbox_self_test",

@@ -6,9 +6,6 @@ import {
   CONSOLE_TEMPLATES,
   DEFAULT_PIPELINE,
   DELIVERABLE_FORMATS,
-  RESULT_ANSWER,
-  RESULT_EVIDENCE,
-  RESULT_VERIFICATION,
 } from '@/lib/mock-data'
 import { api } from '@/lib/api'
 import type { Deliverable, EvidenceItem, PipelineStage, Task, VerificationCheck } from '@/lib/types'
@@ -37,9 +34,12 @@ export function ConsoleView() {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
   // Real result states
-  const [answer, setAnswer] = useState(RESULT_ANSWER)
-  const [evidence, setEvidence] = useState<EvidenceItem[]>(RESULT_EVIDENCE)
-  const [verification, setVerification] = useState<VerificationCheck[]>(RESULT_VERIFICATION)
+  // Nothing is shown as an answer until this machine produced one. A sample
+  // answer with sample citations is indistinguishable from a real one on
+  // screen, and this is the output the whole platform exists to be trusted for.
+  const [answer, setAnswer] = useState('')
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([])
+  const [verification, setVerification] = useState<VerificationCheck[]>([])
   const [deliverable, setDeliverable] = useState<Deliverable>({
     filename: 'APPROVAL_NOTE.docx',
     sha256: 'a91f…7c20',

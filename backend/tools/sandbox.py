@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -401,6 +402,97 @@ class Sandbox:
 
     def workspace_for(self, run_directory: str) -> Path:
         return self._workspace_root() / run_directory
+
+    def self_test_report(self) -> dict[str, Any]:
+        """Run the containment tests and report each one individually.
+
+        Presented on the Security page, so the result has to be what actually
+        happened on this host just now — every line here comes from a payload
+        that was really submitted to the sandbox.
+        """
+        started = time.perf_counter()
+        checks: list[dict[str, Any]] = []
+
+        # 1. The static validator must refuse networking before execution.
+        static_case = self.execute("import socket\nsocket.socket()")
+        checks.append(
+            {
+                "name": "Static import review",
+                "target": "import socket; socket.socket()",
+                "passed": not static_case.static_validation_passed,
+                "detail": (
+                    static_case.static_violations[0]
+                    if static_case.static_violations
+                    else "code was NOT rejected before execution"
+                ),
+            }
+        )
+
+        # 2. With the validator bypassed, the runtime must still refuse.
+        runtime_case = self._execute_unvalidated(
+            "import socket\n"
+            "try:\n"
+            "    socket.socket()\n"
+            "    print('NETWORK_NOT_BLOCKED')\n"
+            "except Exception as exc:\n"
+            "    print('BLOCKED:', type(exc).__name__)\n"
+        )
+        blocked = "NETWORK_NOT_BLOCKED" not in runtime_case.stdout
+        checks.append(
+            {
+                "name": "Runtime socket denial",
+                "target": "socket.socket() with the static check bypassed",
+                "passed": blocked,
+                "detail": (
+                    runtime_case.stdout.strip().splitlines()[-1]
+                    if runtime_case.stdout.strip()
+                    else "no output"
+                ),
+            }
+        )
+
+        # 3. Process escapes must be refused.
+        escape_case = self.execute("import os\nos.system('id')")
+        checks.append(
+            {
+                "name": "Process escape review",
+                "target": "os.system('id')",
+                "passed": not escape_case.static_validation_passed,
+                "detail": (
+                    escape_case.static_violations[0]
+                    if escape_case.static_violations
+                    else "escape was NOT rejected"
+                ),
+            }
+        )
+
+        # 4. Ordinary work must still run, or the sandbox is useless.
+        working_case = self.execute("print(sum(range(1000)))")
+        checks.append(
+            {
+                "name": "Permitted work still runs",
+                "target": "print(sum(range(1000)))",
+                "passed": working_case.ok and working_case.stdout.strip() == "499500",
+                "detail": (
+                    f"exit {working_case.exit_code} in {working_case.duration_ms}ms"
+                ),
+            }
+        )
+
+        passed = sum(1 for check in checks if check["passed"])
+        return {
+            "checks": checks,
+            "passed": passed,
+            "total": len(checks),
+            "overall": (
+                f"{passed} of {len(checks)} containment checks held on this host"
+                if passed == len(checks)
+                else f"CONTAINMENT FAILURE — {len(checks) - passed} check(s) did not hold"
+            ),
+            "all_passed": passed == len(checks),
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+            "ran_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     def self_test(self) -> dict[str, Any]:
         """Adversarial check that both isolation layers actually hold.

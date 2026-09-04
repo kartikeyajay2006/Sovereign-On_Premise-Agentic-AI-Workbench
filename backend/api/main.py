@@ -130,13 +130,23 @@ def create_app() -> FastAPI:
 
     @application.get("/", tags=["system"])
     async def root() -> dict[str, object]:
+        """Unauthenticated status, reported from measurement.
+
+        This was previously a hardcoded `sovereign: true, external_calls: 0`,
+        which is an assertion dressed as a reading — the exact thing this
+        platform exists to avoid. The figures now come from the monitor, so a
+        breach shows here too.
+        """
+        status = get_sovereignty_monitor().status()
         return {
             "name": config.settings.app.get("name"),
             "status": "operational",
-            "sovereign": True,
-            "external_calls": 0,
+            "sovereign": status.sovereign,
+            "external_calls": status.unapproved_connections,
+            "monitor_active": status.monitor_active,
+            "monitored_since": status.monitored_since.isoformat(),
             "docs": "/docs",
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": status.last_checked.isoformat(),
         }
 
     return application
