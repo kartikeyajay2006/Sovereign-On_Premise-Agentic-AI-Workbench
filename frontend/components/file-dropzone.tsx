@@ -71,7 +71,8 @@ export function FileDropzone({
       >
         <Upload className="h-4 w-4 text-foreground-muted" />
         <p className="text-[13px] text-foreground-secondary">
-          Drag & drop task files, or <span className="text-foreground underline underline-offset-2">browse</span>
+          Optional — drop a file here, or{' '}
+          <span className="text-foreground underline underline-offset-2">browse</span>
         </p>
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
           Stored locally · never leaves host

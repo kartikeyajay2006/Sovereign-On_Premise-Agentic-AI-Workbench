@@ -299,10 +299,12 @@ export function ConsoleView() {
           <div className="flex flex-col gap-3">
             <TechnicalLabel dot="var(--sovereign)">Interactive Console</TechnicalLabel>
             <h1 className="text-balance text-4xl font-medium tracking-[-0.03em] text-foreground sm:text-5xl">
-              Dispatch autonomous local agents.
+              Ask for work. Watch it happen.
             </h1>
             <p className="max-w-2xl text-[15px] leading-relaxed text-foreground-secondary">
-              Zero telemetry. Zero egress. Model selection, multi-step planning, isolated code execution and cryptographic verification on this machine.
+              Ask a question about your procedures, or hand over a document to read. The
+              workbench picks the models, checks its own working, and shows every step —
+              all on this machine.
             </p>
           </div>
         </Reveal>
@@ -368,16 +370,30 @@ export function ConsoleView() {
             </div>
 
             <div className="p-5">
+              {/* The question is the primary control, so it has to look like a
+                  field. Borderless on a transparent background it read as
+                  static grey text, while the attachment box below — bordered
+                  and dashed — looked like the thing to interact with. People
+                  concluded the console only accepted files. */}
+              <label htmlFor="task-prompt" className="mb-2 block text-[13px] font-medium text-foreground">
+                What do you want done? Ask a question, or describe the task.
+              </label>
               <textarea
+                id="task-prompt"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 disabled={phase !== 'idle'}
-                placeholder="Describe an operational task, calculation or analysis across local SOPs and attachments…"
+                placeholder="e.g. What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve it?"
                 rows={4}
-                className="w-full resize-none bg-transparent font-sans text-[15px] leading-relaxed text-foreground placeholder:text-foreground-muted focus:outline-none disabled:opacity-70"
+                className="w-full resize-none border border-border-strong bg-surface px-3.5 py-3 font-sans text-[15px] leading-relaxed text-foreground placeholder:text-foreground-muted focus:border-foreground focus:outline-none disabled:opacity-70"
               />
 
-              <div className="mt-4">
+              <div className="mt-5">
+                <p className="mb-2 text-[13px] text-foreground-secondary">
+                  Attach a document only if the task needs one — a scan to read, or a
+                  spreadsheet to work over. Questions about your procedures need nothing
+                  attached.
+                </p>
                 <FileDropzone
                   files={files}
                   onAddFiles={addFiles}
