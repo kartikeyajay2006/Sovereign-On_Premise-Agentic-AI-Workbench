@@ -27,7 +27,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-6 px-5 py-8 sm:grid-cols-2 lg:grid-cols-4 lg:px-10">
         <div className="flex flex-col gap-2">
           <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-foreground">
-            Sovereign Workbench
+            Aegis Workbench
           </span>
           <p className="max-w-[220px] text-[12px] leading-relaxed text-foreground-muted">
             On-premise agentic AI for confidential industrial environments.
@@ -55,7 +55,7 @@ export function SiteFooter() {
       <div className="border-t border-border">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-4 lg:px-10">
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground-muted">
-            © 2026 Sovereign Systems
+            © 2026 Aegis Systems
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground-muted">
             Local execution only

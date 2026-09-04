@@ -227,9 +227,9 @@ export function ConsoleView() {
     const fresh = DEFAULT_PIPELINE.map((s) => ({ ...s, status: 'pending' as const }))
     setStages(fresh)
     push({
-      title: 'Sovereign agent dispatched',
-      detail: `actor=${user?.display_name || role.label} · host=127.0.0.1`,
-      tone: 'default',
+      title: 'Aegis agent dispatched',
+      detail: `Task ${fresh[0]?.name?.toLowerCase() || 'run'} in progress · strictly on-premise`,
+      tone: 'sovereign',
     })
 
     try {
@@ -358,11 +358,11 @@ export function ConsoleView() {
           <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-8">
             {/* Left Column: Heading + Pitch + Telemetry */}
             <div className="flex flex-col lg:col-span-6">
-              {/* Sovereign Console Label */}
+              {/* Aegis Console Label */}
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-[var(--sovereign)]" />
                 <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">
-                  SOVEREIGN CONSOLE
+                  AEGIS CONSOLE
                 </span>
               </div>
 
@@ -569,7 +569,7 @@ export function ConsoleView() {
 
                   {phase === 'idle' ? (
                     <SovButton arrow onClick={run} disabled={!prompt.trim()}>
-                      Run Sovereign Agent
+                      Run Aegis Agent
                     </SovButton>
                   ) : phase === 'running' ? (
                     <div className="flex items-center gap-2">
