@@ -1,0 +1,7 @@
+location,thickness_2022_mm,thickness_2026_mm,nominal_mm,t_min_mm,years_between
+Shell course 1 (top),11.8,10.9,12.0,6.0,4.0
+Shell course 2 (mid),11.6,9.4,12.0,6.0,4.0
+Shell course 3 (bot),11.9,11.1,12.0,6.0,4.0
+Bottom head,12.0,11.4,12.0,6.0,4.0
+Inlet nozzle N1,11.5,10.2,12.0,6.0,4.0
+Manway M1 flange,12.0,11.8,12.0,6.0,4.0

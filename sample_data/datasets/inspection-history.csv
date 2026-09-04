@@ -1,0 +1,7 @@
+tag,description,service,inspection_date,nominal_mm,measured_min_mm,t_min_mm,years_since_last
+V-2101,Feed Surge Drum,Non-corrosive,2026-04-24,10.0,8.6,6.0,3.2
+V-2104,Crude Overhead Knock-Out Drum,Sour hydrocarbon,2026-02-18,12.0,9.4,6.0,4.0
+V-2107,Amine Flash Drum,Corrosive,2026-05-18,14.0,11.6,6.0,4.8
+V-2110,Steam Condensate Pot,Steam,2026-03-16,12.0,11.4,6.0,2.9
+V-2115,Fuel Gas KO Drum,Non-corrosive,2026-01-03,14.0,13.7,6.0,3.3
+V-2118,Reflux Accumulator,Corrosive,2026-05-18,12.0,11.2,6.0,3.8

@@ -1,0 +1,45 @@
+{
+  "per_location": [
+    {
+      "location": "Shell course 1 (top)",
+      "rate_mm_yr": 0.225,
+      "remaining_life_years": 21.78
+    },
+    {
+      "location": "Shell course 2 (mid)",
+      "rate_mm_yr": 0.55,
+      "remaining_life_years": 6.18
+    },
+    {
+      "location": "Shell course 3 (bot)",
+      "rate_mm_yr": 0.2,
+      "remaining_life_years": 25.5
+    },
+    {
+      "location": "Bottom head",
+      "rate_mm_yr": 0.15,
+      "remaining_life_years": 36.0
+    },
+    {
+      "location": "Inlet nozzle N1",
+      "rate_mm_yr": 0.325,
+      "remaining_life_years": 12.92
+    },
+    {
+      "location": "Manway M1 flange",
+      "rate_mm_yr": 0.05,
+      "remaining_life_years": 116.0
+    }
+  ],
+  "governing_location": "Shell course 2 (mid)",
+  "governing_rate_mm_yr": 0.55,
+  "governing_remaining_life_years": 6.18,
+  "severity": "medium",
+  "severity_basis": "SOP-MNT-022 Clause 4.1 \u2014 cladding damage over 20% of the insulated section (35% recorded); the remaining-life rule in SOP-INS-014 Clause 4.5 does NOT apply, since life exceeds 4 years",
+  "approver": "Head of Inspection (SOP-OPS-008 authority matrix)",
+  "traps": [
+    "Remaining life is above 4 years, so citing SOP-INS-014 Clause 4.5 as the basis for Medium severity is incorrect.",
+    "The governing location is the worst remaining life, not the thinnest absolute reading.",
+    "Inlet nozzle N1 has a higher corrosion rate but more margin, so it is not governing."
+  ]
+}
