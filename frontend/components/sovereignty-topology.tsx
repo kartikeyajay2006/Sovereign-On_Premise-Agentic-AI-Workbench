@@ -1,22 +1,26 @@
 'use client'
 
 /**
- * The containment scene, in three dimensions.
+ * The workbench, in three dimensions.
  *
- * Not decoration: it animates the one claim the product makes. Work circulates
- * continuously between the host and its subsystems, all of it inside a closed
- * boundary. Anything that drifts outward strikes that boundary and is turned
- * back — visibly, with a shockwave spreading from the point of contact.
- * Nothing crosses.
+ * This is the job the platform actually does, drawn rather than described: a
+ * scanned inspection report enters, and travels a circuit of stations inside a
+ * closed boundary. It is read line by line, matched against the organisation's
+ * own procedures, its figures recomputed, checked, signed by a human, and
+ * filed. The page visibly changes at each station — marks appear as it is
+ * read, citation tags fly in from the procedure shelf, a stamp lands when it
+ * is approved.
  *
- * It is also live. A subsystem lights up when it is genuinely busy, so during a
- * run you watch the vision model, the vector store and the sandbox take their
- * turns, rather than watching a loop that would look identical if the machine
- * were switched off.
+ * Around all of it sits the boundary. Every few seconds something drifts
+ * outward, strikes it and is turned back, with the shell flaring at the point
+ * of contact. That refusal is the claim the whole product rests on, so it is
+ * shown, not captioned.
  *
- * Built to stay cheap on a host that is also running the models: low geometry
- * counts, a capped pixel ratio, and rendering paused whenever the scene is off
- * screen or the viewer has asked for reduced motion.
+ * The circuit follows the real run when one is in progress: the station doing
+ * the work lights up and the document waits there. Idle, it cycles gently.
+ *
+ * Built to stay cheap on a host that is also running the models — low geometry,
+ * capped pixel ratio, paused off screen, static under reduced motion.
  */
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
@@ -33,23 +37,39 @@ export type TopologyNodeId =
 
 const SOVEREIGN = '#16a34a'
 const CRITICAL = '#dc2626'
+const AMBER = '#b45309'
+const PAPER = '#fbfbf9'
 const INK = '#3f3d3a'
 
-const BOUNDARY_RADIUS = 3.2
+const BOUNDARY_RADIUS = 3.15
+const STATION_RADIUS = 2.2
 
-/** The subsystems inside the host, placed around it in three dimensions. */
-const NODES: {
+/**
+ * The stations, in the order a document passes through them. These are the
+ * platform's real stages, named as the work they do.
+ */
+const STATIONS: {
   id: TopologyNodeId
   label: string
-  position: [number, number, number]
+  caption: string
 }[] = [
-  { id: 'model', label: 'LOCAL MODEL', position: [0, 1.75, 0.15] },
-  { id: 'vector', label: 'VECTOR STORE', position: [1.62, 0.62, -0.5] },
-  { id: 'sandbox', label: 'SANDBOX', position: [1.5, -0.95, 0.42] },
-  { id: 'documents', label: 'DOCUMENT STORE', position: [0, -1.8, -0.28] },
-  { id: 'agent', label: 'AGENT', position: [-1.5, -0.95, 0.4] },
-  { id: 'audit', label: 'AUDIT LOG', position: [-1.62, 0.62, -0.45] },
+  { id: 'documents', label: 'INTAKE', caption: 'the scan arrives' },
+  { id: 'model', label: 'READ', caption: 'vision model' },
+  { id: 'vector', label: 'YOUR SOPs', caption: 'retrieval' },
+  { id: 'sandbox', label: 'RECOMPUTE', caption: 'sandbox' },
+  { id: 'agent', label: 'APPROVE', caption: 'a person signs' },
+  { id: 'audit', label: 'FILED', caption: 'audit record' },
 ]
+
+function stationPosition(index: number): THREE.Vector3 {
+  const angle = (index / STATIONS.length) * Math.PI * 2 - Math.PI / 2
+  // A slight tilt out of plane so the circuit reads as three-dimensional.
+  return new THREE.Vector3(
+    Math.cos(angle) * STATION_RADIUS,
+    Math.sin(angle) * STATION_RADIUS * 0.86,
+    Math.sin(angle * 2) * 0.42,
+  )
+}
 
 /* -------------------------------------------------------------- boundary */
 
@@ -70,16 +90,14 @@ function Boundary({
 
   useFrame((_, delta) => {
     if (wire.current) {
-      wire.current.rotation.y += delta * 0.06
-      wire.current.rotation.x += delta * 0.018
+      wire.current.rotation.y += delta * 0.05
+      wire.current.rotation.x += delta * 0.015
     }
     if (shell.current) {
-      // Decays after each refusal, so the flare reads as an event.
       flare.current.strength = Math.max(0, flare.current.strength - delta * 1.4)
       const material = shell.current.material as THREE.MeshBasicMaterial
-      material.opacity = 0.025 + flare.current.strength * 0.16
+      material.opacity = 0.02 + flare.current.strength * 0.15
       material.color.set(flare.current.strength > 0.05 ? CRITICAL : SOVEREIGN)
-      shell.current.rotation.y += delta * 0.06
     }
   })
 
@@ -89,7 +107,7 @@ function Boundary({
         <lineBasicMaterial
           color={breached ? CRITICAL : SOVEREIGN}
           transparent
-          opacity={breached ? 0.4 : 0.19}
+          opacity={breached ? 0.42 : 0.22}
         />
       </lineSegments>
       <mesh ref={shell}>
@@ -97,7 +115,7 @@ function Boundary({
         <meshBasicMaterial
           color={SOVEREIGN}
           transparent
-          opacity={0.025}
+          opacity={0.02}
           side={THREE.BackSide}
           depthWrite={false}
         />
@@ -106,148 +124,203 @@ function Boundary({
   )
 }
 
-/* ------------------------------------------------------------------ host */
+/* ------------------------------------------------------------- the sheet */
 
-function Host() {
-  const core = useRef<THREE.Mesh>(null)
-  const halo = useRef<THREE.Mesh>(null)
-
-  useFrame((state, delta) => {
-    const breath = 0.5 + Math.sin(state.clock.elapsedTime * 1.4) * 0.5
-    if (halo.current) {
-      halo.current.scale.setScalar(1 + breath * 0.16)
-      ;(halo.current.material as THREE.MeshBasicMaterial).opacity = 0.1 + breath * 0.1
-    }
-    if (core.current) core.current.rotation.y += delta * 0.35
-  })
-
-  return (
-    <group>
-      <mesh ref={halo}>
-        <sphereGeometry args={[0.52, 24, 24]} />
-        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0.14} depthWrite={false} />
-      </mesh>
-      <mesh ref={core}>
-        <icosahedronGeometry args={[0.4, 1]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive={SOVEREIGN}
-          emissiveIntensity={0.35}
-          roughness={0.25}
-          metalness={0.55}
-        />
-      </mesh>
-      <lineSegments>
-        <edgesGeometry args={[new THREE.IcosahedronGeometry(0.4, 1)]} />
-        <lineBasicMaterial color={SOVEREIGN} transparent opacity={0.6} />
-      </lineSegments>
-    </group>
-  )
-}
-
-/* ----------------------------------------------------------------- nodes */
-
-function Node({
-  position,
-  busy,
-  index,
+/**
+ * The document itself. Marks accumulate on it as it moves round the circuit,
+ * so by the time it reaches the end it visibly carries its own evidence.
+ */
+function Sheet({
+  stage,
+  progress,
 }: {
-  position: [number, number, number]
-  busy: boolean
-  index: number
+  stage: React.MutableRefObject<number>
+  progress: React.MutableRefObject<number>
 }) {
   const group = useRef<THREE.Group>(null)
-  const glow = useRef<THREE.Mesh>(null)
+  const scanLine = useRef<THREE.Mesh>(null)
+  const stamp = useRef<THREE.Mesh>(null)
+
+  // Ruled lines, so it reads as a page of text rather than a blank card.
+  const lines = useMemo(() => [0.44, 0.30, 0.16, 0.02, -0.12, -0.26, -0.40], [])
 
   useFrame((state, delta) => {
     if (!group.current) return
     const t = state.clock.elapsedTime
-    // Uncorrelated drift, so the cluster reads as alive rather than spinning.
-    group.current.position.y = position[1] + Math.sin(t * 0.55 + index) * 0.055
-    group.current.rotation.y += delta * 0.28
 
-    if (glow.current) {
-      const pulse = 0.5 + Math.sin(t * 3.2 + index) * 0.5
-      const material = glow.current.material as THREE.MeshBasicMaterial
-      material.opacity = busy ? 0.14 + pulse * 0.2 : 0
-      glow.current.scale.setScalar(busy ? 1.5 + pulse * 0.4 : 1)
+    const from = stationPosition(stage.current)
+    const to = stationPosition((stage.current + 1) % STATIONS.length)
+    // Ease between stations, and hold briefly on arrival.
+    const raw = Math.min(1, progress.current)
+    const eased = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2
+    const position = from.clone().lerp(to, eased)
+    // Bow the path outward so travel is legible.
+    position.multiplyScalar(1 + Math.sin(eased * Math.PI) * 0.06)
+
+    group.current.position.copy(position)
+    group.current.rotation.y = Math.sin(t * 0.5) * 0.35 + eased * Math.PI * 0.12
+    group.current.rotation.z = Math.sin(t * 0.35) * 0.06
+
+    // Reading: a bar sweeps the page while it sits at the READ station.
+    if (scanLine.current) {
+      const reading = stage.current === 1
+      const material = scanLine.current.material as THREE.MeshBasicMaterial
+      material.opacity = reading ? 0.75 : 0
+      if (reading) scanLine.current.position.y = ((t * 0.9) % 1) * 1.06 - 0.53
+    }
+
+    // The stamp lands once the document has been signed.
+    if (stamp.current) {
+      const signed = stage.current >= 4
+      const material = stamp.current.material as THREE.MeshBasicMaterial
+      material.opacity = signed ? 0.85 : 0
+      stamp.current.scale.setScalar(signed ? 1 + Math.sin(t * 2.4) * 0.03 : 0.01)
     }
   })
 
   return (
-    <group ref={group} position={position}>
-      <mesh ref={glow}>
-        <sphereGeometry args={[0.24, 16, 16]} />
-        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0} depthWrite={false} />
-      </mesh>
+    <group ref={group}>
+      {/* the page */}
       <mesh>
-        <boxGeometry args={[0.22, 0.22, 0.22]} />
+        <planeGeometry args={[0.92, 1.24]} />
         <meshStandardMaterial
-          color="#ffffff"
-          emissive={busy ? SOVEREIGN : '#000000'}
-          emissiveIntensity={busy ? 0.5 : 0}
-          roughness={0.4}
-          metalness={0.3}
+          color={PAPER}
+          side={THREE.DoubleSide}
+          roughness={0.85}
+          metalness={0}
         />
       </mesh>
       <lineSegments>
-        <edgesGeometry args={[new THREE.BoxGeometry(0.22, 0.22, 0.22)]} />
-        <lineBasicMaterial color={busy ? SOVEREIGN : INK} transparent opacity={busy ? 0.9 : 0.35} />
+        <edgesGeometry args={[new THREE.PlaneGeometry(0.92, 1.24)]} />
+        <lineBasicMaterial color={INK} transparent opacity={0.45} />
       </lineSegments>
+
+      {/* ruled text lines */}
+      {lines.map((y, index) => (
+        <mesh key={y} position={[index % 3 === 2 ? -0.12 : 0, y, 0.002]}>
+          <planeGeometry args={[index % 3 === 2 ? 0.4 : 0.66, 0.026]} />
+          <meshBasicMaterial color={INK} transparent opacity={0.32} />
+        </mesh>
+      ))}
+
+      {/* the reading bar */}
+      <mesh ref={scanLine} position={[0, 0, 0.006]}>
+        <planeGeometry args={[0.92, 0.05]} />
+        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      {/* the approval stamp */}
+      <mesh ref={stamp} position={[0.24, -0.38, 0.008]} rotation={[0, 0, -0.24]}>
+        <ringGeometry args={[0.12, 0.16, 24]} />
+        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   )
 }
 
-/* ----------------------------------------------------------------- links */
+/* ---------------------------------------------------------- the stations */
 
-function Links() {
-  const geometry = useMemo(() => {
-    const points: number[] = []
-    for (const node of NODES) {
-      points.push(0, 0, 0, ...node.position)
+function Station({
+  index,
+  busy,
+}: {
+  index: number
+  busy: boolean
+}) {
+  const group = useRef<THREE.Group>(null)
+  const halo = useRef<THREE.Mesh>(null)
+  const position = useMemo(() => stationPosition(index), [index])
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime
+    if (halo.current) {
+      const pulse = 0.5 + Math.sin(t * 3 + index) * 0.5
+      const material = halo.current.material as THREE.MeshBasicMaterial
+      material.opacity = busy ? 0.14 + pulse * 0.2 : 0.04
+      halo.current.scale.setScalar(busy ? 1.25 + pulse * 0.3 : 1)
     }
-    const buffer = new THREE.BufferGeometry()
-    buffer.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
-    return buffer
-  }, [])
+    if (group.current) group.current.rotation.y = t * 0.2 + index
+  })
 
   return (
-    <lineSegments geometry={geometry}>
-      <lineBasicMaterial color={INK} transparent opacity={0.22} />
-    </lineSegments>
+    <group position={position}>
+      <mesh ref={halo}>
+        <sphereGeometry args={[0.36, 16, 16]} />
+        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0.04} depthWrite={false} />
+      </mesh>
+      <group ref={group}>
+        <mesh>
+          <cylinderGeometry args={[0.21, 0.21, 0.15, 6]} />
+          <meshStandardMaterial
+            color={busy ? '#1c5f34' : '#393733'}
+            emissive={busy ? SOVEREIGN : '#000000'}
+            emissiveIntensity={busy ? 0.75 : 0}
+            roughness={0.45}
+            metalness={0.3}
+          />
+        </mesh>
+        <lineSegments>
+          <edgesGeometry args={[new THREE.CylinderGeometry(0.21, 0.21, 0.15, 6)]} />
+          <lineBasicMaterial color={busy ? SOVEREIGN : '#8d8a84'} transparent opacity={busy ? 1 : 0.65} />
+        </lineSegments>
+      </group>
+    </group>
   )
 }
 
-/* --------------------------------------------------------------- traffic */
+/** The circuit the document travels, drawn as a faint closed path. */
+function Circuit() {
+  const geometry = useMemo(() => {
+    const points: THREE.Vector3[] = []
+    const segments = 120
+    for (let i = 0; i <= segments; i += 1) {
+      const at = (i / segments) * STATIONS.length
+      const from = stationPosition(Math.floor(at) % STATIONS.length)
+      const to = stationPosition((Math.floor(at) + 1) % STATIONS.length)
+      const local = at - Math.floor(at)
+      const point = from.clone().lerp(to, local)
+      point.multiplyScalar(1 + Math.sin(local * Math.PI) * 0.06)
+      points.push(point)
+    }
+    return new THREE.BufferGeometry().setFromPoints(points)
+  }, [])
 
-function Traffic({ tempo }: { tempo: React.MutableRefObject<number> }) {
-  const count = NODES.length
+  return (
+    <line>
+      <primitive object={geometry} attach="geometry" />
+      <lineBasicMaterial color={INK} transparent opacity={0.26} />
+    </line>
+  )
+}
+
+/* --------------------------------------------- citations from the shelf */
+
+/**
+ * When the document reaches the procedure station, tags fly from the shelf and
+ * attach to it — the citations the finished note carries.
+ */
+function Citations({ stage }: { stage: React.MutableRefObject<number> }) {
+  const count = 3
   const mesh = useRef<THREE.InstancedMesh>(null)
   const dummy = useMemo(() => new THREE.Object3D(), [])
-  const progress = useRef<number[]>(NODES.map((_, i) => i / count))
-  const outbound = useRef<boolean[]>(NODES.map((_, i) => i % 2 === 0))
+  const offsets = useMemo(() => [0, 0.34, 0.68], [])
 
-  useFrame((_, delta) => {
+  useFrame((state) => {
     const instanced = mesh.current
     if (!instanced) return
+    const t = state.clock.elapsedTime
+    const shelf = stationPosition(2)
+    const active = stage.current === 2
 
     for (let i = 0; i < count; i += 1) {
-      progress.current[i] += delta * (0.22 + (i % 3) * 0.05) * tempo.current
-      if (progress.current[i] > 1) {
-        progress.current[i] = 0
-        outbound.current[i] = !outbound.current[i]
-      }
-
-      const raw = progress.current[i]
-      // Ease so a packet settles into its destination rather than arriving flat.
-      const eased = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2
-      const travel = outbound.current[i] ? eased : 1 - eased
-
-      const target = new THREE.Vector3(...NODES[i].position)
-      const point = target.clone().multiplyScalar(travel)
-
+      const local = active ? ((t * 0.7 + offsets[i]) % 1) : 1
+      const target = stationPosition(2)
+      const point = shelf
+        .clone()
+        .lerp(target, local)
+        .add(new THREE.Vector3(Math.sin(t + i) * 0.16, 0.2 - local * 0.4, Math.cos(t + i) * 0.16))
       dummy.position.copy(point)
-      dummy.scale.setScalar(0.05 + Math.sin(raw * Math.PI) * 0.028)
+      dummy.scale.setScalar(active ? 0.055 * (1 - local * 0.4) : 0)
       dummy.updateMatrix()
       instanced.setMatrixAt(i, dummy.matrix)
     }
@@ -256,7 +329,7 @@ function Traffic({ tempo }: { tempo: React.MutableRefObject<number> }) {
 
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-      <sphereGeometry args={[1, 10, 10]} />
+      <boxGeometry args={[1, 1, 0.15]} />
       <meshBasicMaterial color={SOVEREIGN} />
     </instancedMesh>
   )
@@ -274,7 +347,7 @@ function Escape({
   const state = useRef({
     t: 0,
     direction: new THREE.Vector3(1, 0.4, 0.35).normalize(),
-    cooldown: 2.4,
+    cooldown: 2.2,
     returning: false,
   })
 
@@ -291,32 +364,27 @@ function Escape({
       return
     }
 
-    s.t += delta * (s.returning ? 2.0 : 1.05)
+    s.t += delta * (s.returning ? 2.1 : 1.0)
     const eased = 1 - Math.pow(1 - Math.min(s.t, 1), 3)
     const distance = s.returning
-      ? BOUNDARY_RADIUS - (BOUNDARY_RADIUS - 0.5) * eased
-      : 0.5 + (BOUNDARY_RADIUS - 0.5) * eased
+      ? BOUNDARY_RADIUS - (BOUNDARY_RADIUS - 0.6) * eased
+      : 0.6 + (BOUNDARY_RADIUS - 0.6) * eased
 
     head.current.position.copy(s.direction.clone().multiplyScalar(distance))
 
-    // A stretched trail behind the head, so the refusal is readable.
-    const back = Math.max(0.4, distance - 0.55)
+    const back = Math.max(0.5, distance - 0.6)
     trail.current.position.copy(s.direction.clone().multiplyScalar((distance + back) / 2))
-    trail.current.scale.set(0.02, Math.max(0.05, (distance - back) / 2), 0.02)
-    trail.current.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      s.direction.clone().normalize(),
-    )
+    trail.current.scale.set(0.018, Math.max(0.05, (distance - back) / 2), 0.018)
+    trail.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), s.direction.clone())
 
-    const nearEdge = distance > BOUNDARY_RADIUS * 0.82
-    const colour = s.returning || nearEdge ? CRITICAL : '#b45309'
+    const nearEdge = distance > BOUNDARY_RADIUS * 0.8
+    const colour = s.returning || nearEdge ? CRITICAL : AMBER
     headMaterial.color.set(colour)
     trailMaterial.color.set(colour)
     headMaterial.opacity = 1
-    trailMaterial.opacity = 0.45
+    trailMaterial.opacity = 0.42
 
     if (!s.returning && s.t >= 1) {
-      // Refused at the boundary: flare there, then send it back inside.
       flare.current.strength = 1
       flare.current.direction.copy(s.direction)
       s.returning = true
@@ -324,7 +392,7 @@ function Escape({
     } else if (s.returning && s.t >= 1) {
       s.returning = false
       s.t = 0
-      s.cooldown = 3.4 + Math.random() * 2.6
+      s.cooldown = 3.2 + Math.random() * 2.4
       s.direction = new THREE.Vector3(
         Math.random() * 2 - 1,
         Math.random() * 1.6 - 0.8,
@@ -342,14 +410,12 @@ function Escape({
         <meshBasicMaterial color={CRITICAL} transparent opacity={0} depthWrite={false} />
       </mesh>
       <mesh ref={head}>
-        <sphereGeometry args={[0.075, 12, 12]} />
+        <sphereGeometry args={[0.07, 12, 12]} />
         <meshBasicMaterial color={CRITICAL} transparent opacity={0} />
       </mesh>
     </group>
   )
 }
-
-/* -------------------------------------------------- shockwave at the edge */
 
 function Shockwave({
   flare,
@@ -361,20 +427,17 @@ function Shockwave({
   useFrame(() => {
     if (!ring.current) return
     const strength = flare.current.strength
-    const material = ring.current.material as THREE.MeshBasicMaterial
-    material.opacity = strength * 0.7
-
+    ;(ring.current.material as THREE.MeshBasicMaterial).opacity = strength * 0.7
     if (strength > 0.01) {
-      const point = flare.current.direction.clone().multiplyScalar(BOUNDARY_RADIUS)
-      ring.current.position.copy(point)
+      ring.current.position.copy(flare.current.direction.clone().multiplyScalar(BOUNDARY_RADIUS))
       ring.current.lookAt(0, 0, 0)
-      ring.current.scale.setScalar(0.3 + (1 - strength) * 1.9)
+      ring.current.scale.setScalar(0.3 + (1 - strength) * 2)
     }
   })
 
   return (
     <mesh ref={ring}>
-      <ringGeometry args={[0.34, 0.42, 40]} />
+      <ringGeometry args={[0.32, 0.4, 40]} />
       <meshBasicMaterial
         color={CRITICAL}
         transparent
@@ -392,48 +455,70 @@ function Scene({
   active,
   activeNodes,
   breached,
+  onStageChange,
 }: {
   active: boolean
   activeNodes: TopologyNodeId[]
   breached: boolean
+  onStageChange: (index: number) => void
 }) {
   const group = useRef<THREE.Group>(null)
   const { pointer } = useThree()
-  const tempo = useRef(1)
+  const stage = useRef(0)
+  const progress = useRef(0)
   const flare = useRef({ strength: 0, direction: new THREE.Vector3(1, 0, 0) })
 
-  tempo.current = active ? 2.1 : 1
+  useFrame((_, delta) => {
+    if (group.current) {
+      group.current.rotation.y += delta * 0.09
+      group.current.rotation.x +=
+        (-pointer.y * 0.2 - group.current.rotation.x) * delta * 1.1
+    }
 
-  useFrame((state, delta) => {
-    if (!group.current) return
-    // A slow turn of its own, plus a gentle lean towards the pointer, so the
-    // object feels held rather than driven.
-    group.current.rotation.y +=
-      delta * 0.12 + (pointer.x * 0.4 - group.current.rotation.y * 0.02) * delta
-    group.current.rotation.x +=
-      (-pointer.y * 0.22 - group.current.rotation.x) * delta * 1.1
+    // During a real run the document waits at whichever station is working.
+    const busyIndex = STATIONS.findIndex((s) => activeNodes.includes(s.id))
+    if (active && busyIndex >= 0) {
+      if (stage.current !== busyIndex) {
+        progress.current += delta * 0.9
+        if (progress.current >= 1) {
+          progress.current = 0
+          stage.current = (stage.current + 1) % STATIONS.length
+          onStageChange(stage.current)
+        }
+      } else {
+        progress.current = 0
+      }
+      return
+    }
+
+    // Idle: a gentle continuous circuit, so the story is always legible.
+    progress.current += delta * 0.36
+    if (progress.current >= 1) {
+      progress.current = 0
+      stage.current = (stage.current + 1) % STATIONS.length
+      onStageChange(stage.current)
+    }
   })
 
   return (
     <group ref={group}>
-      <ambientLight intensity={1.1} />
-      <directionalLight position={[4, 6, 5]} intensity={1.5} />
-      <pointLight position={[-4, -2, 3]} intensity={12} color={SOVEREIGN} distance={16} />
+      <ambientLight intensity={1.15} />
+      <directionalLight position={[4, 6, 6]} intensity={1.6} />
+      <pointLight position={[-4, -2, 3]} intensity={10} color={SOVEREIGN} distance={16} />
 
       <Boundary flare={flare} breached={breached} />
-      <Links />
-      {NODES.map((node, index) => (
-        <Node
-          key={node.id}
-          position={node.position}
-          busy={activeNodes.includes(node.id)}
+      <Circuit />
+      {STATIONS.map((station, index) => (
+        <Station
+          key={station.id}
           index={index}
+          busy={activeNodes.includes(station.id) || (!active && stage.current === index)}
         />
       ))}
-      <Traffic tempo={tempo} />
+      <Citations stage={stage} />
+      <Sheet stage={stage} progress={progress} />
       <Escape flare={flare} />
       <Shockwave flare={flare} />
-      <Host />
     </group>
   )
 }
@@ -446,28 +531,21 @@ export function SovereigntyTopology({
   breached = false,
   className = '',
 }: {
-  /** True while a task is running: the whole scene quickens. */
   active?: boolean
-  /** Subsystems currently doing work. */
   activeNodes?: TopologyNodeId[]
-  /** True only if the monitor actually observed egress. */
   breached?: boolean
   className?: string
 }) {
   const holder = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [reduced, setReduced] = useState(false)
-
   const [supported, setSupported] = useState(true)
+  const [stage, setStage] = useState(0)
 
   useEffect(() => {
-    // Some hosts have no WebGL at all. Detect it rather than letting the
-    // renderer throw and take the page with it.
     try {
       const probe = document.createElement('canvas')
-      setSupported(
-        Boolean(probe.getContext('webgl2') || probe.getContext('webgl')),
-      )
+      setSupported(Boolean(probe.getContext('webgl2') || probe.getContext('webgl')))
     } catch {
       setSupported(false)
     }
@@ -484,7 +562,6 @@ export function SovereigntyTopology({
   useEffect(() => {
     const element = holder.current
     if (!element) return
-    // Rendering an off-screen scene is CPU taken from the models.
     const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), {
       threshold: 0.05,
     })
@@ -492,22 +569,28 @@ export function SovereigntyTopology({
     return () => observer.disconnect()
   }, [])
 
+  const liveIndex = STATIONS.findIndex((s) => activeNodes.includes(s.id))
+  const current = active && liveIndex >= 0 ? liveIndex : stage
+
   return (
-    <div ref={holder} className={`relative h-full w-full ${className}`} aria-hidden>
+    <div ref={holder} className={`relative h-full w-full ${className}`}>
       {visible && !reduced && supported ? (
         <Canvas
-          camera={{ position: [0, 0, 11.2], fov: 40 }}
+          camera={{ position: [0, 0, 9.1], fov: 42 }}
           dpr={[1, 1.6]}
           gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
         >
-          <Scene active={active} activeNodes={activeNodes} breached={breached} />
+          <Scene
+            active={active}
+            activeNodes={activeNodes}
+            breached={breached}
+            onStageChange={setStage}
+          />
         </Canvas>
       ) : (
-        // Same idea, no motion and no GPU cost.
         <div className="flex h-full w-full items-center justify-center">
-          <div className="relative h-[220px] w-[220px]">
+          <div className="relative h-[200px] w-[200px]">
             <div className="absolute inset-0 rounded-full border border-border" />
-            <div className="absolute inset-8 rounded-full border border-border" />
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="font-mono text-[11px] text-foreground-muted">
                 {supported ? 'CONTAINED' : 'CONTAINED · 3D unavailable here'}
@@ -517,19 +600,26 @@ export function SovereigntyTopology({
         </div>
       )}
 
-      {/* The subsystem names, as HTML so they stay crisp and readable. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 px-4">
-        {NODES.map((node) => {
-          const busy = activeNodes.includes(node.id)
+      {/* The stations, named as the work they do, with the live one marked. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4">
+        {STATIONS.map((station, index) => {
+          const on = index === current
           return (
-            <span
-              key={node.id}
-              className={`font-mono text-[10px] tracking-[0.14em] transition-colors ${
-                busy ? 'text-sovereign' : 'text-foreground-muted'
-              }`}
-            >
-              {busy ? '● ' : '○ '}
-              {node.label}
+            <span key={station.id} className="flex flex-col items-center leading-tight">
+              <span
+                className={`font-mono text-[10px] tracking-[0.16em] transition-colors ${
+                  on ? 'text-sovereign' : 'text-foreground-muted'
+                }`}
+              >
+                {on ? '●' : '○'} {station.label}
+              </span>
+              <span
+                className={`text-[10px] transition-colors ${
+                  on ? 'text-foreground-secondary' : 'text-foreground-muted/60'
+                }`}
+              >
+                {station.caption}
+              </span>
             </span>
           )
         })}
