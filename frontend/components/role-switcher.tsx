@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, LogOut } from 'lucide-react'
 import { ROLES } from '@/lib/presentation'
 import { useRole } from './role-context'
@@ -8,6 +9,7 @@ import { cn } from '@/lib/utils'
 
 export function RoleSwitcher() {
   const { role, setRole, user, logout } = useRole()
+  const router = useRouter()
   const [switchError, setSwitchError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -89,6 +91,7 @@ export function RoleSwitcher() {
               onClick={() => {
                 logout()
                 setOpen(false)
+                router.push('/sign-in')
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-[12px] text-foreground-muted transition-colors hover:bg-surface-sunken hover:text-[var(--critical)]"
             >
