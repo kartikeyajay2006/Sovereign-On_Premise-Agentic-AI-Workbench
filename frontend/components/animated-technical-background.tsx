@@ -2,27 +2,25 @@
 
 import { useEffect, useRef } from 'react'
 
-interface Node {
-  x: number
-  y: number
-  vx: number
-  vy: number
+interface AnimatedTechnicalBackgroundProps {
+  className?: string
+  dotSpacing?: number
+  masked?: boolean
 }
 
 /**
- * Sparse monochrome constellation + drifting micro-particles rendered on a
- * single canvas. Slow, precise, mechanical motion. Honors prefers-reduced-motion
- * by rendering one static frame. Node count stays low for performance.
+ * Premium Optimus-Grade Moving Dotted Matrix Background
+ *
+ * Renders a crisp architectural grid of circular rings with undulating traveling wave physics,
+ * dynamic filled dot swells, and interactive mouse cursor ripples.
+ * Uses a subtle radial vignette mask so it breathes naturally into the hero
+ * without overwhelming lower UI content.
  */
 export function AnimatedTechnicalBackground({
-  dark = false,
-  density = 26,
-  className,
-}: {
-  dark?: boolean
-  density?: number
-  className?: string
-}) {
+  className = '',
+  dotSpacing = 30,
+  masked = true,
+}: AnimatedTechnicalBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -32,18 +30,15 @@ export function AnimatedTechnicalBackground({
     if (!ctx) return
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const line = dark ? 'rgba(120,120,116,' : 'rgba(90,88,84,'
-    const dot = dark ? 'rgba(160,158,152,' : 'rgba(80,78,74,'
-
     let width = 0
     let height = 0
     let dpr = 1
-    const nodes: Node[] = []
+    let raf = 0
+    const mouse = { x: -2000, y: -2000, targetX: -2000, targetY: -2000 }
 
     const resize = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect()
-      width = rect?.width ?? canvas.clientWidth
-      height = rect?.height ?? canvas.clientHeight
+      width = window.innerWidth
+      height = window.innerHeight
       dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = width * dpr
       canvas.height = height * dpr
@@ -52,84 +47,119 @@ export function AnimatedTechnicalBackground({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
 
-    const seed = () => {
-      nodes.length = 0
-      const count = Math.max(10, Math.round((width / 1200) * density))
-      for (let i = 0; i < count; i++) {
-        nodes.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          vx: (Math.random() - 0.5) * 0.12,
-          vy: (Math.random() - 0.5) * 0.12,
-        })
-      }
+    const onMouseMove = (e: MouseEvent) => {
+      mouse.targetX = e.clientX
+      mouse.targetY = e.clientY
     }
 
-    const draw = () => {
+    const onMouseLeave = () => {
+      mouse.targetX = -2000
+      mouse.targetY = -2000
+    }
+
+    window.addEventListener('mousemove', onMouseMove, { passive: true })
+    document.addEventListener('mouseleave', onMouseLeave)
+    window.addEventListener('resize', resize)
+
+    resize()
+
+    const startTime = performance.now()
+
+    const render = (time: number) => {
+      const elapsed = (time - startTime) * 0.0016
+
+      // Smooth mouse easing
+      mouse.x += (mouse.targetX - mouse.x) * 0.1
+      mouse.y += (mouse.targetY - mouse.y) * 0.1
+
       ctx.clearRect(0, 0, width, height)
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i]
-        for (let j = i + 1; j < nodes.length; j++) {
-          const m = nodes[j]
-          const dx = n.x - m.x
-          const dy = n.y - m.y
-          const d = Math.hypot(dx, dy)
-          if (d < 150) {
-            ctx.strokeStyle = `${line}${(1 - d / 150) * 0.16})`
-            ctx.lineWidth = 1
+
+      const cols = Math.ceil(width / dotSpacing) + 2
+      const rows = Math.ceil(height / dotSpacing) + 2
+      const offsetX = (width % dotSpacing) / 2
+      const offsetY = (height % dotSpacing) / 2
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = offsetX + (c - 1) * dotSpacing
+          const y = offsetY + (r - 1) * dotSpacing
+
+          // Multi-harmonic traveling diagonal wave physics
+          const wave1 = Math.sin(x * 0.006 + y * 0.0045 - elapsed * 1.6)
+          const wave2 = Math.cos(x * 0.0035 - y * 0.005 + elapsed * 1.1)
+          const combinedWave = (wave1 * 0.65 + wave2 * 0.35 + 1) / 2 // 0 to 1
+
+          // Proximity & ripple from mouse cursor
+          const distToMouse = Math.hypot(x - mouse.x, y - mouse.y)
+          const mouseRadius = 150
+          let mouseEffect = 0
+          if (distToMouse < mouseRadius) {
+            const rawProximity = 1 - distToMouse / mouseRadius
+            const ripple = Math.sin(distToMouse / 22 - elapsed * 2.8) * 0.25
+            mouseEffect = Math.max(0, rawProximity + ripple)
+          }
+
+          // Composite wave intensity
+          const intensity = Math.min(1, combinedWave * 0.7 + mouseEffect * 0.8)
+
+          // 1. Base circular ring outline
+          const baseRingRadius = 1.8 + intensity * 1.4
+          const ringAlpha = 0.14 + intensity * 0.32
+
+          ctx.beginPath()
+          ctx.arc(x, y, baseRingRadius, 0, Math.PI * 2)
+          ctx.strokeStyle = `rgba(130, 128, 122, ${ringAlpha})`
+          ctx.lineWidth = 0.65
+          ctx.stroke()
+
+          // 2. Solid filled inner dot when wave or mouse passes
+          if (intensity > 0.48) {
+            const fillRadius = Math.max(0.7, (intensity - 0.48) * 4.2)
+            const fillAlpha = Math.min(0.8, (intensity - 0.48) * 1.4)
+
             ctx.beginPath()
-            ctx.moveTo(n.x, n.y)
-            ctx.lineTo(m.x, m.y)
-            ctx.stroke()
+            ctx.arc(x, y, fillRadius, 0, Math.PI * 2)
+            ctx.fillStyle = `rgba(45, 43, 39, ${fillAlpha})`
+            ctx.fill()
           }
         }
       }
-      for (const n of nodes) {
-        ctx.fillStyle = `${dot}0.5)`
-        ctx.fillRect(n.x - 1, n.y - 1, 2, 2)
+
+      if (!reduced) {
+        raf = requestAnimationFrame(render)
       }
     }
-
-    const step = () => {
-      for (const n of nodes) {
-        n.x += n.vx
-        n.y += n.vy
-        if (n.x < 0 || n.x > width) n.vx *= -1
-        if (n.y < 0 || n.y > height) n.vy *= -1
-      }
-      draw()
-      raf = requestAnimationFrame(step)
-    }
-
-    let raf = 0
-    resize()
-    seed()
 
     if (reduced) {
-      draw()
+      render(0)
     } else {
-      raf = requestAnimationFrame(step)
+      raf = requestAnimationFrame(render)
     }
-
-    const onResize = () => {
-      resize()
-      seed()
-      if (reduced) draw()
-    }
-    window.addEventListener('resize', onResize)
 
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('resize', onResize)
+      window.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseleave', onMouseLeave)
+      window.removeEventListener('resize', resize)
     }
-  }, [dark, density])
+  }, [dotSpacing])
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden
-      className={className}
-      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+      className={`fixed inset-0 pointer-events-none transition-opacity duration-500 ${className}`}
+      style={{
+        zIndex: 0,
+        maskImage: masked
+          ? 'radial-gradient(ellipse 75% 65% at 50% 28%, black 15%, rgba(0,0,0,0.6) 55%, transparent 90%)'
+          : undefined,
+        WebkitMaskImage: masked
+          ? 'radial-gradient(ellipse 75% 65% at 50% 28%, black 15%, rgba(0,0,0,0.6) 55%, transparent 90%)'
+          : undefined,
+      }}
     />
   )
 }
+
+

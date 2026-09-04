@@ -47,16 +47,16 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
           compact && 'px-2',
         )}
       >
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="sov-pulse absolute inline-flex h-full w-full rounded-full bg-sovereign" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sovereign" />
+        <span className="relative flex h-2 w-2">
+          <span className="sov-pulse absolute inline-flex h-full w-full rounded-full bg-[var(--sovereign)]" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--sovereign)]" />
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground">Air-Gapped</span>
-        {!compact && (
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted lg:inline">
-            {extCalls} External Calls
-          </span>
-        )}
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+          Air-Gapped
+        </span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-foreground-muted">
+          {extCalls} External Calls
+        </span>
       </button>
 
       {open && (

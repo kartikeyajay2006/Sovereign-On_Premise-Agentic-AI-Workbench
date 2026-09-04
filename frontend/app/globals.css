@@ -141,6 +141,22 @@
   background-size: 56px 56px;
 }
 
+@utility glass-chassis {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+@utility glass-chassis-dark {
+  background: rgba(18, 18, 17, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--ink-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
 /* ------------------------------------------------------------------ */
 /* Motion                                                              */
 /* ------------------------------------------------------------------ */
@@ -186,6 +202,43 @@
 }
 .sov-spin-slow { animation: sov-spin-slow 3s linear infinite; }
 
+@keyframes sov-radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.sov-radar-sweep { animation: sov-radar-sweep 4s linear infinite; }
+
+@keyframes sov-laser-flow {
+  0% { stroke-dashoffset: 100; }
+  100% { stroke-dashoffset: 0; }
+}
+.sov-laser-flow {
+  stroke-dasharray: 8 16;
+  animation: sov-laser-flow 1.2s linear infinite;
+}
+
+@keyframes sov-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(22, 163, 74, 0.25), inset 0 0 8px rgba(22, 163, 74, 0.1); }
+  50% { box-shadow: 0 0 24px rgba(22, 163, 74, 0.5), inset 0 0 16px rgba(22, 163, 74, 0.25); }
+}
+.sov-glow-sovereign { animation: sov-glow-pulse 3s ease-in-out infinite; }
+
+@keyframes sov-glow-pulse-active {
+  0%, 100% { box-shadow: 0 0 12px rgba(2, 132, 199, 0.25), inset 0 0 8px rgba(2, 132, 199, 0.1); }
+  50% { box-shadow: 0 0 24px rgba(2, 132, 199, 0.5), inset 0 0 16px rgba(2, 132, 199, 0.25); }
+}
+.sov-glow-active { animation: sov-glow-pulse-active 3s ease-in-out infinite; }
+
+@keyframes sov-deflection {
+  0% { transform: scale(0.95); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.sov-deflection-burst { animation: sov-deflection 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+.cursor-grab { cursor: grab; }
+.cursor-grab:active, .cursor-grabbing { cursor: grabbing; }
+
 .reveal {
   opacity: 0;
 }
@@ -213,3 +266,4 @@
     opacity: 1 !important;
   }
 }
+

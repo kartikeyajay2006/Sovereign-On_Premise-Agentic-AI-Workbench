@@ -19,9 +19,8 @@ import { FileText, Library, Loader2, Search, Send, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { EvidenceItem, KnowledgeDocument, StoredFile } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
-import { PageHeader } from '@/components/page-header'
 import { SovButton } from '@/components/sov-button'
-import { TechnicalLabel, formatBytes } from '@/components/primitives'
+import { Reveal, SectionHeading, TechnicalLabel, formatBytes } from '@/components/primitives'
 import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
 
@@ -269,20 +268,52 @@ export function AskView() {
 
   return (
     <div className="flex flex-col">
-      <PageHeader
-        eyebrow="Ask your documents"
-        title={<>Ask a question.<br />Get the clause back.</>}
-        description="Put a question to the procedures, reports and drawings already on this host. The answer quotes your own documents, and nothing is sent anywhere to produce it."
-        meta={[
-          { label: 'Uploaded files', value: String(uploads.length) },
-          { label: 'Registry documents', value: String(documents.length) },
-          {
-            label: 'In scope',
-            value: selected.length ? `${selected.length} selected` : 'All indexed',
-          },
-          { label: 'Execution', value: '127.0.0.1' },
-        ]}
-      />
+      {/* Hero, in the console's language: eyebrow, stacked headline, and a
+          mono telemetry row rather than a boxed meta grid. */}
+      <Reveal>
+        <div className="mx-auto w-full max-w-[1400px] px-5 pt-10 lg:px-10 lg:pt-14">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-foreground-muted">
+              Sovereign Retrieval
+            </span>
+          </div>
+
+          <h1 className="mt-6 text-5xl font-extrabold leading-[1.05] tracking-[-0.035em] text-foreground sm:text-6xl md:text-[64px]">
+            Ask.
+            <br />
+            Get the clause
+            <br />
+            back.
+          </h1>
+
+          <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-foreground-secondary">
+            Put a question to the procedures, reports and drawings already on this host.
+            The answer quotes your own documents, and nothing is sent anywhere to produce it.
+          </p>
+
+          <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 font-mono text-[11px]">
+            <div className="flex items-center gap-2">
+              <span className="uppercase tracking-[0.14em] text-foreground-muted">UPLOADS</span>
+              <span className="font-bold text-foreground">{uploads.length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="uppercase tracking-[0.14em] text-foreground-muted">REGISTRY</span>
+              <span className="font-bold text-foreground">{documents.length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="uppercase tracking-[0.14em] text-foreground-muted">IN SCOPE</span>
+              <span className="font-bold text-foreground">
+                {selected.length ? `${selected.length} selected` : 'All indexed'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="uppercase tracking-[0.14em] text-foreground-muted">HOST</span>
+              <span className="font-bold text-foreground">127.0.0.1</span>
+            </div>
+          </div>
+        </div>
+      </Reveal>
 
       <div className="mx-auto grid w-full max-w-[1400px] gap-10 px-5 py-12 lg:grid-cols-[340px_1fr] lg:px-10">
         {/* ------------------------------------------------------ scope */}
@@ -308,11 +339,11 @@ export function AskView() {
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter by name"
               aria-label="Filter documents"
-              className="w-full border border-border bg-surface py-2.5 pl-9 pr-3 text-[13px] text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-border-strong"
+              className="w-full rounded-lg border border-border bg-surface py-2.5 pl-9 pr-3 text-[13px] text-foreground shadow-sm outline-none transition-colors placeholder:text-foreground-muted focus:border-foreground"
             />
           </div>
 
-          <div className="flex max-h-[520px] flex-col overflow-y-auto border border-border bg-surface">
+          <div className="flex max-h-[520px] flex-col overflow-y-auto rounded-xl border border-border bg-surface shadow-sm">
             {loading && (
               <p className="flex items-center gap-2 p-4 font-mono text-[12px] text-foreground-muted">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading the stores…
@@ -379,17 +410,23 @@ export function AskView() {
 
         {/* -------------------------------------------------- the question */}
         <section className="flex flex-col gap-6">
-          <div className="border border-border bg-surface">
-            <div className="flex items-baseline justify-between gap-3 border-b border-border px-5 py-3">
-              <TechnicalLabel>Your question</TechnicalLabel>
-              <span className="font-mono text-[11px] text-foreground-muted">
+          <div className="relative overflow-hidden border border-border bg-surface/95 shadow-sm backdrop-blur-md transition-all duration-200 focus-within:border-foreground/80 focus-within:shadow-[0_2px_16px_rgba(0,0,0,0.04)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 bg-surface-sunken/40 px-4 py-2.5">
+              <div className="flex items-center gap-3">
+                <SectionHeading index="01" title="Question" />
+                <span className="hidden items-center gap-1.5 border-l border-border pl-3 font-mono text-[10px] text-foreground-muted sm:inline-flex">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
+                  AIR-GAPPED 127.0.0.1
+                </span>
+              </div>
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
                 {selected.length > 0
                   ? `${selected.length} document${selected.length === 1 ? '' : 's'} in scope`
                   : 'All indexed documents'}
               </span>
             </div>
 
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               <label htmlFor="ask-question" className="sr-only">
                 What do you want to know?
               </label>
@@ -403,12 +440,22 @@ export function AskView() {
                 rows={4}
                 disabled={phase === 'asking'}
                 placeholder="e.g. What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve it?"
-                className="w-full resize-y border border-border bg-background p-3.5 text-[14px] leading-relaxed text-foreground outline-none transition-colors placeholder:text-foreground-muted focus:border-border-strong disabled:opacity-60"
+                className="w-full resize-y border-none bg-transparent p-0 text-[15px] leading-relaxed text-foreground outline-none placeholder:text-foreground-muted disabled:opacity-60"
               />
 
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <span className="font-mono text-[11px] text-foreground-muted">
-                  {phase === 'asking' ? stage || 'Working…' : 'Ctrl + Enter to ask'}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3.5">
+                <span className="flex items-center gap-2 font-mono text-[11px] text-foreground-muted">
+                  {phase === 'asking' && (
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sovereign)]" />
+                  )}
+                  {phase === 'asking' ? stage || 'Working…' : 'Local: 127.0.0.1 · 0 Egress'}
+                  {phase !== 'asking' && (
+                    <span className="ml-2 hidden items-center gap-1 sm:inline-flex">
+                      <kbd className="border border-border bg-surface px-1.5 py-0.5 text-[10px]">⌘</kbd>
+                      <span>+</span>
+                      <kbd className="border border-border bg-surface px-1.5 py-0.5 text-[10px]">↵</kbd>
+                    </span>
+                  )}
                 </span>
                 <div className="flex items-center gap-2">
                   {phase === 'answered' && (
@@ -446,7 +493,7 @@ export function AskView() {
                     key={s}
                     type="button"
                     onClick={() => setQuestion(s)}
-                    className="border border-border bg-surface px-4 py-3 text-left text-[13px] leading-snug text-foreground-secondary transition-colors hover:border-border-strong hover:text-foreground"
+                    className="rounded-lg border border-border bg-surface px-4 py-3 text-left text-[13px] leading-snug text-foreground-secondary shadow-sm transition-all hover:border-foreground hover:text-foreground hover:shadow-md"
                   >
                     {s}
                   </button>
@@ -458,8 +505,8 @@ export function AskView() {
           {/* ------------------------------------------------------ answer */}
           {(phase === 'asking' || phase === 'answered') && (
             <div ref={answerRef} className="flex flex-col gap-6">
-              <div className="border border-border bg-surface">
-                <div className="flex items-baseline justify-between gap-3 border-b border-border px-5 py-3">
+              <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+                <div className="flex items-baseline justify-between gap-3 border-b border-border bg-surface-sunken/40 px-5 py-3">
                   <TechnicalLabel>Answer</TechnicalLabel>
                   {taskId && (
                     <a
@@ -505,7 +552,7 @@ export function AskView() {
                     {evidence.map((item, index) => (
                       <figure
                         key={item.id || index}
-                        className="border border-border bg-surface p-4"
+                        className="rounded-xl border border-border bg-surface p-4 shadow-sm transition-shadow hover:shadow-md"
                       >
                         <figcaption className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                           <span className="font-mono text-[11px] text-sovereign">
