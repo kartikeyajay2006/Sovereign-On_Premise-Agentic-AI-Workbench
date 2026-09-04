@@ -487,8 +487,8 @@ export function ConsoleView() {
 
         {/* Templates (Pre-configured demonstration workflows) - Positioned below Task Dispatcher */}
         {phase === 'idle' && (
-          <Reveal delay={100} className="mt-8">
-            <div className="flex flex-col gap-2.5">
+          <Reveal delay={100} className="mt-16 sm:mt-20">
+            <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground-muted">
                   Pre-configured demonstration workflows

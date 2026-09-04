@@ -66,17 +66,17 @@ export function Navigation() {
         </div>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <div className="hidden sm:block">
             <SovereigntyStatus />
           </div>
-          <div className="hidden md:block">
+          <div className="block">
             <RoleSwitcher />
           </div>
           <button
             aria-label="Menu"
             onClick={() => setMobileOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-foreground lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-foreground lg:hidden"
           >
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
