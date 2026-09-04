@@ -366,43 +366,19 @@ export function ConsoleView() {
           </div>
         </Reveal>
 
-        {/* Templates */}
-        {phase === 'idle' && (
-          <Reveal delay={60} className="mt-8">
-            <div className="flex flex-col gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
-                Pre-configured demonstration workflows
-              </span>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {CONSOLE_TEMPLATES.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => applyTemplate(t)}
-                    className="flex flex-col gap-1 border border-border bg-surface p-4 text-left transition-colors hover:border-foreground hover:bg-surface-sunken"
-                  >
-                    <span className="text-[13px] font-medium text-foreground">{t.title}</span>
-                    <span className="line-clamp-2 text-[12px] leading-snug text-foreground-secondary">{t.prompt}</span>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-foreground-muted">.{t.format}</span>
-                      <span className="font-mono text-[10px] text-foreground-muted">
-                        · {t.attach ? 'attach the named file' : 'no attachment needed'}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Reveal>
-        )}
-
         {/* Composer */}
-        <Reveal delay={100} className="mt-8">
-          <div className="border border-border bg-surface">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-              <SectionHeading index="01" title="Task Dispatcher" />
+        <Reveal delay={60} className="mt-8">
+          <div className="rounded-none border border-border bg-surface/90 shadow-sm backdrop-blur-md">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5 bg-surface-sunken/40">
+              <div className="flex items-center gap-3">
+                <SectionHeading index="01" title="Task Dispatcher" />
+                <span className="hidden sm:inline-flex items-center gap-1.5 font-mono text-[10px] text-foreground-muted border-l border-border pl-3">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
+                  STANDBY · AIR-GAPPED HOST
+                </span>
+              </div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted hidden sm:inline">
                   Deliverable
                 </span>
                 <div className="flex items-center gap-1">
@@ -413,10 +389,10 @@ export function ConsoleView() {
                       disabled={phase !== 'idle'}
                       onClick={() => setFormat(df.id)}
                       className={cn(
-                        'border px-2 py-0.5 font-mono text-[11px] uppercase transition-colors',
+                        'border px-2.5 py-0.5 font-mono text-[11px] uppercase transition-all duration-150',
                         format === df.id
-                          ? 'border-foreground bg-foreground text-primary-foreground'
-                          : 'border-border text-foreground-secondary hover:border-foreground',
+                          ? 'border-foreground bg-foreground text-primary-foreground shadow-sm'
+                          : 'border-border text-foreground-secondary hover:border-foreground hover:text-foreground',
                       )}
                     >
                       {df.label}
@@ -426,23 +402,27 @@ export function ConsoleView() {
               </div>
             </div>
 
-            <div className="p-5">
-              {/* The question is the primary control, so it has to look like a
-                  field. Borderless on a transparent background it read as
-                  static grey text, while the attachment box below — bordered
-                  and dashed — looked like the thing to interact with. People
-                  concluded the console only accepted files. */}
-              <label htmlFor="task-prompt" className="mb-2 block text-[13px] font-medium text-foreground">
-                What do you want done? Ask a question, or describe the task.
+            <div className="p-5 sm:p-6">
+              <label htmlFor="task-prompt" className="mb-2 flex items-center justify-between text-[13px] font-medium text-foreground">
+                <span>What do you want done? Ask a question, or describe the task.</span>
+                <span className="font-mono text-[10px] text-foreground-muted hidden sm:inline">
+                  Press ⌘ + Enter to dispatch
+                </span>
               </label>
               <textarea
                 id="task-prompt"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && phase === 'idle') {
+                    e.preventDefault()
+                    run()
+                  }
+                }}
                 disabled={phase !== 'idle'}
                 placeholder="e.g. What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve it?"
                 rows={4}
-                className="w-full resize-none border border-border-strong bg-surface px-3.5 py-3 font-sans text-[15px] leading-relaxed text-foreground placeholder:text-foreground-muted focus:border-foreground focus:outline-none disabled:opacity-70"
+                className="w-full resize-none border border-border-strong bg-surface px-4 py-3 font-sans text-[15px] leading-relaxed text-foreground placeholder:text-foreground-muted focus:border-foreground focus:ring-1 focus:ring-foreground focus:outline-none disabled:opacity-70 transition-colors"
               />
 
               <div className="mt-5">
@@ -504,6 +484,52 @@ export function ConsoleView() {
             </div>
           </div>
         </Reveal>
+
+        {/* Templates (Pre-configured demonstration workflows) - Positioned below Task Dispatcher */}
+        {phase === 'idle' && (
+          <Reveal delay={100} className="mt-8">
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-foreground-muted">
+                  Pre-configured demonstration workflows
+                </span>
+                <span className="font-mono text-[9px] text-foreground-muted hidden sm:inline">
+                  Click to pre-populate task parameters
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {CONSOLE_TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    className="group relative flex flex-col justify-between rounded-none border border-border bg-surface/80 p-4 text-left backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground hover:shadow-md"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-semibold text-foreground group-hover:text-[var(--sovereign)] transition-colors">
+                          {t.title}
+                        </span>
+                        <span className="font-mono text-[9px] uppercase tracking-wider rounded border border-border px-1.5 py-0.5 text-foreground-muted group-hover:border-foreground group-hover:text-foreground">
+                          .{t.format}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-foreground-secondary">
+                        {t.prompt}
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2 font-mono text-[10px] text-foreground-muted">
+                      <span>{t.attach ? 'Requires attachment' : 'Zero files required'}</span>
+                      <span className="text-[var(--sovereign)] opacity-0 group-hover:opacity-100 transition-opacity">
+                        Load →
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        )}
 
         {/* Pipeline view */}
         {phase !== 'idle' && (

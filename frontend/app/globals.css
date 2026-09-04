@@ -141,6 +141,22 @@
   background-size: 56px 56px;
 }
 
+@utility glass-chassis {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+@utility glass-chassis-dark {
+  background: rgba(18, 18, 17, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--ink-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
 /* ------------------------------------------------------------------ */
 /* Motion                                                              */
 /* ------------------------------------------------------------------ */
@@ -250,3 +266,4 @@
     opacity: 1 !important;
   }
 }
+

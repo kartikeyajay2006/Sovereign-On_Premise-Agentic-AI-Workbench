@@ -24,15 +24,15 @@ export function Navigation() {
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-[80] px-3 pt-3 sm:px-5 sm:pt-5">
-      <nav className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[10px] border border-border bg-surface px-3 py-2.5 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-4">
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-[80] px-3 pt-3 sm:px-5 sm:pt-4">
+      <nav className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[12px] border border-border/80 bg-surface/90 px-4 py-2.5 shadow-[0_4px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-all sm:px-5">
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-[3px] bg-foreground">
+        <Link href="/" className="group flex items-center gap-3 transition-transform hover:scale-[1.01]">
+          <span className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-foreground shadow-sm transition-colors group-hover:bg-[var(--sovereign)]">
             <span className="h-2.5 w-2.5 rounded-[1px] border border-primary-foreground" />
           </span>
           <span className="flex flex-col leading-none">
-            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.2em] text-foreground">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-foreground">
               Sovereign
             </span>
             <span className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.32em] text-foreground-muted">
@@ -42,22 +42,27 @@ export function Navigation() {
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden items-center lg:flex">
-          {LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={cn(
-                'relative px-3.5 py-1.5 text-[13px] transition-colors',
-                isActive(l.href) ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
-              )}
-            >
-              {l.label}
-              {isActive(l.href) && (
-                <span className="absolute inset-x-3.5 -bottom-0.5 h-px bg-foreground" />
-              )}
-            </Link>
-          ))}
+        <div className="hidden items-center gap-1 lg:flex">
+          {LINKS.map((l) => {
+            const active = isActive(l.href)
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={cn(
+                  'relative px-3.5 py-1.5 font-sans text-[13px] font-medium transition-colors',
+                  active
+                    ? 'text-foreground'
+                    : 'text-foreground-muted hover:text-foreground',
+                )}
+              >
+                {l.label}
+                {active && (
+                  <span className="absolute inset-x-3.5 -bottom-1 h-[2px] bg-foreground shadow-[0_0_8px_rgba(0,0,0,0.3)]" />
+                )}
+              </Link>
+            )
+          })}
         </div>
 
         {/* Right cluster */}
@@ -71,7 +76,7 @@ export function Navigation() {
           <button
             aria-label="Menu"
             onClick={() => setMobileOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center border border-border bg-surface text-foreground lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-foreground lg:hidden"
           >
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>

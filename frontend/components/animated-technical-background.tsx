@@ -2,20 +2,25 @@
 
 import { useEffect, useRef } from 'react'
 
+interface AnimatedTechnicalBackgroundProps {
+  className?: string
+  dotSpacing?: number
+  masked?: boolean
+}
+
 /**
- * Optimus-Inspired Moving Dotted Matrix Background
+ * Premium Optimus-Grade Moving Dotted Matrix Background
  *
- * Renders a crisp grid of circular rings with undulating traveling wave physics,
+ * Renders a crisp architectural grid of circular rings with undulating traveling wave physics,
  * dynamic filled dot swells, and interactive mouse cursor ripples.
- * Ultra-lightweight, 60fps hardware-accelerated canvas.
+ * Uses a subtle radial vignette mask so it breathes naturally into the hero
+ * without overwhelming lower UI content.
  */
 export function AnimatedTechnicalBackground({
   className = '',
-  dotSpacing = 28,
-}: {
-  className?: string
-  dotSpacing?: number
-}) {
+  dotSpacing = 30,
+  masked = true,
+}: AnimatedTechnicalBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -61,11 +66,11 @@ export function AnimatedTechnicalBackground({
     const startTime = performance.now()
 
     const render = (time: number) => {
-      const elapsed = (time - startTime) * 0.0018
+      const elapsed = (time - startTime) * 0.0016
 
       // Smooth mouse easing
-      mouse.x += (mouse.targetX - mouse.x) * 0.12
-      mouse.y += (mouse.targetY - mouse.y) * 0.12
+      mouse.x += (mouse.targetX - mouse.x) * 0.1
+      mouse.y += (mouse.targetY - mouse.y) * 0.1
 
       ctx.clearRect(0, 0, width, height)
 
@@ -80,41 +85,41 @@ export function AnimatedTechnicalBackground({
           const y = offsetY + (r - 1) * dotSpacing
 
           // Multi-harmonic traveling diagonal wave physics
-          const wave1 = Math.sin(x * 0.007 + y * 0.005 - elapsed * 1.8)
-          const wave2 = Math.cos(x * 0.004 - y * 0.006 + elapsed * 1.2)
+          const wave1 = Math.sin(x * 0.006 + y * 0.0045 - elapsed * 1.6)
+          const wave2 = Math.cos(x * 0.0035 - y * 0.005 + elapsed * 1.1)
           const combinedWave = (wave1 * 0.65 + wave2 * 0.35 + 1) / 2 // 0 to 1
 
-          // Distance and ripple from mouse cursor
+          // Proximity & ripple from mouse cursor
           const distToMouse = Math.hypot(x - mouse.x, y - mouse.y)
-          const mouseRadius = 160
+          const mouseRadius = 150
           let mouseEffect = 0
           if (distToMouse < mouseRadius) {
             const rawProximity = 1 - distToMouse / mouseRadius
-            const ripple = Math.sin((distToMouse / 24) - elapsed * 3) * 0.3
+            const ripple = Math.sin(distToMouse / 22 - elapsed * 2.8) * 0.25
             mouseEffect = Math.max(0, rawProximity + ripple)
           }
 
-          // Composite intensity factor
-          const intensity = Math.min(1, combinedWave * 0.75 + mouseEffect * 0.8)
+          // Composite wave intensity
+          const intensity = Math.min(1, combinedWave * 0.7 + mouseEffect * 0.8)
 
-          // 1. Draw base circular ring outline
-          const baseRingRadius = 2.2 + intensity * 1.6
-          const ringAlpha = 0.18 + intensity * 0.35
-          
+          // 1. Base circular ring outline
+          const baseRingRadius = 1.8 + intensity * 1.4
+          const ringAlpha = 0.14 + intensity * 0.32
+
           ctx.beginPath()
           ctx.arc(x, y, baseRingRadius, 0, Math.PI * 2)
           ctx.strokeStyle = `rgba(130, 128, 122, ${ringAlpha})`
-          ctx.lineWidth = 0.75
+          ctx.lineWidth = 0.65
           ctx.stroke()
 
-          // 2. Draw solid filled inner dot when wave or mouse passes
-          if (intensity > 0.45) {
-            const fillRadius = Math.max(0.8, (intensity - 0.45) * 4.8)
-            const fillAlpha = Math.min(0.85, (intensity - 0.45) * 1.5)
+          // 2. Solid filled inner dot when wave or mouse passes
+          if (intensity > 0.48) {
+            const fillRadius = Math.max(0.7, (intensity - 0.48) * 4.2)
+            const fillAlpha = Math.min(0.8, (intensity - 0.48) * 1.4)
 
             ctx.beginPath()
             ctx.arc(x, y, fillRadius, 0, Math.PI * 2)
-            ctx.fillStyle = `rgba(50, 48, 44, ${fillAlpha})`
+            ctx.fillStyle = `rgba(45, 43, 39, ${fillAlpha})`
             ctx.fill()
           }
         }
@@ -143,9 +148,18 @@ export function AnimatedTechnicalBackground({
     <canvas
       ref={canvasRef}
       aria-hidden
-      className={`fixed inset-0 pointer-events-none ${className}`}
-      style={{ zIndex: 0 }}
+      className={`fixed inset-0 pointer-events-none transition-opacity duration-500 ${className}`}
+      style={{
+        zIndex: 0,
+        maskImage: masked
+          ? 'radial-gradient(ellipse 75% 65% at 50% 28%, black 15%, rgba(0,0,0,0.6) 55%, transparent 90%)'
+          : undefined,
+        WebkitMaskImage: masked
+          ? 'radial-gradient(ellipse 75% 65% at 50% 28%, black 15%, rgba(0,0,0,0.6) 55%, transparent 90%)'
+          : undefined,
+      }}
     />
   )
 }
+
 
