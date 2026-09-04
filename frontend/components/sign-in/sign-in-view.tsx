@@ -431,19 +431,19 @@ export function SignInView() {
 
       {/* How It Works 3D Architecture Modal */}
       {showHowItWorks && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative flex w-full max-w-5xl max-h-[92vh] flex-col overflow-y-auto rounded-xl border border-border bg-background shadow-2xl p-6 sm:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative flex w-full max-w-[1500px] max-h-[88vh] flex-col overflow-y-auto rounded-[14px] border border-[#DFDFDA] bg-[#F7F7F4] shadow-2xl p-6 sm:p-8 text-[#111111]">
             {/* Header with Close button */}
-            <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
+            <div className="flex items-center justify-between border-b border-[#DFDFDA] pb-4 mb-5">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded bg-[var(--sovereign)]/15 text-[var(--sovereign)] font-mono text-xs font-bold">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#18B663]/15 text-[#18B663] font-mono text-xs font-bold border border-[#18B663]/30">
                   3D
                 </span>
                 <div className="flex flex-col">
-                  <span className="font-mono text-[13px] font-semibold uppercase tracking-wider text-foreground">
-                    System Architecture 3D Layer Visualization
+                  <span className="font-mono text-[13px] font-bold uppercase tracking-wider text-[#111111]">
+                    SYSTEM ARCHITECTURE 3D LAYER VISUALIZATION
                   </span>
-                  <span className="font-mono text-[10px] text-foreground-muted">
+                  <span className="font-mono text-[10px] text-[#70706C]">
                     Sovereign Agentic AI Workbench · 4-Tier Isolation Stack
                   </span>
                 </div>
@@ -451,7 +451,7 @@ export function SignInView() {
               <button
                 type="button"
                 onClick={() => setShowHowItWorks(false)}
-                className="rounded p-1.5 text-foreground-muted hover:bg-surface-sunken hover:text-foreground transition-colors"
+                className="rounded-md p-1.5 text-[#70706C] hover:bg-[#EAEAEA] hover:text-[#111111] transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -461,14 +461,14 @@ export function SignInView() {
             <ThreeDLayerView onClose={() => setShowHowItWorks(false)} />
 
             {/* Footer */}
-            <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
-              <span className="font-mono text-[11px] text-foreground-muted">
+            <div className="mt-5 flex items-center justify-between border-t border-[#DFDFDA] pt-4">
+              <span className="font-mono text-[11px] text-[#70706C]">
                 100% Air-Gapped · Zero External Telemetry · Local Memory Execution
               </span>
               <button
                 type="button"
                 onClick={() => setShowHowItWorks(false)}
-                className="rounded bg-foreground px-5 py-2 font-mono text-[12px] font-medium text-background hover:opacity-90 transition-opacity"
+                className="rounded-md bg-[#111111] px-5 py-2 font-mono text-[12px] font-bold text-white hover:bg-[#111111]/90 transition-opacity cursor-pointer shadow-xs"
               >
                 Close 3D View
               </button>
