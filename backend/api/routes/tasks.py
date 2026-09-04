@@ -164,8 +164,22 @@ def download_deliverable(task_id: str, filename: str, user: CurrentUser) -> File
 
     path = get_config().settings.path("deliverables") / task_id / filename
     confinement = get_policy_gateway().check_path_confinement(path, user=user)
-    if confinement.decision != PolicyDecision.ALLOW or not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not available")
+    if confinement.decision != PolicyDecision.ALLOW:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="That path lies outside the deliverable store and was refused.",
+        )
+    # The record and the file can disagree: storage may have been cleared while
+    # the task row survived. Saying so is more use than "not available", which
+    # reads as a permission problem and sends people to the wrong place.
+    if not path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                f"'{filename}' is recorded for this task but is no longer in "
+                f"deliverable storage. Re-run the task to regenerate it."
+            ),
+        )
 
     from backend.core.audit import get_audit_log
 

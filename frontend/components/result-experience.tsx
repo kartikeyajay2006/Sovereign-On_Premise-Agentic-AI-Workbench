@@ -68,7 +68,7 @@ export function ResultExperience({
   answer: string
   evidence: EvidenceItem[]
   verification: VerificationCheck[]
-  deliverable: Deliverable
+  deliverable: Deliverable | null
   held: boolean
   onDecide?: (decision: 'approved' | 'rejected') => void
 }) {
@@ -87,17 +87,60 @@ export function ResultExperience({
 
   const canApprove = can('Release deliverables') || can('approval.decide')
 
-  const handleDownload = () => {
-    if (deliverable.download_url) {
-      window.open(deliverable.download_url, '_blank')
-    } else if (taskId && deliverable.filename) {
-      window.open(api.getDeliverableUrl(taskId, deliverable.filename), '_blank')
+  const [downloading, setDownloading] = useState(false)
+
+  // Fetch the file rather than opening it in a tab.
+  //
+  // window.open sent the browser to the API URL, so any refusal — a file
+  // missing from storage, a deliverable still held for approval — arrived as
+  // a page of raw JSON in a new tab, and the interface cheerfully claimed the
+  // download had succeeded regardless. Now the failure is read and shown here.
+  const handleDownload = async () => {
+    if (!deliverable) return
+    const url =
+      deliverable.download_url ??
+      (taskId && deliverable.filename ? api.getDeliverableUrl(taskId, deliverable.filename) : null)
+    if (!url) return
+
+    setDownloading(true)
+    try {
+      const response = await fetch(url, { credentials: 'include' })
+      if (!response.ok) {
+        let detail = `The server refused the download (${response.status}).`
+        try {
+          const body = await response.json()
+          if (body?.detail) detail = String(body.detail)
+        } catch {
+          // A non-JSON body tells us nothing more than the status already did.
+        }
+        push({ title: 'Download failed', detail, tone: 'critical' })
+        return
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = deliverable.filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+
+      push({
+        title: 'Deliverable downloaded',
+        detail: `${deliverable.filename} · local transfer only`,
+        tone: 'sovereign',
+      })
+    } catch (err: any) {
+      push({
+        title: 'Download failed',
+        detail: err?.message ?? 'The workbench could not be reached.',
+        tone: 'critical',
+      })
+    } finally {
+      setDownloading(false)
     }
-    push({
-      title: 'Deliverable downloaded',
-      detail: `${deliverable.filename} · local transfer only`,
-      tone: 'sovereign',
-    })
   }
 
   const handleDecision = async (choice: 'approve' | 'reject') => {
@@ -203,17 +246,18 @@ export function ResultExperience({
               <div className="flex flex-col gap-1">
                 <span className="text-[14px] font-medium text-foreground">{deliverable.filename}</span>
                 <span className="font-mono text-[11px] text-foreground-muted">
-                  SHA-256 {deliverable.sha256 ? `${deliverable.sha256.slice(0, 8)}…` : 'generated'} · {deliverable.sizeKb || Math.round((deliverable.size_bytes || 49152) / 1024)} KB
+                  SHA-256 {deliverable.sha256 ? `${deliverable.sha256.slice(0, 8)}…` : 'not recorded'} · {deliverable.sizeKb ?? Math.round((deliverable.size_bytes ?? 0) / 1024)} KB
                 </span>
               </div>
             </div>
             <SovButton
               arrow
               variant="primary"
-              disabled={held && decision !== 'approved'}
+              disabled={downloading || (held && decision !== 'approved')}
               onClick={handleDownload}
             >
-              <Download className="h-4 w-4" /> Download deliverable
+              <Download className="h-4 w-4" />{' '}
+              {downloading ? 'Downloading…' : 'Download deliverable'}
             </SovButton>
           </div>
           {held && decision !== 'approved' && (

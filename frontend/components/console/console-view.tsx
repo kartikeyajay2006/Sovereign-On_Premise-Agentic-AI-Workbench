@@ -40,14 +40,13 @@ export function ConsoleView() {
   const [answer, setAnswer] = useState('')
   const [evidence, setEvidence] = useState<EvidenceItem[]>([])
   const [verification, setVerification] = useState<VerificationCheck[]>([])
-  const [deliverable, setDeliverable] = useState<Deliverable>({
-    filename: 'APPROVAL_NOTE.docx',
-    sha256: 'a91f…7c20',
-    format: '.docx',
-    size_bytes: 49152,
-    sizeKb: 48,
-    released: false,
-  })
+  // No deliverable until the run produces one.
+  //
+  // This used to start as a placeholder 'APPROVAL_NOTE.docx' carrying an
+  // invented hash and size. It rendered a working-looking download button for
+  // a file that had never been written, and clicking it asked the API for a
+  // filename no task record contained: 'Deliverable not found'.
+  const [deliverable, setDeliverable] = useState<Deliverable | null>(null)
   const [isHeld, setIsHeld] = useState(false)
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
