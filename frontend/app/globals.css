@@ -186,6 +186,43 @@
 }
 .sov-spin-slow { animation: sov-spin-slow 3s linear infinite; }
 
+@keyframes sov-radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.sov-radar-sweep { animation: sov-radar-sweep 4s linear infinite; }
+
+@keyframes sov-laser-flow {
+  0% { stroke-dashoffset: 100; }
+  100% { stroke-dashoffset: 0; }
+}
+.sov-laser-flow {
+  stroke-dasharray: 8 16;
+  animation: sov-laser-flow 1.2s linear infinite;
+}
+
+@keyframes sov-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(22, 163, 74, 0.25), inset 0 0 8px rgba(22, 163, 74, 0.1); }
+  50% { box-shadow: 0 0 24px rgba(22, 163, 74, 0.5), inset 0 0 16px rgba(22, 163, 74, 0.25); }
+}
+.sov-glow-sovereign { animation: sov-glow-pulse 3s ease-in-out infinite; }
+
+@keyframes sov-glow-pulse-active {
+  0%, 100% { box-shadow: 0 0 12px rgba(2, 132, 199, 0.25), inset 0 0 8px rgba(2, 132, 199, 0.1); }
+  50% { box-shadow: 0 0 24px rgba(2, 132, 199, 0.5), inset 0 0 16px rgba(2, 132, 199, 0.25); }
+}
+.sov-glow-active { animation: sov-glow-pulse-active 3s ease-in-out infinite; }
+
+@keyframes sov-deflection {
+  0% { transform: scale(0.95); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.sov-deflection-burst { animation: sov-deflection 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+.cursor-grab { cursor: grab; }
+.cursor-grab:active, .cursor-grabbing { cursor: grabbing; }
+
 .reveal {
   opacity: 0;
 }

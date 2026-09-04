@@ -15,8 +15,7 @@ import { FileDropzone, type UploadedFile } from '@/components/file-dropzone'
 import { ResultExperience } from '@/components/result-experience'
 import { SovButton } from '@/components/sov-button'
 import { Reveal, SectionHeading, TechnicalLabel } from '@/components/primitives'
-import { SovereigntyTopology, type TopologyNodeId } from '@/components/sovereignty-topology'
-import { AnimatedTechnicalBackground } from '@/components/animated-technical-background'
+import { SovereignRadialHero } from '@/components/sovereign-radial-hero'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
 import { cn } from '@/lib/utils'
@@ -280,7 +279,7 @@ export function ConsoleView() {
   }
 
   // Which subsystem is busy right now, so the diagram shows the actual run.
-  const activeNodes: TopologyNodeId[] = (() => {
+  const activeNodes: string[] = (() => {
     const running = stages.find((stage) => stage.status === 'active')
     if (!running) return phase === 'running' ? ['agent'] : []
     switch (running.id) {
@@ -311,23 +310,59 @@ export function ConsoleView() {
     setFormat(t.format)
   }
 
+  const currentActiveStage = stages.find((s) => s.status === 'active')
+
   return (
     <div className="relative">
-      <AnimatedTechnicalBackground className="opacity-40" />
-
       <div className="relative mx-auto max-w-[1400px] px-5 py-10 lg:px-10 lg:py-14">
-        {/* Top headline */}
+        {/* Top Hero Section matching Screenshot */}
         <Reveal>
-          <div className="flex flex-col gap-3">
-            <TechnicalLabel dot="var(--sovereign)">Interactive Console</TechnicalLabel>
-            <h1 className="text-balance text-4xl font-medium tracking-[-0.03em] text-foreground sm:text-5xl">
-              Ask for work. Watch it happen.
-            </h1>
-            <p className="max-w-2xl text-[15px] leading-relaxed text-foreground-secondary">
-              Ask a question about your procedures, or hand over a document to read. The
-              workbench picks the models, checks its own working, and shows every step —
-              all on this machine.
-            </p>
+          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-8">
+            {/* Left Column: Heading + Pitch + Telemetry */}
+            <div className="flex flex-col lg:col-span-6">
+              {/* Sovereign Console Label */}
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[var(--sovereign)]" />
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">
+                  SOVEREIGN CONSOLE
+                </span>
+              </div>
+
+              {/* Exact 3-line Headline */}
+              <h1 className="mt-6 text-5xl font-extrabold tracking-[-0.035em] text-foreground sm:text-6xl md:text-[64px] leading-[1.05]">
+                Intelligence.
+                <br />
+                Under your
+                <br />
+                control.
+              </h1>
+
+              {/* Subtitle */}
+              <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-foreground-secondary">
+                Run agentic workflows entirely on-premise. Your models, documents, tools and audit trail never leave the host.
+              </p>
+
+              {/* Telemetry Row */}
+              <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 font-mono text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-[0.14em] text-foreground-muted">EGRESS</span>
+                  <span className="font-bold text-foreground">0 packets</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-[0.14em] text-foreground-muted">HOST</span>
+                  <span className="font-bold text-foreground">127.0.0.1</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-[0.14em] text-foreground-muted">MODEL</span>
+                  <span className="font-bold text-foreground">Qwen3 8B</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Sovereign Radial Topology Diagram */}
+            <div className="flex items-center justify-center lg:col-span-6 lg:justify-end">
+              <SovereignRadialHero activeNodeId={activeNodes[0]} />
+            </div>
           </div>
         </Reveal>
 
@@ -506,17 +541,6 @@ export function ConsoleView() {
             </div>
           </Reveal>
         )}
-
-        {/* Containment diagram — driven by the run, not on a loop */}
-        <Reveal delay={160} className="mt-16">
-          <div className="h-[520px] w-full sm:h-[600px]">
-            <SovereigntyTopology active={phase === 'running'} activeNodes={activeNodes} />
-          </div>
-          <p className="mt-2 text-center text-[12px] text-foreground-secondary">
-            Your documents, the models and the tools all sit inside one boundary.
-            Anything heading outward is turned back at it.
-          </p>
-        </Reveal>
       </div>
     </div>
   )

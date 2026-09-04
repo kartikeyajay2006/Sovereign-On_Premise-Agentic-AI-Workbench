@@ -1,7 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileSearch, Cpu, Lock, ShieldCheck, Layers, Eye, Play, Pause, ChevronRight, Activity, Terminal, CheckCircle2 } from 'lucide-react'
+import {
+  FileSearch,
+  Cpu,
+  Lock,
+  ShieldCheck,
+  Layers,
+  Play,
+  Pause,
+  ChevronRight,
+  Activity,
+  Terminal,
+  CheckCircle2,
+  Zap,
+  AlertTriangle,
+  Sliders,
+  Sparkles,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface ArchitectureLayer {
@@ -80,7 +96,11 @@ const LAYERS: ArchitectureLayer[] = [
 
 export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
   const [selectedLayerIndex, setSelectedLayerIndex] = useState<number>(0)
-  const [isAutoAnimating, setIsAutoAnimating] = useState<boolean>(true)
+  const [isAutoAnimating, setIsAutoAnimating] = useState<boolean>(false)
+  const [is3DExploded, setIs3DExploded] = useState<boolean>(true)
+  const [explosionDepth, setExplosionDepth] = useState<number>(36)
+  const [simulatingBreach, setSimulatingBreach] = useState<boolean>(false)
+  const [breachIntercepted, setBreachIntercepted] = useState<boolean>(false)
 
   // Auto-cycle layers when auto-animate is enabled
   useEffect(() => {
@@ -93,31 +113,80 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
 
   const selectedLayer = LAYERS[selectedLayerIndex]
 
+  const triggerBreachSimulation = () => {
+    if (simulatingBreach) return
+    setSimulatingBreach(true)
+    setBreachIntercepted(false)
+    setSelectedLayerIndex(2) // Jump to Sandbox layer
+
+    setTimeout(() => {
+      setBreachIntercepted(true)
+    }, 900)
+
+    setTimeout(() => {
+      setSimulatingBreach(false)
+      setBreachIntercepted(false)
+    }, 3800)
+  }
+
   return (
     <div className="flex flex-col gap-6 w-full">
       {/* View Mode Controls & Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span className="flex h-6 w-6 items-center justify-center rounded bg-[var(--sovereign)]/15 text-[var(--sovereign)]">
             <Layers className="h-4 w-4" />
           </span>
           <span className="font-mono text-[12px] font-semibold uppercase tracking-wider text-foreground">
-            Full Architecture Layer Stack (4 Layers)
+            3D Isometric Architecture Sandbox (4 Layers)
           </span>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Simulate Air Gap Breach Test */}
+          <button
+            type="button"
+            onClick={triggerBreachSimulation}
+            disabled={simulatingBreach}
+            className={cn(
+              'flex items-center gap-1.5 rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-all',
+              simulatingBreach
+                ? 'border-critical bg-critical/20 text-critical animate-pulse'
+                : 'border-border bg-surface text-foreground hover:border-critical hover:text-critical'
+            )}
+          >
+            <Zap className="h-3.5 w-3.5 text-critical" />
+            {simulatingBreach ? 'Intercepting Socket…' : 'Test Egress Deflection'}
+          </button>
+
+          {/* 3D Exploded Perspective Toggle */}
+          <button
+            type="button"
+            onClick={() => setIs3DExploded((v) => !v)}
+            className={cn(
+              'flex items-center gap-1.5 rounded border px-3 py-1.5 font-mono text-[11px] transition-colors',
+              is3DExploded
+                ? 'border-[var(--active)]/40 bg-[var(--active)]/10 text-[var(--active)]'
+                : 'border-border bg-surface text-foreground-muted hover:text-foreground'
+            )}
+          >
+            <Sliders className="h-3.5 w-3.5" />
+            <span>{is3DExploded ? '3D Exploded' : 'Flat Stack'}</span>
+          </button>
+
           {/* Auto Animation Toggle */}
           <button
             type="button"
             onClick={() => setIsAutoAnimating((prev) => !prev)}
             className={cn(
               'flex items-center gap-1.5 rounded border px-3 py-1.5 font-mono text-[11px] transition-colors',
-              isAutoAnimating ? 'border-[var(--sovereign)]/40 bg-[var(--sovereign)]/10 text-[var(--sovereign)]' : 'border-border bg-surface text-foreground-muted hover:text-foreground'
+              isAutoAnimating
+                ? 'border-[var(--sovereign)]/40 bg-[var(--sovereign)]/10 text-[var(--sovereign)]'
+                : 'border-border bg-surface text-foreground-muted hover:text-foreground'
             )}
           >
             {isAutoAnimating ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-            <span>{isAutoAnimating ? 'Auto-Cycle Active' : 'Auto-Cycle Paused'}</span>
+            <span>{isAutoAnimating ? 'Auto-Cycle' : 'Paused'}</span>
           </button>
         </div>
       </div>
@@ -126,24 +195,60 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Interactive 3D Perspective Visualizer (7 Columns) */}
         <div className="lg:col-span-7 flex flex-col gap-4">
-          <div className="relative min-h-[380px] w-full rounded-xl border border-border bg-gradient-to-b from-surface/90 to-background/95 p-6 overflow-hidden flex items-center justify-center shadow-inner">
+          <div className="relative min-h-[440px] w-full rounded-xl border border-border bg-gradient-to-b from-surface/90 to-background/95 p-6 overflow-hidden flex items-center justify-center shadow-inner perspective-[1000px]">
             {/* Background Tech Grid Lines */}
-            <div 
-              className="absolute inset-0 opacity-20 pointer-events-none"
+            <div
+              className="absolute inset-0 opacity-25 pointer-events-none"
               style={{
                 backgroundImage: `radial-gradient(var(--border) 1px, transparent 1px)`,
-                backgroundSize: '20px 20px'
+                backgroundSize: '24px 24px',
               }}
             />
 
-            {/* Simulated Data Flow Pulses (vertical dashed line) */}
-            <div className="absolute top-10 bottom-10 left-1/2 -translate-x-1/2 w-0.5 border-r-2 border-dashed border-[var(--sovereign)]/30 pointer-events-none" />
+            {/* Exploded Depth Slider overlay */}
+            {is3DExploded && (
+              <div className="absolute top-4 left-4 z-40 flex items-center gap-2 rounded bg-surface/80 px-2.5 py-1 border border-border text-[10px] font-mono text-foreground-muted">
+                <span>3D Spacing:</span>
+                <input
+                  type="range"
+                  min={10}
+                  max={60}
+                  value={explosionDepth}
+                  onChange={(e) => setExplosionDepth(Number(e.target.value))}
+                  className="w-20 accent-[var(--sovereign)] cursor-pointer"
+                />
+                <span className="w-5 text-foreground">{explosionDepth}px</span>
+              </div>
+            )}
 
-            {/* Full Stack Layer Container */}
-            <div className="relative w-full max-w-lg flex flex-col gap-2.5 my-2">
+            {/* Breach Alert Notification */}
+            {breachIntercepted && (
+              <div className="absolute top-4 right-4 z-40 flex items-center gap-2 rounded-lg border border-critical bg-critical/15 p-2.5 text-critical backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                <AlertTriangle className="h-4 w-4 shrink-0 animate-bounce" />
+                <div className="flex flex-col text-left">
+                  <span className="font-mono text-[10px] font-bold">AIR-GAP BREACH INTERCEPTED</span>
+                  <span className="font-mono text-[9px] text-foreground">
+                    Layer 3 AST Validator blocked `import socket`
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Full Stack Layer Container with 3D Isometric Transform */}
+            <div
+              className={cn(
+                'relative w-full max-w-md flex flex-col my-4 transition-transform duration-500 ease-out',
+                is3DExploded && 'rotate-x-[36deg] rotate-z-[-18deg] scale-95'
+              )}
+              style={{
+                gap: is3DExploded ? `${explosionDepth}px` : '10px',
+                transformStyle: 'preserve-3d',
+              }}
+            >
               {LAYERS.map((layer, idx) => {
                 const isSelected = selectedLayerIndex === idx
                 const IconComponent = layer.icon
+                const isTargetOfBreach = simulatingBreach && idx === 2
 
                 return (
                   <div
@@ -152,11 +257,18 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
                       setSelectedLayerIndex(idx)
                       setIsAutoAnimating(false)
                     }}
+                    style={{
+                      transform: is3DExploded
+                        ? `translateZ(${idx * 16}px)`
+                        : undefined,
+                    }}
                     className={cn(
-                      'group relative w-full cursor-pointer rounded-lg border p-3.5 backdrop-blur-md transition-all',
-                      isSelected
-                        ? 'border-[var(--sovereign)] bg-surface shadow-[0_0_24px_rgba(16,185,129,0.2)] scale-[1.02] z-30 ring-2 ring-[var(--sovereign)]/50'
-                        : 'border-border/80 bg-surface/60 hover:border-border-strong hover:bg-surface/85 z-10 opacity-85 hover:opacity-100'
+                      'group relative w-full cursor-pointer rounded-xl border p-4 backdrop-blur-md transition-all duration-300',
+                      isTargetOfBreach && breachIntercepted
+                        ? 'border-critical bg-critical/20 ring-4 ring-critical/50 shadow-[0_0_36px_rgba(220,38,38,0.5)] scale-105 z-40'
+                        : isSelected
+                        ? 'border-[var(--sovereign)] bg-surface shadow-[0_0_30px_rgba(16,185,129,0.25)] scale-[1.02] z-30 ring-2 ring-[var(--sovereign)]/60'
+                        : 'border-border/80 bg-surface/75 hover:border-border-strong hover:bg-surface/95 z-10 opacity-90 hover:opacity-100'
                     )}
                   >
                     {/* Layer Header Tag */}
@@ -165,7 +277,9 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
                         <span
                           className={cn(
                             'flex h-6 w-6 items-center justify-center rounded text-[11px] font-mono font-bold transition-transform group-hover:scale-110',
-                            isSelected ? 'bg-[var(--sovereign)] text-black' : 'bg-surface-sunken text-foreground'
+                            isSelected
+                              ? 'bg-[var(--sovereign)] text-black'
+                              : 'bg-surface-sunken text-foreground'
                           )}
                         >
                           {layer.number}
@@ -184,20 +298,20 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
                     </div>
 
                     {/* Subtitle / Tech Tag */}
-                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="font-mono text-[9px] uppercase tracking-widest text-foreground-muted">
                         {layer.tag}
                       </span>
                       {isSelected && (
                         <span className="inline-flex items-center gap-1 font-mono text-[9px] font-medium text-[var(--sovereign)] animate-pulse">
-                          <Activity className="h-2.5 w-2.5" /> SELECTED LAYER
+                          <Activity className="h-2.5 w-2.5" /> ACTIVE LAYER
                         </span>
                       )}
                     </div>
 
-                    {/* Left Accent Glow line for selected state */}
+                    {/* Left Accent Glow line */}
                     {isSelected && (
-                      <div className="absolute top-0 bottom-0 left-0 w-1 rounded-l-lg bg-[var(--sovereign)]" />
+                      <div className="absolute top-0 bottom-0 left-0 w-1.5 rounded-l-xl bg-[var(--sovereign)]" />
                     )}
                   </div>
                 )
@@ -218,13 +332,16 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
                     setIsAutoAnimating(false)
                   }}
                   className={cn(
-                    'flex flex-col items-center justify-center rounded border p-2 text-center transition-colors',
+                    'flex flex-col items-center justify-center rounded border p-2.5 text-center transition-all',
                     isSelected
-                      ? 'border-[var(--sovereign)] bg-surface text-foreground font-medium'
+                      ? 'border-[var(--sovereign)] bg-surface text-foreground font-semibold shadow-sm'
                       : 'border-border bg-surface/40 text-foreground-muted hover:border-border-strong hover:text-foreground'
                   )}
                 >
                   <span className="font-mono text-[10px]">Layer {layer.number}</span>
+                  <span className="text-[10px] truncate max-w-[80px] text-foreground-muted">
+                    {layer.id}
+                  </span>
                 </button>
               )
             })}
@@ -238,13 +355,13 @@ export function ThreeDLayerView({ onClose }: { onClose?: () => void }) {
             <div className="flex flex-col gap-1 border-b border-border pb-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--sovereign)] font-semibold">
-                  Layer {selectedLayer.number} Spec
+                  Layer {selectedLayer.number} Architecture Spec
                 </span>
-                <span className="font-mono text-[10px] text-foreground-muted">
-                  Sovereignty Score: 100%
+                <span className="font-mono text-[10px] text-[var(--sovereign)] font-bold">
+                  Sovereignty: 100%
                 </span>
               </div>
-              <h3 className="text-lg font-semibold text-foreground">{selectedLayer.title}</h3>
+              <h3 className="text-lg font-bold text-foreground">{selectedLayer.title}</h3>
               <p className="text-[12px] text-foreground-secondary">{selectedLayer.subtitle}</p>
             </div>
 

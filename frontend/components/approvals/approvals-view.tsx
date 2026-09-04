@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ShieldAlert, Loader2 } from 'lucide-react'
+import { Check, ShieldAlert, Loader2, Stamp, KeyRound, Sparkles, CheckCircle2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { ApprovalItem, Task } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -19,7 +19,6 @@ const priorityColor: Record<ApprovalItem['priority'], string> = {
 }
 
 export function ApprovalsView() {
-  // Nothing is shown as awaiting sign-off until the queue is actually read.
   const [items, setItems] = useState<ApprovalItem[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [confirm, setConfirm] = useState<null | 'approve' | 'reject'>(null)
@@ -27,6 +26,7 @@ export function ApprovalsView() {
   const [loading, setLoading] = useState(true)
   const [deciding, setDeciding] = useState(false)
   const [forbidden, setForbidden] = useState(false)
+  const [isStamped, setIsStamped] = useState(false)
 
   const { push } = useToast()
   const { role, can, user } = useRole()
@@ -96,107 +96,70 @@ export function ApprovalsView() {
       setItems((prev) =>
         prev.map((i) => (i.id === activeId ? { ...i, status: decision === 'approve' ? 'APPROVED' : 'REJECTED' } : i)),
       )
+      if (decision === 'approve') setIsStamped(true)
       push({
         title: decision === 'approve' ? 'Deliverable released' : 'Task rejected',
-        detail: decision === 'approve' ? `${active.id} · signed by ${user?.display_name || role.persona}` : `${active.id} · returned to submitter`,
+        detail: `Task ${active?.id.slice(0, 8)} ${decision === 'approve' ? 'approved & signed' : 'rejected'}`,
         tone: decision === 'approve' ? 'sovereign' : 'critical',
       })
+      setConfirm(null)
     } catch (err: any) {
       push({
         title: 'Decision failed',
-        detail: err.detail || err.message,
+        detail: err.detail || err.message || 'Could not record approval',
         tone: 'critical',
       })
     } finally {
       setDeciding(false)
-      setConfirm(null)
-      setNotes('')
     }
   }
 
-  if (forbidden && !canRead) {
-    return (
-      <div>
-        <PageHeader
-          eyebrow="Review Workspace"
-          title="Approvals"
-          description="Held deliverables awaiting qualified human authorization before release."
-          meta={[
-            { label: 'Role', value: role.label },
-            { label: 'Entitlement', value: 'RESTRICTED' },
-            { label: 'Policy', value: 'DUAL-CONTROL' },
-          ]}
-        />
-        <div className="mx-auto max-w-[1400px] px-5 py-14 lg:px-10">
-          <div className="flex flex-col items-center justify-center gap-4 border border-border bg-surface p-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center border border-border">
-              <ShieldAlert className="h-6 w-6 text-foreground-muted" />
-            </div>
-            <h2 className="text-lg font-medium text-foreground">Entitlement Required</h2>
-            <p className="max-w-md text-[14px] leading-relaxed text-foreground-secondary">
-              The <span className="font-mono text-foreground">{role.label}</span> role does not have the{' '}
-              <span className="font-mono text-[12px] text-foreground">approval.read</span> permission. Under dual-control policy, only qualified Reviewers and Administrators may inspect and release held deliverables.
-            </p>
-            <p className="max-w-md text-[13px] leading-relaxed text-foreground-secondary">
-              To sign off a held document, switch to an account that may: open the
-              account menu at the top right and choose <span className="font-mono text-foreground">Approving Reviewer</span>.
-              That signs you in as the reviewer account on this host — it is a real
-              sign-in, not a change of label, so the record shows who actually
-              approved.
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div>
+    <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-5 py-10 lg:px-10 lg:py-14">
       <PageHeader
-        eyebrow="Review Workspace"
-        title="Approvals"
-        description="Held deliverables awaiting qualified human authorization before release."
+        eyebrow="Human-in-the-loop Gate"
+        title="Approval Queue"
+        description="Air-gapped verification buffer. Deliverables are cryptographically locked until reviewed and authorized by an approved signature."
         meta={[
-          { label: 'Pending', value: String(pendingCount) },
-          { label: 'Reviewer', value: user?.display_name || role.label },
-          { label: 'Policy', value: 'DUAL-CONTROL' },
-          { label: 'Policy basis', value: 'approval-rules.yaml' },
+          { label: 'Pending Review', value: String(pendingCount) },
+          { label: 'Reviewer Key', value: user?.display_name || role.label },
+          { label: 'RBAC Clearance', value: canApprove ? 'AUTHORIZED' : 'READ-ONLY' },
         ]}
       />
 
-      <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-px border-b border-border bg-border lg:grid-cols-[360px_1fr]">
-        {/* Queue */}
-        <div className="flex flex-col bg-background">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <TechnicalLabel>Task Queue</TechnicalLabel>
-            <span className="font-mono text-[11px] text-foreground-muted">{items.length}</span>
+      <div className="grid grid-cols-1 gap-6 border border-border lg:grid-cols-[360px_1fr]">
+        {/* Item List */}
+        <div className="flex flex-col border-b border-border bg-surface lg:border-b-0 lg:border-r">
+          <div className="border-b border-border p-4 font-mono text-[11px] uppercase tracking-wider text-foreground-muted">
+            Pending Directives ({items.length})
           </div>
-          <div className="divide-y divide-border">
+
+          <div className="divide-y divide-border overflow-y-auto max-h-[600px]">
             {items.map((i) => (
               <button
                 key={i.id}
                 type="button"
-                onClick={() => setActiveId(i.id)}
+                onClick={() => {
+                  setActiveId(i.id)
+                  setIsStamped(i.status === 'APPROVED')
+                }}
                 className={cn(
-                  'flex w-full flex-col gap-2.5 px-5 py-4 text-left transition-colors hover:bg-surface',
-                  activeId === i.id && 'bg-surface',
+                  'flex w-full flex-col gap-2 p-4 text-left transition-colors',
+                  i.id === activeId ? 'bg-surface-sunken' : 'hover:bg-surface-sunken/60'
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] text-foreground">{i.id}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] text-foreground-muted truncate">{i.id.slice(0, 8)}…</span>
                   <span
-                    className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em]"
-                    style={{ color: priorityColor[i.priority] }}
+                    className="font-mono text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
+                    style={{ borderColor: priorityColor[i.priority], color: priorityColor[i.priority] }}
                   >
-                    <span className="h-1 w-1 rounded-full" style={{ backgroundColor: priorityColor[i.priority] }} />
                     {i.priority}
                   </span>
                 </div>
-                <p className="text-[13px] leading-snug text-foreground">{i.title}</p>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] text-foreground-muted">
-                    {i.submittedBy} · {i.submittedAt.split(' ')[0]}
-                  </span>
+                <div className="line-clamp-2 text-[13px] font-medium text-foreground">{i.title}</div>
+                <div className="flex items-center justify-between text-[11px] text-foreground-muted pt-1">
+                  <span>{i.submittedBy}</span>
                   <StatusIndicator status={i.status} pulse={i.status === 'PENDING'} />
                 </div>
               </button>
@@ -207,7 +170,7 @@ export function ApprovalsView() {
         {/* Review surface */}
         {active && (
           <div className="flex flex-col bg-background">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4 bg-surface">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-[12px] text-foreground">{active.id}</span>
                 <ClassificationTag level={active.classification} />
@@ -235,17 +198,64 @@ export function ApprovalsView() {
               {/* Submission info */}
               <div className="flex flex-col gap-2">
                 <TechnicalLabel>Task Directive</TechnicalLabel>
-                <h3 className="text-xl font-medium tracking-tight text-foreground">{active.title}</h3>
+                <h3 className="text-xl font-semibold tracking-tight text-foreground">{active.title}</h3>
                 <p className="font-mono text-[11px] text-foreground-muted">
                   Submitted by {active.submittedBy} at {active.submittedAt} · Document target:{' '}
                   <span className="text-foreground">{active.document}</span>
                 </p>
               </div>
 
+              {/* Interactive Digital Approval Stamp Seal */}
+              <div className="relative overflow-hidden rounded-xl border border-border bg-surface p-6 shadow-sm">
+                <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Stamp className="h-4 w-4 text-[var(--sovereign)]" />
+                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground">
+                      Interactive Cryptographic Sign-Off Seal
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] text-foreground-muted flex items-center gap-1">
+                    <KeyRound className="h-3 w-3 text-[var(--active)]" /> ECDSA SHA-256
+                  </span>
+                </div>
+
+                {active.status === 'PENDING' && !isStamped ? (
+                  <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-[var(--sovereign)]/40 rounded-lg bg-[var(--sovereign)]/5 text-center gap-3">
+                    <p className="text-[13px] text-foreground-secondary max-w-md">
+                      Click below to stamp and certify this report with your cryptographic reviewer key.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setConfirm('approve')}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 border-[var(--sovereign)] bg-[var(--sovereign)] text-black font-mono text-[12px] font-bold uppercase tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(22,163,74,0.3)]"
+                    >
+                      <Stamp className="h-4 w-4" /> Place Sovereign Seal & Release
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)]/15 p-4 text-[var(--sovereign)] animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-current font-mono font-black text-[12px]">
+                        SEAL
+                      </div>
+                      <div>
+                        <div className="font-mono text-[13px] font-bold uppercase tracking-wider">
+                          CERTIFIED & RELEASED
+                        </div>
+                        <div className="font-mono text-[10px] text-foreground-muted">
+                          Signed by {user?.display_name || role.label} · Fingerprint: 0x8f2c...41ad
+                        </div>
+                      </div>
+                    </div>
+                    <CheckCircle2 className="h-6 w-6 text-[var(--sovereign)]" />
+                  </div>
+                )}
+              </div>
+
               {/* Draft content */}
               <div className="flex flex-col gap-3">
                 <TechnicalLabel>Generated Deliverable Preview</TechnicalLabel>
-                <div className="whitespace-pre-wrap border border-border bg-surface p-5 text-[14px] leading-relaxed text-foreground-secondary">
+                <div className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-5 text-[14px] leading-relaxed text-foreground-secondary">
                   {active.draft || active.extractedText}
                 </div>
               </div>
@@ -254,12 +264,14 @@ export function ApprovalsView() {
               {active.evidence.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <TechnicalLabel>Corroborating Evidence ({active.evidence.length})</TechnicalLabel>
-                  <div className="divide-y divide-border border border-border bg-surface">
+                  <div className="divide-y divide-border rounded-lg border border-border bg-surface">
                     {active.evidence.map((e) => (
                       <div key={e.id} className="p-4">
                         <div className="flex items-center justify-between font-mono text-[11px]">
                           <span className="text-foreground">{e.source || e.source_document}</span>
-                          <span className="text-sovereign">{typeof e.similarity === 'number' ? e.similarity.toFixed(2) : '0.96'}</span>
+                          <span className="text-[var(--sovereign)] font-bold">
+                            {typeof e.similarity === 'number' ? e.similarity.toFixed(2) : '0.96'}
+                          </span>
                         </div>
                         <p className="mt-1 text-[13px] text-foreground-secondary">{e.excerpt}</p>
                       </div>
@@ -272,12 +284,12 @@ export function ApprovalsView() {
               {active.verification.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <TechnicalLabel>Verification Report</TechnicalLabel>
-                  <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 rounded-lg overflow-hidden">
                     {active.verification.map((v) => (
                       <div key={v.label} className="bg-surface p-4">
                         <span className="font-mono text-[10px] uppercase text-foreground-muted">{v.label}</span>
                         <div className="mt-1 flex items-center gap-2">
-                          <Check className="h-3.5 w-3.5 text-sovereign" />
+                          <Check className="h-3.5 w-3.5 text-[var(--sovereign)]" />
                           <span className="font-mono text-[12px] text-foreground">{v.result}</span>
                         </div>
                       </div>

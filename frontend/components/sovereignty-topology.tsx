@@ -1,529 +1,114 @@
 'use client'
 
-/**
- * The workbench, in three dimensions.
- *
- * This is the job the platform actually does, drawn rather than described: a
- * scanned inspection report enters, and travels a circuit of stations inside a
- * closed boundary. It is read line by line, matched against the organisation's
- * own procedures, its figures recomputed, checked, signed by a human, and
- * filed. The page visibly changes at each station — marks appear as it is
- * read, citation tags fly in from the procedure shelf, a stamp lands when it
- * is approved.
- *
- * Around all of it sits the boundary. Every few seconds something drifts
- * outward, strikes it and is turned back, with the shell flaring at the point
- * of contact. That refusal is the claim the whole product rests on, so it is
- * shown, not captioned.
- *
- * The circuit follows the real run when one is in progress: the station doing
- * the work lights up and the document waits there. Idle, it cycles gently.
- *
- * Built to stay cheap on a host that is also running the models — low geometry,
- * capped pixel ratio, paused off screen, static under reduced motion.
- */
-
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import * as THREE from 'three'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import {
+  FileText,
+  Eye,
+  Database,
+  Terminal,
+  FileCheck2,
+  ShieldCheck,
+  Zap,
+  RotateCcw,
+  Sparkles,
+  Info,
+  X,
+  Lock,
+  ArrowRight,
+  Activity,
+  AlertTriangle,
+  Move,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export type TopologyNodeId =
+  | 'documents'
   | 'model'
   | 'vector'
   | 'sandbox'
-  | 'documents'
   | 'agent'
   | 'audit'
 
-const SOVEREIGN = '#16a34a'
-const CRITICAL = '#dc2626'
-const AMBER = '#b45309'
-const PAPER = '#fbfbf9'
-const INK = '#3f3d3a'
-
-const BOUNDARY_RADIUS = 3.15
-const STATION_RADIUS = 2.2
-
-/**
- * The stations, in the order a document passes through them. These are the
- * platform's real stages, named as the work they do.
- */
-const STATIONS: {
+interface StationMeta {
   id: TopologyNodeId
+  number: string
   label: string
-  caption: string
-}[] = [
-  { id: 'documents', label: 'INTAKE', caption: 'the scan arrives' },
-  { id: 'model', label: 'READ', caption: 'vision model' },
-  { id: 'vector', label: 'YOUR SOPs', caption: 'retrieval' },
-  { id: 'sandbox', label: 'RECOMPUTE', caption: 'sandbox' },
-  { id: 'agent', label: 'APPROVE', caption: 'a person signs' },
-  { id: 'audit', label: 'FILED', caption: 'audit record' },
+  subtitle: string
+  icon: any
+  tech: string
+  guarantee: string
+  color: string
+  defaultPos: { x: number; y: number }
+}
+
+const STATIONS: StationMeta[] = [
+  {
+    id: 'documents',
+    number: '01',
+    label: 'LOCAL INTAKE',
+    subtitle: 'Scans & CAD arrive',
+    icon: FileText,
+    tech: 'PyMuPDF · Direct Memory Buffer',
+    guarantee: 'Zero disk cache leaks. Ingests PDFs, TIFFs, XLSX directly to local RAM.',
+    color: '#10b981', // green
+    defaultPos: { x: 12, y: 32 },
+  },
+  {
+    id: 'model',
+    number: '02',
+    label: 'VISION READ',
+    subtitle: 'Local Vision Model',
+    icon: Eye,
+    tech: 'Qwen 2.5 VL 7B · Localhost:8000',
+    guarantee: 'Visual reasoning and OCR executed 100% on on-premise GPU.',
+    color: '#3b82f6', // blue
+    defaultPos: { x: 42, y: 15 },
+  },
+  {
+    id: 'vector',
+    number: '03',
+    label: 'SOP VECTORS',
+    subtitle: 'Local Knowledge Base',
+    icon: Database,
+    tech: 'MiniLM-L6-v2 · On-Prem Vectors',
+    guarantee: 'Engineering SOPs and inspection guidelines queried locally.',
+    color: '#8b5cf6', // purple
+    defaultPos: { x: 78, y: 22 },
+  },
+  {
+    id: 'sandbox',
+    number: '04',
+    label: 'AST SANDBOX',
+    subtitle: 'Isolated Computation',
+    icon: Terminal,
+    tech: 'Python AST Validator · cgroups',
+    guarantee: 'Static AST analysis bans socket, os.system, and urllib imports.',
+    color: '#f59e0b', // amber
+    defaultPos: { x: 74, y: 72 },
+  },
+  {
+    id: 'agent',
+    number: '05',
+    label: 'APPROVAL',
+    subtitle: 'Human Sign-off',
+    icon: FileCheck2,
+    tech: 'PKI Digital Signature · RBAC',
+    guarantee: 'Human-in-the-loop gate before any document is released.',
+    color: '#ec4899', // pink
+    defaultPos: { x: 40, y: 82 },
+  },
+  {
+    id: 'audit',
+    number: '06',
+    label: 'AUDIT LEDGER',
+    subtitle: 'Tamper-Evident Hash',
+    icon: ShieldCheck,
+    tech: 'SHA-256 Chained JSONL Ledger',
+    guarantee: 'Every step cryptographically chained: H_n = SHA256(H_{n-1} || Step).',
+    color: '#16a34a', // sovereign green
+    defaultPos: { x: 14, y: 74 },
+  },
 ]
-
-function stationPosition(index: number): THREE.Vector3 {
-  const angle = (index / STATIONS.length) * Math.PI * 2 - Math.PI / 2
-  // A slight tilt out of plane so the circuit reads as three-dimensional.
-  return new THREE.Vector3(
-    Math.cos(angle) * STATION_RADIUS,
-    Math.sin(angle) * STATION_RADIUS * 0.86,
-    Math.sin(angle * 2) * 0.42,
-  )
-}
-
-/* -------------------------------------------------------------- boundary */
-
-function Boundary({
-  flare,
-  breached,
-}: {
-  flare: React.MutableRefObject<{ strength: number; direction: THREE.Vector3 }>
-  breached: boolean
-}) {
-  const wire = useRef<THREE.LineSegments>(null)
-  const shell = useRef<THREE.Mesh>(null)
-
-  const geometry = useMemo(
-    () => new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(BOUNDARY_RADIUS, 2)),
-    [],
-  )
-
-  useFrame((_, delta) => {
-    if (wire.current) {
-      wire.current.rotation.y += delta * 0.05
-      wire.current.rotation.x += delta * 0.015
-    }
-    if (shell.current) {
-      flare.current.strength = Math.max(0, flare.current.strength - delta * 1.4)
-      const material = shell.current.material as THREE.MeshBasicMaterial
-      material.opacity = 0.02 + flare.current.strength * 0.15
-      material.color.set(flare.current.strength > 0.05 ? CRITICAL : SOVEREIGN)
-    }
-  })
-
-  return (
-    <group>
-      <lineSegments ref={wire} geometry={geometry}>
-        <lineBasicMaterial
-          color={breached ? CRITICAL : SOVEREIGN}
-          transparent
-          opacity={breached ? 0.42 : 0.22}
-        />
-      </lineSegments>
-      <mesh ref={shell}>
-        <icosahedronGeometry args={[BOUNDARY_RADIUS - 0.02, 2]} />
-        <meshBasicMaterial
-          color={SOVEREIGN}
-          transparent
-          opacity={0.02}
-          side={THREE.BackSide}
-          depthWrite={false}
-        />
-      </mesh>
-    </group>
-  )
-}
-
-/* ------------------------------------------------------------- the sheet */
-
-/**
- * The document itself. Marks accumulate on it as it moves round the circuit,
- * so by the time it reaches the end it visibly carries its own evidence.
- */
-function Sheet({
-  stage,
-  progress,
-}: {
-  stage: React.MutableRefObject<number>
-  progress: React.MutableRefObject<number>
-}) {
-  const group = useRef<THREE.Group>(null)
-  const scanLine = useRef<THREE.Mesh>(null)
-  const stamp = useRef<THREE.Mesh>(null)
-
-  // Ruled lines, so it reads as a page of text rather than a blank card.
-  const lines = useMemo(() => [0.44, 0.30, 0.16, 0.02, -0.12, -0.26, -0.40], [])
-
-  useFrame((state, delta) => {
-    if (!group.current) return
-    const t = state.clock.elapsedTime
-
-    const from = stationPosition(stage.current)
-    const to = stationPosition((stage.current + 1) % STATIONS.length)
-    // Ease between stations, and hold briefly on arrival.
-    const raw = Math.min(1, progress.current)
-    const eased = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2
-    const position = from.clone().lerp(to, eased)
-    // Bow the path outward so travel is legible.
-    position.multiplyScalar(1 + Math.sin(eased * Math.PI) * 0.06)
-
-    group.current.position.copy(position)
-    group.current.rotation.y = Math.sin(t * 0.5) * 0.35 + eased * Math.PI * 0.12
-    group.current.rotation.z = Math.sin(t * 0.35) * 0.06
-
-    // Reading: a bar sweeps the page while it sits at the READ station.
-    if (scanLine.current) {
-      const reading = stage.current === 1
-      const material = scanLine.current.material as THREE.MeshBasicMaterial
-      material.opacity = reading ? 0.75 : 0
-      if (reading) scanLine.current.position.y = ((t * 0.9) % 1) * 1.06 - 0.53
-    }
-
-    // The stamp lands once the document has been signed.
-    if (stamp.current) {
-      const signed = stage.current >= 4
-      const material = stamp.current.material as THREE.MeshBasicMaterial
-      material.opacity = signed ? 0.85 : 0
-      stamp.current.scale.setScalar(signed ? 1 + Math.sin(t * 2.4) * 0.03 : 0.01)
-    }
-  })
-
-  return (
-    <group ref={group}>
-      {/* the page */}
-      <mesh>
-        <planeGeometry args={[0.92, 1.24]} />
-        <meshStandardMaterial
-          color={PAPER}
-          side={THREE.DoubleSide}
-          roughness={0.85}
-          metalness={0}
-        />
-      </mesh>
-      <lineSegments>
-        <edgesGeometry args={[new THREE.PlaneGeometry(0.92, 1.24)]} />
-        <lineBasicMaterial color={INK} transparent opacity={0.45} />
-      </lineSegments>
-
-      {/* ruled text lines */}
-      {lines.map((y, index) => (
-        <mesh key={y} position={[index % 3 === 2 ? -0.12 : 0, y, 0.002]}>
-          <planeGeometry args={[index % 3 === 2 ? 0.4 : 0.66, 0.026]} />
-          <meshBasicMaterial color={INK} transparent opacity={0.32} />
-        </mesh>
-      ))}
-
-      {/* the reading bar */}
-      <mesh ref={scanLine} position={[0, 0, 0.006]}>
-        <planeGeometry args={[0.92, 0.05]} />
-        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0} depthWrite={false} />
-      </mesh>
-
-      {/* the approval stamp */}
-      <mesh ref={stamp} position={[0.24, -0.38, 0.008]} rotation={[0, 0, -0.24]}>
-        <ringGeometry args={[0.12, 0.16, 24]} />
-        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  )
-}
-
-/* ---------------------------------------------------------- the stations */
-
-function Station({
-  index,
-  busy,
-}: {
-  index: number
-  busy: boolean
-}) {
-  const group = useRef<THREE.Group>(null)
-  const halo = useRef<THREE.Mesh>(null)
-  const position = useMemo(() => stationPosition(index), [index])
-
-  useFrame((state) => {
-    const t = state.clock.elapsedTime
-    if (halo.current) {
-      const pulse = 0.5 + Math.sin(t * 3 + index) * 0.5
-      const material = halo.current.material as THREE.MeshBasicMaterial
-      material.opacity = busy ? 0.14 + pulse * 0.2 : 0.04
-      halo.current.scale.setScalar(busy ? 1.25 + pulse * 0.3 : 1)
-    }
-    if (group.current) group.current.rotation.y = t * 0.2 + index
-  })
-
-  return (
-    <group position={position}>
-      <mesh ref={halo}>
-        <sphereGeometry args={[0.36, 16, 16]} />
-        <meshBasicMaterial color={SOVEREIGN} transparent opacity={0.04} depthWrite={false} />
-      </mesh>
-      <group ref={group}>
-        <mesh>
-          <cylinderGeometry args={[0.21, 0.21, 0.15, 6]} />
-          <meshStandardMaterial
-            color={busy ? '#1c5f34' : '#393733'}
-            emissive={busy ? SOVEREIGN : '#000000'}
-            emissiveIntensity={busy ? 0.75 : 0}
-            roughness={0.45}
-            metalness={0.3}
-          />
-        </mesh>
-        <lineSegments>
-          <edgesGeometry args={[new THREE.CylinderGeometry(0.21, 0.21, 0.15, 6)]} />
-          <lineBasicMaterial color={busy ? SOVEREIGN : '#8d8a84'} transparent opacity={busy ? 1 : 0.65} />
-        </lineSegments>
-      </group>
-    </group>
-  )
-}
-
-/** The circuit the document travels, drawn as a faint closed path. */
-function Circuit() {
-  const geometry = useMemo(() => {
-    const points: THREE.Vector3[] = []
-    const segments = 120
-    for (let i = 0; i <= segments; i += 1) {
-      const at = (i / segments) * STATIONS.length
-      const from = stationPosition(Math.floor(at) % STATIONS.length)
-      const to = stationPosition((Math.floor(at) + 1) % STATIONS.length)
-      const local = at - Math.floor(at)
-      const point = from.clone().lerp(to, local)
-      point.multiplyScalar(1 + Math.sin(local * Math.PI) * 0.06)
-      points.push(point)
-    }
-    return new THREE.BufferGeometry().setFromPoints(points)
-  }, [])
-
-  return (
-    <line>
-      <primitive object={geometry} attach="geometry" />
-      <lineBasicMaterial color={INK} transparent opacity={0.26} />
-    </line>
-  )
-}
-
-/* --------------------------------------------- citations from the shelf */
-
-/**
- * When the document reaches the procedure station, tags fly from the shelf and
- * attach to it — the citations the finished note carries.
- */
-function Citations({ stage }: { stage: React.MutableRefObject<number> }) {
-  const count = 3
-  const mesh = useRef<THREE.InstancedMesh>(null)
-  const dummy = useMemo(() => new THREE.Object3D(), [])
-  const offsets = useMemo(() => [0, 0.34, 0.68], [])
-
-  useFrame((state) => {
-    const instanced = mesh.current
-    if (!instanced) return
-    const t = state.clock.elapsedTime
-    const shelf = stationPosition(2)
-    const active = stage.current === 2
-
-    for (let i = 0; i < count; i += 1) {
-      const local = active ? ((t * 0.7 + offsets[i]) % 1) : 1
-      const target = stationPosition(2)
-      const point = shelf
-        .clone()
-        .lerp(target, local)
-        .add(new THREE.Vector3(Math.sin(t + i) * 0.16, 0.2 - local * 0.4, Math.cos(t + i) * 0.16))
-      dummy.position.copy(point)
-      dummy.scale.setScalar(active ? 0.055 * (1 - local * 0.4) : 0)
-      dummy.updateMatrix()
-      instanced.setMatrixAt(i, dummy.matrix)
-    }
-    instanced.instanceMatrix.needsUpdate = true
-  })
-
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-      <boxGeometry args={[1, 1, 0.15]} />
-      <meshBasicMaterial color={SOVEREIGN} />
-    </instancedMesh>
-  )
-}
-
-/* ------------------------------------------------------- escape + refusal */
-
-function Escape({
-  flare,
-}: {
-  flare: React.MutableRefObject<{ strength: number; direction: THREE.Vector3 }>
-}) {
-  const head = useRef<THREE.Mesh>(null)
-  const trail = useRef<THREE.Mesh>(null)
-  const state = useRef({
-    t: 0,
-    direction: new THREE.Vector3(1, 0.4, 0.35).normalize(),
-    cooldown: 2.2,
-    returning: false,
-  })
-
-  useFrame((_, delta) => {
-    if (!head.current || !trail.current) return
-    const s = state.current
-    const headMaterial = head.current.material as THREE.MeshBasicMaterial
-    const trailMaterial = trail.current.material as THREE.MeshBasicMaterial
-
-    if (s.cooldown > 0) {
-      s.cooldown -= delta
-      headMaterial.opacity = 0
-      trailMaterial.opacity = 0
-      return
-    }
-
-    s.t += delta * (s.returning ? 2.1 : 1.0)
-    const eased = 1 - Math.pow(1 - Math.min(s.t, 1), 3)
-    const distance = s.returning
-      ? BOUNDARY_RADIUS - (BOUNDARY_RADIUS - 0.6) * eased
-      : 0.6 + (BOUNDARY_RADIUS - 0.6) * eased
-
-    head.current.position.copy(s.direction.clone().multiplyScalar(distance))
-
-    const back = Math.max(0.5, distance - 0.6)
-    trail.current.position.copy(s.direction.clone().multiplyScalar((distance + back) / 2))
-    trail.current.scale.set(0.018, Math.max(0.05, (distance - back) / 2), 0.018)
-    trail.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), s.direction.clone())
-
-    const nearEdge = distance > BOUNDARY_RADIUS * 0.8
-    const colour = s.returning || nearEdge ? CRITICAL : AMBER
-    headMaterial.color.set(colour)
-    trailMaterial.color.set(colour)
-    headMaterial.opacity = 1
-    trailMaterial.opacity = 0.42
-
-    if (!s.returning && s.t >= 1) {
-      flare.current.strength = 1
-      flare.current.direction.copy(s.direction)
-      s.returning = true
-      s.t = 0
-    } else if (s.returning && s.t >= 1) {
-      s.returning = false
-      s.t = 0
-      s.cooldown = 3.2 + Math.random() * 2.4
-      s.direction = new THREE.Vector3(
-        Math.random() * 2 - 1,
-        Math.random() * 1.6 - 0.8,
-        Math.random() * 2 - 1,
-      ).normalize()
-      headMaterial.opacity = 0
-      trailMaterial.opacity = 0
-    }
-  })
-
-  return (
-    <group>
-      <mesh ref={trail}>
-        <cylinderGeometry args={[1, 1, 1, 6]} />
-        <meshBasicMaterial color={CRITICAL} transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <mesh ref={head}>
-        <sphereGeometry args={[0.07, 12, 12]} />
-        <meshBasicMaterial color={CRITICAL} transparent opacity={0} />
-      </mesh>
-    </group>
-  )
-}
-
-function Shockwave({
-  flare,
-}: {
-  flare: React.MutableRefObject<{ strength: number; direction: THREE.Vector3 }>
-}) {
-  const ring = useRef<THREE.Mesh>(null)
-
-  useFrame(() => {
-    if (!ring.current) return
-    const strength = flare.current.strength
-    ;(ring.current.material as THREE.MeshBasicMaterial).opacity = strength * 0.7
-    if (strength > 0.01) {
-      ring.current.position.copy(flare.current.direction.clone().multiplyScalar(BOUNDARY_RADIUS))
-      ring.current.lookAt(0, 0, 0)
-      ring.current.scale.setScalar(0.3 + (1 - strength) * 2)
-    }
-  })
-
-  return (
-    <mesh ref={ring}>
-      <ringGeometry args={[0.32, 0.4, 40]} />
-      <meshBasicMaterial
-        color={CRITICAL}
-        transparent
-        opacity={0}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
-    </mesh>
-  )
-}
-
-/* ----------------------------------------------------------------- scene */
-
-function Scene({
-  active,
-  activeNodes,
-  breached,
-  onStageChange,
-}: {
-  active: boolean
-  activeNodes: TopologyNodeId[]
-  breached: boolean
-  onStageChange: (index: number) => void
-}) {
-  const group = useRef<THREE.Group>(null)
-  const { pointer } = useThree()
-  const stage = useRef(0)
-  const progress = useRef(0)
-  const flare = useRef({ strength: 0, direction: new THREE.Vector3(1, 0, 0) })
-
-  useFrame((_, delta) => {
-    if (group.current) {
-      group.current.rotation.y += delta * 0.09
-      group.current.rotation.x +=
-        (-pointer.y * 0.2 - group.current.rotation.x) * delta * 1.1
-    }
-
-    // During a real run the document waits at whichever station is working.
-    const busyIndex = STATIONS.findIndex((s) => activeNodes.includes(s.id))
-    if (active && busyIndex >= 0) {
-      if (stage.current !== busyIndex) {
-        progress.current += delta * 0.9
-        if (progress.current >= 1) {
-          progress.current = 0
-          stage.current = (stage.current + 1) % STATIONS.length
-          onStageChange(stage.current)
-        }
-      } else {
-        progress.current = 0
-      }
-      return
-    }
-
-    // Idle: a gentle continuous circuit, so the story is always legible.
-    progress.current += delta * 0.36
-    if (progress.current >= 1) {
-      progress.current = 0
-      stage.current = (stage.current + 1) % STATIONS.length
-      onStageChange(stage.current)
-    }
-  })
-
-  return (
-    <group ref={group}>
-      <ambientLight intensity={1.15} />
-      <directionalLight position={[4, 6, 6]} intensity={1.6} />
-      <pointLight position={[-4, -2, 3]} intensity={10} color={SOVEREIGN} distance={16} />
-
-      <Boundary flare={flare} breached={breached} />
-      <Circuit />
-      {STATIONS.map((station, index) => (
-        <Station
-          key={station.id}
-          index={index}
-          busy={activeNodes.includes(station.id) || (!active && stage.current === index)}
-        />
-      ))}
-      <Citations stage={stage} />
-      <Sheet stage={stage} progress={progress} />
-      <Escape flare={flare} />
-      <Shockwave flare={flare} />
-    </group>
-  )
-}
-
-/* ------------------------------------------------------------- component */
 
 export function SovereigntyTopology({
   active = false,
@@ -536,94 +121,439 @@ export function SovereigntyTopology({
   breached?: boolean
   className?: string
 }) {
-  const holder = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(false)
-  const [reduced, setReduced] = useState(false)
-  const [supported, setSupported] = useState(true)
-  const [stage, setStage] = useState(0)
-
-  useEffect(() => {
-    try {
-      const probe = document.createElement('canvas')
-      setSupported(Boolean(probe.getContext('webgl2') || probe.getContext('webgl')))
-    } catch {
-      setSupported(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(query.matches)
-    const onChange = () => setReduced(query.matches)
-    query.addEventListener('change', onChange)
-    return () => query.removeEventListener('change', onChange)
-  }, [])
-
-  useEffect(() => {
-    const element = holder.current
-    if (!element) return
-    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), {
-      threshold: 0.05,
+  const [positions, setPositions] = useState<{ [key: string]: { x: number; y: number } }>(() => {
+    const init: { [key: string]: { x: number; y: number } } = {}
+    STATIONS.forEach((s) => {
+      init[s.id] = { ...s.defaultPos }
     })
-    observer.observe(element)
-    return () => observer.disconnect()
+    return init
+  })
+
+  const [draggingNode, setDraggingNode] = useState<string | null>(null)
+  const [selectedStation, setSelectedStation] = useState<StationMeta | null>(null)
+  const [egressTestActive, setEgressTestActive] = useState(false)
+  const [egressDeflected, setEgressDeflected] = useState(false)
+  const [particles, setParticles] = useState<{ id: number; progress: number; fromIdx: number }[]>([
+    { id: 1, progress: 0.1, fromIdx: 0 },
+    { id: 2, progress: 0.45, fromIdx: 2 },
+    { id: 3, progress: 0.8, fromIdx: 4 },
+  ])
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragStartPos = useRef({ mouseX: 0, mouseY: 0, nodeX: 0, nodeY: 0 })
+
+  // Reset positions to default layout
+  const resetLayout = useCallback(() => {
+    const init: { [key: string]: { x: number; y: number } } = {}
+    STATIONS.forEach((s) => {
+      init[s.id] = { ...s.defaultPos }
+    })
+    setPositions(init)
   }, [])
 
-  const liveIndex = STATIONS.findIndex((s) => activeNodes.includes(s.id))
-  const current = active && liveIndex >= 0 ? liveIndex : stage
+  // Animate particles along connecting paths
+  useEffect(() => {
+    const speed = active ? 0.016 : 0.006
+    const interval = setInterval(() => {
+      setParticles((prev) =>
+        prev.map((p) => {
+          const nextProg = p.progress + speed
+          if (nextProg >= 1) {
+            return {
+              id: p.id,
+              progress: 0,
+              fromIdx: (p.fromIdx + 1) % STATIONS.length,
+            }
+          }
+          return { ...p, progress: nextProg }
+        })
+      )
+    }, 30)
+    return () => clearInterval(interval)
+  }, [active])
+
+  // Handle Dragging
+  const handleMouseDownNode = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    setDraggingNode(id)
+    dragStartPos.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      nodeX: positions[id]?.x || 0,
+      nodeY: positions[id]?.y || 0,
+    }
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!draggingNode || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const dxPercent = ((e.clientX - dragStartPos.current.mouseX) / rect.width) * 100
+      const dyPercent = ((e.clientY - dragStartPos.current.mouseY) / rect.height) * 100
+
+      const newX = Math.max(4, Math.min(88, dragStartPos.current.nodeX + dxPercent))
+      const newY = Math.max(8, Math.min(84, dragStartPos.current.nodeY + dyPercent))
+
+      setPositions((prev) => ({
+        ...prev,
+        [draggingNode]: { x: newX, y: newY },
+      }))
+    }
+
+    const handleMouseUp = () => {
+      setDraggingNode(null)
+    }
+
+    if (draggingNode) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [draggingNode])
+
+  // Trigger simulated air-gap breach test
+  const triggerEgressTest = () => {
+    if (egressTestActive) return
+    setEgressTestActive(true)
+    setEgressDeflected(false)
+
+    setTimeout(() => {
+      setEgressDeflected(true)
+    }, 700)
+
+    setTimeout(() => {
+      setEgressTestActive(false)
+      setEgressDeflected(false)
+    }, 2800)
+  }
+
+  // Calculate SVG curve paths between stations in order
+  const getCircuitPath = () => {
+    if (!STATIONS.length) return ''
+    const pts = STATIONS.map((s) => positions[s.id] || s.defaultPos)
+    let d = `M ${pts[0].x} ${pts[0].y}`
+    for (let i = 0; i < pts.length; i++) {
+      const curr = pts[i]
+      const next = pts[(i + 1) % pts.length]
+      const mx = (curr.x + next.x) / 2
+      const my = (curr.y + next.y) / 2
+      d += ` Q ${curr.x} ${curr.y}, ${mx} ${my}`
+    }
+    d += ` Z`
+    return d
+  }
 
   return (
-    <div ref={holder} className={`relative h-full w-full ${className}`}>
-      {visible && !reduced && supported ? (
-        <Canvas
-          camera={{ position: [0, 0, 9.1], fov: 42 }}
-          dpr={[1, 1.6]}
-          gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
-        >
-          <Scene
-            active={active}
-            activeNodes={activeNodes}
-            breached={breached}
-            onStageChange={setStage}
-          />
-        </Canvas>
-      ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <div className="relative h-[200px] w-[200px]">
-            <div className="absolute inset-0 rounded-full border border-border" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="font-mono text-[11px] text-foreground-muted">
-                {supported ? 'CONTAINED' : 'CONTAINED · 3D unavailable here'}
-              </span>
-            </div>
+    <div
+      ref={containerRef}
+      className={cn(
+        'relative w-full h-[540px] sm:h-[620px] rounded-xl border border-border bg-ink tech-grid-ink overflow-hidden select-none p-4 sm:p-6 flex flex-col justify-between shadow-2xl',
+        className
+      )}
+    >
+      {/* Air-Gap Perimeter Security Border */}
+      <div className="pointer-events-none absolute inset-2 rounded-lg border border-[var(--sovereign)]/30 border-dashed" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-[var(--sovereign)]/5 to-transparent" />
+
+      {/* Top Header Bar */}
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 border-b border-ink-border pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-6 w-6 items-center justify-center rounded bg-[var(--sovereign)]/20 text-[var(--sovereign)]">
+            <Lock className="h-3.5 w-3.5" />
+          </span>
+          <div className="flex flex-col">
+            <span className="font-mono text-[12px] font-bold uppercase tracking-widest text-ink-foreground">
+              Air-Gap Sovereign Topology
+            </span>
+            <span className="font-mono text-[10px] text-ink-muted">
+              Live movable station circuit · 0 outbound egress
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Simulate Egress Deflection */}
+          <button
+            type="button"
+            onClick={triggerEgressTest}
+            disabled={egressTestActive}
+            className={cn(
+              'flex items-center gap-1.5 rounded border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-all',
+              egressTestActive
+                ? 'border-critical bg-critical/20 text-critical animate-pulse'
+                : 'border-ink-border bg-ink-surface text-ink-foreground hover:border-[var(--sovereign)] hover:text-[var(--sovereign)]'
+            )}
+          >
+            <Zap className="h-3.5 w-3.5 text-[var(--critical)]" />
+            {egressTestActive ? 'Testing Egress Deflection…' : 'Test Air-Gap Deflection'}
+          </button>
+
+          {/* Reset Layout */}
+          <button
+            type="button"
+            onClick={resetLayout}
+            className="flex items-center gap-1 rounded border border-ink-border bg-ink-surface px-2.5 py-1.5 font-mono text-[11px] text-ink-muted hover:text-ink-foreground transition-colors"
+            title="Reset node positions"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Reset Nodes
+          </button>
+        </div>
+      </div>
+
+      {/* SVG Connecting Circuit Traces */}
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full z-10"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        {/* Main closed loop circuit line */}
+        <path
+          d={getCircuitPath()}
+          fill="none"
+          stroke="rgba(255, 255, 255, 0.12)"
+          strokeWidth="0.5"
+          strokeDasharray="1.5 1.5"
+        />
+
+        {/* Animated Laser Circuit pulses */}
+        {STATIONS.map((curr, i) => {
+          const next = STATIONS[(i + 1) % STATIONS.length]
+          const p1 = positions[curr.id] || curr.defaultPos
+          const p2 = positions[next.id] || next.defaultPos
+          const isActiveSegment = activeNodes.includes(curr.id) || activeNodes.includes(next.id)
+
+          return (
+            <line
+              key={curr.id}
+              x1={p1.x + 6}
+              y1={p1.y + 4}
+              x2={p2.x + 6}
+              y2={p2.y + 4}
+              stroke={isActiveSegment ? 'var(--sovereign)' : 'rgba(22, 163, 74, 0.35)'}
+              strokeWidth={isActiveSegment ? '0.9' : '0.4'}
+              className={isActiveSegment ? 'sov-laser-flow' : ''}
+            />
+          )
+        })}
+
+        {/* Traveling Data Packet Dots */}
+        {particles.map((p) => {
+          const from = positions[STATIONS[p.fromIdx]?.id] || STATIONS[p.fromIdx]?.defaultPos
+          const to =
+            positions[STATIONS[(p.fromIdx + 1) % STATIONS.length]?.id] ||
+            STATIONS[(p.fromIdx + 1) % STATIONS.length]?.defaultPos
+          if (!from || !to) return null
+          const currentX = from.x + 6 + (to.x - from.x) * p.progress
+          const currentY = from.y + 4 + (to.y - from.y) * p.progress
+
+          return (
+            <circle
+              key={p.id}
+              cx={currentX}
+              cy={currentY}
+              r="1.2"
+              fill="var(--sovereign)"
+              className="drop-shadow-[0_0_6px_var(--sovereign)]"
+            />
+          )
+        })}
+
+        {/* Egress Deflection Beam Animation */}
+        {egressTestActive && (
+          <g>
+            <line
+              x1="50"
+              y1="50"
+              x2="95"
+              y2="15"
+              stroke="var(--critical)"
+              strokeWidth="1.4"
+              strokeDasharray="3 3"
+              className="animate-pulse"
+            />
+            {egressDeflected && (
+              <circle
+                cx="95"
+                cy="15"
+                r="6"
+                fill="none"
+                stroke="var(--critical)"
+                strokeWidth="1"
+                className="sov-deflection-burst"
+              />
+            )}
+          </g>
+        )}
+      </svg>
+
+      {/* Egress Deflection Notification Overlay */}
+      {egressDeflected && (
+        <div className="absolute top-20 right-8 z-30 flex items-center gap-2 rounded-lg border border-critical bg-critical/15 p-3 backdrop-blur-md text-critical animate-in fade-in zoom-in-95 duration-200">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div className="flex flex-col text-left leading-tight">
+            <span className="font-mono text-[11px] font-bold uppercase tracking-wider">
+              Air-Gap Boundary Defense: REFUSED
+            </span>
+            <span className="font-mono text-[10px] text-ink-foreground">
+              Simulated outbound socket blocked at host level · 0 bytes leaked
+            </span>
           </div>
         </div>
       )}
 
-      {/* The stations, named as the work they do, with the live one marked. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4">
+      {/* Movable Interactive Station Nodes */}
+      <div className="relative z-20 h-full w-full">
         {STATIONS.map((station, index) => {
-          const on = index === current
+          const pos = positions[station.id] || station.defaultPos
+          const isBusy = activeNodes.includes(station.id)
+          const isDraggingThis = draggingNode === station.id
+          const IconComponent = station.icon
+
           return (
-            <span key={station.id} className="flex flex-col items-center leading-tight">
-              <span
-                className={`font-mono text-[10px] tracking-[0.16em] transition-colors ${
-                  on ? 'text-sovereign' : 'text-foreground-muted'
-                }`}
-              >
-                {on ? '●' : '○'} {station.label}
-              </span>
-              <span
-                className={`text-[10px] transition-colors ${
-                  on ? 'text-foreground-secondary' : 'text-foreground-muted/60'
-                }`}
-              >
-                {station.caption}
-              </span>
-            </span>
+            <div
+              key={station.id}
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+              }}
+              onMouseDown={(e) => handleMouseDownNode(e, station.id)}
+              onClick={() => setSelectedStation(station)}
+              className={cn(
+                'absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing rounded-lg border p-3 backdrop-blur-md transition-shadow group',
+                isDraggingThis ? 'scale-105 shadow-[0_0_30px_rgba(22,163,74,0.4)] z-40 border-[var(--sovereign)]' : 'z-20',
+                isBusy
+                  ? 'border-[var(--sovereign)] bg-ink-surface ring-2 ring-[var(--sovereign)]/60 shadow-[0_0_24px_rgba(22,163,74,0.3)]'
+                  : 'border-ink-border bg-ink/90 hover:border-ink-muted hover:bg-ink-surface'
+              )}
+            >
+              {/* Top Row: Station number + Title + Drag Handle */}
+              <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'flex h-5 w-5 items-center justify-center rounded text-[10px] font-mono font-bold',
+                      isBusy ? 'bg-[var(--sovereign)] text-black' : 'bg-ink-border text-ink-muted'
+                    )}
+                  >
+                    {station.number}
+                  </span>
+                  <span className="font-mono text-[11px] font-semibold tracking-wider text-ink-foreground">
+                    {station.label}
+                  </span>
+                </div>
+                <Move className="h-3 w-3 text-ink-muted group-hover:text-ink-foreground opacity-60" />
+              </div>
+
+              {/* Subtitle & Status */}
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-ink-muted leading-none">
+                  {station.subtitle}
+                </span>
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    isBusy ? 'bg-[var(--sovereign)] animate-ping' : 'bg-ink-muted/40'
+                  )}
+                />
+              </div>
+
+              {/* Active Glow Bar */}
+              {isBusy && (
+                <div className="absolute -bottom-px left-0 right-0 h-0.5 rounded-b-lg bg-[var(--sovereign)] shadow-[0_0_8px_var(--sovereign)]" />
+              )}
+            </div>
           )
         })}
       </div>
+
+      {/* Bottom Telemetry Footer */}
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 border-t border-ink-border pt-3">
+        <div className="flex items-center gap-4 text-ink-muted">
+          <span className="font-mono text-[11px] flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[var(--sovereign)]" />
+            Air-Gap Perimeter: Sealed
+          </span>
+          <span className="hidden sm:inline font-mono text-[11px]">
+            Drag nodes to rearrange topology
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--sovereign)] font-medium">
+            Local Pipeline: 6 Active Stations
+          </span>
+        </div>
+      </div>
+
+      {/* Interactive Node Inspector Modal */}
+      {selectedStation && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md rounded-xl border border-ink-border bg-ink p-5 shadow-2xl text-ink-foreground">
+            <button
+              type="button"
+              onClick={() => setSelectedStation(null)}
+              className="absolute top-4 right-4 flex h-7 w-7 items-center justify-center rounded text-ink-muted hover:bg-ink-surface hover:text-ink-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2.5 border-b border-ink-border pb-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded bg-[var(--sovereign)]/20 text-[var(--sovereign)] font-mono font-bold text-[12px]">
+                {selectedStation.number}
+              </span>
+              <div>
+                <h3 className="font-mono text-[14px] font-bold uppercase tracking-wider text-ink-foreground">
+                  {selectedStation.label}
+                </h3>
+                <span className="text-[11px] text-ink-muted">{selectedStation.subtitle}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 text-[12px]">
+              <div>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">
+                  Underlying Tech Engine
+                </span>
+                <p className="mt-0.5 font-mono text-[12px] text-[var(--sovereign)] bg-ink-surface p-2 rounded border border-ink-border">
+                  {selectedStation.tech}
+                </p>
+              </div>
+
+              <div>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">
+                  Isolation & Security Guarantee
+                </span>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-ink-foreground/90 bg-ink-surface/50 p-2.5 rounded border border-ink-border">
+                  {selectedStation.guarantee}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[10px]">
+                <div className="rounded border border-ink-border bg-ink-surface p-2">
+                  <span className="text-ink-muted">Network:</span>
+                  <div className="text-[var(--sovereign)] font-bold">127.0.0.1 ONLY</div>
+                </div>
+                <div className="rounded border border-ink-border bg-ink-surface p-2">
+                  <span className="text-ink-muted">Storage:</span>
+                  <div className="text-ink-foreground font-bold">Encrypted RAM</div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedStation(null)}
+              className="mt-5 w-full rounded border border-ink-border bg-ink-surface py-2 font-mono text-[11px] uppercase tracking-wider text-ink-foreground hover:border-[var(--sovereign)] transition-colors"
+            >
+              Close Inspector
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
