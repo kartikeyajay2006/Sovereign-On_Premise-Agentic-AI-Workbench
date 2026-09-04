@@ -13,8 +13,9 @@ import { useRole } from '@/components/role-context'
 import { cn } from '@/lib/utils'
 import { ThreeDLayerView } from '@/components/three-d-layer-view'
 import {
-  auth,
   googleProvider,
+  firebaseEnabled,
+  requireAuth,
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -34,7 +35,9 @@ export function SignInView() {
   const router = useRouter()
   const { login } = useRole()
   const [persona, setPersona] = useState<RoleId>('engineer')
-  const [authMethod, setAuthMethod] = useState<'firebase' | 'persona'>('firebase')
+  const [authMethod, setAuthMethod] = useState<'firebase' | 'persona'>(
+    firebaseEnabled ? 'firebase' : 'persona',
+  )
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -87,8 +90,8 @@ export function SignInView() {
 
     try {
       if (mode === 'signup') {
-        await createUserWithEmailAndPassword(auth, email.trim(), password)
-        await signOut(auth).catch(() => {})
+        await createUserWithEmailAndPassword(requireAuth(), email.trim(), password)
+        await signOut(requireAuth()).catch(() => {})
         setSuccessMsg("Account created successfully! Please sign in with your email and password.")
         setMode('signin')
         setPassword('')
@@ -96,7 +99,7 @@ export function SignInView() {
         return
       }
 
-      await signInWithEmailAndPassword(auth, email.trim(), password)
+      await signInWithEmailAndPassword(requireAuth(), email.trim(), password)
       // Login to local session state
       await login('engineer', 'workbench').catch(() => {})
       router.push('/')
@@ -118,7 +121,7 @@ export function SignInView() {
     setError(null)
     setLoading(true)
     try {
-      await signInWithPopup(auth, googleProvider)
+      await signInWithPopup(requireAuth(), googleProvider)
       await login('engineer', 'workbench').catch(() => {})
       router.push('/')
     } catch (err: any) {
@@ -202,7 +205,10 @@ export function SignInView() {
             <h2 className="text-2xl font-medium tracking-[-0.02em] text-foreground">Sign in</h2>
           </div>
 
-          {/* Auth Method Switcher (Firebase vs Demo Persona) */}
+          {/* Auth method switcher, shown only where both are actually offered.
+              An air-gapped host has Firebase switched off and signs in with a
+              workbench account alone, so it gets no tab it cannot use. */}
+          {firebaseEnabled && (
           <div className="flex rounded-md border border-border bg-surface p-1 text-[12px]">
             <button
               type="button"
@@ -235,6 +241,7 @@ export function SignInView() {
               Demo Persona
             </button>
           </div>
+          )}
 
           {successMsg && (
             <div className="flex items-center gap-2.5 border border-[var(--sovereign)] bg-surface p-3 text-[13px] text-[var(--sovereign)]">
