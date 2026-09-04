@@ -267,3 +267,19 @@
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Sovereign Precision Custom Cursor                                  */
+/* ------------------------------------------------------------------ */
+@media (pointer: fine) {
+  html.custom-cursor-enabled,
+  html.custom-cursor-enabled body,
+  html.custom-cursor-enabled button,
+  html.custom-cursor-enabled a,
+  html.custom-cursor-enabled [role="button"],
+  html.custom-cursor-enabled [role="tab"],
+  html.custom-cursor-enabled [role="menuitem"] {
+    cursor: none !important;
+  }
+}
+
+
