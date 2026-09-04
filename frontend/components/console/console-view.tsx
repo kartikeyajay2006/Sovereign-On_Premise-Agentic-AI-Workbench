@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RotateCcw, Loader2 } from 'lucide-react'
+import { RotateCcw, Loader2, Paperclip, Upload, FileText, X } from 'lucide-react'
 import {
   CONSOLE_TEMPLATES,
   DEFAULT_PIPELINE,
@@ -11,7 +11,7 @@ import { api } from '@/lib/api'
 import type { Deliverable, EvidenceItem, PipelineStage, Task, VerificationCheck } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
 import { AgentPipeline } from '@/components/agent-pipeline'
-import { FileDropzone, type UploadedFile } from '@/components/file-dropzone'
+import { type UploadedFile } from '@/components/file-dropzone'
 import { ResultExperience } from '@/components/result-experience'
 import { SovButton } from '@/components/sov-button'
 import { Reveal, SectionHeading, TechnicalLabel } from '@/components/primitives'
@@ -31,6 +31,8 @@ export function ConsoleView() {
   const [stages, setStages] = useState<PipelineStage[]>(DEFAULT_PIPELINE)
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Real result states
   // Nothing is shown as an answer until this machine produced one. A sample
@@ -84,6 +86,42 @@ export function ConsoleView() {
       }
     }
   }, [push])
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (phase === 'idle') setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (phase !== 'idle') return
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const list = Array.from(e.dataTransfer.files).map((f) => ({
+        name: f.name,
+        sizeKb: Math.max(1, Math.round(f.size / 1024)),
+        file: f,
+      }))
+      addFiles(list)
+    }
+  }
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const list = Array.from(e.target.files).map((f) => ({
+        name: f.name,
+        sizeKb: Math.max(1, Math.round(f.size / 1024)),
+        file: f,
+      }))
+      addFiles(list)
+      e.target.value = ''
+    }
+  }
 
   // Handle SSE events from the running task
   const handleEvent = useCallback((event: any) => {
@@ -366,20 +404,46 @@ export function ConsoleView() {
           </div>
         </Reveal>
 
-        {/* Composer */}
+        {/* Compact Modern Command Chassis */}
         <Reveal delay={60} className="mt-8">
-          <div className="rounded-none border border-border bg-surface/90 shadow-sm backdrop-blur-md">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5 bg-surface-sunken/40">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              'relative rounded-none border transition-all duration-200 bg-surface/95 shadow-sm backdrop-blur-md overflow-hidden',
+              isDragging
+                ? 'border-foreground ring-2 ring-foreground/15 bg-surface-sunken'
+                : 'border-border focus-within:border-foreground/80 focus-within:shadow-[0_2px_16px_rgba(0,0,0,0.04)]',
+            )}
+          >
+            {/* Drag & Drop Overlay */}
+            {isDragging && (
+              <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-surface/95 backdrop-blur-sm border-2 border-dashed border-foreground animate-in fade-in duration-150">
+                <Upload className="h-6 w-6 text-[var(--sovereign)] animate-bounce" />
+                <span className="font-mono text-[13px] font-semibold text-foreground">
+                  Drop document to attach locally
+                </span>
+                <span className="font-mono text-[10px] text-foreground-muted uppercase tracking-wider">
+                  Air-gapped storage · Zero external egress
+                </span>
+              </div>
+            )}
+
+            {/* Header Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 px-4 py-2.5 bg-surface-sunken/40">
               <div className="flex items-center gap-3">
                 <SectionHeading index="01" title="Task Dispatcher" />
                 <span className="hidden sm:inline-flex items-center gap-1.5 font-mono text-[10px] text-foreground-muted border-l border-border pl-3">
                   <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
-                  STANDBY · AIR-GAPPED HOST
+                  AIR-GAPPED 127.0.0.1
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted hidden sm:inline">
-                  Deliverable
+
+              {/* Deliverable Format Selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted hidden md:inline">
+                  Deliverable:
                 </span>
                 <div className="flex items-center gap-1">
                   {DELIVERABLE_FORMATS.map((df) => (
@@ -389,10 +453,10 @@ export function ConsoleView() {
                       disabled={phase !== 'idle'}
                       onClick={() => setFormat(df.id)}
                       className={cn(
-                        'border px-2.5 py-0.5 font-mono text-[11px] uppercase transition-all duration-150',
+                        'border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-150',
                         format === df.id
-                          ? 'border-foreground bg-foreground text-primary-foreground shadow-sm'
-                          : 'border-border text-foreground-secondary hover:border-foreground hover:text-foreground',
+                          ? 'border-foreground bg-foreground text-primary-foreground font-semibold shadow-xs'
+                          : 'border-border text-foreground-secondary hover:border-foreground/60 hover:text-foreground bg-surface',
                       )}
                     >
                       {df.label}
@@ -402,79 +466,127 @@ export function ConsoleView() {
               </div>
             </div>
 
-            <div className="p-5 sm:p-6">
-              <label htmlFor="task-prompt" className="mb-2 flex items-center justify-between text-[13px] font-medium text-foreground">
-                <span>What do you want done? Ask a question, or describe the task.</span>
-                <span className="font-mono text-[10px] text-foreground-muted hidden sm:inline">
-                  Press ⌘ + Enter to dispatch
-                </span>
-              </label>
+            {/* Prompt Body */}
+            <div className="p-4 sm:p-5">
               <textarea
                 id="task-prompt"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && phase === 'idle') {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && phase === 'idle' && prompt.trim()) {
                     e.preventDefault()
                     run()
                   }
                 }}
                 disabled={phase !== 'idle'}
-                placeholder="e.g. What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve it?"
-                rows={4}
-                className="w-full resize-none border border-border-strong bg-surface px-4 py-3 font-sans text-[15px] leading-relaxed text-foreground placeholder:text-foreground-muted focus:border-foreground focus:ring-1 focus:ring-foreground focus:outline-none disabled:opacity-70 transition-colors"
+                placeholder="Ask a procedural question, describe an analysis task, or request an autonomous compliance audit..."
+                rows={3}
+                className="w-full resize-none bg-transparent font-sans text-[14px] sm:text-[15px] leading-relaxed text-foreground placeholder:text-foreground-muted/70 focus:outline-none disabled:opacity-70"
               />
 
-              <div className="mt-5">
-                <p className="mb-2 text-[13px] text-foreground-secondary">
-                  Attach a document only if the task needs one — a scan to read, or a
-                  spreadsheet to work over. Questions about your procedures need nothing
-                  attached.
-                </p>
-                <FileDropzone
-                  files={files}
-                  onAddFiles={addFiles}
-                  onRemove={(id) => setFiles((prev) => prev.filter((x) => x.id !== id))}
-                  disabled={phase !== 'idle'}
-                />
-              </div>
+              {/* Attached Files Pill List */}
+              {files.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+                  {files.map((f) => (
+                    <div
+                      key={f.id}
+                      className="group flex items-center gap-2 border border-border bg-surface-sunken/80 px-2.5 py-1 text-[12px] font-mono transition-colors hover:border-foreground/40"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-foreground-muted" />
+                      <span className="max-w-[180px] truncate text-foreground font-medium">{f.name}</span>
+                      <span className="text-[10px] text-foreground-muted">{f.sizeKb} KB</span>
+                      <span className="border border-border/80 bg-surface px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-foreground-muted">
+                        RESTRICTED
+                      </span>
+                      {f.progress < 100 ? (
+                        <Loader2 className="h-3 w-3 animate-spin text-[var(--sovereign)]" />
+                      ) : (
+                        <span className="text-[10px] text-[var(--sovereign)] font-bold">✓</span>
+                      )}
+                      {phase === 'idle' && (
+                        <button
+                          type="button"
+                          onClick={() => setFiles((prev) => prev.filter((x) => x.id !== f.id))}
+                          aria-label={`Remove ${f.name}`}
+                          className="ml-1 text-foreground-muted hover:text-critical transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-                <div className="flex items-center gap-4 text-foreground-muted">
-                  <span className="font-mono text-[11px]">Local Host: 127.0.0.1</span>
-                  <span className="hidden font-mono text-[11px] sm:inline">· Egress: 0 bytes</span>
+              {/* Hidden File Input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                disabled={phase !== 'idle'}
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+
+              {/* Bottom Utility Ribbon */}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+                <div className="flex items-center gap-3">
+                  {/* Attach Button */}
+                  <button
+                    type="button"
+                    disabled={phase !== 'idle'}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 border border-border bg-surface-sunken/60 px-3 py-1.5 font-mono text-[11px] text-foreground-secondary hover:border-foreground/60 hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                    <span>Attach Document</span>
+                    {files.length > 0 && (
+                      <span className="ml-1 rounded-full bg-[var(--sovereign)]/15 px-1.5 py-0.2 text-[10px] font-bold text-[var(--sovereign)]">
+                        {files.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <span className="hidden font-mono text-[11px] text-foreground-muted md:inline">
+                    Local: 127.0.0.1 · 0 Egress
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <span className="hidden font-mono text-[10px] text-foreground-muted sm:inline">
+                    <kbd className="border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px]">⌘</kbd> + <kbd className="border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px]">↵</kbd>
+                  </span>
+
                   {phase !== 'idle' && (
                     <button
                       type="button"
                       onClick={reset}
-                      className="flex items-center gap-1.5 border border-border px-3.5 py-2 font-mono text-[12px] text-foreground transition-colors hover:border-foreground"
+                      className="flex items-center gap-1.5 border border-border px-3 py-1.5 font-mono text-[11px] text-foreground transition-colors hover:border-foreground"
                     >
                       <RotateCcw className="h-3.5 w-3.5" /> Reset
                     </button>
                   )}
+
                   {phase === 'idle' ? (
-                    <SovButton arrow onClick={run}>
+                    <SovButton arrow onClick={run} disabled={!prompt.trim()}>
                       Run sovereign agent
                     </SovButton>
                   ) : phase === 'running' ? (
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 border border-foreground bg-foreground px-4 py-2 font-mono text-[12px] text-primary-foreground">
+                      <div className="flex items-center gap-2 border border-foreground bg-foreground px-3.5 py-1.5 font-mono text-[11px] text-primary-foreground">
                         <span className="h-1.5 w-1.5 rounded-full bg-sovereign sov-pulse" />
                         Agent executing…
                       </div>
                       <button
                         type="button"
                         onClick={handleCancelTask}
-                        className="border border-critical bg-critical/10 px-3 py-2 font-mono text-[12px] uppercase tracking-[0.14em] text-critical transition-colors hover:bg-critical hover:text-white"
+                        className="border border-critical bg-critical/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-critical transition-colors hover:bg-critical hover:text-white"
                       >
                         Stop
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 border border-foreground bg-foreground px-4 py-2 font-mono text-[12px] text-primary-foreground">
+                    <div className="flex items-center gap-2 border border-foreground bg-foreground px-3.5 py-1.5 font-mono text-[11px] text-primary-foreground">
                       <span className="h-1.5 w-1.5 rounded-full bg-sovereign" />
                       Completed
                     </div>
