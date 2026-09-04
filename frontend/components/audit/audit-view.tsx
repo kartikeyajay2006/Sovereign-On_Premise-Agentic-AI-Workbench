@@ -218,7 +218,7 @@ export function AuditView() {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-5 py-10 lg:px-10 lg:py-14">
       <PageHeader
-        eyebrow="Tamper-evident record"
+        eyebrow="Tamper-Evident Record"
         title="Audit Trail"
         description="Every task, model call, tool execution and policy decision on this host, hash-linked so that removing or altering a line breaks the chain."
         meta={[

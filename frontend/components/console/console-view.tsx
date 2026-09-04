@@ -368,9 +368,9 @@ export function ConsoleView() {
 
               {/* Exact 3-line Headline */}
               <h1 className="mt-6 text-5xl font-extrabold tracking-[-0.035em] text-foreground sm:text-6xl md:text-[64px] leading-[1.05]">
-                Intelligence.
+                Intelligence
                 <br />
-                Under your
+                under your
                 <br />
                 control.
               </h1>
@@ -569,7 +569,7 @@ export function ConsoleView() {
 
                   {phase === 'idle' ? (
                     <SovButton arrow onClick={run} disabled={!prompt.trim()}>
-                      Run sovereign agent
+                      Run Sovereign Agent
                     </SovButton>
                   ) : phase === 'running' ? (
                     <div className="flex items-center gap-2">

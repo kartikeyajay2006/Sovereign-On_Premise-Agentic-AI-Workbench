@@ -117,7 +117,7 @@ export function ApprovalsView() {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-5 py-10 lg:px-10 lg:py-14">
       <PageHeader
-        eyebrow="Human-in-the-loop Gate"
+        eyebrow="Human-in-the-Loop Gate"
         title="Approval Queue"
         description="Air-gapped verification buffer. Deliverables are cryptographically locked until reviewed and authorized by an approved signature."
         meta={[
