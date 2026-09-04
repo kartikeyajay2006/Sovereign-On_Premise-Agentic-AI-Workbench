@@ -35,6 +35,34 @@ interface Selectable {
 
 type Phase = 'idle' | 'asking' | 'answered'
 
+/**
+ * A question in progress survives leaving the page.
+ *
+ * The run happens on the server, so navigating to Tasks and back never
+ * stopped it — but this screen kept no note of it, so you came back to an
+ * empty box with no way to reach the answer. The id is parked here and picked
+ * up on mount: finished questions render their answer, running ones
+ * re-attach to the stream.
+ */
+const IN_FLIGHT = 'workbench_ask_in_flight'
+
+function remember(taskId: string, question: string) {
+  try {
+    window.sessionStorage.setItem(IN_FLIGHT, JSON.stringify({ taskId, question }))
+  } catch {
+    // Private browsing or blocked site data. The question still runs; it just
+    // will not be waiting when you come back.
+  }
+}
+
+function forget() {
+  try {
+    window.sessionStorage.removeItem(IN_FLIGHT)
+  } catch {
+    /* nothing to clean up */
+  }
+}
+
 const SUGGESTIONS = [
   'What severity applies when cladding damage exceeds 20% of an insulated section?',
   'Who must approve continued operation after a Category 3 finding?',
@@ -144,7 +172,53 @@ export function AskView() {
 
   useEventStream({ taskId, enabled: phase === 'asking', onEvent: handleEvent })
 
+  // Pick up a question left running when the page was last open.
   useEffect(() => {
+    let parked: { taskId?: string; question?: string } | null = null
+    try {
+      parked = JSON.parse(window.sessionStorage.getItem(IN_FLIGHT) || 'null')
+    } catch {
+      parked = null
+    }
+    if (!parked?.taskId) return
+
+    let live = true
+    setQuestion(parked.question || '')
+    setTaskId(parked.taskId)
+    setPhase('asking')
+    setStage('Reconnecting to a question already running')
+
+    api
+      .getTask(parked.taskId)
+      .then((task) => {
+        if (!live) return
+        if (task.answer) setAnswer(task.answer)
+        if (task.evidence) setEvidence(task.evidence)
+        const settled = ['delivered', 'approved', 'awaiting_approval', 'failed', 'cancelled']
+        if (settled.includes(String(task.status).toLowerCase())) {
+          if (String(task.status).toLowerCase() === 'failed') {
+            setError(task.error || 'That question did not complete.')
+          }
+          setPhase('answered')
+          forget()
+        }
+      })
+      .catch(() => {
+        if (!live) return
+        // The task is gone — most likely the server restarted under it.
+        forget()
+        setPhase('idle')
+        setTaskId(null)
+        setStage('')
+      })
+
+    return () => {
+      live = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (phase === 'answered') forget()
     if (phase === 'answered' && answerRef.current) {
       answerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
@@ -172,6 +246,7 @@ export function AskView() {
     try {
       const task = await api.createTask(scoped, attachable, 'answer')
       setTaskId(task.id)
+      remember(task.id, text)
     } catch (err: any) {
       setError(err?.detail || err?.message || 'The workbench could not be reached.')
       setPhase('answered')
@@ -180,6 +255,7 @@ export function AskView() {
   }
 
   const reset = () => {
+    forget()
     setQuestion('')
     setAnswer('')
     setEvidence([])

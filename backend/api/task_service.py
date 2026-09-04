@@ -53,12 +53,17 @@ class TaskService:
         # Order of ids still waiting, so a caller can be told its position
         # rather than watching an apparently idle screen.
         self._waiting: list[str] = []
-        self._running: str | None = None
+        # Which task is executing right now, for queue positions and cancels.
+        self._active: str | None = None
         # Asked to stop. Checked between stages, so a run ends at a clean
         # boundary rather than being torn down mid-write.
         self._cancelled: set[str] = set()
         self._workers: list[asyncio.Task[None]] = []
-        self._running = False
+        # Whether the worker loop should keep going. This used to share a name
+        # with the running task id above, so clearing the id at the end of a
+        # run also ended the loop: the queue served exactly one task per
+        # process start, and everything after it sat at 'classified' forever.
+        self._alive = False
 
     # -- files -------------------------------------------------------------
     def _input_type_for(self, filename: str) -> InputType:
@@ -306,7 +311,7 @@ class TaskService:
             await self.events.publish(
                 "task.queued",
                 task_id=waiting_id,
-                data={**state, "running_task": self._running},
+                data={**state, "running_task": self._active},
             )
 
     def is_cancelled(self, task_id: str) -> bool:
@@ -342,7 +347,7 @@ class TaskService:
             self._waiting.remove(task_id)
 
         # A task that never started can be closed out at once.
-        if self._running != task_id:
+        if self._active != task_id:
             task.status = TaskStatus.CANCELLED
             task.error = "Stopped before it started."
             task.updated_at = datetime.now(timezone.utc)
@@ -355,12 +360,12 @@ class TaskService:
             actor=user.username,
             actor_role=user.role,
             task_id=task_id,
-            detail={"was_running": self._running == task_id},
+            detail={"was_running": self._active == task_id},
         )
         await self.events.publish(
             "task.cancelled",
             task_id=task_id,
-            data={"by": user.display_name, "was_running": self._running == task_id},
+            data={"by": user.display_name, "was_running": self._active == task_id},
         )
         await self._publish_queue()
         return self.get_task(task_id) or task
@@ -373,7 +378,7 @@ class TaskService:
         holds the worker is exactly the silence that makes the application look
         stuck.
         """
-        if self._running == task_id:
+        if self._active == task_id:
             return {
                 "running": True,
                 "position": 0,
@@ -381,7 +386,7 @@ class TaskService:
                 "queue_length": len(self._waiting),
             }
 
-        in_progress = 1 if self._running else 0
+        in_progress = 1 if self._active else 0
         if task_id in self._waiting:
             position = self._waiting.index(task_id) + 1
             return {
@@ -401,7 +406,7 @@ class TaskService:
         from backend.core.identity import get_identity_service
 
         identity = get_identity_service()
-        while self._running:
+        while self._alive:
             try:
                 task_id, user_id = await self._queue.get()
             except asyncio.CancelledError:
@@ -413,7 +418,7 @@ class TaskService:
                     # Dropped while it was still queued.
                     self._cancelled.discard(task_id)
                     continue
-                self._running = task_id
+                self._active = task_id
                 await self._publish_queue()
 
                 task = self.get_task(task_id)
@@ -445,13 +450,13 @@ class TaskService:
                     data={"reason": f"worker error: {exc}"},
                 )
             finally:
-                self._running = None
+                self._active = None
                 self._queue.task_done()
 
     async def start(self, worker_count: int = 1) -> None:
-        if self._running:
+        if self._alive:
             return
-        self._running = True
+        self._alive = True
         self._workers = [
             asyncio.create_task(self._worker()) for _ in range(max(1, worker_count))
         ]
@@ -495,7 +500,7 @@ class TaskService:
         return recovered
 
     async def stop(self) -> None:
-        self._running = False
+        self._alive = False
         for worker in self._workers:
             worker.cancel()
         for worker in self._workers:
