@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ShieldAlert, Loader2, Stamp, KeyRound, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Check, ShieldAlert, Loader2, Stamp, KeyRound, Sparkles, CheckCircle2, Lock, Inbox } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { ApprovalItem, Task } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -26,6 +26,10 @@ export function ApprovalsView() {
   const [loading, setLoading] = useState(true)
   const [deciding, setDeciding] = useState(false)
   const [forbidden, setForbidden] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // How many are genuinely held, read from the task list. A role that cannot
+  // open the queue can still be told the queue is not empty.
+  const [heldElsewhere, setHeldElsewhere] = useState<number | null>(null)
   const [isStamped, setIsStamped] = useState(false)
 
   const { push } = useToast()
@@ -37,42 +41,70 @@ export function ApprovalsView() {
   // Load real pending approvals from backend
   useEffect(() => {
     let mounted = true
+
+    // Always find out how many are actually held, whoever is looking. This is
+    // what makes a refusal legible: "13 waiting, not yours to release" rather
+    // than a zero that reads as "nothing to do".
+    api
+      .listTasks(200)
+      .then((rows) => {
+        if (!mounted) return
+        setHeldElsewhere(
+          (rows || []).filter((t) => String(t.status).toLowerCase() === 'awaiting_approval').length,
+        )
+      })
+      .catch(() => mounted && setHeldElsewhere(null))
+
     if (!canRead) {
       setForbidden(true)
       setLoading(false)
       return
     }
 
-    api.pendingApprovals()
+    api
+      .pendingApprovals()
       .then((tasks) => {
-        if (mounted && tasks && tasks.length > 0) {
-          const mapped: ApprovalItem[] = tasks.map((t) => ({
-            id: t.id,
-            title: t.prompt,
-            submittedBy: t.user_display_name || 'Operator',
-            submittedAt: new Date(t.created_at).toLocaleString(),
-            priority: t.profile?.sensitivity === 'restricted' ? 'CRITICAL' : 'HIGH',
-            status: t.status === 'awaiting_approval' ? 'PENDING' : (t.status === 'approved' ? 'APPROVED' : 'REJECTED'),
-            classification: (t.profile?.sensitivity?.toUpperCase() as any) || 'CONFIDENTIAL',
-            document: t.deliverables?.[0]?.filename || 'APPROVAL_NOTE.docx',
-            extractedText: t.answer || 'Deliverable held pending human review.',
-            evidence: t.evidence || [],
-            verification: (t.verification?.checks || []).map((c) => ({
-              label: c.name,
-              result: c.detail || (c.passed ? 'Verified' : 'Failed'),
-              ok: c.passed,
-            })),
-            draft: t.answer || '',
-            rawTask: t,
-          }))
-          setItems(mapped)
-          setActiveId(mapped[0]?.id || '')
-          setForbidden(false)
-        }
+        if (!mounted) return
+        setForbidden(false)
+        setLoadError(null)
+        const mapped: ApprovalItem[] = (tasks || []).map((t) => ({
+          id: t.id,
+          title: t.prompt,
+          submittedBy: t.user_display_name || 'Operator',
+          submittedAt: new Date(t.created_at).toLocaleString(),
+          priority: t.profile?.sensitivity === 'restricted' ? 'CRITICAL' : 'HIGH',
+          status:
+            t.status === 'awaiting_approval'
+              ? 'PENDING'
+              : t.status === 'approved'
+                ? 'APPROVED'
+                : 'REJECTED',
+          classification: (t.profile?.sensitivity?.toUpperCase() as any) || 'CONFIDENTIAL',
+          // No placeholder filename. A task held before its deliverable was
+          // rendered has none, and inventing one sends the reviewer to a
+          // download that 404s.
+          document: t.deliverables?.[0]?.filename || '',
+          extractedText: t.answer || 'Deliverable held pending human review.',
+          evidence: t.evidence || [],
+          verification: (t.verification?.checks || []).map((c) => ({
+            label: c.name,
+            result: c.detail || (c.passed ? 'Verified' : 'Failed'),
+            ok: c.passed,
+          })),
+          draft: t.answer || '',
+          rawTask: t,
+        }))
+        setItems(mapped)
+        setActiveId(mapped[0]?.id || '')
       })
       .catch((err) => {
-        if (err.status === 403) {
-          if (mounted) setForbidden(true)
+        if (!mounted) return
+        if (err?.status === 403) {
+          setForbidden(true)
+        } else {
+          // Anything else was being swallowed, leaving an empty list that
+          // looked exactly like an empty queue.
+          setLoadError(err?.detail || err?.message || 'The approval queue could not be read.')
         }
       })
       .finally(() => {
@@ -82,7 +114,7 @@ export function ApprovalsView() {
     return () => {
       mounted = false
     }
-  }, [canRead, user])
+  }, [canRead])
 
   const active = items.find((i) => i.id === activeId) ?? items[0]
   const pendingCount = items.filter((i) => i.status === 'PENDING').length
@@ -121,12 +153,65 @@ export function ApprovalsView() {
         title="Approval Queue"
         description="Air-gapped verification buffer. Deliverables are cryptographically locked until reviewed and authorized by an approved signature."
         meta={[
-          { label: 'Pending Review', value: String(pendingCount) },
+          {
+            label: 'Pending Review',
+            value: forbidden ? (heldElsewhere != null ? `${heldElsewhere} held` : '—') : String(pendingCount),
+          },
           { label: 'Reviewer Key', value: user?.display_name || role.label },
           { label: 'RBAC Clearance', value: canApprove ? 'AUTHORIZED' : 'READ-ONLY' },
         ]}
       />
 
+      {/* A role without approval rights is told what is actually happening,
+          rather than shown an empty queue it will read as "nothing to do". */}
+      {forbidden && (
+        <div className="flex flex-col gap-4 rounded-xl border border-[var(--approval)]/35 bg-[var(--approval)]/[0.05] p-6 shadow-sm sm:flex-row sm:items-start">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--approval)]/40 bg-surface">
+            <Lock className="h-5 w-5 text-[var(--approval)]" />
+          </span>
+          <div className="flex flex-col gap-2">
+            <span className="text-[15px] font-semibold text-foreground">
+              {heldElsewhere && heldElsewhere > 0
+                ? `${heldElsewhere} deliverable${heldElsewhere === 1 ? ' is' : 's are'} held — but not for you to release`
+                : 'This role cannot open the approval queue'}
+            </span>
+            <p className="max-w-2xl text-[13px] leading-relaxed text-foreground-secondary">
+              Approval is separated from execution on purpose: whoever ran the task does not
+              sign it off. Your role,{' '}
+              <span className="font-mono text-[12px] text-foreground">{role.label}</span>, holds{' '}
+              <span className="font-mono text-[12px] text-foreground">task.create</span> but not{' '}
+              <span className="font-mono text-[12px] text-foreground">approval.decide</span>, so
+              the queue is closed to it.
+            </p>
+            <p className="text-[13px] leading-relaxed text-foreground-secondary">
+              To release these, sign in as{' '}
+              <span className="font-medium text-foreground">Approving Reviewer</span> or{' '}
+              <span className="font-medium text-foreground">Platform Admin</span> using the
+              account menu at the top right.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {loadError && !forbidden && (
+        <p className="flex items-start gap-2.5 rounded-xl border border-critical/30 bg-critical/[0.04] p-4 text-[13px] leading-relaxed text-critical">
+          <ShieldAlert className="mt-px h-4 w-4 shrink-0" />
+          {loadError}
+        </p>
+      )}
+
+      {!forbidden && !loading && items.length === 0 && !loadError && (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface px-6 py-14 text-center shadow-sm">
+          <Inbox className="h-6 w-6 text-foreground-muted" />
+          <span className="text-[15px] font-medium text-foreground">Nothing is waiting</span>
+          <p className="max-w-md text-[13px] leading-relaxed text-foreground-secondary">
+            Every deliverable produced on this host has been released or returned. Runs that
+            need a signature will appear here the moment they finish.
+          </p>
+        </div>
+      )}
+
+      {!forbidden && items.length > 0 && (
       <div className="grid grid-cols-1 gap-6 border border-border lg:grid-cols-[360px_1fr]">
         {/* Item List */}
         <div className="flex flex-col border-b border-border bg-surface lg:border-b-0 lg:border-r">
@@ -200,8 +285,17 @@ export function ApprovalsView() {
                 <TechnicalLabel>Task Directive</TechnicalLabel>
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">{active.title}</h3>
                 <p className="font-mono text-[11px] text-foreground-muted">
-                  Submitted by {active.submittedBy} at {active.submittedAt} · Document target:{' '}
-                  <span className="text-foreground">{active.document}</span>
+                  Submitted by {active.submittedBy} at {active.submittedAt}
+                  {/* Answer-only runs write no file, so the label is dropped
+                      rather than left dangling over an empty value. */}
+                  {active.document ? (
+                    <>
+                      {' · Document target: '}
+                      <span className="text-foreground">{active.document}</span>
+                    </>
+                  ) : (
+                    ' · Answer only — no document to release'
+                  )}
                 </p>
               </div>
 
@@ -301,6 +395,7 @@ export function ApprovalsView() {
           </div>
         )}
       </div>
+      )}
 
       {/* Confirmation Modal */}
       <Modal
