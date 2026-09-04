@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { api, getAuthToken, setAuthToken } from '@/lib/api'
+import { api, setAuthToken } from '@/lib/api'
 import { ROLES } from '@/lib/presentation'
 import type { Role, RoleId, User } from '@/lib/types'
 
@@ -17,7 +17,7 @@ interface RoleContextValue {
   role: Role
   loading: boolean
   authenticated: boolean
-  setRole: (id: RoleId) => void
+  setRole: (id: RoleId) => Promise<void>
   login: (username: string, password?: string) => Promise<void>
   logout: () => Promise<void>
   can: (capabilityOrPermission: string) => boolean
@@ -33,12 +33,13 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const role = ROLES.find((r) => r.id === roleId) ?? ROLES[0]
 
   const refreshUser = useCallback(async () => {
-    const token = getAuthToken()
-    if (!token) {
-      setLoading(false)
-      return
-    }
-
+    // Ask regardless of what is in storage.
+    //
+    // The session also lives in an HttpOnly cookie, which survives a browser
+    // restart when sessionStorage does not. Checking only storage meant the
+    // API happily served an authenticated user while the interface showed
+    // them as signed out — including on the chip that names whoever is about
+    // to approve something.
     try {
       const current = await api.me()
       setUser(current)
@@ -79,12 +80,24 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   }
 
   const setRoleAndSwitch = async (id: RoleId) => {
-    setRoleId(id)
-    // Attempt background login with standard seed password if available
+    // The label follows the server, it never leads it.
+    //
+    // Setting the role locally and then swallowing a failed sign-in left the
+    // interface showing a reviewer's screens while the server still saw an
+    // engineer: approving then failed with a bare permission error and no
+    // explanation of why. The role only changes if the sign-in succeeded.
+    setLoading(true)
     try {
       await login(id, 'workbench')
-    } catch {
-      // Offline fallback: keep local role state
+      setRoleId(id)
+    } catch (err: any) {
+      throw new Error(
+        err?.detail ||
+          `Could not sign in as '${id}'. That account may not exist on this ` +
+            `host, or it does not use the default password.`
+      )
+    } finally {
+      setLoading(false)
     }
   }
 

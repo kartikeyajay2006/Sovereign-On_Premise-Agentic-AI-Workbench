@@ -281,17 +281,12 @@ export function ConsoleView() {
   }
 
   const applyTemplate = (t: (typeof CONSOLE_TEMPLATES)[0]) => {
+    // Fill in the request only. Attachments used to be invented here — file
+    // rows appeared with plausible sizes for documents that had never been
+    // uploaded, and the task then ran against nothing. The template names the
+    // file to attach instead, and the person attaches it.
     setPrompt(t.prompt)
     setFormat(t.format)
-    setFiles(
-      t.files.map((name, i) => ({
-        id: `tpl-${i}-${name}`,
-        name,
-        sizeKb: 140 + i * 80,
-        progress: 100,
-        classification: 'CONFIDENTIAL',
-      }))
-    )
   }
 
   return (
@@ -331,7 +326,9 @@ export function ConsoleView() {
                     <span className="line-clamp-2 text-[12px] leading-snug text-foreground-secondary">{t.prompt}</span>
                     <div className="mt-2 flex items-center gap-2">
                       <span className="font-mono text-[10px] text-foreground-muted">.{t.format}</span>
-                      <span className="font-mono text-[10px] text-foreground-muted">· {t.files.length} file(s)</span>
+                      <span className="font-mono text-[10px] text-foreground-muted">
+                        · {t.attach ? 'attach the named file' : 'no attachment needed'}
+                      </span>
                     </div>
                   </button>
                 ))}

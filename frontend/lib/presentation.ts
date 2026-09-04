@@ -80,28 +80,28 @@ export const SOVEREIGN_NODES = [
 
 export const CONSOLE_TEMPLATES = [
   {
-    id: 't1',
-    title: 'Approval note from scanned inspection report',
+    id: 'approval-note',
+    title: 'Approval note from a scanned report',
     prompt:
-      'Extract equipment details from the attached ultrasonic survey IR-8830 and draft an approval note for Sour Service Feed Drum V-4102 according to SOP-014.',
+      'Read the attached scanned inspection report for vessel V-2104 and prepare an approval note based on our approved SOPs. State the governing location, the corrosion rate and remaining life with the inputs used, the severity and the clause it rests on, and who must approve it.',
     format: 'docx',
-    files: ['UT-Survey-IR-8830.pdf', 'SOP-014-Sour-Service.md'],
+    attach: 'sample_data/inspection/scanned-inspection-report-V-2104.pdf',
   },
   {
-    id: 't2',
-    title: 'Sandboxed calculation of corrosion & remaining life',
+    id: 'corrosion-calc',
+    title: 'Corrosion rate and remaining life',
     prompt:
-      'Calculate remaining life and next inspection interval for Vessel V-4102 using nominal wall 14mm, measured 11.4mm, t-min 9.8mm and corrosion rate 0.19mm/yr.',
+      'Using the attached thickness survey for V-2104, calculate the corrosion rate and remaining life for every location against a minimum allowable thickness of 6.0 mm, and identify which location governs.',
     format: 'xlsx',
-    files: ['Wall-Thickness-Log.csv'],
+    attach: 'sample_data/datasets/V-2104-thickness-survey.csv',
   },
   {
-    id: 't3',
-    title: 'P&ID / Drawing OCR extraction',
+    id: 'procedure-question',
+    title: 'What do our procedures require?',
     prompt:
-      'Parse the attached Unit 400 revamp drawing, extract all line numbers, tags, and design pressures, and verify isolation valves against safety guidelines.',
-    format: 'docx',
-    files: ['PID-Unit400-Revamp.pdf'],
+      'What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve continued operation? Cite the clauses.',
+    format: 'answer',
+    attach: null,
   },
 ]
 

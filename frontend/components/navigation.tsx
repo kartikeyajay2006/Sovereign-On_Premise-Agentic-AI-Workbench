@@ -25,7 +25,7 @@ export function Navigation() {
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-[80] px-3 pt-3 sm:px-5 sm:pt-5">
-      <nav className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[10px] border border-border bg-surface/90 px-3 py-2.5 shadow-[0_2px_24px_rgba(0,0,0,0.06)] backdrop-blur-md sm:px-4">
+      <nav className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[10px] border border-border bg-surface px-3 py-2.5 shadow-[0_2px_24px_rgba(0,0,0,0.06)] sm:px-4">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center rounded-[3px] bg-foreground">

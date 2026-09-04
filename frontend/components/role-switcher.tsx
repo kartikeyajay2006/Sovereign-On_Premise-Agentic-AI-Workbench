@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 
 export function RoleSwitcher() {
   const { role, setRole, user, logout } = useRole()
+  const [switchError, setSwitchError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
 
@@ -51,12 +52,19 @@ export function RoleSwitcher() {
             </span>
           </div>
           <div className="divide-y divide-border">
+            {switchError && (
+              <p className="border-b border-border bg-surface px-3 py-2 text-[12px] leading-relaxed text-critical">
+                {switchError}
+              </p>
+            )}
             {ROLES.map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => {
-                  setRole(r.id)
+                  setRole(r.id).catch((err: any) => {
+                    setSwitchError(err?.message ?? 'Could not switch account')
+                  })
                   setOpen(false)
                 }}
                 className={cn(

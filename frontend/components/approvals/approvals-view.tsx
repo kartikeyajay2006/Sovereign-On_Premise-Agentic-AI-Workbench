@@ -137,8 +137,12 @@ export function ApprovalsView() {
               The <span className="font-mono text-foreground">{role.label}</span> role does not have the{' '}
               <span className="font-mono text-[12px] text-foreground">approval.read</span> permission. Under dual-control policy, only qualified Reviewers and Administrators may inspect and release held deliverables.
             </p>
-            <p className="font-mono text-[11px] text-foreground-muted">
-              Use the top-right role switcher to change to Reviewer persona.
+            <p className="max-w-md text-[13px] leading-relaxed text-foreground-secondary">
+              To sign off a held document, switch to an account that may: open the
+              account menu at the top right and choose <span className="font-mono text-foreground">Approving Reviewer</span>.
+              That signs you in as the reviewer account on this host — it is a real
+              sign-in, not a change of label, so the record shows who actually
+              approved.
             </p>
           </div>
         </div>
@@ -156,7 +160,7 @@ export function ApprovalsView() {
           { label: 'Pending', value: String(pendingCount) },
           { label: 'Reviewer', value: user?.display_name || role.label },
           { label: 'Policy', value: 'DUAL-CONTROL' },
-          { label: 'Chain', value: 'VALID' },
+          { label: 'Policy basis', value: 'approval-rules.yaml' },
         ]}
       />
 
