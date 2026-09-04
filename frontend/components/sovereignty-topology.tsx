@@ -1,6 +1,6 @@
 'use client'
 
-import { SOVEREIGN_NODES } from '@/lib/mock-data'
+import { SOVEREIGN_NODES } from '@/lib/presentation'
 
 /**
  * Local-system topology: a central host node with six surrounding subsystems.

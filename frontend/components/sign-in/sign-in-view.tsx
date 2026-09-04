@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, AlertCircle, Loader2 } from 'lucide-react'
-import { ROLES } from '@/lib/mock-data'
+import { ROLES } from '@/lib/presentation'
 import { api } from '@/lib/api'
 import type { DirectoryUser, RoleId } from '@/lib/types'
 import { SovButton } from '@/components/sov-button'
@@ -107,7 +107,7 @@ export function SignInView() {
             </span>
             <h2 className="text-2xl font-medium tracking-[-0.02em] text-foreground">Sign in</h2>
             <p className="text-[14px] leading-relaxed text-foreground-secondary">
-              Local credentials or select a demonstration persona to explore role-based access.
+              Sign in with a local account, or pick a role below to try what it can do.
             </p>
           </div>
 
@@ -124,7 +124,7 @@ export function SignInView() {
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={active.persona}
+                placeholder={active.id}
                 autoComplete="username"
                 className="border border-border-strong bg-surface px-3.5 py-3 text-[14px] text-foreground placeholder:text-foreground-muted focus:border-foreground focus:outline-none"
               />

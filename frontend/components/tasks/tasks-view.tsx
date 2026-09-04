@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Search, X, Loader2, Download, ExternalLink } from 'lucide-react'
-import { DEFAULT_PIPELINE } from '@/lib/mock-data'
+import { DEFAULT_PIPELINE } from '@/lib/presentation'
 import { api } from '@/lib/api'
 import type { Task, TaskRecord, TaskStatus, TaskSummary } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'

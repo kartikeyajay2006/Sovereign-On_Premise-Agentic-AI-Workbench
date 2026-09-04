@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { api, getAuthToken, setAuthToken } from '@/lib/api'
-import { ROLES } from '@/lib/mock-data'
+import { ROLES } from '@/lib/presentation'
 import type { Role, RoleId, User } from '@/lib/types'
 
 interface RoleContextValue {

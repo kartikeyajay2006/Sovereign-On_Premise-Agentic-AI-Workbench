@@ -6,7 +6,7 @@ import {
   CONSOLE_TEMPLATES,
   DEFAULT_PIPELINE,
   DELIVERABLE_FORMATS,
-} from '@/lib/mock-data'
+} from '@/lib/presentation'
 import { api } from '@/lib/api'
 import type { Deliverable, EvidenceItem, PipelineStage, Task, VerificationCheck } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'

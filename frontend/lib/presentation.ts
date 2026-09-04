@@ -1,6 +1,10 @@
 /**
  * Static presentation constants.
  *
+ * The `persona` on each role is a label for the demonstration roles, not a
+ * real person: never render it where a reader could take it for the signed-in
+ * user, because this system records who approved what.
+ *
  * Everything here describes the *shape* of the interface — the stages a run
  * moves through, the roles that exist, the nodes in the architecture diagram,
  * the example prompts. None of it is data about what this host has done.

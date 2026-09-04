@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, LogOut } from 'lucide-react'
-import { ROLES } from '@/lib/mock-data'
+import { ROLES } from '@/lib/presentation'
 import { useRole } from './role-context'
 import { cn } from '@/lib/utils'
 
