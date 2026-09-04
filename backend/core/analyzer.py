@@ -215,7 +215,15 @@ class TaskAnalyzer:
     ) -> tuple[bool, str | None, list[str]]:
         reasons: list[str] = []
         if requested_format:
-            return True, requested_format.lower(), [f"caller requested a {requested_format} deliverable"]
+            wanted = requested_format.strip().lower()
+            # 'answer' is the interface's way of saying "just tell me" — it is a
+            # sentinel, not a file type. Treating it as one made every plain
+            # question draft a whole structured document it then failed to
+            # render, which cost about 56 seconds a run and left deliverable
+            # records pointing at files that were never written.
+            if wanted in {"answer", "none", "text", ""}:
+                return False, None, ["caller asked for an answer, not a document"]
+            return True, wanted, [f"caller requested a {wanted} deliverable"]
 
         classes = (self.rules.get("task_types", {}).get("classes") or {})
         produces = bool((classes.get(task_type.value) or {}).get("produces_deliverable"))

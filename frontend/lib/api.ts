@@ -337,12 +337,17 @@ export const api = {
     category?: string
     actor?: string
     taskId?: string
+    // The endpoint has always accepted a free-text search; the client simply
+    // never sent one, so the audit screen could filter but not look for
+    // anything.
+    search?: string
     limit?: number
   }): Promise<AuditEvent[]> {
     const search = new URLSearchParams()
     if (params?.category && params.category !== 'ALL') search.set('category', params.category)
     if (params?.actor) search.set('actor', params.actor)
     if (params?.taskId) search.set('task_id', params.taskId)
+    if (params?.search) search.set('search', params.search)
     if (params?.limit) search.set('limit', String(params.limit))
 
     const query = search.toString() ? `?${search.toString()}` : ''

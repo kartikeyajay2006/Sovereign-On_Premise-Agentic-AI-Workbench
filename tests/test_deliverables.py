@@ -225,3 +225,35 @@ class TestOtherFormats:
     def test_unsupported_format_is_refused_clearly(self, engine: DeliverableEngine) -> None:
         with pytest.raises(ValueError, match="Unsupported deliverable format"):
             engine.render("pdf-with-signatures", task_id=TASK_ID, content=CONTENT)
+
+
+class TestAnswerOnlyProducesNoDocument:
+    """'answer' is a sentinel meaning no file, not a format to render.
+
+    Treating it as a format made every plain question run the drafting model a
+    second time to build a structured document, then fail to render it: roughly
+    56 seconds of wasted inference per question, and a deliverable record whose
+    file never existed.
+    """
+
+    @staticmethod
+    def _profile(requested: str | None):
+        from backend.core.analyzer import get_task_analyzer
+
+        return get_task_analyzer().analyze(
+            "What severity applies when cladding damage exceeds 20%?",
+            [],
+            requested_format=requested,
+        )
+
+    def test_answer_requests_no_deliverable(self) -> None:
+        for sentinel in ("answer", "ANSWER", " answer ", "none", "text", ""):
+            profile = self._profile(sentinel)
+            assert profile.produces_deliverable is False, sentinel
+            assert profile.deliverable_format is None, sentinel
+
+    def test_a_real_format_still_produces_one(self) -> None:
+        for fmt in ("docx", "xlsx", "pptx", "md"):
+            profile = self._profile(fmt)
+            assert profile.produces_deliverable is True, fmt
+            assert profile.deliverable_format == fmt, fmt
