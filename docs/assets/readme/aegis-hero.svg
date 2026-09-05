@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="AEGIS — On-Premise Agentic AI Workbench. From private data to provable outcomes.">
+  <defs>
+    <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14130F"/><stop offset="1" stop-color="#1F1D18"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#E7C77A"/><stop offset="1" stop-color="#B98A2E"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="420" fill="url(#hg)"/>
+  <g opacity=".07" fill="#F7F5F0">
+    <circle cx="1055" cy="96" r="1.6"/><circle cx="1105" cy="146" r="1.6"/><circle cx="1005" cy="146" r="1.6"/>
+    <circle cx="1055" cy="196" r="1.6"/><circle cx="1155" cy="96" r="1.6"/><circle cx="955" cy="96" r="1.6"/>
+  </g>
+
+  <!-- shield mark -->
+  <g transform="translate(64,58)">
+    <path d="M22 0 L44 9 V26 C44 39 34 49 22 53 C10 49 0 39 0 26 V9 Z" fill="none" stroke="url(#gold)" stroke-width="2"/>
+    <path d="M22 13 L31 17 V27 C31 34 27 39 22 41 C17 39 13 34 13 27 V17 Z" fill="#16A34A" opacity=".9"/>
+  </g>
+
+  <text x="128" y="86" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="7" fill="#F7F5F0">AEGIS</text>
+  <text x="130" y="108" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11.5" letter-spacing="4.2" fill="#8C877C">ON-PREMISE AGENTIC AI WORKBENCH</text>
+
+  <text x="64" y="196" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="52" font-weight="800" letter-spacing="-1.4" fill="#F7F5F0">FROM PRIVATE DATA</text>
+  <text x="64" y="254" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="52" font-weight="800" letter-spacing="-1.4" fill="url(#gold)">TO PROVABLE OUTCOMES.</text>
+
+  <text x="64" y="294" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="14.5" fill="#A9A498">Local intelligence for sensitive workflows — governed model routing, evidence-grounded reasoning,</text>
+  <text x="64" y="315" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="14.5" fill="#A9A498">constrained execution, independent verification, human approval and tamper-evident audit.</text>
+
+  <!-- four stages -->
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
+    <g transform="translate(64,352)">
+      <rect width="238" height="46" rx="5" fill="#16A34A" opacity=".12"/><rect width="238" height="46" rx="5" fill="none" stroke="#16A34A" stroke-width="1" opacity=".55"/>
+      <text x="14" y="20" font-size="10" letter-spacing="2" fill="#16A34A">01</text>
+      <text x="38" y="20" font-size="12.5" letter-spacing="2.4" fill="#F7F5F0">UNDERSTAND</text>
+      <text x="14" y="36" font-size="9.5" fill="#8C877C">documents → traceable evidence</text>
+    </g>
+    <g transform="translate(318,352)">
+      <rect width="238" height="46" rx="5" fill="#0284C7" opacity=".12"/><rect width="238" height="46" rx="5" fill="none" stroke="#0284C7" stroke-width="1" opacity=".55"/>
+      <text x="14" y="20" font-size="10" letter-spacing="2" fill="#38BDF8">02</text>
+      <text x="38" y="20" font-size="12.5" letter-spacing="2.4" fill="#F7F5F0">DECIDE</text>
+      <text x="14" y="36" font-size="9.5" fill="#8C877C">right model · right task · right budget</text>
+    </g>
+    <g transform="translate(572,352)">
+      <rect width="238" height="46" rx="5" fill="#C2620C" opacity=".12"/><rect width="238" height="46" rx="5" fill="none" stroke="#C2620C" stroke-width="1" opacity=".55"/>
+      <text x="14" y="20" font-size="10" letter-spacing="2" fill="#F59E0B">03</text>
+      <text x="38" y="20" font-size="12.5" letter-spacing="2.4" fill="#F7F5F0">EXECUTE</text>
+      <text x="14" y="36" font-size="9.5" fill="#8C877C">code runs · network doesn't</text>
+    </g>
+    <g transform="translate(826,352)">
+      <rect width="238" height="46" rx="5" fill="#7C3AED" opacity=".12"/><rect width="238" height="46" rx="5" fill="none" stroke="#7C3AED" stroke-width="1" opacity=".55"/>
+      <text x="14" y="20" font-size="10" letter-spacing="2" fill="#A78BFA">04</text>
+      <text x="38" y="20" font-size="12.5" letter-spacing="2.4" fill="#F7F5F0">PROVE</text>
+      <text x="14" y="36" font-size="9.5" fill="#8C877C">evidence · policy · human · hash</text>
+    </g>
+  </g>
+
+  <!-- posture chip -->
+  <g transform="translate(940,60)" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
+    <rect width="196" height="30" rx="15" fill="#16A34A" opacity=".1"/>
+    <rect width="196" height="30" rx="15" fill="none" stroke="#16A34A" stroke-width="1" opacity=".45"/>
+    <circle cx="18" cy="15" r="3.5" fill="#16A34A"/>
+    <text x="31" y="19" font-size="10.5" letter-spacing="1.6" fill="#16A34A">LOOPBACK INFERENCE ONLY</text>
+  </g>
+</svg>
