@@ -49,6 +49,10 @@ export function ConsoleView() {
   // filename no task record contained: 'Deliverable not found'.
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null)
   const [isHeld, setIsHeld] = useState(false)
+  // Why a dispatch failed, kept on screen rather than only in a toast that
+  // fades. If the service is down during a demo the operator needs to still be
+  // able to read the reason a minute later.
+  const [runError, setRunError] = useState<string | null>(null)
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const { push } = useToast()
@@ -132,24 +136,39 @@ export function ConsoleView() {
       const stageName = (data.status || '').toLowerCase()
       const stageMessage = data.message || ''
 
-      setStages((prev) =>
-        prev.map((s) => {
-          if (
-            s.id === stageName ||
-            (stageName.includes('plan') && s.id === 'plan') ||
-            (stageName.includes('retriev') && s.id === 'rag') ||
-            (stageName.includes('execut') && (s.id === 'code' || s.id === 'vision')) ||
-            (stageName.includes('verif') && s.id === 'verify') ||
-            (stageName.includes('approval') && s.id === 'approval') ||
-            (stageName.includes('deliver') && s.id === 'deliver')
-          ) {
-            return { ...s, status: 'active', detail: stageMessage }
-          }
-          return s
-        })
-      )
+      // Backend TaskStatus -> the stage ids actually present in
+      // DEFAULT_PIPELINE. The previous mapping tested for 'rag', 'code',
+      // 'vision', 'approval' and 'deliver', none of which are ids in that
+      // list, so five of the seven stages could never light from a real
+      // event. Only 'plan' and 'verify' were reachable.
+      const STATUS_TO_STAGE: Record<string, string> = {
+        classified: 'classify',
+        planned: 'plan',
+        retrieving: 'retrieve',
+        executing: 'sandbox',
+        verifying: 'verify',
+      }
+      const target = STATUS_TO_STAGE[stageName]
 
-      if (stageName === 'delivered' || stageName === 'awaiting_approval' || stageName === 'failed' || stageName === 'approved') {
+      if (target) {
+        setStages((prev) =>
+          prev.map((s) =>
+            s.id === target
+              ? { ...s, status: 'active', detail: stageMessage }
+              : // anything earlier that was still running has now been passed
+                s.status === 'active'
+                ? { ...s, status: 'done' }
+                : s,
+          ),
+        )
+      }
+
+      if (
+        stageName === 'delivered' ||
+        stageName === 'awaiting_approval' ||
+        stageName === 'failed' ||
+        stageName === 'approved'
+      ) {
         setIsHeld(stageName === 'awaiting_approval')
         if (data.task) {
           setActiveTask(data.task)
@@ -162,14 +181,38 @@ export function ConsoleView() {
             })
           }
         }
+
+        // Only stages this run actually reached are marked done. Stages that
+        // never received an event are marked skipped, not done: this backend
+        // does not report every stage separately, and painting the whole
+        // pipeline green claimed work the run never reported doing. A board
+        // that shows what was skipped is the more credible one.
         setStages((prev) =>
-          prev.map((s) => ({
-            ...s,
-            status: s.id === 'approval' && stageName === 'awaiting_approval' ? 'held' : 'done',
-          }))
+          prev.map((s) => {
+            if (stageName === 'failed') {
+              return s.status === 'active' ? { ...s, status: 'failed' } : s
+            }
+            if (s.status === 'active' || s.status === 'done') {
+              return { ...s, status: 'done' }
+            }
+            return { ...s, status: 'skipped' }
+          }),
         )
         setPhase('result')
       }
+    }
+
+    // Stages the backend reports as their own events rather than as a status.
+    if (name === 'task.extraction') {
+      setStages((prev) =>
+        prev.map((s) => (s.id === 'read' ? { ...s, status: 'done' } : s)),
+      )
+    }
+
+    if (name === 'task.draft') {
+      setStages((prev) =>
+        prev.map((s) => (s.id === 'draft' ? { ...s, status: 'done' } : s)),
+      )
     }
 
     if (name === 'task.model_selected') {
@@ -223,6 +266,7 @@ export function ConsoleView() {
   // Submit task to backend
   const run = async () => {
     clearTimers()
+    setRunError(null)
     setPhase('running')
     const fresh = DEFAULT_PIPELINE.map((s) => ({ ...s, status: 'pending' as const }))
     setStages(fresh)
@@ -246,45 +290,36 @@ export function ConsoleView() {
         prev.map((s, idx) => (idx === 0 ? { ...s, status: 'active' } : s))
       )
     } catch (err: any) {
-      // If backend is in test/offline preview mode, simulate pipeline execution gracefully
-      console.warn('[console] Task creation fallback simulation:', err.message)
-      const reduced =
-        typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const stepMs = reduced ? 60 : 620
-      const order = fresh.map((s) => s.id)
+      // A failed dispatch is shown as a failed dispatch.
+      //
+      // This block used to walk every stage to green on a timer and announce
+      // "Execution completed · Deliverable generated" when createTask threw.
+      // Nothing had run. An unreachable backend rendered as a finished task
+      // with a deliverable, which is the one outcome this product cannot ever
+      // show: the screen is the evidence. It also contradicted the refusal to
+      // fall back to sample data in lib/api.ts, one import away.
+      //
+      // The stage the request died at is marked failed, the rest stay pending
+      // because they were never attempted, and the error surfaces verbatim.
+      console.error('[console] Task dispatch failed:', err)
 
-      order.forEach((stageId, i) => {
-        timers.current.push(
-          setTimeout(() => {
-            setStages((prev) =>
-              prev.map((s) => (s.id === stageId ? { ...s, status: 'active' } : s))
-            )
-          }, i * stepMs)
-        )
-        timers.current.push(
-          setTimeout(() => {
-            setStages((prev) =>
-              prev.map((s) =>
-                s.id === stageId
-                  ? { ...s, status: stageId === 'approval' ? 'held' : 'done' }
-                  : s
-              )
-            )
-          }, i * stepMs + stepMs * 0.7)
-        )
-      })
-
-      timers.current.push(
-        setTimeout(() => {
-          setIsHeld(true)
-          setPhase('result')
-          push({
-            title: 'Execution completed',
-            detail: 'Deliverable generated · held pending approval',
-            tone: 'approval',
-          })
-        }, order.length * stepMs + 300)
+      setStages((prev) =>
+        prev.map((s, idx) =>
+          idx === 0
+            ? { ...s, status: 'failed', detail: err?.message || 'Dispatch failed' }
+            : { ...s, status: 'pending' },
+        ),
       )
+      setRunError(err?.message || 'Cannot reach the local workbench service')
+      setPhase('idle')
+      push({
+        title: 'Task not dispatched',
+        detail:
+          err?.status === 0
+            ? 'The local workbench service is unreachable. Nothing was executed.'
+            : err?.message || 'The backend refused the request. Nothing was executed.',
+        tone: 'critical',
+      })
     }
   }
 
@@ -314,6 +349,7 @@ export function ConsoleView() {
     setPrompt('')
     setFiles([])
     setUploadedFileIds([])
+    setRunError(null)
   }
 
   // Which subsystem is busy right now, so the diagram shows the actual run.
@@ -592,6 +628,24 @@ export function ConsoleView() {
                     </div>
                   )}
                 </div>
+
+                {runError && (
+                  <div
+                    role="alert"
+                    className="mt-4 border border-critical bg-critical/5 px-4 py-3"
+                  >
+                    <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-critical">
+                      Task not dispatched
+                    </div>
+                    <p className="mt-1.5 font-mono text-[12px] leading-relaxed text-foreground">
+                      {runError}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-relaxed text-foreground-secondary">
+                      No stage ran and nothing was written. Start the workbench
+                      service on 127.0.0.1:8000 and dispatch again.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
