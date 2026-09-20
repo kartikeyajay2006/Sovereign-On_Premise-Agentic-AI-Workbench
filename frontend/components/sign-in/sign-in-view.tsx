@@ -1,27 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Check,
   AlertCircle,
   Loader2,
-  ArrowRight,
-  ShieldCheck,
-  Cpu,
   Lock,
-  FileSearch,
-  X,
   Mail,
-  KeyRound,
   Eye,
   EyeOff,
-  Layers,
-  Server,
   Shield,
   Users,
-  Sparkles,
-  CheckCircle2,
 } from 'lucide-react'
 import { ROLES } from '@/lib/presentation'
 import { api } from '@/lib/api'
@@ -31,7 +21,6 @@ import { TechnicalLabel } from '@/components/primitives'
 import { AnimatedTechnicalBackground } from '@/components/animated-technical-background'
 import { useRole } from '@/components/role-context'
 import { cn } from '@/lib/utils'
-import { ThreeDLayerView } from '@/components/three-d-layer-view'
 import { AegisLogo } from '@/components/aegis-logo'
 import {
   googleProvider,
@@ -44,15 +33,6 @@ import {
 } from '@/lib/firebase'
 
 export function SignInView() {
-  const [hostStatus, setHostStatus] = useState<any>(null)
-
-  useEffect(() => {
-    fetch('/api/status', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setHostStatus)
-      .catch(() => setHostStatus(null))
-  }, [])
-
   const router = useRouter()
   const { login } = useRole()
   const [persona, setPersona] = useState<RoleId>('engineer')
@@ -67,8 +47,6 @@ export function SignInView() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // How It Works Modal State
-  const [showHowItWorks, setShowHowItWorks] = useState(false)
 
   const activePersona = ROLES.find((r) => r.id === persona) ?? ROLES[0]
 
@@ -177,63 +155,34 @@ export function SignInView() {
             sandboxed computations, and immutable audit logs never leave your physical premises.
           </p>
 
-          {/* Interactive 3D Architecture Preview Banner */}
-          <button
-            type="button"
-            onClick={() => setShowHowItWorks(true)}
-            className="group mt-2 flex items-center justify-between gap-4 rounded-lg border border-border bg-surface-sunken/60 p-4 text-left transition-all duration-200 hover:border-foreground/40 hover:bg-surface-sunken hover:shadow-sm"
-          >
-            <div className="flex items-center gap-3.5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--sovereign)]/30 bg-[var(--sovereign)]/10 text-[var(--sovereign)] transition-colors group-hover:bg-[var(--sovereign)] group-hover:text-white">
-                <Layers className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-mono text-[12px] font-bold text-foreground flex items-center gap-1.5">
-                  Interactive System Architecture 3D Stack
-                  <span className="rounded bg-[var(--sovereign)]/15 px-1.5 py-0.2 font-mono text-[9px] font-bold text-[var(--sovereign)]">
-                    4-TIER
-                  </span>
-                </span>
-                <span className="text-[12px] text-foreground-muted">
-                  Explore document parsing, local model routing, gVisor sandbox & hash chain.
-                </span>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 shrink-0 text-foreground-muted transition-transform duration-200 group-hover:translate-x-1 group-hover:text-foreground" />
-          </button>
         </div>
 
-        {/* Industrial Telemetry Grid */}
-        <div className="relative z-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded border border-border bg-surface-sunken/50 p-3.5 transition-colors hover:border-foreground/30">
+        {/*
+          Nothing on this screen is measured.
+
+          A sign-in page runs before there is a session, so the frontend cannot
+          ask the API for egress counters, resident models or the state of the
+          audit chain. Earlier revisions printed "0 DETECTED", "Qwen Resident"
+          and "SHA-256 Valid" here as literals, which stated a verified posture
+          the page had no way to check — on the one screen a visitor sees before
+          they can verify anything for themselves.
+
+          What is left is the configured endpoint, which is a fact about this
+          build rather than a claim about the running host. The posture figures
+          live behind sign-in, where they come from the API and can be wrong.
+        */}
+        <div className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded border border-border bg-surface-sunken/50 p-3.5">
             <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">HOST INTERFACE</span>
             <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] font-bold text-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
               127.0.0.1:8000
             </div>
           </div>
 
-          <div className="rounded border border-border bg-surface-sunken/50 p-3.5 transition-colors hover:border-foreground/30">
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">EXTERNAL EGRESS</span>
-            <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] font-bold text-[var(--sovereign)]">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              0 DETECTED
-            </div>
-          </div>
-
-          <div className="rounded border border-border bg-surface-sunken/50 p-3.5 transition-colors hover:border-foreground/30">
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">LOCAL RUNTIME</span>
-            <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] font-bold text-foreground">
-              <Cpu className="h-3.5 w-3.5 text-foreground-muted" />
-              Qwen Resident
-            </div>
-          </div>
-
-          <div className="rounded border border-border bg-surface-sunken/50 p-3.5 transition-colors hover:border-foreground/30">
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">AUDIT INTEGRITY</span>
-            <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] font-bold text-[var(--sovereign)]">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              SHA-256 Valid
+          <div className="rounded border border-border bg-surface-sunken/50 p-3.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">SOVEREIGNTY POSTURE</span>
+            <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] text-foreground-secondary">
+              Reported after sign-in
             </div>
           </div>
         </div>
@@ -536,53 +485,6 @@ export function SignInView() {
         </div>
       </section>
 
-      {/* How It Works 3D Architecture Modal */}
-      {showHowItWorks && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative flex w-full max-w-[1500px] max-h-[90vh] flex-col overflow-y-auto rounded-[14px] border border-border bg-surface shadow-2xl p-6 sm:p-8 text-foreground">
-            {/* Header with Close button */}
-            <div className="flex items-center justify-between border-b border-border pb-4 mb-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--sovereign)]/15 text-[var(--sovereign)] font-mono text-xs font-bold border border-[var(--sovereign)]/30">
-                  3D
-                </span>
-                <div className="flex flex-col">
-                  <span className="font-mono text-[13px] font-bold uppercase tracking-wider text-foreground">
-                    SYSTEM ARCHITECTURE 3D LAYER VISUALIZATION
-                  </span>
-                  <span className="font-mono text-[10px] text-foreground-muted">
-                    Aegis Agentic AI Workbench · 4-Tier Isolation Stack
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowHowItWorks(false)}
-                className="rounded-md p-1.5 text-foreground-muted hover:bg-surface-sunken hover:text-foreground transition-colors cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* 3D Layer Component */}
-            <ThreeDLayerView onClose={() => setShowHowItWorks(false)} />
-
-            {/* Footer */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-              <span className="font-mono text-[11px] text-foreground-muted">
-                100% Air-Gapped · Zero External Telemetry · Local Memory Execution
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowHowItWorks(false)}
-                className="rounded-md bg-foreground px-5 py-2 font-mono text-[12px] font-bold text-background hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
-              >
-                Close 3D View
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
