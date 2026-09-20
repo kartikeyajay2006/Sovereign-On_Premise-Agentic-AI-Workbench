@@ -1,0 +1,844 @@
+                                                                                                                                     AEGIS | SIH Implementation Roadmap
+
+                 AEGIS
+
+           SIH IMPLEMENTATION ROADMAP
+
+              What to implement, how to implement it, and in what order
+                                                       Objective
+
+Transform the current AEGIS prototype into a demonstrably secure, verifiable, industrial-grade
+                                                      sovereign AI system.
+
+     Recommended build order: Foundation -> Security -> Correctness -> Knowledge -> Industrial
+                                      Intelligence -> Governance -> Proof -> Hardening
+
+                                                    Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                  AEGIS | SIH Implementation Roadmap
+
+Implementation Sequence
+
+Follow this order strictly. The earlier layers are dependencies for the later ones. Do not spend time on extra
+infrastructure or cosmetic UI before the evidence, security, verification, and proof chain is reliable.
+
+Phase    Area                     Primary goal                      Exit condition
+Phase 1  Foundation
+Phase 2  Security                 PDF completeness, evidence        All source content is
+Phase 3  Correctness              provenance, typed citations,      complete and traceable
+Phase 4  Knowledge                unified evidence ledger
+Phase 5  Industrial Intelligence                                    Unsafe execution and
+Phase 6  Governance               Rootless sandbox, zero-           outbound access are
+Phase 7  Proof                    egress, secure file ingestion,    structurally blocked
+Phase 8  Hardening                prompt-injection protection,
+                                  DLP                               Critical outputs are
+                                                                    independently verified
+                                  Deterministic formulas,
+                                  units, claim verification,        Retrieval prefers
+                                  contradiction detection           authoritative current
+                                                                    evidence
+                                  Hybrid RAG, metadata,
+                                  revision-aware retrieval          P&ID questions can be
+                                                                    answered from a graph, not
+                                  P&ID extraction, graph            free-form guessing
+                                  construction, graph
+                                  reasoning, visual                 Every decision is
+                                  highlighting                      explainable and reviewable
+
+                                  Policy trace, routing trace,      Judges can inspect proof for
+                                  human approval, audit             a complete run
+                                  signing
+                                                                    System survives attacks,
+                                  Proof Mode, sovereignty           restarts, and offline
+                                  certificate, reproducibility,     deployment
+                                  benchmark dashboard
+
+                                  Red-team suite, crash
+                                  recovery, enterprise auth,
+                                  offline installer
+
+         Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                AEGIS | SIH Implementation Roadmap
+
+1. Fix Scanned-PDF Completeness
+
+Goal: Prevent the system from silently ignoring later pages in scanned documents.
+Main implementation areas: backend/rag/parsing.py, backend/agents/orchestrator.py
+
+How to implement
+
+1. Detect which PDF pages contain extractable text and which require rasterization/OCR/vision.
+2. Process every page; use 3-4 page batches per vision call instead of a 4-page total cap.
+3. Merge page outputs while preserving filename, page number, extraction method, and confidence.
+4. Persist each page result as independent evidence before it enters reasoning.
+
+Done when
+
+A 20-page scanned PDF can be processed end-to-end and every cited fact maps to the correct page.
+
+2. Fix Evidence Provenance
+
+Goal: Ensure every fact points to the exact source file/page/region from which it came.
+Main implementation areas: backend/agents/orchestrator.py, backend/evidence/models.py
+
+How to implement
+
+5. Remove any fallback that attributes visual evidence to task.files[0].
+6. Create EvidenceItem fields for source_id, filename, page, bbox, modality, confidence, extraction_model, and
+
+     source_sha256.
+7. Generate one evidence item per visual/text extraction, not one merged anonymous blob.
+8. Propagate evidence IDs into downstream prompts and verifier inputs.
+
+Done when
+
+Uploading multiple files never causes a finding from one file to be attributed to another.
+
+3. Replace Regex Citations with Typed Evidence
+
+Goal: Make verification structural instead of dependent on citation string patterns.
+Main implementation areas: backend/evidence/citations.py, backend/verification/citation_verifier.py
+
+How to implement
+
+9. Define typed evidence categories: DOCUMENT, FILE, VISION, CALCULATION, EXECUTION, HUMAN.
+10. Assign stable IDs such as S12, F4, V9, C3, X2, H1.
+11. Represent claim-to-evidence links as structured objects.
+12. Use rendered citation labels only as UI; verification should operate on IDs and objects.
+
+Done when
+
+Vision, calculation, sandbox, file, document, and human evidence are all verifiable through one
+interface.
+
+4. Create the Unified Evidence Ledger
+
+Goal: Make the evidence ledger the central dependency for reasoning, verification, approvals, and audits.
+
+                                                      Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                                                                      AEGIS | SIH Implementation Roadmap
+
+Main implementation areas: backend/evidence/models.py, backend/evidence/ledger.py,
+backend/evidence/provenance.py
+
+How to implement
+
+13. Create a canonical Evidence model with task_id, source_id, location, modality, content, confidence, model,
+     and hashes.
+
+14. Force PDF, OCR, vision, spreadsheet, retrieval, calculation, sandbox, and human outputs to register
+     evidence.
+
+15. Provide ledger lookup APIs by task, source, type, page, and evidence ID.
+16. Hash evidence content so downstream reports can prove which exact source fragments were used.
+
+Done when
+
+No material claim can be produced without traceable ledger evidence or an explicit unsupported status.
+
+                                                      Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                                                                      AEGIS | SIH Implementation Roadmap
+
+5. Move Code Execution to a Rootless Container Sandbox
+
+Goal: Turn application-level safeguards into OS-enforced isolation.
+Main implementation areas: backend/sandbox/ast_guard.py, backend/sandbox/container_runner.py,
+backend/sandbox/resource_limits.py
+
+How to implement
+
+17. Keep the current AST security scanner as the first layer.
+18. Run generated Python inside rootless Podman or equivalent isolated containers.
+19. Use --network none, read-only root filesystem, non-root UID, cap-drop ALL, no-new-privileges,
+
+     CPU/memory/PID/file-size/time limits.
+20. Mount only temporary input/output directories; never mount host home, project root, SSH keys, or
+
+     container sockets.
+21. Register stdout, stderr, exit code, resource use, and policy result as execution evidence.
+
+Done when
+
+Known malicious snippets cannot access the network, host filesystem, privileged processes, or
+uncontrolled resources.
+
+6. Implement Enforceable Zero-Egress
+
+Goal: Make sovereignty a control that the OS enforces and the UI can prove.
+Main implementation areas: backend/security/network_guard.py, backend/security/egress_monitor.py,
+backend/security/sovereignty.py
+
+How to implement
+
+22. Enforce network isolation at the sandbox/container layer.
+23. Add host firewall/nftables rules appropriate to your deployment mode.
+24. Monitor runtime connection attempts and count blocked attempts, outbound connections, DNS queries, and
+
+     bytes sent.
+25. Emit task-scoped security events and expose the metrics through the API.
+26. Create automated tests that attempt HTTP, DNS, raw socket, and subprocess-based network access.
+
+Done when
+
+A malicious network attempt is blocked and the task proof shows zero successful external transmission.
+
+                                                      Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                                                                      AEGIS | SIH Implementation Roadmap
+
+7. Build a Deterministic Engineering Calculation Engine
+
+Goal: Move critical calculations out of free-form LLM arithmetic.
+Main implementation areas: backend/engineering/registry.py, backend/engineering/corrosion.py,
+backend/engineering/pressure.py, backend/engineering/piping.py
+
+How to implement
+
+27. Create a versioned formula registry.
+28. Start with formulas required by your strongest demo, such as corrosion rate and remaining life.
+29. Require the LLM to request a formula by ID and provide evidence-backed inputs.
+30. Execute formulas deterministically and register the result as calculation evidence.
+31. Store formula ID, version, inputs, output, units, and supporting evidence IDs.
+
+Done when
+
+The same inputs always produce the same result, and each numeric result has reproducible provenance.
+
+8. Add Unit-Aware Calculations
+
+Goal: Catch dimension errors and normalize engineering quantities.
+Main implementation areas: backend/engineering/units.py
+
+How to implement
+
+32. Integrate a local units library such as Pint.
+33. Parse values into quantity + unit objects.
+34. Normalize compatible units before formulas execute.
+35. Reject dimensionally invalid operations such as pressure plus thickness.
+36. Preserve original and normalized units in the evidence record.
+
+Done when
+
+Unit conversion tests pass and dimensionally invalid calculations are refused before execution.
+
+9. Build Claim-Level Verification
+
+Goal: Verify each material statement rather than only checking the final answer as a blob.
+Main implementation areas: backend/verification/claim_extractor.py,
+backend/verification/evidence_mapper.py, backend/verification/numeric_verifier.py,
+backend/verification/verifier.py
+
+How to implement
+
+37. Extract atomic claims from the drafted answer.
+38. Classify claims as factual, numerical, engineering conclusion, recommendation, or procedural.
+39. Map each claim to supporting evidence IDs.
+40. Independently recompute numerical claims when a deterministic formula exists.
+41. Mark claims as VERIFIED, SUPPORTED, UNSUPPORTED, CONFLICTED, or NEEDS_REVIEW.
+42. Prevent unsupported high-impact claims from passing the policy gateway.
+
+                                                      Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                             AEGIS | SIH Implementation Roadmap
+
+Done when
+
+The UI can open any important claim and show exactly why it was accepted, rejected, or escalated.
+
+10. Add Contradiction Detection
+
+Goal: Stop the system from silently choosing between conflicting documents.
+Main implementation areas: backend/verification/contradictions.py
+
+How to implement
+
+43. Compare normalized values, dates, statuses, and key assertions across evidence items.
+44. Flag disagreements such as 18 bar vs 16 bar or active vs superseded procedures.
+45. Raise task risk automatically when high-severity conflicts appear.
+46. Require human review for unresolved high-impact conflicts.
+47. Show both conflicting sources side-by-side in the UI.
+
+Done when
+
+Conflicting evidence produces an explicit conflict object and blocks unsupported automatic conclusions.
+
+           Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                        AEGIS | SIH Implementation Roadmap
+
+11. Upgrade to Hybrid Industrial RAG
+
+Goal: Improve recall while preserving authority, metadata, and source control.
+Main implementation areas: backend/rag/bm25.py, backend/rag/hybrid.py, backend/rag/reranker.py,
+backend/rag/metadata.py
+
+How to implement
+
+48. Run BM25 lexical retrieval and dense embedding retrieval in parallel.
+49. Merge candidates and rerank them locally.
+50. Attach metadata including document ID, page, section, revision, effective date, department, classification,
+
+     and equipment tags.
+51. Apply policy and metadata filters before evidence reaches the model.
+52. Register every retrieved chunk as document evidence.
+
+Done when
+
+Relevant answers retrieve the correct passage while respecting classification and metadata constraints.
+
+12. Add Document Revision Intelligence
+
+Goal: Prefer the currently authoritative instruction instead of merely the semantically closest one.
+Main implementation areas: backend/knowledge/document_registry.py,
+backend/knowledge/revision_manager.py
+
+How to implement
+
+53. Create a document identity separate from a file upload.
+54. Track revision, effective date, supersedes relationship, and ACTIVE/SUPERSEDED/EXPIRED status.
+55. Default normal retrieval to ACTIVE documents.
+56. Allow historical retrieval only in audit mode or when specifically requested.
+57. Warn when evidence comes from an older revision and show the current replacement.
+
+Done when
+
+Queries automatically use the active revision unless the user explicitly requests historical material.
+
+13. Implement Prompt-Injection Protection for Documents
+
+Goal: Treat uploaded content as untrusted evidence, never as authority.
+Main implementation areas: backend/security/prompt_injection.py, backend/security/content_sanitizer.py
+
+How to implement
+
+58. Separate system policy, user request, retrieved document content, and tool output in prompt construction.
+59. Detect suspicious imperatives, credential requests, external URLs, encoded instructions, or requests to
+
+     override policy.
+60. Assign injection risk to evidence and quarantine high-risk content from tool authorization.
+61. Ensure document text can provide facts but cannot grant permissions or change system instructions.
+62. Create adversarial tests with malicious PDF content.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                  AEGIS | SIH Implementation Roadmap
+
+Done when
+
+A malicious document can be read as evidence without gaining control over tools, policy, or system
+prompts.
+
+14. Secure File Ingestion
+
+Goal: Treat every upload as potentially malformed or hostile.
+Main implementation areas: backend/security/file_guard.py
+
+How to implement
+
+63. Normalize filenames and reject path traversal patterns.
+64. Validate file size, extension, and actual MIME/magic bytes.
+65. Add archive-bomb protections and limits for nested archives.
+66. Detect embedded scripts/macros where relevant.
+67. Hash the file, place it in quarantine, then pass only validated files to parsers.
+
+Done when
+
+Malformed, mislabeled, oversized, or path-traversal files are blocked before parsing.
+
+15. Improve Data Classification with Local DLP
+
+Goal: Escalate sensitivity based on actual content, not only labels or keywords.
+Main implementation areas: backend/security/dlp.py
+
+How to implement
+
+68. Detect credentials, private keys, API tokens, email, phone, employee IDs, and relevant regulated identifiers.
+69. Add industrial patterns for plant tags, topology, proprietary operating data, and security-sensitive content.
+70. Combine explicit user label, document label, DLP detection, and task classifier.
+71. Use highest-severity-wins for automatic classification escalation.
+72. Require authority for declassification.
+
+Done when
+
+Sensitive content automatically raises the effective classification and restricts models/tools accordingly.
+
+           Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                          AEGIS | SIH Implementation Roadmap
+
+16. Build the P&ID Intelligence Engine
+
+Goal: Create a flagship industrial capability based on explicit topology rather than image-only interpretation.
+Main implementation areas: backend/pid/parser.py, backend/pid/ocr.py, backend/pid/symbol_detector.py,
+backend/pid/line_detector.py, backend/pid/graph.py
+
+How to implement
+
+73. Render/vector-parse the P&ID into a consistent page coordinate system.
+74. Extract equipment and instrument tags using OCR/text extraction.
+75. Detect symbols for pumps, vessels, valves, exchangers, instruments, and other target classes.
+76. Detect lines, junctions, and flow-direction arrows.
+77. Construct graph nodes and edges carrying page/bbox/confidence provenance.
+78. Register each detected entity and connection as evidence.
+
+Done when
+
+A test P&ID becomes a machine-readable graph whose nodes/edges can be traced back to exact diagram
+regions.
+
+17. Add P&ID Graph Reasoning
+
+Goal: Answer topology questions through deterministic graph traversal.
+Main implementation areas: backend/pid/topology.py, backend/pid/query.py
+
+How to implement
+
+79. Implement upstream, downstream, neighbors, shortest path, connected instruments, and candidate
+     isolation boundary queries.
+
+80. Have the LLM translate natural language into constrained graph operations.
+81. Run graph traversal deterministically.
+82. Return graph evidence and only then let the model explain the result.
+83. Reject questions that require unsupported engineering inference beyond the graph.
+
+Done when
+
+Queries such as upstream/downstream/path/isolation return reproducible graph-based results.
+
+18. Build an Interactive P&ID Evidence Viewer
+
+Goal: Make graph reasoning visually inspectable during the demo.
+Main implementation areas: frontend P&ID viewer components, backend P&ID overlay API
+
+How to implement
+
+84. Display the source P&ID page.
+85. Overlay bounding boxes for selected equipment/instruments.
+86. Highlight graph paths and isolation candidates.
+87. Allow clicking a result to open tag, confidence, page, bbox, and evidence ID.
+88. Provide a side panel showing the graph operation used.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+           AEGIS | SIH Implementation Roadmap
+
+Done when
+
+A judge can visually confirm that the system answer matches the highlighted diagram path.
+
+           Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                              AEGIS | SIH Implementation Roadmap
+
+19. Make Model Routing Benchmark-Aware
+
+Goal: Select the smallest qualified model based on policy, capability, hardware, and measured quality.
+Main implementation areas: backend/models/benchmark_registry.py, backend/models/benchmark_runner.py,
+backend/models/router.py
+
+How to implement
+
+89. Keep policy eligibility as the first hard gate.
+90. Keep installed-model and capability requirements as hard gates.
+91. Add measured quality, p50/p95 latency, and memory consumption by task type.
+92. Score only eligible candidates.
+93. Persist the candidate list and final routing explanation for Proof Mode.
+
+Done when
+
+Every model selection can be explained from measured and policy-constrained inputs.
+
+20. Verify Model Integrity
+
+Goal: Prevent unauthorized local model replacement.
+Main implementation areas: config/model-manifest.json, backend/models/integrity.py
+
+How to implement
+
+94. Maintain approved model names/digests, quantization, source, license, classifications, and benchmark
+     version.
+
+95. Check installed model digest against the manifest at startup and before sensitive runs.
+96. Block mismatched or unapproved models.
+97. Record the selected model digest in each task proof.
+
+Done when
+
+Tampering with or replacing a model causes a hard failure before inference.
+
+21. Create Structured Policy Decision Traces
+
+Goal: Make every authorization decision inspectable and auditable.
+Main implementation areas: backend/policy/decision.py, backend/policy/gateway.py
+
+How to implement
+
+98. Represent subject, action, resource, classification, matching rules, and final decision as a structured
+     PolicyDecision.
+
+99. Persist both ALLOW and DENY decisions.
+100. Attach policy version and rule IDs.
+101. Emit policy events through SSE and the task audit chain.
+
+Done when
+
+Every tool/model/file decision has a human-readable reason and machine-readable rule trace.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                        AEGIS | SIH Implementation Roadmap
+
+22. Build the Policy Explorer UI
+
+Goal: Expose the strength already present in the policy backend.
+Main implementation areas: frontend policy explorer
+
+How to implement
+
+102. Show requested action, user role, clearance, resource classification, matching rules, and decision.
+103. Use pass/fail checks rather than generic logs.
+104. Allow opening the exact policy rule that caused a denial.
+105. Link the decision back to the corresponding audit event.
+
+Done when
+
+A judge can understand a policy denial without reading backend logs.
+
+23. Build the Model Routing Explorer UI
+
+Goal: Expose why each candidate model was accepted or rejected.
+Main implementation areas: frontend routing explorer
+
+How to implement
+
+106. List candidate models per stage.
+107. Show capability, classification permission, installation status, memory eligibility, and benchmark score.
+108. Highlight the selected model and the exact reason.
+109. Link the selection to model digest and benchmark record.
+
+Done when
+
+The route is transparent and reproducible from visible evidence.
+
+24. Build Proof Mode
+
+Goal: Turn the full backend pipeline into an inspectable SIH demo.
+Main implementation areas: frontend Proof Mode, backend task proof API
+
+How to implement
+
+110. Add a NORMAL/PROOF toggle.
+111. Show stages: request, classification, policy, routing, evidence, retrieval, calculation, verification,
+
+     approval, deliverable, audit.
+112. Make each stage clickable and display structured evidence rather than raw logs.
+113. Show failures/denials in the same timeline.
+114. Use SSE to update the timeline live during execution.
+
+Done when
+
+A complete run can be explained visually from input to signed output without opening a terminal.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                         AEGIS | SIH Implementation Roadmap
+
+25. Upgrade Human Approval
+
+Goal: Make approval a first-class controlled state transition.
+Main implementation areas: backend/approval/models.py, backend/approval/service.py, frontend approval UI
+
+How to implement
+
+115. Support APPROVE, REJECT, and REQUEST_REVISION.
+116. Store reviewer, timestamp, reason, output hash, policy state, and modifications.
+117. Invalidate approval if the approved content changes.
+118. Require re-verification after substantive revision.
+119. Include approval evidence in the final task proof.
+
+Done when
+
+No changed output can inherit an earlier approval silently.
+
+26. Sign the Audit Chain
+
+Goal: Strengthen tamper evidence beyond a rewritable local hash chain.
+Main implementation areas: backend/audit/chain.py, backend/audit/merkle.py, backend/audit/signing.py,
+backend/audit/verifier.py
+
+How to implement
+
+120. Keep per-event hash chaining.
+121. Periodically compute Merkle roots over event windows or task runs.
+122. Sign roots with Ed25519 using a separately protected private key.
+123. Publish/retain the public key identifier with verification metadata.
+124. Provide a verifier that detects altered, removed, inserted, or reordered records.
+
+Done when
+
+Modifying a completed task audit causes signature verification to fail.
+
+27. Generate a Sovereignty Certificate
+
+Goal: Produce a compact proof artifact for each important run.
+Main implementation areas: backend/proof/certificate.py
+
+How to implement
+
+125. Include task ID, input hashes, model digest, policy version, formula versions, network metrics, sandbox
+     status, verification summary, approval, output hash, audit root, and signature.
+
+126. Provide machine-readable JSON first; optionally render a human PDF later.
+127. Link the certificate to the exact task and deliverable.
+128. Validate the certificate through an independent verification endpoint or CLI.
+
+Done when
+
+A completed demo run produces a verifiable proof bundle with no manual editing.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                                                                      AEGIS | SIH Implementation Roadmap
+
+28. Capture Complete Reproducibility Metadata
+
+Goal: Make every run explainable across model/config/software changes.
+Main implementation areas: backend/proof/reproducibility.py
+
+How to implement
+
+129. Persist model + digest, temperature, prompt version, router version, policy version, formula version,
+     input hashes, retrieval chunk IDs, software version, and output hash.
+
+130. Add RE-RUN and COMPARE RUN APIs.
+131. Highlight differences in model/config/evidence when two runs diverge.
+132. Never claim bitwise determinism where the model/runtime cannot guarantee it; distinguish
+
+     deterministic tool results from stochastic generation.
+
+Done when
+
+Two runs can be compared and every material configuration difference is visible.
+
+29. Add Durable Workflow Recovery
+
+Goal: Prevent long tasks from being lost on restart.
+Main implementation areas: backend/workflow/checkpoints.py, backend/workflow/recovery.py
+
+How to implement
+
+133. Persist each stage status and output reference.
+134. Make stages idempotent where practical.
+135. On restart, reload in-flight tasks and resume from the last safe checkpoint.
+136. Revalidate policy/model availability before resuming.
+137. Record recovery as an audit event.
+
+Done when
+
+Killing the server during a middle stage and restarting resumes the task without repeating completed
+safe work.
+
+30. Refactor the Orchestrator into Typed Stages
+
+Goal: Reduce coupling and make tests, recovery, and policy boundaries clearer.
+Main implementation areas: backend/workflow/pipeline.py, backend/workflow/context.py,
+backend/workflow/stages/
+
+How to implement
+
+138. Create WorkflowContext containing task, user, files, policy, evidence, selected models, stage results, and
+     verification state.
+
+139. Split classify, policy, vision, retrieve, plan, execute, verify, approve, and deliver into dedicated stages.
+140. Define explicit stage inputs/outputs and failure states.
+141. Emit stage events consistently for SSE, recovery, and Proof Mode.
+
+Done when
+
+Every stage is independently testable and the main pipeline primarily coordinates stage transitions.
+
+                                                      Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                AEGIS | SIH Implementation Roadmap
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                       AEGIS | SIH Implementation Roadmap
+
+31. Build the AEGIS Evaluation Suite
+
+Goal: Replace security/quality claims with repeatable measurements.
+Main implementation areas: benchmarks/qa/, benchmarks/rag/, benchmarks/calculations/, benchmarks/pid/,
+benchmarks/security/, benchmarks/policy/
+
+How to implement
+
+142. Measure retrieval Recall@5/MRR, citation accuracy, unsupported-claim rate, numeric accuracy, unit
+     accuracy, P&ID tag/edge accuracy, injection-block rate, sandbox-block rate, and policy correctness.
+
+143. Create fixed golden datasets and expected outputs.
+144. Run benchmarks automatically and save machine-readable results.
+145. Version datasets so scores remain comparable.
+
+Done when
+
+All headline metrics in the UI are generated from reproducible benchmark runs, never hardcoded.
+
+32. Create an Automated Red-Team Suite
+
+Goal: Continuously attack the exact controls you plan to demonstrate.
+Main implementation areas: tests/adversarial/
+
+How to implement
+
+146. Add malicious PDF prompts, external network attempts, os.system/subprocess escape attempts, path
+     traversal, host file reads, fake extensions, oversized archives, fake citations, contradictions, outdated SOPs,
+     unauthorized roles, tampered models, tampered audits, unit mismatches, and invalid calculations.
+
+147. Give each test a security/control owner and expected decision.
+148. Run the suite in CI and before every demo build.
+149. Expose aggregate results in the benchmark dashboard.
+
+Done when
+
+The system can demonstrate that known attack classes are continuously tested, not only manually tried
+once.
+
+33. Build the Benchmark Dashboard
+
+Goal: Expose measured quality and security to judges.
+Main implementation areas: frontend benchmark dashboard, benchmark result API
+
+How to implement
+
+150. Load results from benchmark output files/database.
+151. Show retrieval, verification, calculation, P&ID, policy, sandbox, and network test metrics.
+152. Include dataset version and run timestamp.
+153. Allow drilling into failed cases instead of showing only green percentages.
+
+Done when
+
+Every displayed score has a reproducible benchmark run behind it.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                        AEGIS | SIH Implementation Roadmap
+
+34. Prepare Three Golden Demo Scenarios
+
+Goal: Optimize for reliable narrative, not feature count.
+Main implementation areas: demo/inspection/, demo/pid/, demo/security/
+
+How to implement
+
+154. Demo 1: scanned inspection report + historical XLSX + current SOP -> evidence -> corrosion calculation
+     -> verification -> approval -> report.
+
+155. Demo 2: P&ID -> graph extraction -> topology query -> highlighted diagram.
+156. Demo 3: malicious document -> prompt-injection detection -> attempted network/tool misuse -> block ->
+
+     zero-egress proof -> audit.
+157. Freeze demo datasets and expected key outputs.
+158. Run all three automatically before any judging session.
+
+Done when
+
+All three scenarios complete reliably on the actual demo machine without internet access.
+
+Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                                                                      AEGIS | SIH Implementation Roadmap
+
+35. Add Enterprise Authentication After Core Features
+
+Goal: Improve deployment credibility only after the core runtime is strong.
+
+Main implementation areas: backend/auth/ldap.py, backend/auth/oidc.py, backend/auth/session_security.py
+
+How to implement
+
+159. Keep local auth for development/demo.
+160. Add adapters for LDAP/Active Directory and OIDC.
+161. Add failed-login throttling, account lockout, session revocation, and shorter privileged-session expiry.
+162. Disable public self-registration in production mode.
+163. Optionally add an MFA integration point.
+
+Done when
+
+Production mode supports centrally managed identity without weakening local demo usability.
+
+36. Create an Offline Deployment Bundle
+
+Goal: Make the deployment genuinely usable in an air-gapped environment.
+
+Main implementation areas: aegis-offline/models/, aegis-offline/python-wheels/, aegis-offline/npm-cache/,
+aegis-offline/containers/
+
+How to implement
+
+164. Pre-stage approved models, Python wheels, frontend packages/cache, and container images.
+165. Generate checksums, model manifest, and an SBOM.
+166. Provide verify.sh and install.sh --offline.
+167. Fail installation if required artifacts do not match approved hashes.
+168. Test installation on a disconnected machine or network namespace.
+
+Done when
+
+A fresh machine can verify and install AEGIS without internet access.
+
+Final Build Order - One-Line Checklist
+
+ 1-4 Foundation: completeness, provenance, typed evidence, evidence ledger.
+ 5-6 Security core: rootless sandbox and enforceable zero-egress.
+ 7-10 Correctness: deterministic formulas, units, claim verification, contradictions.
+ 11-15 Knowledge/security ingestion: hybrid RAG, revision control, injection defense, file guard, DLP.
+ 16-18 Industrial intelligence: P&ID extraction, graph reasoning, visual proof.
+ 19-23 Governance transparency: benchmark-aware routing, model integrity, policy/routing explorers.
+ 24-28 Proof and authority: Proof Mode, approval, signed audit, sovereignty certificate, reproducibility.
+ 29-34 Hardening and demo: recovery, refactor, evaluation, red-team, dashboard, three golden demos.
+ 35-36 Deployment maturity: enterprise identity and offline installer.
+
+Do Not Prioritize Yet
+
+ PostgreSQL/pgvector migration unless current storage is a real blocker.
+ Redis, Kafka, Kubernetes, distributed workers, or service sprawl only for architecture optics.
+
+                                                      Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+                                                                                                                                      AEGIS | SIH Implementation Roadmap
+
+ More generic agents before verification and policy are reliable.
+ More LLMs before model routing and benchmarks are measurable.
+ Cosmetic UI redesign before Proof Mode, Policy Explorer, Routing Explorer, and P&ID viewer work.
+ Claims of certification/compliance that are not backed by formal assessment.
+
+Target Final Pipeline
+
+USER REQUEST
+|
+v
+Authentication -> Data Classification -> Task  Analyzer
+|
+v
+Policy Gate -> Agent Planner -> Model Router
+|                                |
+|                      policy + hardware
+|                      + benchmark gates
+v
+Vision / Hybrid RAG / Engineering Tools
+|                |                   |
++-------------+--------------+
+                 |
+                 v
+   Evidence Ledger
+                 |
+                 v
+   Claim Verification
+   evidence / numeric / conflict
+                 |
+   verified?
+              /                  NO     YES
+   |                |
+revise/refuse Policy Gate
+                    |
+                    v
+                 Human Approval
+                    |
+                    v
+                 Deliverable
+                    |
+                    v
+   Signed Audit + Sovereignty Proof
+
+The Standard to Aim For
+
+   AEGIS should not depend on the AI never making mistakes. It should detect,
+contain, verify, govern, and prove what happened before an AI-generated result
+
+                                              becomes an action.
+
+                       Policy-Controlled, Evidence-Verified Sovereign AI Runtime
+
