@@ -290,6 +290,18 @@
     0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
   --ring: var(--foreground);
 
+  /* Text fields are the one exception to the gap ring. A field already
+     carries a 1px edge, and a 2px page-coloured gap around a 40px input
+     reads as an error state rather than as focus. They get a soft ink
+     halo instead: the edge darkens to full ink and a wide, faint ink
+     spread sits outside it. Still ink, still no accent hue. */
+  --focus-halo:
+    0 0 0 1px var(--foreground),
+    0 0 0 4px oklch(from var(--foreground) l c h / 0.08);
+  --focus-halo-invalid:
+    0 0 0 1px var(--critical),
+    0 0 0 4px oklch(from var(--foreground) l c h / 0.08);
+
   /* ------------------------------------------------------------------ */
   /* Motion.                                                             */
   /*                                                                     */
@@ -551,6 +563,115 @@
   &:hover {
     transition-duration: var(--hover-in);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Button.                                                             */
+/*                                                                     */
+/* Three changes from what shipped: rounded-full becomes the 4px house */
+/* radius (anything rounder reads consumer, and this product is an     */
+/* instrument panel); `transition: all 200ms` becomes the asymmetric   */
+/* hover pair on three named properties; and the focus affordance      */
+/* becomes the gap ring rather than a 30%-alpha halo that failed 3:1.  */
+/*                                                                     */
+/* There is no translate on press. A button that moves when pressed is */
+/* a consumer gesture, and it animates layout.                         */
+/* ------------------------------------------------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  white-space: nowrap;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--ls-body);
+  transition:
+    background-color var(--hover-out) var(--ease-move),
+    color var(--hover-out) var(--ease-move),
+    box-shadow var(--hover-out) var(--ease-move);
+}
+.btn:hover {
+  transition-duration: var(--hover-in);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The focus gap has to match the ground the button actually sits on,
+   or the ring reads as a halo with a seam in it. */
+.btn[data-ground='paper'] {
+  --focus-ring:
+    0 0 0 var(--focus-gap) var(--background),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+}
+.btn[data-ground='sunken'] {
+  --focus-ring:
+    0 0 0 var(--focus-gap) var(--surface-sunken),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+}
+.btn:disabled {
+  pointer-events: none;
+  opacity: var(--opacity-disabled);
+}
+
+.btn[data-size='sm'] {
+  height: var(--control-sm);
+  padding-inline: 10px;
+  font-size: var(--size-ui);
+  line-height: var(--lh-ui);
+}
+.btn[data-size='md'] {
+  height: var(--control-md);
+  padding-inline: 12px;
+  font-size: var(--size-body);
+  line-height: var(--lh-body);
+}
+.btn[data-size='lg'] {
+  height: var(--control-lg);
+  padding-inline: 16px;
+  font-size: var(--size-body);
+  line-height: var(--lh-body);
+}
+
+/* Exactly one filled button may be visible in one decision context. */
+.btn[data-variant='primary'] {
+  background: var(--foreground);
+  color: var(--background);
+}
+.btn[data-variant='primary']:hover {
+  background: oklch(from var(--foreground) calc(l + 0.08) c h);
+}
+
+.btn[data-variant='secondary'] {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px var(--control-default);
+}
+.btn[data-variant='secondary']:hover {
+  background: var(--surface-sunken);
+  box-shadow: 0 0 0 1px var(--control-strong);
+}
+
+.btn[data-variant='ghost'] {
+  background: transparent;
+  color: var(--foreground-secondary);
+}
+.btn[data-variant='ghost']:hover {
+  background: var(--surface-sunken);
+  color: var(--foreground);
+}
+
+/* Danger takes the text variant, never the fill hue, on a light ground:
+   --critical as a label is 4.50:1 on paper, --critical-text is 6.03:1. */
+.btn[data-variant='danger'] {
+  background: var(--critical-surface);
+  color: var(--critical-text);
+  box-shadow: 0 0 0 1px var(--critical-border);
+}
+.btn[data-variant='danger']:hover {
+  background: oklch(from var(--critical) l c h / 14%);
 }
 
 /* Forced truncation for hashes and model ids: never wrap, never let one
