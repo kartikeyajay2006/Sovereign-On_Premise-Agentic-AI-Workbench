@@ -5,8 +5,8 @@ import { Loader2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-/** The three control heights: 32, 36, 40. Nothing invents a fourth. */
-export type Size = 'sm' | 'md' | 'lg'
+export type { Size } from '@/shared/ui/types'
+import type { Size } from '@/shared/ui/types'
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   children: ReactNode
