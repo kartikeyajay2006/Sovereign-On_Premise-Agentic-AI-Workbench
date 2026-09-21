@@ -22,8 +22,13 @@ Every claim carries a tag:
 
 | Target | Why not |
 |---|---|
-| chatgpt.com live DOM | Login wall; `openai.com`, `help.openai.com` and `chatgpt.com/features/*` all return **HTTP 403** to automated fetch. Some pages were recovered via an `r.jina.ai` proxy; where they were not, findings are [REPORTED] from indexed text. |
-| claude.ai live DOM | Login wall. The conversation width was recovered indirectly, from a browser extension whose source overrides `.mx-auto.max-w-3xl`. |
+| chatgpt.com **signed in** | Login wall. §2.11's measurements are from the **logged-out** shell, which serves `#web-mobile-root` and may differ from the app. Thumbs up/down and "Branch in new chat" could not be verified. `openai.com`, `help.openai.com` and `chatgpt.com/features/*` return **HTTP 403** to automated fetch; some pages were recovered via an `r.jina.ai` proxy. |
+| claude.ai live DOM | Login wall — `claude.ai/new` redirects to `/logout?involuntary=1`. The conversation width was recovered indirectly from a browser extension whose source overrides `.mx-auto.max-w-3xl`. **No measured artifact-panel width, resizability or dismiss affordance exists**; do not let anyone fill those in from memory. |
+| **Anthropic Console Workbench** | Login-walled, **and Anthropic's docs do not document the Workbench UI at all** (checked the prompt-engineering and test-and-evaluate guides). No reliable data. |
+| **OpenAI Playground** | Login-walled; `platform.openai.com/docs/*` now 301s to `developers.openai.com` and the guides are API-level, not UI-level. No reliable data. |
+| **Google AI Studio** | `aistudio.google.com` returned `net::ERR_ABORTED`. Only the docs blurb (a top-right **Run settings** panel, prompt placeholder "Type something...", a "Get code" button). |
+| **Notion AI** | Help-centre description only; the panel is behind login. |
+| **Phind** | Returned **404** in the browser and **403** to curl on 2026-09-21. **Could not verify the product is live.** Treated as unverified, possibly defunct — and dropped from the shortlist for that reason. |
 | **help.harvey.ai** | Entirely Auth0-walled — every `/articles/*` and `/release-notes/*` 307-redirects to `harvey-ai.us.auth0.com/authorize`. **Harvey's citation marker shape is therefore unverified.** |
 | **docs.consensus.app, help.consensus.app, perplexity.ai/help-center, scispace.com/resources/*** | **HTTP 403** to fetchers. |
 | Elicit app, Hebbia Matrix, Harvey app, Glean instance, app.devin.ai, smith.langchain.com, cloud.langfuse.com, jules.google (authed), github.com/copilot/agents (authed), all four app-builder editors | Account required. No live DOM. |
@@ -41,7 +46,7 @@ repeated claims:
    monospace **domain chips** with a `+N` overflow count. Two design-teardown blogs still describe a
    bracketed-numeral system with specific hex values; those values do not match the live product.
 2. **The "latency ≥75% → red" trace-row rule is Langfuse's, not LangSmith's** — and Langfuse
-   **removed it** on 17–18 Sep 2026, three days before this research (§2.17). No percentage-threshold
+   **removed it** on 17–18 Sep 2026, three days before this research (§2.18). No percentage-threshold
    colour rule is documented for LangSmith at all.
 
 **Honesty note specific to this document.** Two of the richest sources here are open-source
@@ -81,12 +86,16 @@ output may be nothing at all, and whose prose may not appear before it is verifi
 | 10 | **Consensus** | The **Evidence Strength** table (one row per claim, Strong/Moderate), disconfirming evidence as a first-class row, a **documented suppression threshold** (no verdict below 5 classifiable sources), and a **published 10% self-reported error rate**. | The only product that withholds its confidence widget rather than showing it weakly, and the only one that tells users how often it is wrong. Both are things a governed product should do. |
 | 11 | **Glean** | The `referenceRanges` / `snippets` / `pageNumber` citation wire format, a ~200-character context window around each quote, preview-before-navigate, and permission filtering upstream of the model. | A reusable data model for "document, page, region", and an ACL posture identical to our classification gate. |
 | 12 | **Claude Code (terminal)** | Six named run states with distinct glyph *and* colour *and* persistence behaviour; a one-line summary refreshed every 15s; failure rows that linger 30s while successes clear immediately. | The only surveyed product that documents a complete status vocabulary. Ours needs one. |
+| 13 | **ChatGPT** (measured, logged out) | The exact thread and composer geometry: 640px column against a 768px composer; one-line-to-eight-line growth; the user turn *as* its own edit button; actions outset left of the column; published Canvas trigger rates. | The default every reader of our UI already has in their hands. Diverging from it should be a decision, not an accident. |
 
 **Deliberately excluded and why.** *Bolt / v0* — their thread is a build log for a preview iframe;
 the deliverable is a running app, not a cited claim, and their default is to hide process (both still
-appear in §2.16 for specific findings). *Notion AI* — inline-document AI, no run concept. *Phind* —
-Perplexity's pattern with less rigour. *Hebbia / Scite / Elicit* — one or two strong ideas each
-rather than a transferable whole; covered in §2.13–2.14.
+appear in §2.17 for specific findings). *Notion AI* — inline-document AI, no run concept, and the
+panel is behind login. *Phind* — **could not be verified as a live product** (404 in-browser, 403 to
+curl on 2026-09-21); dropped rather than described from memory. *Hebbia / Scite / Elicit* — one or
+two strong ideas each rather than a transferable whole; covered in §2.14–2.15. *OpenAI Playground /
+Anthropic Workbench / Google AI Studio* — all login-walled **and undocumented at the UI level**; see
+§0. Nothing about them is asserted here.
 
 ---
 
@@ -95,8 +104,8 @@ rather than a transferable whole; covered in §2.13–2.14.
 Each reference is taken through the nine headings. Where a heading does not apply to a reference it
 says so rather than padding.
 
-§2.1–2.10 are the primary references. §2.11–2.17 are single-idea references worth one section each.
-§2.18 (CI/CD status vocabularies) and §2.19 (the research literature) are not products at all, but
+§2.1–2.10 are the primary references. §2.11–2.18 are single-idea references worth one section each.
+§2.19 (CI/CD status vocabularies) and §2.20 (the research literature) are not products at all, but
 they carry two of the three findings that most change the design.
 
 ### 2.1 assistant-ui Elements — the closest thing to a spec for our product
@@ -748,23 +757,54 @@ not overwrite; it adds a branch you page through.
 
 `max-w-4xl` = **56rem / 896px**. Vertical rhythm between turns: **20px mobile, 28px ≥md**. Column
 padding 24px vertical. A scroll-to-bottom pill sits `"absolute bottom-4 left-1/2 ... rounded-full ...
-h-7 text-[10px]"` — 28px tall, 10px type, floating, not docked.
+h-7 text-[10px]"` — 28px tall, 10px type, floating, not docked. Note that the *library's* generic
+`ConversationContent` uses `"flex flex-col gap-8 p-4"` (**32px**) — so 20/28/32px is the band, and
+the app deliberately tightens it. ChatGPT is looser still, at a 72px outer turn-group padding and a
+measured **50px** gap from user bubble to assistant text (§2.11).
 
-For comparison, **claude.ai** constrains its conversation with `.mx-auto.max-w-3xl` — **48rem /
-768px** [REPORTED, recovered from the selector list in `github.com/johnson00111/wide-chat`'s
-`content.js`, which overrides `".mx-auto.max-w-3xl"`, `".mx-auto[class*=\"max-w-\"]"` and
-`"main .mx-auto"` with a configurable 600–1600px, default 1200px]. So the consensus band is
-**768–896px** for a prose thread. AEGIS's console is currently `max-w-[1400px]`
-(`console-view.tsx:214`) — appropriate for a dashboard, far too wide for a reading thread.
+**The width question, with three real measurements that disagree:**
+
+| Source | Thread column | Composer |
+|---|---|---|
+| ChatGPT [OBSERVED, measured] | **640px** (40rem) | **768px** |
+| claude.ai [REPORTED, via extension selectors] | **768px** (`.mx-auto.max-w-3xl`) | not measured |
+| Perplexity [OBSERVED, measured] | **720px** answer text | 640px shell |
+| Vercel template [OBSERVED, source] | 896px (`max-w-4xl`) | same column |
+
+The claude.ai figure is recovered from `github.com/johnson00111/wide-chat`'s `content.js`, which
+overrides `".mx-auto.max-w-3xl"`, `".mx-auto[class*="max-w-"]"` and `"main .mx-auto"` with a
+configurable 600–1600px. Published typographic guidance puts the target at **65–72 characters per
+line**, with WCAG 2.2 capping at 80 [REPORTED, setproduct.com].
+
+So the real consensus for *prose* is **640–768px**, not 896. The Vercel template is the outlier
+because it carries code blocks. AEGIS carries evidence rows, an 11-row ledger and tables — closer to
+the code case than the prose case. §4's recommendation resolves this by splitting the two.
+
+AEGIS's console is currently `max-w-[1400px]` (`console-view.tsx:214`) — right for a dashboard, far
+too wide for a reading thread under any of these measurements.
 
 **The composer.** `components/ai-elements/prompt-input.tsx`:
 
 - Textarea class: `"field-sizing-content max-h-48 min-h-16"` → **min 64px, max 192px**, autogrowing
   via CSS `field-sizing: content` rather than JS measurement. Above 192px it scrolls internally.
 - Default placeholder: `"What would you like to know?"`
-- Keyboard: `Enter` submits; `e.shiftKey` inserts a newline.
-- Send/stop: one button. `aria-label={isGenerating ? "Stop" : "Submit"}`, and
+- Keyboard, verbatim from source: `if (e.key === "Enter") { if (isComposing || e.nativeEvent.isComposing) return; if (e.shiftKey) return; e.preventDefault(); … form?.requestSubmit(); }` —
+  Enter sends, Shift+Enter newlines, and **IME composition is explicitly respected**. It also checks
+  `submitButton?.disabled` before submitting.
+- **Backspace on an empty composer removes the last attachment.**
+- **Paste-to-attach**: `handlePaste` walks `clipboardData.items` and attaches anything with
+  `item.kind === "file"`.
+- **Drag-and-drop** binds to the nearest `<form>` by default, with an opt-in `globalDrop` prop that
+  binds to `document` instead.
+- Send/stop: **one button with four states** — idle `CornerDownLeftIcon`; `status === "submitted"` a
+  spinner; `status === "streaming"` a **`SquareIcon`** (the stop square); `status === "error"` an
+  `XIcon`. `aria-label={isGenerating ? "Stop" : "Submit"}`, and
   `type={isGenerating && onStop ? "button" : "submit"}` — the same control, relabelled, retyped.
+  App-level styling `h-7 w-7 rounded-xl`, disabled when `!input.trim() || uploadQueue.length > 0`.
+- **Queueing is explicitly refused**: `if (status === "ready" || status === "error") submitForm();
+  else toast.error("Please wait for the model to finish its response!")`.
+- **Slash commands** are in-composer: `/` opens a menu, arrows navigate, **Enter or Tab** selects,
+  Escape closes (and also cancels message editing).
 
 **Reasoning display.** `elements.ai-sdk.dev/components/reasoning`: `defaultOpen: true`; the component
 "automatically opens when reasoning streams and closes when finished"; props `isStreaming`,
@@ -1017,7 +1057,7 @@ reference them.
 
 ---
 
-### 2.12 Glean — the citation data model worth copying wholesale
+### 2.13 Glean — the citation data model worth copying wholesale
 
 All [REPORTED]; `docs.glean.com` and `developers.glean.com` are public and were fetched.
 
@@ -1084,7 +1124,7 @@ hiding it.
 
 ---
 
-### 2.13 Elicit — the grid, and a flag nobody has photographed
+### 2.14 Elicit — the grid, and a flag nobody has photographed
 
 All [REPORTED]; the app requires an account.
 
@@ -1125,7 +1165,7 @@ as a badge. It is very close to our `VERIFIED / SUPPORTED / UNSUPPORTED`.
 
 ---
 
-### 2.14 Hebbia and Scite — two ideas worth one paragraph each
+### 2.15 Hebbia and Scite — two ideas worth one paragraph each
 
 **Hebbia Matrix** [REPORTED]. Rows = documents, columns = questions, cells = agent outputs. The rule:
 "**Every output cell requires a 1:1 citation linking to the exact sentence in the source document**",
@@ -1151,7 +1191,7 @@ assistant-ui is right and Scite is wrong: a zero must be visible.
 
 ---
 
-### 2.15 Claude Code (terminal) — the most precisely documented status vocabulary found
+### 2.16 Claude Code (terminal) — the most precisely documented status vocabulary found
 
 [OBSERVED, `code.claude.com/docs/en/*`]. Worth a section despite being a terminal product, because it
 is the only surveyed product that documents its full state glyph set.
@@ -1196,7 +1236,7 @@ names the interrupt key. And the principle that failure persists longer on scree
 
 ---
 
-### 2.16 The long-run cohort — Lovable, Jules, Codex, Replit, Copilot Workspace
+### 2.17 The long-run cohort — Lovable, Jules, Codex, Replit, Copilot Workspace
 
 Grouped because they answer one question together: **what happens when the run outgrows the thread.**
 
@@ -1284,7 +1324,7 @@ survey — the Agents window sessions sidebar "**auto-hides when the window is n
 
 ---
 
-### 2.17 Langfuse and LangSmith — and a very recent reversal worth heeding
+### 2.18 Langfuse and LangSmith — and a very recent reversal worth heeding
 
 **LangSmith** [OBSERVED, `docs.langchain.com/langsmith/view-traces`]. The trace UI is a **side panel**
 that "keeps the surrounding conversation visible so you can understand where a run fits in the
@@ -1328,7 +1368,7 @@ questions**" — is the right posture for our compact-versus-timeline toggle.
 
 ---
 
-### 2.18 CI/CD pipeline vocabularies — where "skipped" and "denied" have already been solved
+### 2.19 CI/CD pipeline vocabularies — where "skipped" and "denied" have already been solved
 
 None of the sixteen AI products surveyed has a **skipped-step state**. Every one is binary
 (success / error) plus pending or waiting. That is a genuine differentiation opportunity — and the
@@ -1395,7 +1435,7 @@ the rendering.
 
 ---
 
-### 2.19 The research literature — what visible process actually does to trust
+### 2.20 The research literature — what visible process actually does to trust
 
 This section exists because the intuition "showing our work builds trust" is half true, and the
 false half is dangerous for a product whose turns are sometimes denials.
@@ -1522,184 +1562,218 @@ link from operational transparency to wait tolerance in our setting is an **argu
 1993 and 2011 service-operations work**, not a measured result. The document should not imply
 otherwise, and §5 does not.
 
-<!-- MERGE-POINT-B -->
 
 ---
 
-## 3. Patterns worth stealing — 65 one-line instructions
+## 3. Patterns worth stealing — 75 one-line instructions
 
 Each is implementable as written, and attributed.
 
 **Thread anatomy**
 
-1. Cap the thread column at **768–896px**; use `max-w-4xl` (896px) since our turns carry tables and
-   evidence rows. *(Vercel `messages.tsx` `max-w-4xl`; claude.ai `max-w-3xl`.)*
-2. Right-align the user turn with `ml-auto`, left-align the assistant turn full-bleed in the column,
+1. Use **two widths**: prose and citations at **720px** (inside the 65–72 characters-per-line band),
+   and let the stage ledger, evidence rows and tables span the full **896px** column. *(ChatGPT
+   measures 640px prose, Perplexity 720px, claude.ai 768px; the Vercel template's 896px is an outlier
+   driven by code blocks. Typographic target from setproduct.com; WCAG 2.2 caps at 80 chars.)*
+2. Make the **composer wider than the thread** — 768px against a 720px column. *(ChatGPT: 768 vs
+   640. It reads as a tool rather than as another message.)*
+3. Right-align the user turn with `ml-auto`, left-align the assistant turn full-bleed in the column,
    and give **neither an avatar**. *(Vercel `message.tsx`.)*
-3. Set turn rhythm to `gap-5` / `md:gap-7` (20/28px) — not margin on the message, gap on the column.
+4. Set turn rhythm to `gap-5` / `md:gap-7` (20/28px) — not margin on the message, gap on the column.
    *(Vercel `messages.tsx`.)*
-4. Make turn actions icon-only ghost buttons with `sr-only` labels and tooltips, in a
+5. Make turn actions icon-only ghost buttons with `sr-only` labels and tooltips, in a
    `flex items-center gap-1` row under the turn. *(Vercel `MessageAction`.)*
-5. Implement retry as a **branch**, not an overwrite: keep `currentBranch / totalBranches` with
+6. Implement retry as a **branch**, not an overwrite: keep `currentBranch / totalBranches` with
    prev/next. A regenerated answer must never delete the one an auditor may have already read.
    *(Vercel `MessageBranch`.)*
-6. Add a read-only side channel — a `/btw`-style question that renders beside the thread and is
+7. Add a read-only side channel — a `/btw`-style question that renders beside the thread and is
    never written into the signed record. *(Devin Side Chat.)*
-7. Float the scroll-to-bottom control as a 28px pill at `bottom-4 left-1/2`, 10px type. *(Vercel
+8. Float the scroll-to-bottom control as a 28px pill at `bottom-4 left-1/2`, 10px type. *(Vercel
    `messages.tsx`.)*
 
 **The composer**
 
-8. Textarea `min-h-16 / max-h-48` (64–192px) with CSS `field-sizing: content`; scroll internally past
-   192px. *(Vercel `prompt-input.tsx`.)*
-9. `Enter` sends, `Shift+Enter` newlines. Retire the current ⌘+↵-only model in
+9. Textarea **one line at rest (24px), growing to exactly eight (192px), then scrolling internally**,
+   via CSS `field-sizing: content` rather than a JS height hack. *(ChatGPT measured: `min-height:24px`
+   / `max-height:192px` / `line-height:24px`. Perplexity starts at 2 lines and caps at 10; v0 caps at
+   330px; Lovable at 315px. Everybody caps — nobody lets the composer eat the thread.)*
+10. Make the left affordance **one menu, not a bare paperclip**, holding both attachment and mode,
+   and render a selected mode as a **removable chip**. *(ChatGPT: `Add files and more`, with
+   `aria-label="Web search, click to remove"` on the chip. Our deliverable-format selector is a mode;
+   so is "restricted evidence only".)*
+11. Disabled send = **`opacity: 0.35`**, not hidden. *(ChatGPT measured.)*
+12. Backspace on an empty composer removes the last attachment; paste attaches a file from the
+   clipboard; drag-and-drop binds to the form. *(Vercel `prompt-input.tsx` — three free wins.)*
+13. `Enter` sends, `Shift+Enter` newlines. Retire the current ⌘+↵-only model in
    `console-view.tsx:540`, which no chat user will discover. *(Vercel `prompt-input.tsx`.)*
-10. Use **one** button that flips from Submit to Stop: swap `aria-label` and `type`, keep the
-    position. *(Vercel `PromptInputSubmit`.)*
-11. Keep the deliverable-format selector (`answer / docx / xlsx / pptx / md`) in the composer chrome,
+14. Use **one** button with four states — idle arrow, spinner on submitted, **square on streaming**,
+    X on error — swapping `aria-label` and `type`, keeping the position. *(Vercel
+    `PromptInputSubmit`.)*
+15. Decide queueing explicitly. Cursor is the best answer found: **Enter queues** the next message,
+    **Cmd+Enter sends immediately** to steer without interrupting, and **queued messages appear below
+    the active task and are draggable to reorder**. The Vercel template flatly refuses with a toast.
+    For a governed run, queue — a second request must never interleave with a signed pipeline.
+    *(Cursor `docs/agent/overview`.)*
+16. Keep the deliverable-format selector (`answer / docx / xlsx / pptx / md`) in the composer chrome,
     not in a settings screen — it is a mode, and modes belong next to the send button. *(Consensus
     across ChatGPT/Claude model pickers; our `DELIVERABLE_FORMATS`.)*
-12. Attachment stays a paperclip in the composer's utility row with a count badge, plus drag-and-drop
+17. Attachment stays a paperclip in the composer's utility row with a count badge, plus drag-and-drop
     over the whole composer. *(Already correct in `console-view.tsx`; keep it.)*
 
 **Multi-step agentic work**
 
-13. Default the run block **collapsed** to one summary row; expand on chevron. *(assistant-ui
+18. Default the run block **collapsed** to one summary row; expand on chevron. *(assistant-ui
     `tool-group`, `defaultOpen={false}`.)*
-14. Write the collapsed summary as counts that include failure:
+19. Write the collapsed summary as counts that include failure:
     `11 stages · 8 done · 2 skipped · 1 denied · 38.4s`. Never `100%`. *(assistant-ui `tool-group`
     trailing text: `n done` / `n failed`.)*
-15. Shimmer **exactly one** step — the last visible one — and only while streaming; every earlier
+20. Shimmer **exactly one** step — the last visible one — and only while streaming; every earlier
     step reads settled even mid-run. *(assistant-ui `tool-timeline`.)*
-16. Let a stage exist in the model before it is shown; `visibleSteps` is separate from `steps`, so
+21. Let a stage exist in the model before it is shown; `visibleSteps` is separate from `steps`, so
     nothing appears until the backend says it happened. *(assistant-ui `tool-timeline`.)*
-17. Mark every activity **ephemeral or persistent**; ephemeral ones are replaced by the next arrival
+22. Mark every activity **ephemeral or persistent**; ephemeral ones are replaced by the next arrival
     and never accumulate. *(Linear `agent-interaction`.)*
-18. Budget **10 seconds** from dispatch to the first real on-screen activity; treat a miss as a bug.
+23. Budget **10 seconds** from dispatch to the first real on-screen activity; treat a miss as a bug.
     *(Linear's unresponsive-session rule.)*
-19. Make each stage row clickable to scrub the detail pane to that moment. *(Devin Progress tab.)*
-20. Put the full span waterfall behind a disclosure: one row per stage, `0.75rem` indent per depth,
+24. Make each stage row clickable to scrub the detail pane to that moment. *(Devin Progress tab.)*
+25. Put the full span waterfall behind a disclosure: one row per stage, `0.75rem` indent per depth,
     three colours, min bar width 1.5%. *(assistant-ui `trace-waterfall`.)*
 
 **Reasoning**
 
-21. Auto-open the reasoning block while it streams and **auto-close it when it finishes**, leaving a
+26. Auto-open the reasoning block while it streams and **auto-close it when it finishes**, leaving a
     `Thought for N seconds` trigger. *(AI Elements `Reasoning`, `isStreaming`.)*
-22. Consolidate all reasoning parts of a turn into **one** collapsible; never render two
+27. Consolidate all reasoning parts of a turn into **one** collapsible; never render two
     "Thinking…" indicators. *(AI Elements `Reasoning`.)*
-23. Label the live line with what is actually happening — `Running <tool>`, not `Thinking` — and key
+28. Label the live line with what is actually happening — `Running <tool>`, not `Thinking` — and key
     the animation on the label string so each change re-announces itself. *(assistant-ui
     `thinking-indicator`.)*
-24. Show elapsed time only while `working` or `waiting`, formatted `0:04`; drop it on settle.
+29. Show elapsed time only while `working` or `waiting`, formatted `0:04`; drop it on settle.
     *(assistant-ui `agent-status`.)*
 
 **Citations**
 
-25. Anchor a citation to **document + page + region**, not a URL: render
+30. Anchor a citation to **document + page + region**, not a URL: render
     `"N pages · M cited"` in the header and `"p. N"` above each quoted passage, with `onJump(page)`.
     *(assistant-ui `document-reference`.)*
-26. One marker per **claim**, with multiple sources paginated inside the popover (`1/2`), instead of
+31. One marker per **claim**, with multiple sources paginated inside the popover (`1/2`), instead of
     `[1][2][3]` pile-ups. *(Perplexity chips; AI Elements `InlineCitationCarousel`.)*
-27. Citations must be **clickable, not hover-only** — a hover-only preview is unusable by keyboard
+32. Citations must be **clickable, not hover-only** — a hover-only preview is unusable by keyboard
     and untouchable on a tablet in a plant. *(Corrects AI Elements `InlineCitation`, which is
     hover-only; Perplexity's chip is click-to-popover.)*
-28. Render retrieved passages **before** the answer, each with source, locator (`§ 2`), a score
+33. Render retrieved passages **before** the answer, each with source, locator (`§ 2`), a score
     numeral and a meter; status line reads `Retrieving` then `N passages above threshold`.
     *(assistant-ui `retrieval-chunks`.)*
-29. Never enforce a hidden relevance floor in the component; pass a shorter array if you want to drop
+34. Never enforce a hidden relevance floor in the component; pass a shorter array if you want to drop
     passages, so the UI never silently omits evidence. *(assistant-ui `retrieval-chunks`.)*
-30. Show a source count of **0** rather than hiding the control when there are no sources.
+35. Show a source count of **0** rather than hiding the control when there are no sources.
     *(assistant-ui `sources`.)*
-31. Put the source count in the turn's action row, at the same elevation as copy — not in a separate
+36. Put the source count in the turn's action row, at the same elevation as copy — not in a separate
     panel the user must discover. *(Perplexity: "same elevation as copy and share".)*
-32. Offer **"verify this sentence"** on a text selection, re-running verification for that span only.
+37. Offer **"verify this sentence"** on a text selection, re-running verification for that span only.
     *(Perplexity "Check sources"; Harvey "Ask Over Review" at cell level.)*
-33. Carry citations at **sentence** granularity, and expose the ratio explicitly — we already compute
+38. Carry citations at **sentence** granularity, and expose the ratio explicitly — we already compute
     `material_claims_supported / material_claims_total`. *(Harvey sentence-level citations.)*
 
 **Verdicts, refusals, approvals**
 
-34. Show a verdict with its arithmetic: total/max, a coloured pill, criteria rows with `×N` weights —
+39. Show a verdict with its arithmetic: total/max, a coloured pill, criteria rows with `×N` weights —
     and draw **equal bars for equal scores regardless of weight**. *(assistant-ui `score-breakdown`.)*
-35. Give a policy-blocked turn its own shape: shield header, **monospace policy tag**, explanation,
+40. Give a policy-blocked turn its own shape: shield header, **monospace policy tag**, explanation,
     and offered alternatives as buttons. It is a result, not an error. *(assistant-ui
     `guardrail-notice`.)*
-36. Render approval as a three-state footer: the decision strip while pending, then a single fixed
+41. Render approval as a three-state footer: the decision strip while pending, then a single fixed
     status line (spinner/X/check) once decided — no re-decidable buttons in the record. *(assistant-ui
     `approval-card`.)*
-37. On stop, keep what was produced, badge the reason in free text (`stopped by you`,
+42. On stop, keep what was produced, badge the reason in free text (`stopped by you`,
     `blocked by policy`, `failed partway through`), and offer Continue / Discard. *(assistant-ui
     `stopped-run`.)*
 
 **Panels, history, empty state**
 
-38. Split the deliverable out to a right-hand panel at **60% width**, `border-l`, sunken surface,
-    300ms `cubic-bezier(0.32,0.72,0,1)`, with an explicit close button; full-width on mobile.
-    *(Vercel `artifact.tsx`.)*
-39. Publish our own artifact threshold the way Anthropic published theirs ("typically over 15 lines")
+43. Split the deliverable out to a right-hand panel at **60% width**, `border-l`, sunken surface,
+    300ms `cubic-bezier(0.32,0.72,0,1)`, with an explicit close button; full-width (`100dvw`) on
+    mobile; animate width to 0 rather than unmounting. *(Vercel `artifact.tsx`.)*
+44. Leave an **in-thread placeholder card** (`max-w-[450px]`, `h-[257px]` body) and capture its
+    `getBoundingClientRect()` so the panel **animates out of the card's exact position**. That is the
+    trick that sells "this left the conversation" rather than "a panel appeared." *(Vercel
+    `document-preview.tsx`.)*
+45. After the deliverable opens in the panel, **never repeat its content in the thread** — one or
+    two sentences of confirmation only. *(Both the Vercel and the leaked Claude artifact system
+    prompts say this in almost identical words.)*
+46. Publish our own artifact threshold the way Anthropic published theirs ("typically over 15 lines")
     — ours should be *"any deliverable, and any table over N rows"*. *(Claude Artifacts help article.)*
-40. Sidebar at **256px**, 48px icon-collapsed, toggled with ⌘/Ctrl+B. *(Vercel `sidebar.tsx`.)*
-41. Group history as `Today / Yesterday / Last 7 days / Last 30 days / Older`. *(Vercel
-    `sidebar-history.tsx`.)*
-42. Keep the empty state to a headline and one subtitle line; no filler chips.
+47. Sidebar at **256px**, 48px icon-collapsed, toggled with ⌘/Ctrl+B. *(Vercel `sidebar.tsx`.)*
+48. Group history as `Today / Yesterday / Last 7 days / Last 30 days / Older`, paginating at 20.
+    *(Vercel `sidebar-history.tsx`; ChatGPT uses "Previous 7 Days/30 Days" then month names.)*
+49. Sort threads by **when the run happened**, not by last activity. ChatGPT does the opposite and
+    offers no setting; for a record of governed runs that ordering is wrong. *(Deliberate divergence
+    from ChatGPT.)*
+50. Auto-title on the **first user message only**, with a dedicated small model, 2–5 words, stripped
+    of `#*"`, and with an explicit degenerate fallback — `"hi" → New Conversation`. Rename lives in
+    the sidebar row menu. *(Vercel `actions.ts` / `lib/ai/prompts.ts`. For us the title should carry
+    the vessel or document id where one exists.)*
+51. Only stick the scroll to the bottom when the reader is **within 100px of it**, and announce with
+    `aria-live="polite"`, never `assertive`. *(setproduct.com.)*
+52. Keep the empty state to a headline and one subtitle line; no filler chips.
     *(Vercel `greeting.tsx`: "What can I help with?" / "Ask a question, write code, or explore
     ideas.")* — but see §6.9 for why our three templates are the exception that earns its place.
 
-**Added after the second research pass**
+**Governance, failure states and evidence handling**
 
-43. Write the live status line as **a sentence about what just happened and what is next**, generated
+53. Write the live status line as **a sentence about what just happened and what is next**, generated
     for the watcher rather than as reasoning, and refresh it on a fixed slow cadence.
     *(Anthropic `display: "updates"`; Claude Code's 15-second summary refresh.)*
-44. Give `skipped`, `blocked`, `denied` and `incomplete` four **different** renderings. Test each
+54. Give `skipped`, `blocked`, `denied` and `incomplete` four **different** renderings. Test each
     against Buildkite's rule: things break from inside, and are skipped from outside.
     *(Buildkite; GitHub's eight `conclusion` values; GitLab's thirteen.)*
-45. Name the recovery action in the status instead of collapsing it to "Failed" —
+55. Name the recovery action in the status instead of collapsing it to "Failed" —
     `Sandbox unavailable — restart and re-run`. *(Devin's "Reboot VM" status.)*
-46. Show elapsed **active work time** separately from human-wait time: `worked 38.4s · held 4h 02m`.
+56. Show elapsed **active work time** separately from human-wait time: `worked 38.4s · held 4h 02m`.
     *(Linear's "Worked for X" fix, which explicitly excludes idle between turns.)*
-47. Deduplicate the run log — merge consecutive identical actions into one row with a count.
+57. Deduplicate the run log — merge consecutive identical actions into one row with a count.
     *(Devin merging consecutive edits to one file; Langfuse's `retrieve_docs (3/3)`.)*
-48. Collapse successes, **auto-open failures**. *(AI Elements `<Tool>`: "Completed and error tools
+58. Collapse successes, **auto-open failures**. *(AI Elements `<Tool>`: "Completed and error tools
     open by default"; GitHub's collapsed-with-status subagents.)*
-49. Keep a failed row on screen longer than a successful one. *(Claude Code: failed subagent rows
+59. Keep a failed row on screen longer than a successful one. *(Claude Code: failed subagent rows
     linger 30s; successful rows clear immediately.)*
-50. Expand delegated sub-runs **by default** — the user did not ask for them, so they must be seen.
+60. Expand delegated sub-runs **by default** — the user did not ask for them, so they must be seen.
     *(Devin: "Sub-Devin sessions… appear expanded by default.")*
-51. Split each verification cell into two named fields, **Answer** and **Reasoning**, and cite them
+61. Split each verification cell into two named fields, **Answer** and **Reasoning**, and cite them
     separately. *(Harvey's rebuilt review algorithm, which publishes 4×/7× preference gains for it.)*
-52. Replace an empty result with a statement of **where we searched**, not an em-dash.
+62. Replace an empty result with a statement of **where we searched**, not an em-dash.
     *(Harvey's negative-result narrative.)*
-53. Withhold the verdict widget entirely below a minimum-evidence threshold rather than showing it
+63. Withhold the verdict widget entirely below a minimum-evidence threshold rather than showing it
     weakly. *(Consensus: the meter "may not appear if there are less than 5 relevant papers".)*
-54. Show counts alongside every percentage, always: `4/4 supported`, not `100%`.
+64. Show counts alongside every percentage, always: `4/4 supported`, not `100%`.
     *(Consensus meter: "Yes 38%… N = 16 · 6 7 1 2".)*
-55. Give disconfirming evidence its own row rather than filtering it out by score.
+65. Give disconfirming evidence its own row rather than filtering it out by score.
     *(Consensus Evidence Strength table; Scite's *contrasting* category.)*
-56. Publish our own measured error rate in the product. *(Consensus: "our model will incorrectly
+66. Publish our own measured error rate in the product. *(Consensus: "our model will incorrectly
     classify results 10% of the time.")*
-57. Adopt `sourceDocument` + `referenceRanges[].snippets[].pageNumber` as the citation wire format,
+67. Adopt `sourceDocument` + `referenceRanges[].snippets[].pageNumber` as the citation wire format,
     and show ~200 characters of context around each quoted passage. *(Glean's deep-linked citations
     guide — the only documented hover-card sizing rule found anywhere.)*
-58. Render a **region image** for vision-extracted citations, never OCR plaintext. *(Glean's own
+68. Render a **region image** for vision-extracted citations, never OCR plaintext. *(Glean's own
     published limitation: non-plaintext sources "displayed as simple plaintext… difficult to read or
     parse".)*
-59. Preview before navigating — let the reader "confirm you are looking at the right place before you
+69. Preview before navigating — let the reader "confirm you are looking at the right place before you
     click through". *(Glean.)*
-60. Put provenance and arithmetic behind the **same** click: the passage *and* how the number was
+70. Put provenance and arithmetic behind the **same** click: the passage *and* how the number was
     derived. *(Hebbia: click a cell for the source "along with a step-by-step breakdown of how the
     answer was derived".)*
-61. Show what was **rejected** and why, with evidence for the rejection — excluded passages listed
+71. Show what was **rejected** and why, with evidence for the rejection — excluded passages listed
     below the accepted ones, each with the criterion it failed. *(Elicit's screening exclusions.)*
-62. One source of truth for run status across the thread, the task list and the audit log; every
+72. One source of truth for run status across the thread, the task list and the audit log; every
     spinner gets a timeout that resolves to `incomplete`. *(Codex issues #46174 and #45934, as
     anti-pattern.)*
-63. Classify failures into *retry for you* / *look at this yourself* / *this touches signed data* and
+73. Classify failures into *retry for you* / *look at this yourself* / *this touches signed data* and
     give each a different affordance. *(Lovable's "Try again" / "Try to fix" / "Ask the assistant to
     help".)*
-64. Scale transparency **down** when the run is heading for a denial or an empty result; let bad news
+74. Scale transparency **down** when the run is heading for a denial or an empty result; let bad news
     arrive fast and plain. *(Buell & Norton Exp. 5 — see §5.5. The only instruction here that
     contradicts the field's default advice.)*
-65. Report work completed, never a percentage, for work of unknown duration. *(Nielsen 1993, still
+75. Report work completed, never a percentage, for work of unknown duration. *(Nielsen 1993, still
     the correct prescription 33 years later.)*
 
 ---
@@ -1743,7 +1817,8 @@ LangSmith makes it literal with keyboard-switchable **Messages (`M`) / Turns (`T
 views. All three designs below are attempts at the same ladder; they differ in which rung is the
 default.
 
-Three designs follow. All three assume a **896px thread column**, warm-paper surface
+Three designs follow. All three assume the **two-width thread** of §3 items 1–2 — prose and citations at
+720px, ledger and evidence rows spanning the full 896px column, composer at 768px — warm-paper surface
 (`--background #f7f7f5`, `--surface #ffffff`), `--radius 4px`, and the status tokens already defined
 in `globals.css` (`--sovereign #16a34a`, `--active #0284c7`, `--approval #d97706`,
 `--critical #dc2626`), plus the shape-and-position-before-hue discipline established in
@@ -1809,7 +1884,7 @@ automatically while live.
 ```
   Aegis                                                                14:31
   ┌───────────────────────────────────────────────────────────────────────┐
-  │ ▾  ■■✕───────    DENIED AT STAGE 03 · policy · 1.4s                   │
+  │ ▾  ■■✕───────■   DENIED AT STAGE 03 · policy · 1.4s                   │
   ├───────────────────────────────────────────────────────────────────────┤
   │ 01 ■ Request                                                  0.1s    │
   │ 02 ■ Classification     restricted · confidence 0.91          1.1s ▸  │
@@ -1956,11 +2031,11 @@ The reasoning:
 6. **The skipped state is our differentiation, and nobody else has one.** Across all sixteen AI
    products surveyed, **zero document a skipped-step state** — everything is success/error plus
    pending or waiting. A governed pipeline where stages are conditionally denied or bypassed *needs*
-   that vocabulary, and the prior art is in CI, not in AI (§2.18). Design A is the only one of the
+   that vocabulary, and the prior art is in CI, not in AI (§2.19). Design A is the only one of the
    three that can draw an absence, because it is the only one where the row exists before the stage
    does.
 
-**The stage-state vocabulary, borrowed from CI (§2.18).** `StageStatus` today is
+**The stage-state vocabulary, borrowed from CI (§2.19).** `StageStatus` today is
 `pending | active | done | failed | held | skipped`, which collapses four genuinely different
 absences into one. Proposed:
 
@@ -2038,7 +2113,7 @@ That is 40 seconds in which the screen is never still and never lies. The user h
 answer lands, already read the three passages it rests on.
 
 And one reframe that the research forces. A 30–120 second run is **3–12× past Nielsen's 10-second
-attention limit** (§2.19). Past that limit the goal is not to hold attention — Nielsen's own words
+attention limit** (§2.20). Past that limit the goal is not to hold attention — Nielsen's own words
 are that beyond 10s "users will want to do other tasks". **The goal is to make leaving safe and
 returning cheap.** Every product with runs longer than ours converged on the same answer: demote the
 job to a list with a stable identity, and notify on completion. Deep Research explicitly tells users
@@ -2099,7 +2174,7 @@ which "renders only while a task runs or waits for input"); the operator is noti
 generalise that. Deep Research's 5–30 minute runs prove people accept this; they do not accept being
 held hostage to a spinner.
 
-**P6 — Show the dual explanation, not the confident one.** Palod et al. (§2.19) found that reasoning
+**P6 — Show the dual explanation, not the confident one.** Palod et al. (§2.20) found that reasoning
 traces and post-hoc explanations "increase user acceptance of LLM predictions **regardless of their
 correctness**", and that only a **contrastive dual explanation** — arguments for *and against* the
 answer — improved users' ability to tell correct from incorrect. Our verification panel currently
@@ -2149,7 +2224,7 @@ excluding idle wait between turns**.
   median for this task class or show nothing.
 - **No shimmer, and no skeleton, on content that does not exist.** Skeleton lines where the answer
   will be are a promise the policy gate may be about to break. The evidence is also against them on
-  their own terms: Viget's study (§2.19) found the skeleton condition worst on every measure — 59%
+  their own terms: Viget's study (§2.20) found the skeleton condition worst on every measure — 59%
   agreed it "loads quickly" versus **74% for a plain spinner**, and the *longest* perceived wait
   (2.82s, versus 2.29s for a blank screen). NN/g caps skeletons at "a wait time that's under 10
   seconds" and excludes non-page-load processes outright. Shimmer the *stage row that is running*,
@@ -2174,7 +2249,7 @@ being performed" — made people prefer a *longer* wait for identical results, a
 **perceived** effort mattered while **actual** effort did not. Every instinct in §5.1–5.3 is built on
 that.
 
-But Experiment 5 (§2.19) found a significant **transparency × outcome interaction**, and the
+But Experiment 5 (§2.20) found a significant **transparency × outcome interaction**, and the
 direction is brutal. With a favourable outcome, 15 seconds of visible work produced the highest value
 ratings in the paper (M=4.06 vs 3.34 instantaneous). With an **unfavourable** outcome, the same
 visible work produced the **lowest**: M=2.47 at 15s and **M=2.10 at 30s**, both significantly *worse*
@@ -2235,11 +2310,18 @@ a branch (Vercel `MessageBranch`), label it, and never delete the prior branch.
 is noise that competes with the verdict. The only correct feedback affordances here are *approve*,
 *reject with notes*, and *dispute a specific citation*.
 
-**6.4 An assistant avatar or persona.** `presentation.ts` already carries a hard-won lesson about
-this — invented human names ("M. Okonkwo", "S. Ramanathan") were rendered where a reader could take
-them for the signed-in operator, on a system that records who approved what. A friendly assistant
-face is the same mistake in cartoon form. The assistant turn is a **record**, and records do not have
-faces.
+**6.4 An assistant avatar, persona, or a bubble.** `presentation.ts` already carries a hard-won
+lesson about this — invented human names ("M. Okonkwo", "S. Ramanathan") were rendered where a reader
+could take them for the signed-in operator, on a system that records who approved what. A friendly
+assistant face is the same mistake in cartoon form. The assistant turn is a **record**, and records
+do not have faces.
+
+The market agrees and has for a while: across ChatGPT, Claude.ai, Perplexity and every reference
+implementation examined, **no product puts an avatar on an assistant turn**, and none gives the
+assistant a bubble. The universal pattern is user = right-aligned tinted bubble capped at 70–80% of
+the column, assistant = unstyled text filling the column. Published guidance is blunt about why
+bubbles on both sides are wrong: they signal "**messenger, not tool**" [REPORTED, setproduct.com].
+A bubble around a signed, cited, verified record is a category error.
 
 **6.5 Whimsical thinking labels.** "Pondering…", "Noodling…" — charming in a consumer chat, grotesque
 above a corrosion calculation. Use `Running vision extraction · page 3 of 4`.
@@ -2258,10 +2340,35 @@ focusable, `aria-current` on the active anchor (assistant-ui `document-reference
 correctly).
 
 **6.9 Generic prompt-starter chips.** "Explain quantum computing" filler is worse than an empty
-screen because it advertises capabilities the host may not have. **Exception, and it is a real one:**
-our three `CONSOLE_TEMPLATES` are not filler — they are named workflows tied to specific sample
-documents, and one of them honestly announces `Requires attachment`. Keep exactly those three, keep
-the attachment honesty, and never grow the list to fill a grid.
+screen because it advertises capabilities the host may not have.
+
+The published critique is sharper than my instinct. Adi Leviim, *The death of the empty state in AI
+products* [REPORTED; the UX Collective original is Cloudflare-blocked, read via a syndicated copy]:
+AI products "replaced 20 years of empty-state research with a prompt box", which is "**the absence of
+design**, not minimalism"; the chips are "**the only signifier**" in an otherwise barren interface
+and function as **filler rather than genuine affordances**; what users need instead is "**a worked
+example**" and "**a starting verb**". The prompt box "violates recognition by definition" — you must
+recall a product's capabilities before you have experienced them. The author's own funnel numbers
+from a Chrome extension: **70% of new installs never returned for a second session**; 30% reached a
+second, **12% a fifth, 4% weekly active**, with the empty state named as the single biggest cause.
+(Treat the funnel as one product's data, not a benchmark.)
+
+Note also what the market actually does [OBSERVED]: **Perplexity ships no suggestion chips at all**
+on its empty state — two promo cards instead. ChatGPT logged out ships two, and they are about the
+product ("Chat with ChatGPT", "What can you do?"), not about tasks. v0 ships four *plus* a
+**"Refresh suggestions"** button, which is a tacit admission that any four are arbitrary.
+
+**Our exception, and it is a real one:** the three `CONSOLE_TEMPLATES` are not filler. They are
+*worked examples with a starting verb* — "Read the attached scanned inspection report for vessel
+V-2104 and prepare an approval note…" — tied to specific sample documents, and one of them honestly
+announces `Requires attachment`. That is precisely what Leviim asks for. Keep exactly those three,
+keep the attachment honesty, never add a "Refresh suggestions" button, and never grow the list to
+fill a grid.
+
+For the headline, note that NN/g's canonical empty-state guidance has **never evaluated AI prompt
+chips** — its three rules are communicate system status, provide learning cues, provide direct
+pathways to key tasks. Do not cite NN/g as having tested this; cite it for the rules, which our
+templates satisfy and generic chips do not.
 
 **6.10 Markdown rendering that outruns provenance.** A bolded heading and a tidy bullet list make an
 uncited claim *look* like a finding. Until stage 08 has run, render the answer region as nothing at
@@ -2387,6 +2494,19 @@ otherwise have shipped by accident, because the happy path is the easy one to bu
 - Scite badge configuration — https://scite.ai/badge [REPORTED]
 - Linear, Agents and Agent Interaction — https://linear.app/developers/agents, /agent-interaction [OBSERVED]
 
+**Thread, composer, artifacts and empty states, third pass**
+- OpenAI, Introducing canvas (trigger rates, shortcut labels, targeted-edit rule) — https://openai.com/index/introducing-canvas/ [OBSERVED]
+- assistant-ui, Claude Clone reference implementation (Claude.ai palette and turn styling) — https://www.assistant-ui.com/examples/claude [REPORTED]
+- ChatGPT width-fix userscript (`--thread-content-max-width: 40rem`, `#stage-slideover-sidebar`) — https://gist.github.com/alexchexes/d2ff0b9137aa3ac9de8b0448138125ce [REPORTED]
+- Leaked Claude 3.5 Sonnet artifacts system prompt (the explicit *don't* list and MIME types) — https://gist.github.com/dedlim/6bf6d81f77c19e20cd40594aa09e3ecd [REPORTED]
+- Vercel `ai-chatbot` (third pass): `components/chat/artifact.tsx`, `document-preview.tsx`, `message-actions.tsx`, `suggested-actions.tsx`, `slash-commands.tsx`, `app/(chat)/actions.ts`, `lib/ai/prompts.ts` [OBSERVED]
+- Cursor, Agent overview (Enter queues / Cmd+Enter steers / draggable queue; `/side`, `/btw`, `/goal`) — https://cursor.com/docs/agent/overview, /docs/agent/agents-window [REPORTED]
+- Replit, Agent overview (plan mode, "Accept tasks" / "Revise plan", output-type selector) — https://docs.replit.com/features/agent/overview [REPORTED]
+- Google AI Studio quickstart (Run settings panel, "Get code") — https://ai.google.dev/gemini-api/docs/ai-studio-quickstart [REPORTED]
+- Setproduct, AI chat interface UI design (65–72 chars/line, 400–520px IDE panels, 100px auto-scroll stickiness, `aria-live="polite"`, the anti-bubble argument) — https://www.setproduct.com/blog/ai-chat-interface-ui-design [REPORTED]
+- Leviim, *The death of the empty state in AI products* — https://www.designersforest.com/the-death-of-the-empty-state-in-ai-products/ (syndicated; the UX Collective original is Cloudflare-blocked) [REPORTED]
+- NN/g, *Empty State Interface Design* — https://www.nngroup.com/articles/empty-state-interface-design/ [REPORTED — note it contains **no** AI-chat or prompt-chip content]
+
 **CI/CD status vocabularies**
 - GitHub, Check Runs REST API (the eight `conclusion` values) — https://docs.github.com/en/rest/checks/runs [OBSERVED]
 - GitHub, Skipping workflow runs — https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs [OBSERVED]
@@ -2446,7 +2566,8 @@ otherwise have shipped by accident, because the happy path is the easy one to bu
 
 ## 8. If you only do eight things
 
-1. Cap the thread at 896px, kill the 1400px dashboard shell, and make the turn the unit.
+1. Kill the 1400px dashboard shell and make the turn the unit: prose at 720px, ledger and evidence at
+   896px, composer at 768px.
 2. Render evidence passages **as they retrieve**, before any answer text exists — status line reading
    `Retrieving`, then `N passages above threshold`.
 3. Ship the collapsed stage ledger inside the assistant turn: 11 fixed rows, auto-open while live,
@@ -2464,4 +2585,4 @@ otherwise have shipped by accident, because the happy path is the easy one to bu
    highlighted, and never let a citation chip appear before stage 08 has produced its verdict.
 8. Render the failed checks, the contradicting evidence and `VerificationReport.limitations[]` beside
    the passing ones. A panel of green ticks measurably increases acceptance without increasing
-   discrimination (§2.19).
+   discrimination (§2.20).
