@@ -26,11 +26,14 @@ import { useRole } from './role-context'
  */
 function AnswerBody({
   text,
-  evidence,
+  evidence = [],
   onCite,
 }: {
   text: string
-  evidence: EvidenceItem[]
+  // Defaulted rather than assumed. A caller that has not loaded evidence yet
+  // passes undefined, and resolving citations must not be the thing that
+  // throws while a run is still settling.
+  evidence?: EvidenceItem[]
   onCite: (id: string) => void
 }) {
   // Every prefix the backend ledger mints: S knowledge base, F uploaded file,

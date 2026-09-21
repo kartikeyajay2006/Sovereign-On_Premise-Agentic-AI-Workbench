@@ -345,11 +345,53 @@ def sandbox_self_test(user: CurrentUser) -> dict[str, Any]:
 # --------------------------------------------------------------------- health
 @router.get("/health", response_model=SystemHealth)
 async def health(user: CurrentUser) -> SystemHealth:
+    """Report what this host can currently do.
+
+    Four of the readings below are blocking calls, and this is an ``async def``
+    route, so they used to run directly on the event loop:
+
+    * ``knowledge_base.stats()`` queries SQLite.
+    * ``Sandbox.is_ready()`` starts a child interpreter with a 15 second
+      timeout. On the supported platform that is a real subprocess spawn.
+    * ``AuditLog.verify_chain()`` reads and re-hashes the entire audit file,
+      so it gets slower for the life of the deployment.
+    * ``SovereigntyMonitor.status()`` walks the process tree with psutil.
+
+    While any of them ran, the loop could serve nothing else. The interface
+    polls this endpoint, so during a task run the proxy reported
+    ``ECONNRESET`` on /api/health and ``ERR_INCOMPLETE_CHUNKED_ENCODING`` on
+    the event stream — the live view dropped exactly when a run was in
+    progress, which is when it matters. Events are also dropped for a slow
+    subscriber (``backend/core/events.py``), so stalling the loop can cost
+    records, not merely responsiveness.
+
+    Each blocking reading is now taken on a worker thread, and they are taken
+    concurrently rather than one after another.
+    """
     registry = get_model_registry()
-    snapshot = await registry.refresh(force=True)
     knowledge_base = get_knowledge_base()
-    stats = knowledge_base.stats()
     monitor = get_sovereignty_monitor()
+    sandbox = get_sandbox()
+    audit_log = get_audit_log()
+
+    # Not force=True. The registry already caches behind a TTL, and forcing a
+    # refresh here means every health poll makes an HTTP call to the inference
+    # provider — which, during a run, is the one process on the host saturated
+    # with work. Measured on this machine while a task was executing: health
+    # took between 1.6 and 20 seconds and a third of the requests timed out
+    # outright. The cached snapshot is the right answer for an endpoint the
+    # interface polls; /models/status still forces when a human asks for it.
+    snapshot, stats, retrieval_mode, sandbox_ready, chain, sovereignty = (
+        await asyncio.gather(
+            registry.refresh(),
+            asyncio.to_thread(knowledge_base.stats),
+            knowledge_base.retrieval_mode(),
+            asyncio.to_thread(sandbox.is_ready),
+            asyncio.to_thread(audit_log.verify_chain),
+            asyncio.to_thread(monitor.status),
+        )
+    )
+
     return SystemHealth(
         inference_provider=str(get_config().settings.inference.get("provider", "ollama")),
         inference_reachable=snapshot.provider_reachable,
@@ -357,11 +399,11 @@ async def health(user: CurrentUser) -> SystemHealth:
         models_available=len(snapshot.available()),
         knowledge_documents=stats["documents"],
         knowledge_chunks=stats["chunks"],
-        retrieval_mode=await knowledge_base.retrieval_mode(),
-        sandbox_runtime=get_sandbox().runtime,
-        sandbox_ready=get_sandbox().is_ready(),
-        audit_chain_valid=get_audit_log().verify_chain().valid,
-        sovereignty_ok=monitor.status().sovereign,
+        retrieval_mode=retrieval_mode,
+        sandbox_runtime=sandbox.runtime,
+        sandbox_ready=sandbox_ready,
+        audit_chain_valid=chain.valid,
+        sovereignty_ok=sovereignty.sovereign,
         uptime_seconds=(datetime.now(timezone.utc) - BOOT_TIME).total_seconds(),
         checked_at=datetime.now(timezone.utc),
     )
