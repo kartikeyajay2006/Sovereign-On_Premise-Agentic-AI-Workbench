@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Plus, Loader2, Trash2, Cpu, Database, FileText, CheckCircle2, Zap, Layers } from 'lucide-react'
+import { Search, Plus, Loader2, Cpu, Database, FileText } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { EvidenceItem, KnowledgeDocument, SopRecord, StoredFile, TaskFile } from '@/lib/types'
+import type {
+  EvidenceItem,
+  KnowledgeDocument,
+  ModelsStatus,
+  SopRecord,
+  StoredFile,
+  TaskFile,
+} from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
 import { ClassificationTag, StatusIndicator, TechnicalLabel } from '@/components/primitives'
 import { SovButton } from '@/components/sov-button'
@@ -21,44 +28,6 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'search', label: 'Semantic Vector Tester', icon: Search },
 ]
 
-const LOCAL_MODELS = [
-  {
-    name: 'Qwen 2.5 72B Instruct',
-    role: 'Reasoning & Orchestration',
-    quant: 'Q4_K_M · GGUF',
-    ctx: '32,768 tokens',
-    vram: '41.2 GB VRAM',
-    speed: '48.5 tok/s',
-    status: 'ONLINE · RESIDENT',
-  },
-  {
-    name: 'Qwen 2.5 VL 7B Instruct',
-    role: 'Multimodal Vision & CAD OCR',
-    quant: 'FP16 · Native',
-    ctx: '8,192 tokens',
-    vram: '14.8 GB VRAM',
-    speed: '62.0 tok/s',
-    status: 'ONLINE · RESIDENT',
-  },
-  {
-    name: 'DeepSeek R1 Distill Qwen 32B',
-    role: 'Mathematical Recomputation',
-    quant: 'Q5_K_M · GGUF',
-    ctx: '16,384 tokens',
-    vram: '22.4 GB VRAM',
-    speed: '38.2 tok/s',
-    status: 'ONLINE · RESIDENT',
-  },
-  {
-    name: 'BAAI BGE-M3 / MiniLM-L6-v2',
-    role: 'Dense & Sparse Vector Retrieval',
-    quant: 'FP32 · On-Prem PyTorch',
-    ctx: '8,192 tokens',
-    vram: '2.1 GB VRAM',
-    speed: '120 doc/s',
-    status: 'ONLINE · RESIDENT',
-  },
-]
 
 export function RegistryView() {
   const [tab, setTab] = useState<Tab>('models')
@@ -88,15 +57,20 @@ export function RegistryView() {
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-5 py-10 lg:px-10 lg:py-14">
+      {/*
+        "Models Online: 4 Resident" and "VRAM Usage: 80.5 GB" were constants,
+        and the two genuine counts fell back with `|| 6` and `|| 142`, so an
+        empty or unreachable index reported a populated one. A zero count is
+        the correct answer when nothing is indexed. Model residency now lives
+        in the estate table below, read from the host.
+      */}
       <PageHeader
         eyebrow="Knowledge & Model Registry"
         title="Registry"
         description="Locally resident neural models, indexed standard operating procedures, and semantic retrieval tester. 100% on-premise."
         meta={[
-          { label: 'Models Online', value: '4 Resident' },
-          { label: 'SOPs', value: String(sopCount || 6) },
-          { label: 'Indexed Chunks', value: String(totalChunks || 142) },
-          { label: 'VRAM Usage', value: '80.5 GB' },
+          { label: 'SOPs', value: loading ? '—' : String(sopCount) },
+          { label: 'Indexed chunks', value: loading ? '—' : String(totalChunks) },
         ]}
         actions={
           <SovButton arrow onClick={() => setIngestOpen(true)}>
@@ -142,52 +116,140 @@ export function RegistryView() {
   )
 }
 
+/**
+ * The model estate, read from the host.
+ *
+ * This was a hardcoded array of four models — "Qwen 2.5 72B Instruct",
+ * "41.2 GB VRAM", "48.5 tok/s", all four "ONLINE · RESIDENT" — on the second
+ * item in the navigation, which is roughly the first place anyone curious
+ * clicks. None of it came from the machine. api.modelsStatus() already
+ * existed, is backed by a route that reports genuine residency, and was never
+ * called.
+ *
+ * Throughput is not shown at all: nothing measures tokens per second yet.
+ * When benchmark-aware routing lands it can be added with a real number
+ * behind it.
+ */
 function ModelEstateTable() {
+  const [status, setStatus] = useState<ModelsStatus | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .modelsStatus()
+      .then((s) => {
+        if (!cancelled) setStatus(s)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message || 'Could not read the model registry')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const installed = new Set(status?.installed_on_host ?? [])
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <TechnicalLabel>Localhost Model Architecture & Quantization Matrix</TechnicalLabel>
-        <span className="font-mono text-[11px] text-[var(--sovereign)] font-semibold">
-          Strict Local GPU Binding (0 Cloud Dependency)
+        <TechnicalLabel>Registered models</TechnicalLabel>
+        <span className="font-mono text-[11px] text-foreground-muted">
+          {status ? `provider ${status.provider} · ${status.provider_reachable ? 'reachable' : 'unreachable'}` : ''}
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {LOCAL_MODELS.map((model) => (
-          <div
-            key={model.name}
-            className="group relative flex flex-col justify-between gap-4 rounded-xl border border-border bg-surface p-5 transition-all hover:border-foreground hover:shadow-md"
-          >
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--sovereign)] flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[var(--sovereign)] animate-pulse" />
-                  {model.status}
-                </span>
-                <span className="font-mono text-[10px] text-foreground-muted">{model.quant}</span>
-              </div>
-              <h3 className="mt-2 text-base font-bold text-foreground group-hover:text-[var(--active)] transition-colors">
-                {model.name}
-              </h3>
-              <p className="text-[12px] text-foreground-secondary">{model.role}</p>
-            </div>
+      {loading && (
+        <p className="font-mono text-[12px] text-foreground-muted">Reading registry…</p>
+      )}
 
-            <div className="grid grid-cols-3 gap-2 rounded border border-border bg-surface-sunken p-2.5 font-mono text-[10px] text-foreground">
+      {error && !loading && (
+        <div className="border border-critical bg-critical/5 px-4 py-3">
+          <p className="font-mono text-[12px] text-foreground">{error}</p>
+          <p className="mt-1 text-[12px] text-foreground-secondary">
+            The registry is read from the workbench service. Nothing is shown
+            in its place.
+          </p>
+        </div>
+      )}
+
+      {status && status.registered.length === 0 && (
+        <p className="text-[13px] text-foreground-secondary">
+          No models are registered on this host.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {status?.registered.map((model) => {
+          const present = model.available || installed.has(model.provider_model)
+          return (
+            <div
+              key={model.id}
+              className="group relative flex flex-col justify-between gap-4 rounded-xl border border-border bg-surface p-5 transition-all hover:border-foreground"
+            >
               <div>
-                <span className="text-foreground-muted block">Context:</span>
-                <strong className="font-semibold">{model.ctx}</strong>
+                <div className="flex items-center justify-between">
+                  <span
+                    className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                    style={{
+                      color: present ? 'var(--sovereign)' : 'var(--foreground-muted)',
+                    }}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor: present
+                          ? 'var(--sovereign)'
+                          : 'var(--foreground-muted)',
+                      }}
+                    />
+                    {present ? 'installed on host' : 'registered, not installed'}
+                  </span>
+                  {model.quantization && (
+                    <span className="font-mono text-[10px] text-foreground-muted">
+                      {model.quantization}
+                    </span>
+                  )}
+                </div>
+                <h3 className="mt-2 text-base font-bold text-foreground">
+                  {model.display_name}
+                </h3>
+                <p className="text-[12px] text-foreground-secondary">
+                  {model.role}
+                  {model.notes ? ` · ${model.notes}` : ''}
+                </p>
               </div>
-              <div>
-                <span className="text-foreground-muted block">VRAM:</span>
-                <strong className="font-semibold">{model.vram}</strong>
-              </div>
-              <div>
-                <span className="text-foreground-muted block">Speed:</span>
-                <strong className="text-[var(--sovereign)] font-bold">{model.speed}</strong>
+
+              <div className="grid grid-cols-3 gap-2 rounded border border-border bg-surface-sunken p-2.5 font-mono text-[10px] text-foreground">
+                <div>
+                  <span className="block text-foreground-muted">Context</span>
+                  <strong className="font-semibold">
+                    {model.context_window.toLocaleString()}
+                  </strong>
+                </div>
+                <div>
+                  <span className="block text-foreground-muted">Parameters</span>
+                  <strong className="font-semibold">
+                    {model.parameters_b ? `${model.parameters_b}B` : '—'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="block text-foreground-muted">On disk</span>
+                  <strong className="font-semibold">
+                    {model.size_bytes
+                      ? `${(model.size_bytes / 1_000_000_000).toFixed(1)} GB`
+                      : '—'}
+                  </strong>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ShieldAlert, Loader2, Stamp, KeyRound, Sparkles, CheckCircle2, Lock, Inbox } from 'lucide-react'
+import { Check, ShieldAlert, Loader2, Stamp, Sparkles, CheckCircle2, Lock, Inbox } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { ApprovalItem, Task } from '@/lib/types'
 import { PageHeader } from '@/components/page-header'
@@ -131,7 +131,8 @@ export function ApprovalsView() {
       if (decision === 'approve') setIsStamped(true)
       push({
         title: decision === 'approve' ? 'Deliverable released' : 'Task rejected',
-        detail: `Task ${active?.id.slice(0, 8)} ${decision === 'approve' ? 'approved & signed' : 'rejected'}`,
+        // Not "signed" — nothing signs anything yet.
+        detail: `Task ${active?.id.slice(0, 8)} ${decision === 'approve' ? 'approved and recorded' : 'rejected'}`,
         tone: decision === 'approve' ? 'sovereign' : 'critical',
       })
       setConfirm(null)
@@ -151,13 +152,13 @@ export function ApprovalsView() {
       <PageHeader
         eyebrow="Human-in-the-Loop Gate"
         title="Approval Queue"
-        description="Air-gapped verification buffer. Deliverables are cryptographically locked until reviewed and authorized by an approved signature."
+        description="Deliverables are withheld until a reviewer with the required role approves them. The decision is appended to the local audit chain."
         meta={[
           {
             label: 'Pending Review',
             value: forbidden ? (heldElsewhere != null ? `${heldElsewhere} held` : '—') : String(pendingCount),
           },
-          { label: 'Reviewer Key', value: user?.display_name || role.label },
+          { label: 'Reviewer', value: user?.display_name || role.label },
           { label: 'RBAC Clearance', value: canApprove ? 'AUTHORIZED' : 'READ-ONLY' },
         ]}
       />
@@ -299,49 +300,65 @@ export function ApprovalsView() {
                 </p>
               </div>
 
-              {/* Interactive Digital Approval Stamp Seal */}
+              {/*
+                This was an "Interactive Cryptographic Sign-Off Seal", labelled
+                ECDSA SHA-256, which invited the reviewer to "certify this
+                report with your cryptographic reviewer key" and afterwards
+                printed "Fingerprint: 0x8f2c...41ad" beside their real name.
+
+                No signing exists in this product. There is no key, no
+                signature and no fingerprint anywhere in backend/ — the string
+                was a literal, and the named algorithm is not even the Ed25519
+                the roadmap specifies. Displaying an invented fingerprint next
+                to a named human, on the screen whose entire purpose is
+                accountability, is the most damaging thing the interface could
+                assert.
+
+                The decision itself is real: it is recorded against the
+                reviewer, with a timestamp, in the audit chain. That is what
+                this now says. When audit signing is built, a genuine
+                fingerprint can be shown here.
+              */}
               <div className="relative overflow-hidden rounded-xl border border-border bg-surface p-6 shadow-sm">
                 <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
                   <div className="flex items-center gap-2">
-                    <Stamp className="h-4 w-4 text-[var(--sovereign)]" />
+                    <Stamp className="h-4 w-4 text-foreground-muted" />
                     <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground">
-                      Interactive Cryptographic Sign-Off Seal
+                      Reviewer decision
                     </span>
                   </div>
-                  <span className="font-mono text-[10px] text-foreground-muted flex items-center gap-1">
-                    <KeyRound className="h-3 w-3 text-[var(--active)]" /> ECDSA SHA-256
+                  <span className="font-mono text-[10px] text-foreground-muted">
+                    Recorded in the audit chain
                   </span>
                 </div>
 
                 {active.status === 'PENDING' && !isStamped ? (
-                  <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-[var(--sovereign)]/40 rounded-lg bg-[var(--sovereign)]/5 text-center gap-3">
-                    <p className="text-[13px] text-foreground-secondary max-w-md">
-                      Click below to stamp and certify this report with your cryptographic reviewer key.
+                  <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-surface-sunken/40 p-6 text-center">
+                    <p className="max-w-md text-[13px] text-foreground-secondary">
+                      Approving releases this deliverable and records the
+                      decision against your account.
                     </p>
                     <button
                       type="button"
                       onClick={() => setConfirm('approve')}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 border-[var(--sovereign)] bg-[var(--sovereign)] text-black font-mono text-[12px] font-bold uppercase tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(22,163,74,0.3)]"
+                      className="flex items-center gap-2 rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)] px-5 py-2.5 font-mono text-[12px] font-bold uppercase tracking-wider text-black transition-colors hover:opacity-90"
                     >
-                      <Stamp className="h-4 w-4" /> Place Sovereign Seal & Release
+                      <Stamp className="h-4 w-4" /> Approve and release
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)]/15 p-4 text-[var(--sovereign)] animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)]/15 p-4 text-[var(--sovereign)]">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-current font-mono font-black text-[12px]">
-                        SEAL
-                      </div>
+                      <CheckCircle2 className="h-6 w-6 text-[var(--sovereign)]" />
                       <div>
                         <div className="font-mono text-[13px] font-bold uppercase tracking-wider">
-                          CERTIFIED & RELEASED
+                          Approved and released
                         </div>
                         <div className="font-mono text-[10px] text-foreground-muted">
-                          Signed by {user?.display_name || role.label} · Fingerprint: 0x8f2c...41ad
+                          Recorded against {user?.display_name || role.label}
                         </div>
                       </div>
                     </div>
-                    <CheckCircle2 className="h-6 w-6 text-[var(--sovereign)]" />
                   </div>
                 )}
               </div>
@@ -406,7 +423,7 @@ export function ApprovalsView() {
         <div className="flex flex-col gap-4">
           <p className="text-[13px] text-foreground-secondary">
             {confirm === 'approve'
-              ? 'By authorizing this release, you certify that the outputs meet compliance thresholds. A cryptographic signature will be appended to the local audit trail.'
+              ? 'Approving releases the deliverable. The decision, your account and the time are appended to the local audit chain.'
               : 'Rejecting this task returns it to the submitter with your explanatory notes.'}
           </p>
           <textarea
