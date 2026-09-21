@@ -23,11 +23,19 @@ export function RoleSwitcher() {
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
 
-  const displayName = user?.display_name || role.persona || 'S. Ramanathan'
-  const roleLabel = role.label || 'Integrity Engineer'
-  const username = user?.username || role.id || 'engineer'
-  const classification = user?.max_data_classification?.toUpperCase() || 'CONFIDENTIAL'
-  const department = user?.department || 'Asset Integrity Engineering'
+  // Identity is shown only as far as the session actually reports it.
+  //
+  // This chain read `user?.display_name || role.persona || 'S. Ramanathan'`,
+  // so a session without a display name presented an invented human being as
+  // the signed-in operator — the exact thing the docstring in
+  // lib/presentation.ts warns against, on a system that records who approved
+  // what. Clearance was worse: `|| 'CONFIDENTIAL'` asserted a clearance level
+  // for a user the frontend had not successfully loaded.
+  const displayName = user?.display_name || role.label
+  const roleLabel = role.label
+  const username = user?.username || role.id
+  const classification = user?.max_data_classification?.toUpperCase() || 'UNKNOWN'
+  const department = user?.department || '—'
 
   return (
     <div ref={wrapRef} className="relative">
@@ -141,7 +149,6 @@ export function RoleSwitcher() {
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[12px] font-semibold text-foreground">{r.label}</span>
-                      <span className="font-mono text-[10px] text-foreground-muted">({r.persona})</span>
                     </div>
                     <span className="text-[11px] leading-snug text-foreground-secondary">
                       {r.description}

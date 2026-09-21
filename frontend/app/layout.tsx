@@ -16,7 +16,6 @@ export const metadata: Metadata = {
   title: 'Aegis — On-Premise Agentic AI Workbench',
   description:
     'Air-gapped, self-hosted agentic AI platform for confidential industrial environments. Models, sandboxes, documents and audit trails never leave the host.',
-  generator: 'v0.app',
 }
 
 export const viewport: Viewport = {

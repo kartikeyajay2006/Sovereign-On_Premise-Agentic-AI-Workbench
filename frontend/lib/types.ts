@@ -30,7 +30,6 @@ export type PolicyDecision = 'allow' | 'deny' | 'require_approval'
 export interface Role {
   id: RoleId
   label: string
-  persona: string
   description: string
   capabilities: string[]
 }
