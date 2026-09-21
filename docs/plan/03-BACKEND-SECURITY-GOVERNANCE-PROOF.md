@@ -4214,6 +4214,1463 @@ then prints a one-page readiness summary including the **capability banner**. If
 the banner is not `container_rootless`, it prints in red and requires
 `--i-know` to continue.
 
-<!--SEC9-->
+---
+
+## 9. `CONTRACT:` THE API HARNESS I PUBLISH
+
+**The Frontend agent builds against this verbatim.** It is additive: every
+endpoint and every type in `frontend/lib/api.ts` and `frontend/lib/types.ts`
+today keeps working unchanged. Nothing below renames or removes an existing
+field.
+
+### CONTRACT: 9.0 Conventions
+
+**Base** `/api` (proxied by `frontend/next.config.mjs:27-35` to
+`http://127.0.0.1:8000`).
+
+**Auth** — unchanged from `dependencies.py:14-52`. Three accepted forms, in
+priority order: `Authorization: Bearer <token>`, `X-Session-Token: <token>`,
+cookie `workbench_session`. SSE can only use the cookie (`EventSource` cannot
+set headers), which `use-event-stream.ts:26` already relies on. **Every
+endpoint below requires authentication unless marked PUBLIC.**
+
+**Permissions** — enforced via `require_permission(...)`. New permissions to add
+to `policies/access-control.yaml`:
+
+| Permission | Granted to | Guards |
+|---|---|---|
+| `proof.read` | operator (own), reviewer/auditor/administrator (all) | proof + certificate |
+| `policy.read` | *already exists* — administrator | policy decision browsing |
+| `policy.decisions.read` | engineer, reviewer, auditor, administrator | decision records |
+| `security.read` | engineer, reviewer, auditor, administrator | security metrics |
+| `security.selftest` | administrator | running the sandbox self-test |
+| `benchmark.read` | all authenticated roles | benchmark + red-team results |
+| `model.integrity.verify` | administrator | deep re-hash |
+| `classification.declassify` | administrator | declassification |
+| `audit.verify` | auditor, administrator | full chain + signature verification |
+
+**Error shape** — a global exception handler registered in `main.py`. `detail`
+stays a **string** so `frontend/lib/api.ts`'s `ApiError` keeps working:
+
+```jsonc
+{
+  "detail": "Tool 'python_exec' is not granted to role 'auditor'",  // string, always
+  "code": "POLICY_DENIED",
+  "context": {
+    "decision_id": "3f1c…",
+    "rule_id": "TOOL.python_exec.allowed_roles",
+    "source_file": "policies/tool-permissions.yaml",
+    "subject_role": "auditor"
+  },
+  "at": "2026-09-21T10:14:02.117Z"
+}
+```
+
+Codes: `UNAUTHENTICATED` (401) · `PERMISSION_DENIED` (403) ·
+`POLICY_DENIED` (403) · `APPROVAL_REQUIRED` (403) ·
+`APPROVAL_INVALIDATED` (409) · `NOT_FOUND` (404) · `GONE` (410) ·
+`VALIDATION_FAILED` (422) · `FILE_REJECTED` (400) ·
+`CLASSIFICATION_ESCALATED` (409) · `INTEGRITY_FAILURE` (503) ·
+`SANDBOX_UNAVAILABLE` (503) · `CAPABILITY_INSUFFICIENT` (503) ·
+`CONFLICT` (409) · `RATE_LIMITED` (429) · `LOCKED_OUT` (423) ·
+`INTERNAL` (500).
+
+**Timestamps** — ISO 8601 UTC with `Z`. **Hashes** — lowercase hex, prefixed
+`sha256:` in certificates and manifests, bare hex in existing fields
+(`StoredFile.sha256`, `AuditEvent.hash`) to preserve compatibility.
+
+**Pagination** — `?limit` (default 100, max 1000) and `?cursor` (opaque). List
+responses wrap: `{ items: T[], next_cursor: string | null, total: number | null }`.
+Existing list endpoints keep their bare-array shape.
+
+---
+
+### CONTRACT: 9.1 Proof & timeline
+
+```
+GET  /api/proof/{task_id}                      -> TaskProof              [proof.read]
+GET  /api/proof/{task_id}/timeline             -> ProofTimeline          [proof.read]
+GET  /api/proof/{task_id}/stage/{stage}        -> ProofStage             [proof.read]
+GET  /api/proof/{task_id}/certificate          -> SovereigntyCertificate [proof.read]
+GET  /api/proof/{task_id}/certificate/download -> file (attachment)      [proof.read]
+POST /api/proof/verify                         -> CertificateVerification [proof.read]
+GET  /api/proof                                -> ProofIndexItem[]        [proof.read]
+```
+
+`GET /api/proof/{task_id}` — the single fetch that Proof Mode hydrates from.
+
+```ts
+interface TaskProof {
+  task_id: string
+  status: TaskStatus
+  generated_at: string
+  complete: boolean                 // false while the task is still running
+  stages: ProofStage[]              // ordered; the timeline spine
+  certificate: SovereigntyCertificate | null   // null until completion
+  reproducibility: ReproducibilityRecord | null
+  determinism: DeterminismStatement
+  policy_summary: {
+    total: number; allow: number; deny: number; require_approval: number
+    deny_rule_ids: string[]
+  }
+  routing_summary: { stage: string; selected_model: string | null
+                     selected_digest: string | null; eligible_count: number
+                     considered_count: number }[]
+  security_summary: TaskSecurityMetrics
+  evidence_summary: { total: number; by_type: Record<string, number>
+                      quarantined: number; max_injection_risk: InjectionRisk }
+  verification_summary: VerificationSummary | null
+  approval_summary: ApprovalSummary | null
+  audit: { sequence_from: number; sequence_to: number; event_count: number
+           root_id: string | null; root_hash: string | null
+           chain_valid: boolean }
+}
+
+type ProofStageName =
+  | 'request' | 'ingestion' | 'classification' | 'policy' | 'routing'
+  | 'retrieval' | 'vision' | 'calculation' | 'execution' | 'verification'
+  | 'approval' | 'deliverable' | 'audit'
+
+interface ProofStage {
+  stage: ProofStageName
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'blocked'
+  started_at: string | null
+  finished_at: string | null
+  duration_ms: number | null
+  summary: string                   // one human sentence, always present
+  determinism: DeterminismClass
+  // Exactly one of these is populated, keyed by `stage`. Discriminated by
+  // `stage`, not by a separate tag, so the frontend switches on `stage`.
+  detail:
+    | RequestDetail | IngestionDetail | ClassificationDetail | PolicyStageDetail
+    | RoutingStageDetail | RetrievalDetail | VisionDetail | CalculationDetail
+    | ExecutionDetail | VerificationDetail | ApprovalDetail | DeliverableDetail
+    | AuditDetail
+  evidence_ids: string[]
+  policy_decision_ids: string[]
+  audit_sequences: number[]
+  failure: { code: string; message: string; rule_id: string | null } | null
+}
+```
+
+Stage detail shapes, in full, because the frontend renders each one:
+
+```ts
+interface RequestDetail  { prompt: string; prompt_sha256: string
+                           file_ids: string[]; requested_format: string | null
+                           user: { id: string; username: string; role: string
+                                   department: string; clearance: Sensitivity } }
+
+interface IngestionDetail { files: {
+    file_id: string; filename: string; normalized_name: string; sha256: string
+    size_bytes: number; declared_media_type: string
+    detected_media_type: string | null; accepted: boolean
+    guard_rule_ids: string[]; guard_notes: string[]
+    injection_risk: InjectionRisk; injection_rule_ids: string[]
+    dlp_labels: string[]; quarantine_path: string | null }[] }
+
+interface ClassificationDetail {
+  effective: Sensitivity; escalated: boolean; deciding_source: string
+  inputs: { user_label: Sensitivity; document_label: Sensitivity
+            dlp: Sensitivity; task_classifier: Sensitivity }
+  escalation_reasons: string[]
+  dlp_findings: { rule_id: string; label: string; severity: Sensitivity
+                  count: number; redacted_sample: string; locations: string[] }[]
+  signals: ClassificationSignal[]        // existing shape, from TaskProfile
+  declassified: boolean; declassified_by: string | null
+}
+
+interface PolicyStageDetail { decisions: PolicyDecisionRecord[] }
+interface RoutingStageDetail { traces: RoutingDecision[] }   // extended shape, §5.1
+
+interface ExecutionDetail {
+  runs: {
+    run_id: string; evidence_id: string; code_sha256: string; code: string
+    enforcement: EnforcementLevel; isolation_claims: IsolationClaims
+    static_validation_passed: boolean; static_violations: string[]
+    static_rule_ids: string[]
+    exit_code: number | null; timed_out: boolean; oom_killed: boolean
+    duration_ms: number
+    stdout: string; stderr: string; stdout_sha256: string
+    generated_files: { name: string; sha256: string; size_bytes: number }[]
+    resource_usage: { peak_rss_mb: number | null; cpu_ms: number | null
+                      pids_peak: number | null; available: boolean
+                      reason?: string }
+    limits: ResourceLimitsView
+    network: { namespace: string; attempts_blocked: number }
+    policy_decision_id: string
+  }[]
+}
+
+interface ApprovalDetail {
+  state: ApprovalState; required: boolean; reasons: string[]
+  approver_roles: string[]; revision_round: number
+  history: ApprovalTransition[]
+  current_binding: ApprovalBinding | null
+  invalidated_reason: string | null; reverification_required: boolean
+}
+
+interface AuditDetail {
+  sequence_from: number; sequence_to: number; event_count: number
+  root_id: string | null; root_hash: string | null
+  signature: string | null; key_id: string | null
+  chain_valid: boolean
+  inclusion_proof: { side: 'left' | 'right'; hash: string }[]
+}
+```
+
+`GET /api/proof/{task_id}/timeline` — a lighter payload for live rendering;
+same `stages` array but with `detail` omitted. Use this for the initial paint,
+then lazy-load `GET /api/proof/{task_id}/stage/{stage}` on click.
+
+`POST /api/proof/verify`
+
+```ts
+// request: the certificate JSON, verbatim, exactly as downloaded
+type CertificateVerifyRequest = SovereigntyCertificate
+
+interface CertificateVerification {
+  valid: boolean
+  certificate_id: string
+  task_id: string
+  checks: {
+    name: 'signature' | 'audit_root' | 'inclusion_proof' | 'deliverable_hashes'
+        | 'input_hashes' | 'model_digests' | 'policy_bundle' | 'schema'
+    passed: boolean
+    detail: string
+    expected?: string
+    observed?: string
+  }[]
+  signature_status: 'verified' | 'unsigned' | 'invalid' | 'no_key' | 'key_expired'
+  key_id: string | null
+  verified_at: string
+  verifier_version: string
+}
+```
+
+`GET /api/proof` — index for a proof browser:
+
+```ts
+interface ProofIndexItem {
+  task_id: string; certificate_id: string | null; issued_at: string | null
+  status: TaskStatus; classification: Sensitivity
+  approval_state: ApprovalState; signature_status: string
+  sandbox_enforcement: EnforcementLevel; sovereign: boolean
+  prompt_excerpt: string
+}
+```
+
+---
+
+### CONTRACT: 9.2 Policy decisions
+
+```
+GET /api/policy/decisions                  -> Paginated<PolicyDecisionRecord>  [policy.decisions.read]
+GET /api/policy/decisions/{decision_id}    -> PolicyDecisionRecord             [policy.decisions.read]
+GET /api/policy/rules                      -> PolicyRuleSet                    [policy.decisions.read]
+GET /api/policy/rules/{rule_id}            -> PolicyRule                       [policy.decisions.read]
+GET /api/policy/bundle                     -> PolicyBundleInfo                 [policy.decisions.read]
+GET /api/policies                          -> unchanged (system.py:187)        [any]
+```
+
+Query params on `/api/policy/decisions`:
+`task_id`, `subject_id`, `subject_role`, `action`, `resource_kind`,
+`resource_id`, `decision` (`allow|deny|require_approval`), `rule_id`,
+`since`, `until`, `limit`, `cursor`.
+
+```ts
+type PolicyDecisionVerdict = 'allow' | 'deny' | 'require_approval'  // === PolicyDecision
+
+interface PolicySubject { kind: 'user' | 'system' | 'agent'; id: string
+  username: string; role: string; department: string
+  clearance: Sensitivity; permissions: string[]; session_id: string | null }
+
+interface PolicyResource { kind: 'tool' | 'model' | 'file' | 'path'
+  | 'knowledge_document' | 'deliverable' | 'task' | 'classification' | 'evidence'
+  id: string; label: string | null; classification: Sensitivity | null
+  department: string | null; attributes: Record<string, unknown> }
+
+interface MatchedRule { rule_id: string; source_file: string; source_path: string
+  policy_version: number; matched: boolean
+  effect: PolicyDecisionVerdict; detail: string }
+
+interface PolicyDecisionRecord {
+  id: string
+  task_id: string | null
+  stage: string | null
+  subject: PolicySubject
+  action: string                          // "tool.invoke", "model.invoke", …
+  resource: PolicyResource
+  context_classification: Sensitivity
+  decision: PolicyDecisionVerdict
+  reason: string
+  evaluated_rules: MatchedRule[]          // ALL rules considered, in order
+  deciding_rule_id: string | null
+  policy_bundle_version: string
+  obligations: string[]
+  latency_us: number
+  at: string
+  audit_sequence: number | null
+}
+
+interface PolicyRule {
+  rule_id: string; source_file: string; source_path: string
+  policy_version: number; description: string | null
+  body: unknown                    // the raw YAML node, for "open the rule"
+  applies_to: string[]             // action names
+  decision_count: { allow: number; deny: number; require_approval: number }
+}
+
+interface PolicyRuleSet {
+  bundle_version: string
+  rules: PolicyRule[]
+  roles: Record<string, { description: string; permissions: string[]
+                          inherits: string | null
+                          max_data_classification: Sensitivity }>
+  classification_levels: { id: Sensitivity; rank: number; label: string
+                           description: string; controls: Record<string, unknown> }[]
+  hard_denied_actions: string[]
+}
+
+interface PolicyBundleInfo {
+  bundle_version: string            // sha256 over the five policy/config files
+  files: { path: string; sha256: string; policy_version: number }[]
+  loaded_at: string
+}
+```
+
+---
+
+### CONTRACT: 9.3 Routing candidates
+
+```
+GET /api/routing/candidates/{task_id}           -> RoutingDecision[]   [proof.read]
+GET /api/routing/candidates/{task_id}/{stage}   -> RoutingDecision     [proof.read]
+GET /api/routing/rules                          -> unchanged (system.py:176)
+GET /api/routing/benchmarks                     -> BenchmarkIndex      [benchmark.read]
+```
+
+```ts
+type GateName = 'policy' | 'integrity' | 'installed' | 'capability' | 'memory'
+
+interface GateResult { name: GateName; passed: boolean; reason: string
+  rule: string | null; policy_decision_id: string | null }
+
+interface ModelScore { total: number; measured: boolean; basis: string
+  components: Record<string, { value: number; weight: number }>
+  benchmark_id: string | null; dataset_version: string | null }
+
+interface CandidateEvaluation {
+  model_id: string; display_name: string; role: ModelRole
+  eligible: boolean
+  failed_gate: GateName | null
+  gates: GateResult[]              // in evaluation order; short-circuits on fail
+  score: ModelScore | null         // null for ineligible candidates, always
+  model_digest: string | null
+  rank: number | null              // 1-based among eligible; null if ineligible
+}
+
+interface RoutingDecision {
+  // --- existing fields, UNCHANGED (frontend/lib/types.ts:205) ---
+  requested_role: string
+  required_capabilities: string[]
+  selected_model: string | null
+  selected_display_name: string | null
+  rule: string
+  reason: string
+  used_fallback: boolean
+  candidates: Record<string, unknown>[]     // legacy, truncated to 6
+  decided_at: string
+  // --- new, additive ---
+  stage: string | null
+  router_version: string
+  routing_policy_version: number
+  selected_digest: string | null
+  evaluations: CandidateEvaluation[]        // COMPLETE list, never truncated
+  explanation: string[]                     // ordered human sentences
+  unbenchmarked_fallback: boolean
+}
+```
+
+---
+
+### CONTRACT: 9.4 Security metrics & capability
+
+```
+GET  /api/security/capability          -> SecurityCapability        [any]   <- the honesty endpoint
+GET  /api/security/metrics             -> SecurityMetrics           [security.read]
+GET  /api/security/metrics/{task_id}   -> TaskSecurityMetrics       [security.read]
+GET  /api/security/egress              -> EgressReport              [security.read]
+POST /api/security/sandbox-test        -> SandboxTestReport         [security.selftest]
+GET  /api/sovereignty                  -> SovereigntyStatus (extended, unchanged shape + new fields)
+GET  /api/sovereignty/sandbox-test     -> SandboxTestReport  (kept; alias of POST above)
+GET  /api/status                       -> PublicStatus              PUBLIC (exists, system.py:59)
+GET  /api/health                       -> SystemHealth (extended)
+```
+
+**`GET /api/security/capability` is the single most important endpoint in this
+contract.** The frontend must gate every isolation/egress claim on it. No text
+anywhere in the UI may assert isolation unless
+`sandbox.claims.may_claim_isolated === true`, and none may assert zero-egress
+unless `network.claims.may_claim_zero_egress === true`.
+
+```ts
+type EnforcementLevel =
+  | 'container_rootless' | 'subprocess_rlimit' | 'subprocess_unbounded' | 'unavailable'
+
+type HostEnforcement =
+  | 'nftables_enforced' | 'container_netns_only' | 'not_enforced_developer_host'
+
+interface IsolationClaims {
+  headline: string                 // "OS-ENFORCED ISOLATION" | "DEGRADED …"
+  network: string
+  filesystem: string
+  identity: string
+  may_claim_isolated: boolean      // <- gate every isolation string on this
+  may_claim_zero_egress: boolean   // <- gate every egress string on this
+}
+
+interface SecurityCapability {
+  mode: 'demo' | 'development' | 'production'
+  sandbox: {
+    enforcement: EnforcementLevel
+    degraded: boolean
+    reason: string                 // plain English, safe to render verbatim
+    banner: string                 // the full sentence; render it when degraded
+    strict_mode: boolean
+    minimum_enforcement: EnforcementLevel
+    claims: IsolationClaims
+    runtime_detail: { binary: string | null; version: string | null
+                      rootless: boolean | null; image: string | null
+                      image_digest: string | null; graph_driver: string | null }
+    probed_at: string
+  }
+  network: {
+    deployment_mode: 'airgapped' | 'enclave' | 'workstation'
+    host_enforcement: HostEnforcement
+    ruleset_loaded: boolean
+    ruleset_sha256: string | null
+    default_route_present: boolean
+    non_loopback_interfaces_up: string[]
+    monitor_visible: boolean       // false => the monitor CANNOT see; not "clean"
+    monitor_degraded_reasons: string[]
+    claims: IsolationClaims
+  }
+  audit: {
+    signing_available: boolean
+    key_id: string | null
+    key_valid_from: string | null
+    key_valid_until: string | null
+    status: 'signed' | 'unsigned' | 'no_key'
+  }
+  model_integrity: {
+    manifest_present: boolean
+    manifest_signed: boolean
+    models_verified: number
+    models_failed: number
+    models_unverifiable: number
+    last_checked: string | null
+  }
+  platform: { os: string; python: string; posix_rlimits: boolean
+              file_locking: 'flock' | 'msvcrt' | 'none' }
+  checked_at: string
+}
+```
+
+```ts
+interface SecurityMetrics {          // platform-wide, since monitor start
+  window: { from: string; to: string }
+  egress: {
+    blocked_attempts: number         // kernel nft counter, real
+    blocked_dns: number
+    outbound_connections: number
+    unattributed_sockets: number
+    dns_queries: number
+    bytes_sent: number
+    host_enforcement: HostEnforcement
+    monitor_visible: boolean
+    violations: NetworkConnection[]  // existing shape
+  }
+  sandbox: {
+    runs_total: number; runs_blocked_static: number; runs_refused_degraded: number
+    runs_timed_out: number; runs_oom_killed: number
+    enforcement_histogram: Record<EnforcementLevel, number>
+  }
+  ingestion: {
+    files_accepted: number; files_rejected: number
+    rejections_by_rule: Record<string, number>
+    archives_blocked: number; macros_blocked: number; type_mismatches: number
+  }
+  injection: {
+    documents_scanned: number; flagged: number; quarantined: number
+    tool_locks_triggered: number
+    by_rule: Record<string, number>
+    by_risk: Record<InjectionRisk, number>
+  }
+  dlp: { scans: number; escalations: number
+         by_label: Record<string, number>
+         by_target_level: Record<Sensitivity, number> }
+  policy: { total: number; allow: number; deny: number; require_approval: number
+            top_deny_rules: { rule_id: string; count: number }[] }
+  auth: { logins_succeeded: number; logins_failed: number
+          lockouts: number; sessions_revoked: number }
+  collected_at: string
+}
+
+interface TaskSecurityMetrics {      // the per-task slice, for the certificate
+  task_id: string
+  scope_opened_at: string; scope_closed_at: string | null
+  egress: { blocked_attempts: number; outbound_connections: number
+            dns_queries: number; bytes_sent: number
+            host_enforcement: HostEnforcement }
+  sandbox_runs: { run_id: string; enforcement: EnforcementLevel
+                  blocked: boolean; exit_code: number | null }[]
+  injection: { max_risk: InjectionRisk; quarantined_evidence_ids: string[]
+               tool_authorisation_locked: boolean
+               signals: { rule_id: string; severity: string
+                          excerpt: string; evidence_id: string }[] }
+  dlp: { findings: { rule_id: string; label: string; severity: Sensitivity
+                     count: number; redacted_sample: string }[]
+         escalated_to: Sensitivity | null }
+  files_rejected: { filename: string; rule_id: string; message: string }[]
+  policy_denials: { decision_id: string; rule_id: string; reason: string }[]
+}
+
+interface EgressReport {             // the Security page's evidence panel
+  deployment_mode: string
+  host_enforcement: HostEnforcement
+  ruleset_sha256: string | null
+  ruleset_excerpt: string | null     // the live nft ruleset, readable
+  kernel_counters: Record<string, number>   // straight from `nft list counters`
+  interfaces: Record<string, { up: boolean; loopback: boolean
+                               addresses: string[] }>
+  default_route_present: boolean
+  monitor_visible: boolean
+  monitor_degraded_reasons: string[]
+  sampled_at: string
+}
+
+interface SandboxTestReport {        // extends the existing SandboxTestResult
+  // --- existing (frontend/lib/types.ts:415) ---
+  checks: { name: string; target: string; passed: boolean; detail: string }[]
+  passed: number; total: number; overall: string; all_passed: boolean
+  duration_ms: number; ran_at: string
+  // --- new ---
+  enforcement: EnforcementLevel
+  claims: IsolationClaims
+  checks_v2: {
+    id: string                       // 'SBX.AST.GETATTR', 'SBX.NET.DNS', …
+    name: string; target: string; category: 'static' | 'network' | 'filesystem'
+      | 'identity' | 'resource' | 'positive'
+    passed: boolean; detail: string
+    attack_class: string | null      // 'A1', 'A2', …
+    observed: string | null          // what actually happened
+    expected: string                 // what must happen
+  }[]
+  unverifiable: { id: string; reason: string }[]   // e.g. skipped when degraded
+}
+```
+
+`SovereigntyStatus` — **existing fields unchanged**, these are added:
+
+```ts
+interface SovereigntyStatus {
+  /* ...all 13 existing fields exactly as in frontend/lib/types.ts:399... */
+  // --- new, additive ---
+  visible: boolean                   // could the monitor observe at all?
+  degraded: boolean
+  degraded_reasons: string[]
+  unattributed_sockets: number
+  kernel_blocked_packets: number
+  kernel_blocked_dns: number
+  host_enforcement: HostEnforcement
+  ruleset_sha256: string | null
+  sandbox_enforcement: EnforcementLevel
+}
+```
+
+> **Frontend note, load-bearing:** `sovereign` now means *"we could see, and we
+> saw nothing, and the kernel is enforcing"*. On a developer laptop it will be
+> `false` with `degraded_reasons: ["host enforcement is not_enforced_developer_host"]`.
+> That is correct. Render amber with the reason, not red-alarm and not green.
+
+`SystemHealth` — existing fields unchanged, plus:
+
+```ts
+sandbox_enforcement: EnforcementLevel
+sandbox_degraded: boolean
+sandbox_degraded_reason: string | null
+audit_signing: 'signed' | 'unsigned' | 'no_key'
+audit_root_count: number
+model_integrity_ok: boolean
+policy_bundle_version: string
+aegis_version: string
+mode: 'demo' | 'development' | 'production'
+```
+
+---
+
+### CONTRACT: 9.5 Model integrity & benchmarks
+
+```
+GET  /api/models/integrity                 -> ModelIntegrityReport     [security.read]
+POST /api/models/integrity/verify          -> ModelIntegrityReport     [model.integrity.verify]
+GET  /api/models/manifest                  -> ModelManifest            [security.read]
+GET  /api/benchmarks                       -> BenchmarkIndex           [benchmark.read]
+GET  /api/benchmarks/{suite}               -> BenchmarkSuiteResult     [benchmark.read]
+GET  /api/benchmarks/{suite}/cases         -> BenchmarkCase[]          [benchmark.read]
+GET  /api/redteam                          -> RedTeamReport            [benchmark.read]
+```
+
+```ts
+interface ModelIntegrityResult {
+  model_id: string
+  status: 'verified' | 'digest_mismatch' | 'not_in_manifest' | 'not_installed'
+        | 'unverifiable'
+  expected_digest: string | null
+  observed_digest: string | null
+  quantization_match: boolean | null
+  size_match: boolean | null
+  checked_at: string
+  detail: string
+}
+
+interface ModelIntegrityReport {
+  manifest_present: boolean
+  manifest_signed: boolean
+  manifest_key_id: string | null
+  manifest_sha256: string
+  results: ModelIntegrityResult[]
+  verified: number; failed: number; unverifiable: number
+  deep_checked: boolean
+  blocks_inference: string[]          // model ids the router will now refuse
+  checked_at: string
+}
+
+// POST body:
+interface ModelIntegrityVerifyRequest { model_ids?: string[]; deep?: boolean }
+
+interface BenchmarkIndex {
+  suites: { suite: string; suite_version: string; dataset_id: string
+            dataset_version: string; run_at: string
+            passed: number; failed: number; skipped: number
+            headline_metric: { name: string; value: number; unit: string } | null
+          }[]
+  generated_at: string
+}
+
+interface BenchmarkSuiteResult {
+  suite: string; suite_version: string
+  dataset_id: string; dataset_version: string
+  run_at: string; host_fingerprint: string
+  metrics: { name: string; value: number; unit: string
+             target: number | null; passed: boolean | null }[]
+  totals: { passed: number; failed: number; skipped: number; error: number }
+  cases: BenchmarkCase[]
+}
+
+interface BenchmarkCase {
+  id: string; name: string
+  outcome: 'passed' | 'failed' | 'skipped' | 'error'
+  expected: string; observed: string | null
+  duration_s: number; message: string | null
+}
+
+interface RedTeamReport {
+  suite_version: string
+  run_at: string
+  exit_status: number
+  totals: { passed: number; failed: number; skipped: number; error: number }
+  by_control: { control_owner: string; passed: number; failed: number
+                skipped: number }[]
+  by_attack_class: { attack_class: string; passed: number; failed: number
+                     skipped: number; description: string }[]
+  cases: {
+    test: string
+    outcome: 'passed' | 'failed' | 'skipped' | 'error'
+    control_owner: string | null
+    expected_decision: 'BLOCK' | 'DENY' | 'ESCALATE' | 'QUARANTINE'
+                     | 'REFUSE' | 'FAIL_CLOSED' | 'DETECT' | null
+    attack_class: string | null
+    duration_s: number
+    message: string | null
+  }[]
+}
+```
+
+> **Frontend note:** a `skipped` red-team case is **not** a pass. Render skips
+> in amber with the skip reason, never fold them into a green percentage. This
+> is the specific failure that let six test files die silently.
+
+---
+
+### CONTRACT: 9.6 Approval transitions
+
+```
+GET  /api/tasks/{task_id}/approval     -> ApprovalRecordV2          [approval.read]
+POST /api/tasks/{task_id}/approval     -> ApprovalTransitionResult  [approval.decide]
+POST /api/tasks/{task_id}/approve      -> Task     (DEPRECATED alias, kept working)
+GET  /api/approvals                    -> Task[]   (unchanged, tasks.py:118)
+```
+
+```ts
+type ApprovalAction = 'approve' | 'reject' | 'request_revision'
+type ApprovalState = 'not_required' | 'pending' | 'approved' | 'rejected'
+                   | 'revision_requested' | 'invalidated'
+
+interface ApprovalTransitionRequest {
+  action: ApprovalAction
+  reason: string                       // REQUIRED, min 1 char, incl. for approve
+  requested_changes?: string[]         // required when action=request_revision
+  modifications?: { field: string; before: string; after: string }[]
+  expected_binding_digest?: string     // optimistic concurrency, see below
+}
+
+interface ApprovalBinding {
+  answer_sha256: string | null
+  deliverable_hashes: Record<string, string>
+  evidence_ids: string[]
+  evidence_set_sha256: string
+  verification_report_sha256: string | null
+  verification_valid: boolean | null
+  policy_bundle_version: string
+  effective_classification: Sensitivity
+  model_digests: Record<string, string>
+  sandbox_enforcement: EnforcementLevel | null
+  bound_at: string
+  digest: string
+}
+
+interface ApprovalTransition {
+  id: string; task_id: string
+  action: ApprovalAction
+  from_state: ApprovalState; to_state: ApprovalState
+  reviewer_id: string; reviewer_name: string; reviewer_role: string
+  reason: string
+  binding: ApprovalBinding; binding_digest: string
+  requested_changes: string[]
+  modifications: { field: string; before: string; after: string }[]
+  policy_decision_id: string
+  audit_sequence: number
+  at: string
+}
+
+interface ApprovalRecordV2 {
+  state: ApprovalState
+  required: boolean
+  reasons: string[]
+  approver_roles: string[]
+  history: ApprovalTransition[]
+  current_binding: ApprovalBinding | null
+  revision_round: number
+  invalidated_reason: string | null
+  reverification_required: boolean
+  // What the CURRENT content hashes to right now. When this differs from
+  // current_binding.digest, the approval is stale and the UI must say so.
+  live_binding_digest: string | null
+  legacy: ApprovalRecord              // the old shape, so existing UI keeps working
+}
+
+interface ApprovalTransitionResult {
+  transition: ApprovalTransition
+  approval: ApprovalRecordV2
+  task: Task
+  deliverables_released: string[]
+  deliverables_revoked: string[]
+}
+```
+
+**Concurrency.** If `expected_binding_digest` is supplied and does not match
+`live_binding_digest`, the server returns **409 `CONFLICT`** with
+`context: { expected, actual, changes: string[] }`. The reviewer is approving
+something that changed under them; the UI must re-fetch and re-present. The
+frontend should always send it.
+
+**Invalidation is observable at read time.** `GET /api/tasks/{task_id}` and
+`GET /api/tasks/{task_id}/approval` both run `revalidate()` first, so a stale
+approval surfaces as `state: 'invalidated'` without any explicit trigger.
+
+---
+
+### CONTRACT: 9.7 Reproducibility, re-run, compare
+
+```
+GET  /api/tasks/{task_id}/reproducibility   -> ReproducibilityRecord   [proof.read]
+POST /api/tasks/{task_id}/rerun             -> RerunResult             [task.create]
+GET  /api/runs/compare?a=&b=                -> RunComparison           [proof.read]
+GET  /api/runs/{task_id}/lineage            -> RunLineage              [proof.read]
+```
+
+```ts
+type DeterminismClass = 'deterministic' | 'seeded' | 'stochastic' | 'environmental'
+
+interface ComponentDeterminism {
+  component: string
+  determinism: DeterminismClass
+  reproducible_scope: 'bitwise' | 'this_host' | 'none'
+  output_sha256: string | null
+  basis: string
+}
+
+interface DeterminismStatement {
+  components: ComponentDeterminism[]
+  overall_claim: string              // render this verbatim; do not summarise
+  caveats: string[]                  // render these verbatim too
+}
+
+interface ModelUseRef { stage: string; model_id: string; digest: string | null
+  integrity_status: string; temperature: number | null; seed: number | null
+  num_ctx: number | null; prompt_version: string
+  routing_decision_id: string | null }
+
+interface ReproducibilityRecord {
+  run_id: string; task_id: string; parent_run_id: string | null
+  aegis_version: string; aegis_commit: string | null
+  python_version: string; platform: string; host_fingerprint: string
+  config_bundle_sha256: string; policy_bundle_version: string
+  prompt_library_version: string; router_version: string
+  classification_version: number
+  formula_versions: Record<string, string>
+  models: ModelUseRef[]
+  input_hashes: string[]
+  retrieval_chunk_ids: string[]; index_version: string
+  sandbox_image_digest: string | null
+  sandbox_enforcement: EnforcementLevel
+  output_hash: string | null
+  deliverable_hashes: Record<string, string>
+  determinism: DeterminismStatement
+  started_at: string; finished_at: string
+}
+
+interface RerunRequest {
+  mode: 'reproduce' | 'current'
+  // reproduce: pin every recorded version; fail if a model digest is gone.
+  // current : same inputs, today's models/config/policy.
+  note?: string
+}
+
+interface RerunResult {
+  new_task_id: string
+  parent_task_id: string
+  mode: 'reproduce' | 'current'
+  pinned: Record<string, string>      // what was pinned, for reproduce
+  unpinnable: { field: string; reason: string }[]  // HONEST: what could not be pinned
+  determinism_expectation: DeterminismStatement
+}
+
+interface RunDifference {
+  category: 'model' | 'config' | 'policy' | 'evidence' | 'calculation'
+          | 'output' | 'sandbox' | 'classification'
+  field: string
+  a_value: unknown; b_value: unknown
+  material: boolean
+  explains_output_change: boolean
+  note: string
+}
+
+interface RunComparison {
+  run_a: ReproducibilityRecord
+  run_b: ReproducibilityRecord
+  identical: boolean
+  differences: RunDifference[]
+  deterministic_components_match: boolean   // THE headline assertion
+  stochastic_components_differ: boolean
+  verdict: string                           // render verbatim
+}
+
+interface RunLineage {
+  root_task_id: string
+  runs: { task_id: string; run_id: string; parent_run_id: string | null
+          mode: string | null; created_at: string; status: TaskStatus
+          output_hash: string | null }[]
+}
+```
+
+---
+
+### CONTRACT: 9.8 Audit, signing, verification
+
+```
+GET  /api/audit                  -> AuditEvent[]              (unchanged)
+GET  /api/audit/chain            -> AuditChainStatus          (unchanged)
+GET  /api/audit/export           -> text/plain jsonl          (unchanged)
+GET  /api/audit/roots            -> Paginated<MerkleRoot>     [audit.read.all]
+GET  /api/audit/roots/{root_id}  -> MerkleRootDetail          [audit.read.all]
+GET  /api/audit/roots/export     -> text/plain jsonl          [audit.read.all]
+POST /api/audit/verify           -> AuditVerificationReport   [audit.verify]
+GET  /api/audit/pubkey           -> SigningKeyInfo            PUBLIC
+GET  /api/audit/inclusion/{sequence} -> InclusionProof        [audit.read.all]
+```
+
+```ts
+interface MerkleRoot {
+  root_id: string
+  sequence_from: number; sequence_to: number; event_count: number
+  root_hash: string; prev_root_hash: string; prev_root_id: string | null
+  algorithm: 'sha256-rfc6962'
+  signature: string | null; key_id: string | null; signed_at: string | null
+  sealed_at: string
+  trigger: 'window_events' | 'window_seconds' | 'task_complete' | 'manual'
+  task_id: string | null
+}
+
+interface MerkleRootDetail extends MerkleRoot {
+  event_hashes: string[]
+  verified: boolean
+  verification_detail: string
+}
+
+interface InclusionProof {
+  sequence: number; event_hash: string
+  root_id: string; root_hash: string
+  path: { side: 'left' | 'right'; hash: string }[]
+  verified: boolean
+}
+
+interface SigningKeyInfo {
+  available: boolean
+  key_id: string | null              // "ed25519:9f3c1a…"
+  algorithm: 'ed25519' | null
+  public_key: string | null          // base64 raw public key
+  valid_from: string | null; valid_until: string | null
+  superseded_by: string | null
+  keyring: { key_id: string; public_key: string
+             valid_from: string; valid_until: string }[]
+}
+
+type TamperClass = 'altered' | 'removed' | 'inserted' | 'reordered'
+                 | 'truncated' | 'forged'
+
+interface TamperFinding { kind: TamperClass; sequence: number
+  detail: string; root_id: string | null }
+
+interface AuditVerificationReport {
+  valid: boolean
+  events_checked: number
+  roots_checked: number; roots_verified: number
+  findings: TamperFinding[]
+  head_sequence: number; head_hash: string | null
+  signature_status: 'verified' | 'unsigned' | 'no_key' | 'invalid' | 'key_expired'
+  key_ids_used: string[]
+  checked_at: string
+  verifier_version: string
+}
+
+interface AuditVerifyRequest { deep?: boolean; task_id?: string }
+```
+
+---
+
+### CONTRACT: 9.9 Classification & declassification
+
+```
+GET  /api/classification/{task_id}     -> ClassificationResolution   [any, own task]
+POST /api/classification/declassify    -> DeclassificationResult     [classification.declassify]
+GET  /api/classification/dlp/{file_id} -> DlpReport                  [security.read]
+```
+
+```ts
+interface ClassificationResolution {
+  effective: Sensitivity
+  inputs: { user_label: Sensitivity; document_label: Sensitivity
+            dlp: Sensitivity; task_classifier: Sensitivity }
+  deciding_source: 'user_label' | 'document_label' | 'dlp' | 'task_classifier'
+  escalated: boolean
+  escalation_reasons: string[]
+  dlp_findings: DlpFinding[]
+  declassified: boolean
+  declassification: { by: string; role: string; justification: string
+                      from_level: Sensitivity; to_level: Sensitivity
+                      second_approver: string | null; at: string } | null
+  resolved_at: string
+}
+
+interface DlpFinding { rule_id: string; label: 'credential' | 'key' | 'token'
+  | 'pii' | 'plant_tag' | 'topology' | 'proprietary'
+  severity: Sensitivity; count: number
+  redacted_sample: string          // NEVER the raw value
+  locations: string[] }
+
+interface DlpReport { findings: DlpFinding[]; detected_floor: Sensitivity
+  scanner_version: string; truncated: boolean }
+
+interface DeclassificationRequest {
+  resource_type: 'file' | 'task' | 'document'
+  resource_id: string
+  from_level: Sensitivity; to_level: Sensitivity
+  justification: string             // min 20 chars, enforced
+  override_dlp?: boolean            // requires a second approver
+}
+
+interface DeclassificationResult {
+  applied: boolean
+  resource_type: string; resource_id: string
+  from_level: Sensitivity; to_level: Sensitivity
+  dlp_floor: Sensitivity
+  requires_second_approver: boolean
+  second_approver_pending: boolean
+  policy_decision_id: string
+  audit_sequence: number
+}
+```
+
+---
+
+### CONTRACT: 9.10 SSE event taxonomy
+
+`GET /api/events?task_id=<id>` — unchanged endpoint, cookie auth, same
+`StreamEvent` envelope (`schemas.py:443-447`, `frontend/lib/types.ts:452`):
+
+```ts
+interface StreamEvent { event: string; task_id: string | null
+                        at: string; data: Record<string, unknown> }
+```
+
+Every event is dispatched by **name** (`_sse` in `system.py:436` already sets
+`event:`), so `use-event-stream.ts:55-74` extends by appending to its
+`namedEvents` array. **The 18 names it lists today all remain valid.**
+
+#### Existing events — unchanged, listed for completeness
+
+| Event | `data` payload |
+|---|---|
+| `task.created` | `{ status, prompt, file_count }` |
+| `task.queued` | `{ position, ahead }` |
+| `task.stage` | `{ status, message, ...extra }` |
+| `task.planned` | `{ steps: PlanStep[], risks: string[] }` |
+| `task.model_selected` | `{ stage, model, display_name, role, reason, rule, used_fallback, candidates }` |
+| `task.model_completed` | `{ stage, model, latency_ms, tokens_per_second, eval_count }` |
+| `task.model_swapped` | `{ stage, evicted, loading, available_mb, reason }` |
+| `task.tool_started` | `{ tool, arguments }` |
+| `task.tool_completed` | `{ tool, ok, summary, duration_ms, policy_decision }` |
+| `task.extraction` | `{ filename, page, method, confidence }` |
+| `task.evidence` | `{ evidence: EvidenceItem[] }` |
+| `task.code_generated` | `{ code, attempt }` |
+| `task.code_retry` | `{ attempt, reason }` |
+| `task.sandbox_result` | `{ ok, exit_code, duration_ms, stdout, stderr }` |
+| `task.answer` | `{ answer }` |
+| `task.draft` | `{ content }` |
+| `task.verified` | `{ valid, checks, material_claims_total, material_claims_supported }` |
+| `task.deliverable` | `{ deliverable: Deliverable }` |
+| `task.approval_decided` | `{ decision, reviewer, comment, status }` |
+| `task.blocked` | `{ reason, rule }` |
+| `task.failed` | `{ error }` |
+| `task.cancelled` | `{ by }` |
+| `task.finished` | `{ status, duration_ms }` |
+| `sovereignty.status` | `SovereigntyStatus` (now with the new fields) |
+| `sovereignty.error` | `{ message, at }` |
+
+#### New events — the full taxonomy I publish
+
+**Policy**
+
+| Event | `task_id` | `data` |
+|---|---|---|
+| `policy.decision` | yes/null | `PolicyDecisionRecord` — full record, every allow and deny |
+| `policy.bundle_reloaded` | null | `{ bundle_version, files: {path, sha256}[] }` |
+
+**Routing**
+
+| Event | `data` |
+|---|---|
+| `routing.evaluated` | `RoutingDecision` — full, with `evaluations[]` and `explanation[]` |
+| `routing.candidate_rejected` | `{ stage, model_id, failed_gate, reason, rule }` — one per rejection, for a live-filling Routing Explorer |
+
+**Security — ingestion**
+
+| Event | `data` |
+|---|---|
+| `security.file_accepted` | `{ file_id, filename, sha256, detected_media_type, notes[] }` |
+| `security.file_blocked` | `{ filename, rule_id, message, sha256, attempted_at }` |
+| `security.injection_detected` | `{ evidence_id, file_id, risk, risk_score, rule_ids[], signals: {rule_id, severity, excerpt}[], quarantined }` |
+| `security.tool_lock_engaged` | `{ reason, triggering_evidence_ids[], locked_tools[] }` |
+| `security.dlp_escalation` | `{ from, to, deciding_source, findings: DlpFinding[] }` |
+| `security.declassified` | `{ resource_type, resource_id, from, to, by, justification }` |
+
+**Security — containment**
+
+| Event | `data` |
+|---|---|
+| `security.egress_attempt` | `{ task_id, source, destination, protocol, blocked, enforcement, at }` |
+| `security.egress_scope_closed` | `TaskSecurityMetrics['egress']` |
+| `security.sandbox_started` | `{ run_id, enforcement, code_sha256, limits }` |
+| `security.sandbox_completed` | `{ run_id, ok, exit_code, duration_ms, timed_out, oom_killed, generated_files, evidence_id }` |
+| `security.sandbox_refused` | `{ reason, required_enforcement, available_enforcement }` — **strict-mode refusal; render prominently** |
+| `capability.changed` | `SecurityCapability` — fired at boot and whenever the probe result changes. **The frontend must re-gate all isolation copy on receipt.** |
+
+**Integrity & audit**
+
+| Event | `data` |
+|---|---|
+| `integrity.verified` | `{ model_id, digest, status }` |
+| `integrity.failed` | `{ model_id, expected_digest, observed_digest, detail, blocks_inference }` |
+| `audit.root_sealed` | `{ root_id, sequence_from, sequence_to, event_count, root_hash, trigger }` |
+| `audit.root_signed` | `{ root_id, key_id, signature, signed_at }` |
+| `audit.chain_integrity_failure` | `{ broken_at, kind, detail }` |
+
+**Approval & proof**
+
+| Event | `data` |
+|---|---|
+| `approval.requested` | `{ reasons[], approver_roles[], binding_digest }` |
+| `approval.transitioned` | `ApprovalTransition` |
+| `approval.invalidated` | `{ changes: string[], approved_digest, current_digest, original_reviewer }` |
+| `approval.reverification_required` | `{ revision_round, requested_changes[] }` |
+| `proof.certificate_issued` | `{ certificate_id, task_id, signature_status, audit_root_id, output_hash }` |
+| `proof.verification_run` | `{ certificate_id, valid, failed_checks: string[] }` |
+
+**Workflow**
+
+| Event | `data` |
+|---|---|
+| `workflow.checkpoint` | `{ stage, status, attempt, output_ref, safe_to_resume_from }` |
+| `workflow.resumed` | `{ resumed_from_stage, completed_stages[], revalidation: {name, passed, detail}[] }` |
+| `workflow.held_for_review` | `{ reason, failed_checks[] }` |
+
+**Benchmarks**
+
+| Event | `data` |
+|---|---|
+| `benchmark.run_completed` | `{ suite, suite_version, totals, run_at }` |
+| `redteam.run_completed` | `{ totals, failed_controls: string[], skipped_controls: string[] }` |
+
+#### Ordering, replay and delivery guarantees — stated honestly
+
+- `EventBus` (`events.py:31-53`) is **best-effort**. A subscriber whose queue is
+  full (`MAX_QUEUE = 256`) **drops** events (`events.py:50-52`). The frontend
+  must therefore treat SSE as a **liveness hint, not a source of truth**, and
+  reconcile against `GET /api/proof/{task_id}` on `task.finished`, on reconnect,
+  and on any gap.
+- `bus.replay()` keeps the last 400 events (`events.py:20`) and is served on
+  connect (`system.py:409-411`). A tab opened mid-task sees recent history but
+  not necessarily all of it.
+- **Every SSE event carries data that is also retrievable from an endpoint.**
+  Nothing is SSE-only. That is a hard rule of this contract: if the stream
+  drops it, a fetch recovers it.
+- Ordering within one task is the bus's append order, which is the emission
+  order. Across tasks there is no guarantee.
+
+---
+
+### CONTRACT: 9.11 What the frontend must never render
+
+Stated as an obligation, because §1.5 shows we have already broken each one.
+
+1. Never render a literal `0` for egress, sockets, bytes or blocked attempts.
+   Bind to `SecurityMetrics.egress.*`. If the fetch fails, render the failure
+   (`lib/api.ts:103-109`'s rule).
+2. Never render an isolation claim unless
+   `SecurityCapability.sandbox.claims.may_claim_isolated === true`. When it is
+   false, render `sandbox.banner` verbatim.
+3. Never render a zero-egress claim unless
+   `SecurityCapability.network.claims.may_claim_zero_egress === true`.
+4. Never render `sovereign: true` without also rendering `visible` and
+   `degraded`. A monitor that cannot see is not a clean result.
+5. Never simulate a backend control client-side. The AST playground
+   (`security-view.tsx:227-244`) must call a real endpoint —
+   `POST /api/security/ast-check` with `{ code }` returning
+   `{ passed, violations[], rule_ids[], risk, imports[] }` from the **actual**
+   `AstGuard` — or be deleted. A simulator that disagrees with production is
+   worse than no simulator.
+6. Never fold `skipped` red-team or benchmark cases into a pass percentage.
+7. Never show a determinism claim other than
+   `DeterminismStatement.overall_claim` and its `caveats`, verbatim.
+
+---
+
+## 10. ENTERPRISE AUTH (item 35) — brief
+
+Item 35 is explicitly "after core features", and I agree. But the Firebase
+contradiction in §1.5 is not a future-work item — it is a **live authorization
+bug** and a credibility risk in the same screen, so it gets fixed now while the
+rest waits.
+
+### 10.1 Reconciling Firebase against the air-gapped claim — do this in Phase 1
+
+The facts: `frontend/lib/firebase.ts` is env-gated
+(`firebaseEnabled` requires `NEXT_PUBLIC_FIREBASE_ENABLED === 'true'` plus an
+apiKey and appId), no credentials are hardcoded, Analytics is deliberately
+excluded with a good comment, and `README.md:288` already discloses it. That is
+a defensible starting point. Three things are not defensible:
+
+1. **Authorization flattening.** `sign-in-view.tsx:92-95` and `:114-116` map
+   *every* Firebase identity to `login('engineer', 'workbench')`. Anyone who
+   authenticates via Google lands on the `engineer` role with `restricted`
+   clearance and `knowledge.ingest`. **Fix: delete both `login(...)` calls.**
+   Either exchange the Firebase ID token at a real backend endpoint
+   (`POST /api/auth/oidc/exchange`, §10.2, which validates the token offline
+   against cached JWKS and maps claims to a provisioned local account), or
+   remove the Firebase tab entirely. There is no middle option that is honest.
+2. **Silent failure.** `.catch(() => {})` followed by `router.push('/')` sends
+   the user into an `AuthGuard` bounce loop with no message. Surface the error.
+3. **Bundle presence.** `firebase/app` and `firebase/auth` are statically
+   imported by `sign-in-view.tsx`, so they ship in the sign-in route's client
+   bundle on **every** build, enabled or not. **Fix:** move the import behind
+   `await import('@/lib/firebase')` inside the click handler, gated on
+   `firebaseEnabled`. Then an air-gapped build genuinely contains no Google SDK,
+   and we can say so instead of explaining it.
+
+**My recommendation for SIH: remove the Firebase tab from the demo build.** Ship
+it behind `NEXT_PUBLIC_FIREBASE_ENABLED` for hosted demos if the team wants it,
+but the judged build should have one sign-in path, local, with the seeded roles
+from `policies/access-control.yaml:75-95`. "We removed the cloud auth because it
+contradicts the claim" is a *strong* answer. "It's disabled by default" invites
+the follow-up "so it could be enabled?" — and the true answer to that is
+currently "yes, and it would give everyone the engineer role."
+
+Also: `self_registration_enabled: true` (`config/app.yaml:199`) must be
+**false** in `AEGIS_MODE=production` and in the demo build. `identity.py:139`
+already gates on it; the fix is config plus a startup assertion that refuses to
+boot in production with it on. Roadmap step 162, and it is one line.
+
+### 10.2 `backend/auth/` — the item 35 work proper
+
+```
+backend/auth/__init__.py
+backend/auth/ldap.py              # LDAP / Active Directory bind + group mapping
+backend/auth/oidc.py              # OIDC with OFFLINE JWKS validation
+backend/auth/session_security.py  # throttling, lockout, revocation, TTLs
+backend/auth/provider.py          # AuthProvider protocol; local is one impl
+```
+
+**`AuthProvider` protocol** — `IdentityService.authenticate`
+(`identity.py:195-228`) becomes a dispatcher over providers; the local PBKDF2
+path stays as `LocalProvider` and remains the default for dev and demo.
+
+**LDAP** (`ldap3`, vendored into the offline wheel set): simple bind against a
+plant directory, then group→role mapping declared in
+`policies/access-control.yaml`:
+
+```yaml
+identity_providers:
+  ldap:
+    enabled: false
+    server_uri: ldaps://dc.plant.internal:636
+    tls_ca_file: /etc/aegis/trust/plant-ca.pem
+    bind_dn_template: "uid={username},ou=people,dc=plant,dc=internal"
+    user_search_base: "ou=people,dc=plant,dc=internal"
+    group_search_base: "ou=groups,dc=plant,dc=internal"
+    # A directory group never grants more than the local role allows. This
+    # mapping selects a LOCAL role; it does not define new permissions.
+    group_to_role:
+      "cn=aegis-reviewers,ou=groups,dc=plant,dc=internal": reviewer
+      "cn=aegis-engineers,ou=groups,dc=plant,dc=internal": engineer
+      "cn=aegis-admins,ou=groups,dc=plant,dc=internal": administrator
+    default_role: operator
+    department_attribute: departmentNumber
+    connect_timeout_seconds: 5
+```
+
+**OIDC, air-gapped.** The point most people miss: OIDC does **not** require
+outbound internet if the JWKS is cached. `backend/auth/oidc.py` validates ID
+tokens against a **locally stored** JWKS (`/etc/aegis/trust/oidc-jwks.json`),
+refreshed out-of-band by an operator, never fetched at runtime. Issuer, audience,
+`exp`, `nbf`, `iat` skew and `nonce` all checked locally. Endpoint
+`POST /api/auth/oidc/exchange` takes `{ id_token }`, validates, maps claims to a
+local account, and issues **our** session. This is how Firebase *could* have been
+wired correctly, and it is worth saying so.
+
+**`session_security.py`** — roadmap step 161, all four:
+
+```python
+class SessionSecurityPolicy:
+    failed_attempt_window_seconds = 900
+    failed_attempts_before_throttle = 3      # then exponential backoff
+    failed_attempts_before_lockout  = 8      # then locked
+    lockout_duration_seconds        = 900
+    session_ttl_minutes             = 720    # existing default
+    privileged_session_ttl_minutes  = 60     # reviewer / administrator
+    absolute_session_lifetime_hours = 24
+    idle_timeout_minutes            = 120
+    rotate_token_on_privilege_use   = True
+```
+
+Backed by two tables (`login_attempts`, `revoked_sessions`) and these endpoints:
+
+```
+POST   /api/auth/sessions/revoke        -> { revoked: number }   [system.manage]
+GET    /api/auth/sessions               -> SessionInfo[]         [system.manage]
+DELETE /api/auth/sessions/{token_id}    -> 204                   [own or system.manage]
+GET    /api/auth/lockouts               -> LockoutInfo[]         [system.manage]
+POST   /api/auth/lockouts/{username}/clear -> 204                [system.manage]
+```
+
+Throttling returns **429 `RATE_LIMITED`** with `Retry-After`; lockout returns
+**423 `LOCKED_OUT`**. Both audit. Note `identity.py:198-213` already records
+`login_failed` with a reason — the counter hooks straight into that, which is a
+genuinely small change.
+
+**Cookie flags.** `system.py:82-90` sets `httponly=True, samesite="strict"`,
+which is right, and `secure=False` with a reasoned comment. Make `secure` follow
+a config flag that is **true** in production. And add the test the current suite
+is missing — `test_api_security.py:22-43` checks the cookie *name* but never its
+flags, so a regression dropping `HttpOnly` passes today.
+
+**MFA integration point** (step 163): `AuthProvider.second_factor_required(user)
+-> bool` plus `POST /api/auth/mfa/verify`. Declare the seam, do not build it.
+
+---
+
+## 11. BUILD SEQUENCE, DEPENDENCIES, AND WHAT I WOULD CUT
+
+### 11.1 Phase 0 — unblock (before anything else, ~half a day)
+
+Nothing in this plan is testable until the code runs where it is being written.
+
+| # | Task | Why it is first |
+|---|---|---|
+| 0.1 | `fcntl`/`msvcrt` fallback in `core/audit.py:14,94,98` | the backend cannot import on the dev box |
+| 0.2 | Guard `resource`/`preexec_fn` in the subprocess runner | same, plus it is the `subprocess_unbounded` capability |
+| 0.3 | `pip install pytest-asyncio` + `--strict-markers` in `pytest.ini` | 9 router tests are silently not running as async |
+| 0.4 | WSL2 + rootless Podman on the demo machine; build `aegis-sandbox` | everything in §2 and §3.5 depends on it |
+| 0.5 | Delete the two `login('engineer','workbench')` calls | live authz bug (§10.1) |
+| 0.6 | Bind `security-view.tsx:99,145,206,212` to real data or delete | the hardcoded zeros (§1.5) |
+
+0.5 and 0.6 are frontend edits — **DEPENDS-ON: Frontend**. I will file them as
+the first two items of the frontend backlog with exact line numbers.
+
+### 11.2 Phased build, mapped to the roadmap's eight phases
+
+**Phase 2 — Security core (items 5, 6). My critical path.**
+
+| Step | Deliverable | Depends on |
+|---|---|---|
+| 2.1 | `backend/sandbox/{ast_guard,resource_limits,capability}.py` | 0.1–0.2 |
+| 2.2 | `config/app.yaml` sandbox rewrite; **remove `os`/`sys`/`pathlib` from the allow-list**; add `getattr` to denied calls | 2.1 |
+| 2.3 | `Dockerfile.sandbox` + image build + seccomp profile | 0.4 |
+| 2.4 | `container_runner.py` + `service.py` with **strict refusal** | 2.1–2.3 |
+| 2.5 | `tools/sandbox.py` shim; `registry.py:325` and `:384` unchanged | 2.4 |
+| 2.6 | `SystemHealth`/`GET /api/security/capability` + capability SSE | 2.4 |
+| 2.7 | `network_guard.py` + the three nftables rulesets | — |
+| 2.8 | `egress_monitor.py`; the five fail-open fixes in `sovereignty.py` | 2.7 |
+| 2.9 | `tests/adversarial/{test_egress,test_sandbox_escape}.py` | 2.4, 2.7 |
+| 2.10 | Execution evidence registration | **DEPENDS-ON: Backend A** evidence ledger (items 3–4) |
+
+**Phase 4 — Ingestion defence (items 13, 14, 15).**
+
+| Step | Deliverable | Depends on |
+|---|---|---|
+| 4.1 | `file_guard.py` + quarantine store + `StoredFile` fields | — |
+| 4.2 | `task_service.store_upload` rewrite (`:80-147`) — `quarantine_passed` becomes real | 4.1 |
+| 4.3 | `parsing.py:337-349` dispatch on `detected_media_type` | 4.1 |
+| 4.4 | `prompt_injection.py` + `content_sanitizer.py` | — |
+| 4.5 | Prompt assembly rewrite at `orchestrator.py:1168-1179` and `:1210-1222` | 4.4, **DEPENDS-ON: Backend A** if the orchestrator is being split |
+| 4.6 | Tool-authorisation lock in `registry.py:112` | 4.4, 5.3 |
+| 4.7 | `dlp.py` + `classification_resolver.py` | — |
+| 4.8 | Declassification endpoint + permission | 4.7 |
+| 4.9 | `tests/adversarial/{test_prompt_injection,test_file_guard,test_dlp}.py` + fixtures | 4.1–4.8 |
+
+**Phase 6 — Governance transparency (items 19, 20, 21).**
+
+| Step | Deliverable | Depends on |
+|---|---|---|
+| 6.1 | `policy/decision.py` — `PolicyDecisionRecord`, collision resolved | — |
+| 6.2 | `gateway._event` refactor + `policy_decisions` table + rule ids | 6.1 |
+| 6.3 | `policy.decision` SSE + `/api/policy/*` endpoints | 6.2 |
+| 6.4 | `model-manifest.json` + `integrity.py` + startup hard-fail | — |
+| 6.5 | Router gate chain; policy first; `CandidateEvaluation` | 6.2, 6.4 |
+| 6.6 | `benchmark_registry.py` + table + `benchmark_runner.py` | **DEPENDS-ON: Backend A** eval datasets (item 31) |
+| 6.7 | Measured scoring; `unbenchmarked_policy` | 6.5, 6.6 |
+| 6.8 | Candidate-list tests (the `assert decision.candidates` gap) | 6.5 |
+
+**Phase 7 — Proof and authority (items 25, 26, 27, 28).**
+
+| Step | Deliverable | Depends on |
+|---|---|---|
+| 7.1 | `audit/merkle.py` + `anchor.py` + roots table/jsonl | — |
+| 7.2 | `audit/signing.py` + keygen/rotate scripts + key hygiene checks | 7.1 |
+| 7.3 | `audit/verifier.py` — all six tamper classes | 7.1, 7.2 |
+| 7.4 | `scripts/aegis-verify.py` CLI | 7.3 |
+| 7.5 | `approval/{models,service}.py` + binding + invalidation | 6.2 |
+| 7.6 | `revalidate()` wired into `tasks.py:89,140` + proof + certificate | 7.5 |
+| 7.7 | `proof/reproducibility.py` + `run_metadata` + determinism statement | 6.4, 6.5, 2.6 |
+| 7.8 | `proof/certificate.py` + `/api/proof/*` | 7.1–7.7, **DEPENDS-ON: Backend A** formula versions + evidence ids |
+| 7.9 | Re-run / compare | 7.7 |
+| 7.10 | `tests/adversarial/{test_audit_tamper,test_model_integrity}.py` | 7.3, 6.4 |
+
+**Phase 8 — Hardening (items 29, 32, 35).**
+
+| Step | Deliverable | Depends on |
+|---|---|---|
+| 8.1 | `workflow/{checkpoints,recovery}.py` | **DEPENDS-ON: Backend A** `WorkflowContext` (item 30) |
+| 8.2 | Recovery revalidation + audit event | 8.1, 6.4 |
+| 8.3 | Full `tests/adversarial/` + `conftest` reporter + CI + `pre-demo.sh` | everything |
+| 8.4 | `auth/session_security.py` (throttle, lockout, revocation, TTLs) | — |
+| 8.5 | `auth/{ldap,oidc}.py` | 8.4 |
+
+### 11.3 Cross-agent dependency register
+
+| Marker | What I need | From | Blocks |
+|---|---|---|---|
+| `DEPENDS-ON: Backend A` | `EvidenceItem` shape + typed ids (`S/F/V/C/X/H`) and the ledger registration API | items 3–4 | 2.10, 4.5, 7.8 |
+| `DEPENDS-ON: Backend A` | An extension point on `EvidenceItem` for `injection_risk`, `quarantined`, `channel` | item 4 | 4.4–4.6 |
+| `DEPENDS-ON: Backend A` | `formula_versions` map from the deterministic registry | item 7 | 7.8 certificate field |
+| `DEPENDS-ON: Backend A` | `WorkflowContext` + typed stages | item 30 | 8.1, 8.2 |
+| `DEPENDS-ON: Backend A` | Prompt-assembly seam in the orchestrator (or the stage split) | items 2, 30 | 4.5 |
+| `DEPENDS-ON: Backend A` | Golden datasets for `benchmark_runner` | item 31 | 6.6, 6.7 |
+| `DEPENDS-ON: Frontend` | Consume `capability.changed` and gate all isolation copy | §9.4, §9.11 | the honesty guarantee |
+| `DEPENDS-ON: Frontend` | Delete/rewire `security-view.tsx:99,145,206,212,227-244` | §1.5 | credibility |
+| `DEPENDS-ON: Frontend` | Remove the two `login('engineer','workbench')` calls | §10.1 | authz bug |
+| `I PROVIDE: Frontend` | The whole of §9, verbatim | — | Proof Mode, Policy Explorer, Routing Explorer, benchmark dashboard |
+| `I PROVIDE: Backend A` | `PolicyDecisionRecord`, `SandboxOutcome`, `ExecutionEvidence`, `ClassificationResolution` | — | their stage contracts |
+
+### 11.4 What I would cut under time pressure
+
+Ordered. Cut from the bottom.
+
+**Never cut — these are the product:**
+
+1. **The capability banner and strict refusal (§2.6).** If we cut everything
+   else in §2 and ship only the honest banner plus a refusal to execute on a
+   degraded host, we are *more* defensible than today, not less. This is the
+   single highest ratio of credibility to effort in the document.
+2. **The AST guard fixes (§2.2) and the allow-list change.** Removing `os`/`sys`
+   and denying `getattr` is a ten-line config edit that closes A1, A2 and A3.
+   Ten lines. Do it on day one regardless of anything else.
+3. **`PolicyDecisionRecord` + persistence (§5.3).** The Policy Explorer is one
+   of the five surfaces the roadmap names, and it is cheap because the gateway
+   already computes everything — it just throws it away.
+4. **Merkle + Ed25519 + the verifier CLI (§6.2).** "Edit one byte, watch it
+   fail" is the best thirty seconds of the demo.
+5. **The sovereignty fail-open fixes (§3.3).** Five small changes to one file.
+   A judge who asks "what if psutil can't read?" must not get a green answer.
+
+**Cut in this order:**
+
+| Cut | What we lose | What we say instead |
+|---|---|---|
+| 1. Human-readable certificate PDF | a nicety | "machine-readable JSON first, as the roadmap specifies; the CLI verifies it" |
+| 2. `deep=True` model re-hashing | re-hashing multi-GB weights | digest-from-runtime still catches every realistic swap |
+| 3. `RUN COMPARE` UI | the diff view | ship `GET /api/runs/compare` + `aegis-verify.py`; show JSON |
+| 4. LDAP/OIDC adapters (§10.2) | enterprise identity | roadmap says "after core"; ship `session_security.py` only — throttling and lockout are the parts a judge tests |
+| 5. `benchmark_runner` automation | one-click re-measure | commit measured JSON results with dataset versions; the dashboard reads files. **Do not** cut the benchmark *records* — unbenchmarked routing is item 19's whole point |
+| 6. Durable recovery (§7, item 29) | crash resume | it DEPENDS-ON Backend A's item 30. If that slips, cut this cleanly and keep `recover_orphans` (`main.py:76`), which at least does not lie about resuming |
+| 7. nftables rulesets (§3.2) | host-level enforcement | `--network none` alone is genuinely kernel-enforced. Ship the rulesets as **documentation** in `infrastructure/`, set `deployment_mode: workstation`, and let the capability endpoint say `not_enforced_developer_host`. Honest and still strong |
+| 8. OOXML external-relationship + PDF action scanning | two guard signals | the magic-byte, zip-bomb and macro checks carry the demo |
+| 9. Declassification workflow (§4-c) | the authority path | escalation alone is the demonstrable half; say declassification is administrator-only and unimplemented |
+| 10. Re-run `mode: "reproduce"` | version pinning | ship `mode: "current"` + the comparison; the determinism statement is the real content |
+
+**What I would not trade, and why:** every cut above preserves the property that
+**the system never claims more than it enforces.** The moment a cut would
+require the UI to overstate, it stops being a cut and becomes the bug in §1.5.
+If we run out of time, we ship fewer controls with accurate labels. A judge will
+forgive a missing feature. A judge will not forgive a green light over a broken
+control — and neither should they.
+
+### 11.5 The three sentences to lead the security demo with
+
+> "The sandbox you are looking at is a rootless container with no network
+> namespace, a read-only root filesystem and a non-root UID. Here is the
+> capability endpoint that says so, measured by a real container start thirty
+> seconds ago — and here is what the same screen shows on a machine where the
+> container runtime is missing: it refuses to execute, and it says why."
+
+> "Zero-egress is not a number we print. Here is the kernel's own drop counter,
+> here is the hash of the live firewall ruleset, and here is the monitor telling
+> you it can see — because a monitor that cannot see reports zero too, and ours
+> says so instead."
+
+> "Now edit one byte of the audit log and re-run the verifier."
+
 
 
