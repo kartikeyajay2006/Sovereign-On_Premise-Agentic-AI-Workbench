@@ -235,6 +235,43 @@ export function ThreadView() {
 
   settleRef.current = settle
 
+  /**
+   * A safety net for a dropped stream.
+   *
+   * The event stream is an optimisation, not the source of truth, and it does
+   * drop: a long run on this host produced ERR_INCOMPLETE_CHUNKED_ENCODING on
+   * /api/events and the turn sat on RUNNING for ever, because the terminal
+   * event that triggers the authoritative read never arrived. The backend had
+   * finished two minutes earlier.
+   *
+   * So while a run is in flight we also ask the API directly every few
+   * seconds. This is not polling as a substitute for the stream — the stream
+   * still drives every intermediate transition — it is a floor under it, so
+   * that losing the connection costs liveness rather than correctness. It is
+   * also a real read of a real record, so nothing it displays is invented.
+   */
+  useEffect(() => {
+    if (!busy || !activeTaskId) return
+    let live = true
+    const id = window.setInterval(async () => {
+      try {
+        const task = await api.getTask(activeTaskId)
+        const status = String(task.status).toLowerCase()
+        if (live && TERMINAL.has(status)) {
+          window.clearInterval(id)
+          await settleRef.current(activeTaskId)
+        }
+      } catch {
+        // A failed poll is not itself news; the next one will try again, and
+        // a genuinely unreachable service surfaces through settle().
+      }
+    }, 4000)
+    return () => {
+      live = false
+      window.clearInterval(id)
+    }
+  }, [busy, activeTaskId])
+
   const attach = async (files: File[]) => {
     for (const f of files) {
       const localId = `${Date.now()}-${f.name}`
