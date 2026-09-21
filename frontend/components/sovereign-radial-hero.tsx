@@ -14,14 +14,29 @@ interface RadialNode {
   icon: typeof Server
 }
 
+/**
+ * Labels for the architecture diagram.
+ *
+ * These describe the *parts* of the system, which is all a diagram can
+ * honestly do before a run exists. They previously carried figures and
+ * component names that were either unmeasured or untrue: "14.8 GB VRAM",
+ * "42,890 Embeddings", "Qwen 2.5 72B-Instruct" (the registry holds qwen3:8b),
+ * "gVisor Kernel" (nothing in this product uses gVisor), "Confined Container"
+ * (code runs as a subprocess, not a container), "Append-Only Merkle" (there is
+ * no Merkle tree) and "0 External Calls" beside a store that does not count
+ * them.
+ *
+ * A diagram that names real components is more convincing than one that
+ * invents impressive ones, because every label here can be checked.
+ */
 const RADIAL_NODES: RadialNode[] = [
   {
     id: 'model',
     label: 'LOCAL MODEL',
     angleDeg: 0,
     distance: 38,
-    subtext: 'Qwen 2.5 72B-Instruct',
-    spec: '0ms Egress · 14.8 GB VRAM · Local Ollama',
+    subtext: 'Ollama, loopback only',
+    spec: 'Inference never leaves 127.0.0.1',
     icon: Cpu,
   },
   {
@@ -29,8 +44,8 @@ const RADIAL_NODES: RadialNode[] = [
     label: 'VECTOR STORE',
     angleDeg: 60,
     distance: 38,
-    subtext: 'ChromaDB HNSW',
-    spec: '42,890 Embeddings · Local SQLite',
+    subtext: 'Local embedding index',
+    spec: 'Stored on this host',
     icon: Database,
   },
   {
@@ -38,8 +53,8 @@ const RADIAL_NODES: RadialNode[] = [
     label: 'SANDBOX',
     angleDeg: 120,
     distance: 38,
-    subtext: 'gVisor Kernel',
-    spec: 'Confined Container · Network ISOLATED',
+    subtext: 'AST review, then subprocess',
+    spec: 'Container isolation is not yet in place',
     icon: ShieldCheck,
   },
   {
@@ -47,8 +62,8 @@ const RADIAL_NODES: RadialNode[] = [
     label: 'DOCUMENT STORE',
     angleDeg: 180,
     distance: 38,
-    subtext: 'Encrypted Chunk Store',
-    spec: 'SHA-256 Verified · Host Storage',
+    subtext: 'Chunked source documents',
+    spec: 'Content hashed on ingest',
     icon: FileText,
   },
   {
@@ -65,8 +80,8 @@ const RADIAL_NODES: RadialNode[] = [
     label: 'AUDIT LOG',
     angleDeg: 300,
     distance: 38,
-    subtext: 'Immutable Hash-Chain',
-    spec: '0 External Calls · Append-Only Merkle',
+    subtext: 'Append-only hash chain',
+    spec: 'Each record chained to the last',
     icon: KeyRound,
   },
 ]

@@ -8,17 +8,33 @@ export function SiteFooter() {
   // reader checks what they are actually connected to.
   const [host, setHost] = useState('reading…')
   const [model, setModel] = useState('reading…')
+  // The intent above was right but three of the footer's lines did not follow
+  // it: "Sandbox CONTAINED", "AIR-GAPPED · 0 OUTBOUND PACKETS" and "Audit
+  // chain VALID" were literals on every page of the application, including
+  // pages whose whole job is to report those three things honestly. /health
+  // already returns all of them.
+  const [sandbox, setSandbox] = useState('reading…')
+  const [posture, setPosture] = useState<boolean | null>(null)
+  const [chainValid, setChainValid] = useState<boolean | null>(null)
 
   useEffect(() => {
     api
       .health()
-      .then((h: any) => {
+      .then((h) => {
         setHost(`${h.inference_provider} · loopback`)
         setModel(`${h.models_available}/${h.models_registered} models ready`)
+        setSandbox(
+          h.sandbox_ready ? `sandbox ${h.sandbox_runtime}` : 'sandbox not ready',
+        )
+        setPosture(h.sovereignty_ok)
+        setChainValid(h.audit_chain_valid)
       })
       .catch(() => {
         setHost('service unreachable')
         setModel('unknown')
+        setSandbox('unknown')
+        setPosture(null)
+        setChainValid(null)
       })
   }, [])
 
@@ -41,15 +57,51 @@ export function SiteFooter() {
         <div className="flex flex-col gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Runtime</span>
           <span className="font-mono text-[12px] text-foreground-secondary">{model}</span>
-          <span className="font-mono text-[12px] text-foreground-secondary">Sandbox CONTAINED</span>
+          <span className="font-mono text-[12px] text-foreground-secondary">{sandbox}</span>
         </div>
         <div className="flex flex-col gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-foreground-muted">Posture</span>
-          <span className="flex items-center gap-2 font-mono text-[12px] text-sovereign">
-            <span className="h-1.5 w-1.5 rounded-full bg-sovereign" />
-            AIR-GAPPED · 0 OUTBOUND PACKETS
+          <span
+            className="flex items-center gap-2 font-mono text-[12px]"
+            style={{
+              color:
+                posture === null
+                  ? 'var(--foreground-muted)'
+                  : posture
+                    ? 'var(--sovereign)'
+                    : 'var(--critical)',
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor:
+                  posture === null
+                    ? 'var(--foreground-muted)'
+                    : posture
+                      ? 'var(--sovereign)'
+                      : 'var(--critical)',
+              }}
+            />
+            {posture === null
+              ? 'posture unknown'
+              : posture
+                ? 'no unapproved egress observed'
+                : 'egress violations recorded'}
           </span>
-          <span className="font-mono text-[12px] text-foreground-secondary">Audit chain VALID</span>
+          <span
+            className="font-mono text-[12px]"
+            style={{
+              color:
+                chainValid === false ? 'var(--critical)' : 'var(--foreground-secondary)',
+            }}
+          >
+            {chainValid === null
+              ? 'audit chain unknown'
+              : chainValid
+                ? 'audit chain valid'
+                : 'AUDIT CHAIN BROKEN'}
+          </span>
         </div>
       </div>
       <div className="border-t border-border">

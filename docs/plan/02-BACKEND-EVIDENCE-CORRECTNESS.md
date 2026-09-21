@@ -3186,3 +3186,1860 @@ truer*; that is the point.
    **DEPENDS-ON: Frontend agent** — evidence drawer and Proof Mode.
 4. One release later, `backend/agents/verifier.py` is deleted and `material_claims_*` are
    marked deprecated in favour of `claims_by_status`.
+
+---
+
+## 6. CONTRADICTION DETECTION (item 10)
+
+`backend/verification/contradictions.py`. Runs over the **ledger**, not over the draft — the
+point is to catch two documents disagreeing before the model silently picks one.
+
+### 6.1 Normalising evidence into comparable assertions
+
+```python
+"""Contradiction detection across evidence.
+
+The failure this prevents: two procedures in the knowledge base state different
+design pressures for the same vessel, the retriever returns both, and the model
+picks whichever it saw last. Nobody is told a choice was made.
+"""
+
+from __future__ import annotations
+
+import re
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from typing import Iterable, Literal
+
+from pydantic import BaseModel, Field
+
+from backend.engineering.units import registry as ureg
+from backend.evidence.ledger import EvidenceLedger
+from backend.evidence.models import DocumentStatus, Evidence
+
+TAG_RE = re.compile(r"\b[A-Z]{1,4}-\d{2,5}[A-Z]?\b")
+
+# Attribute vocabulary. Declared, not inferred: a detector that guesses what an
+# attribute is will generate conflicts nobody can act on.
+ATTRIBUTES: dict[str, tuple[str, str, float]] = {
+    # phrase pattern                     -> (attribute key, dimension, tolerance)
+    r"design pressure":                     ("design_pressure", "pressure", 0.01),
+    r"(?:maximum allowable working pressure|MAWP)": ("mawp", "pressure", 0.01),
+    r"(?:operating|working) pressure":      ("operating_pressure", "pressure", 0.02),
+    r"(?:minimum (?:allowable|required)|retirement) thickness": ("t_required", "length", 0.01),
+    r"(?:measured|actual|remaining) (?:wall )?thickness": ("t_actual", "length", 0.01),
+    r"corrosion rate":                      ("corrosion_rate", "corrosion_rate", 0.05),
+    r"remaining life":                      ("remaining_life", "time", 0.05),
+    r"(?:inspection|re-?inspection) interval": ("inspection_interval", "time", 0.05),
+    r"design temperature":                  ("design_temperature", "temperature", 0.01),
+}
+ATTRIBUTE_PATTERNS = [
+    (re.compile(pattern, re.IGNORECASE), key, dimension, tolerance)
+    for pattern, (key, dimension, tolerance) in ATTRIBUTES.items()
+]
+
+QUANTITY_RE = re.compile(
+    r"(-?\d+(?:[.,]\d+)?)\s*"
+    r"(mm/yr|mm/year|mpy|mm|cm|m|in|ft|bar|barg|psi|psig|kPa|MPa|°C|°F|K|years?|months?)\b",
+    re.IGNORECASE,
+)
+STATUS_RE = re.compile(
+    r"\b(active|current|in force|superseded|obsolete|withdrawn|expired|"
+    r"draft|for review|cancelled)\b",
+    re.IGNORECASE,
+)
+STATUS_CLASSES = {
+    "active": "current", "current": "current", "in force": "current",
+    "superseded": "retired", "obsolete": "retired", "withdrawn": "retired",
+    "expired": "retired", "cancelled": "retired",
+    "draft": "draft", "for review": "draft",
+}
+
+CRITICALITY = {
+    "design_pressure": "critical", "mawp": "critical",
+    "t_required": "critical", "t_actual": "high",
+    "corrosion_rate": "high", "remaining_life": "high",
+    "inspection_interval": "medium", "operating_pressure": "medium",
+    "design_temperature": "high",
+}
+
+
+@dataclass(frozen=True)
+class Assertion:
+    evidence_id: str
+    subject: str            # "V-2104", or the document id when no tag is present
+    attribute: str          # "design_pressure"
+    dimension: str
+    value: float            # normalised to base units
+    unit: str               # normalised unit
+    raw: str                # "18 bar", as written
+    sentence: str
+    tolerance: float
+```
+
+Extraction walks each evidence item sentence by sentence; a sentence contributes an
+`Assertion` only when it contains **both** a recognised attribute phrase and a quantity of the
+matching dimension. That conjunction is what keeps the false-positive rate low enough for the
+conflicts to be worth showing a judge.
+
+### 6.2 The conflict object the UI renders side-by-side
+
+```python
+class ConflictSide(BaseModel):
+    evidence_id: str
+    evidence_type: str
+    filename: str | None = None
+    document_id: str | None = None
+    revision: str | None = None
+    document_status: str | None = None
+    effective_date: date | None = None
+    page: int | None = None
+    location: str | None = None
+    value: str                      # "18 bar" — as written in the source
+    normalized_value: float | None = None
+    normalized_unit: str | None = None
+    excerpt: str                    # the sentence, for side-by-side display
+    classification: str
+
+
+class EvidenceConflict(BaseModel):
+    id: str                         # "CF1"
+    task_id: str
+    kind: Literal["numeric", "status", "revision", "date", "textual"]
+    subject: str                    # "V-2104"
+    attribute: str                  # "design_pressure"
+    attribute_label: str            # "Design pressure"
+    severity: Literal["low", "medium", "high", "critical"]
+    summary: str                    # "18 bar vs 16 bar — 12.5% apart"
+    difference: str
+    left: ConflictSide
+    right: ConflictSide
+    preferred_evidence_id: str | None = None   # set only when revision status decides it
+    preference_reason: str | None = None
+    resolution: Literal[
+        "unresolved", "human_resolved", "superseded_preferred"
+    ] = "unresolved"
+    resolved_by: str | None = None
+    resolution_note: str | None = None
+    resolved_at: datetime | None = None
+    affected_claim_ids: list[str] = Field(default_factory=list)
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def blocks(self) -> bool:
+        return self.resolution == "unresolved" and self.severity in {"high", "critical"}
+```
+
+`left`/`right` are deliberately symmetrical and each carry everything the UI needs to render a
+two-column panel without a second fetch: source, revision, page, the sentence, and the value as
+written. **DEPENDS-ON: Frontend agent** — a `ConflictPanel` in the evidence drawer and a
+conflict row in Proof Mode.
+
+### 6.3 Detection
+
+```python
+class ContradictionDetector:
+    def __init__(self, ledger: EvidenceLedger) -> None:
+        self.ledger = ledger
+
+    def detect(self) -> list[EvidenceConflict]:
+        assertions = list(self._assertions())
+        grouped: dict[tuple[str, str], list[Assertion]] = defaultdict(list)
+        for assertion in assertions:
+            grouped[(assertion.subject, assertion.attribute)].append(assertion)
+
+        conflicts: list[EvidenceConflict] = []
+        index = 0
+        for (subject, attribute), group in sorted(grouped.items()):
+            for left, right in self._disagreeing_pairs(group):
+                index += 1
+                conflicts.append(self._numeric_conflict(f"CF{index}", subject, attribute, left, right))
+
+        for conflict in self._status_conflicts(start=index):
+            conflicts.append(conflict)
+        for conflict in self._revision_conflicts(start=index + len(conflicts)):
+            conflicts.append(conflict)
+        return conflicts
+
+    @staticmethod
+    def _disagreeing_pairs(group: list[Assertion]) -> Iterable[tuple[Assertion, Assertion]]:
+        """Every pair that differs beyond the attribute's tolerance, deduplicated
+        by (evidence pair). Values from the SAME evidence item are not compared —
+        a document restating its own number is not a contradiction."""
+        seen: set[tuple[str, str]] = set()
+        for i, left in enumerate(group):
+            for right in group[i + 1:]:
+                if left.evidence_id == right.evidence_id:
+                    continue
+                key = tuple(sorted((left.evidence_id, right.evidence_id)))
+                if key in seen:
+                    continue
+                denominator = max(abs(left.value), abs(right.value)) or 1.0
+                if abs(left.value - right.value) / denominator > left.tolerance:
+                    seen.add(key)
+                    yield left, right
+
+    def _numeric_conflict(self, cid, subject, attribute, left, right) -> EvidenceConflict:
+        left_e = self.ledger.get(left.evidence_id)
+        right_e = self.ledger.get(right.evidence_id)
+        denominator = max(abs(left.value), abs(right.value)) or 1.0
+        spread = abs(left.value - right.value) / denominator
+
+        severity = CRITICALITY.get(attribute, "medium")
+        if spread > 0.25 and severity in {"medium", "high"}:
+            severity = "critical" if severity == "high" else "high"
+
+        preferred, reason = self._prefer_by_revision(left_e, right_e)
+
+        return EvidenceConflict(
+            id=cid,
+            task_id=self.ledger.task_id,
+            kind="numeric",
+            subject=subject,
+            attribute=attribute,
+            attribute_label=attribute.replace("_", " ").capitalize(),
+            severity=severity,
+            summary=f"{left.raw} vs {right.raw}",
+            difference=f"{left.raw} vs {right.raw} — {spread:.1%} apart",
+            left=_side(left_e, left),
+            right=_side(right_e, right),
+            preferred_evidence_id=preferred,
+            preference_reason=reason,
+            resolution="superseded_preferred" if preferred else "unresolved",
+        )
+
+    @staticmethod
+    def _prefer_by_revision(left: Evidence, right: Evidence) -> tuple[str | None, str | None]:
+        """A conflict between an ACTIVE revision and a SUPERSEDED one is not a
+        judgement call — the active revision governs. It is still surfaced, but
+        it does not block, and the reason is recorded."""
+        pairs = ((left, right), (right, left))
+        for candidate, other in pairs:
+            if (
+                candidate.document_status is DocumentStatus.ACTIVE
+                and other.document_status in {DocumentStatus.SUPERSEDED, DocumentStatus.EXPIRED}
+            ):
+                return (
+                    candidate.id,
+                    f"{candidate.id} is the ACTIVE revision "
+                    f"({candidate.revision}); {other.id} is "
+                    f"{other.document_status.value} revision {other.revision}",
+                )
+        return None, None
+```
+
+`_status_conflicts` compares `STATUS_CLASSES` assertions about the same document — the
+roadmap's "active vs superseded procedures". `_revision_conflicts` catches the case where two
+evidence items carry the same `document_id` but different `revision` values, which is a
+retrieval bug as much as a content one, and is emitted at severity `high`.
+
+### 6.4 Raising task risk, and requiring a human
+
+Three effects, all mechanical:
+
+1. **Claim status.** Any claim whose supporting evidence participates in an unresolved conflict
+   becomes `CONFLICTED` (§5.5, the `claim.conflict_ids` branch). That is how a conflict stops
+   "unsupported automatic conclusions" rather than merely annotating them.
+2. **Approval.** `ClaimGate` (§5.6) treats `CONFLICTED` as blocking at impact ≥ HIGH. Separately,
+   any conflict with `.blocks == True` forces `ApprovalRecord.required = True` with the reason
+   `"unresolved {severity} conflict: {summary}"`, and adds the reviewer roles configured for
+   `conflicts.approver_roles`. `policies/approval-rules.yaml`:
+   ```yaml
+   conflicts:
+     block_severity_at_or_above: high
+     approver_roles: [inspection_engineer, integrity_manager]
+     auto_prefer_active_revision: true
+   ```
+3. **Risk on the task.** `VerificationReport.valid` goes false while any conflict blocks, and
+   the `contradiction_check` synthesised check (§5.7) carries the summaries as `warnings`, so
+   the existing UI shows it without frontend work.
+
+### 6.5 Resolution as evidence
+
+A reviewer resolving a conflict is a material act and must be in the ledger:
+
+```python
+# backend/evidence/provenance.py (continued)
+
+def from_human(
+    user: "User",
+    *,
+    statement: str,
+    kind: Literal["approval", "rejection", "conflict_resolution", "override", "assertion"],
+    subject_ref: str | None = None,
+    derived_from: list[str] | None = None,
+) -> EvidenceDraft:
+    """A named person's assertion, recorded with the same rigour as a document.
+
+    The sovereignty certificate needs to prove who said a conflicted number was
+    acceptable; that proof has to be an evidence record, not a log line.
+    """
+    return EvidenceDraft(
+        type=EvidenceType.HUMAN,
+        modality=Modality.TEXT,
+        source_id=user.id,
+        source_kind="human",
+        content=statement,
+        structured={
+            "kind": kind,
+            "reviewer": user.display_name,
+            "role": user.role,
+            "subject_ref": subject_ref,
+        },
+        confidence=1.0,
+        extraction_method=f"human:{kind}",
+        classification=Sensitivity.NORMAL,
+        department=user.department,
+        derived_from=derived_from or [],
+    )
+```
+
+`POST /api/tasks/{task_id}/conflicts/{conflict_id}/resolve` registers `H{n}`, sets
+`resolution="human_resolved"`, `resolved_by`, `resolution_note`, re-runs `ClaimVerifier` over
+the affected claims only, and re-evaluates the gate. Because approval invalidation is roadmap
+item 25 (**DEPENDS-ON: Backend B**), this endpoint records `output_hash` at resolution time so
+that work can detect a post-resolution edit.
+
+---
+
+## 7. HYBRID RAG (item 11) AND REVISION INTELLIGENCE (item 12)
+
+### 7.1 Libraries — what is already here, what to add
+
+`requirements.txt` today has no retrieval library at all. BM25 is hand-written at
+`rag/knowledge_base.py:257-290` and embeddings come from the local Ollama model via
+`models_layer/client.py`. Recommendation, in order of preference:
+
+| Need | Choice | Why | New dependency |
+|---|---|---|---|
+| Lexical retrieval | **SQLite FTS5** (`sqlite3`, already imported at `core/database.py:13`) | Ships with CPython's bundled SQLite. Gives a real inverted index and a native `bm25()` ranking function. Works offline by construction. | **none** |
+| Dense retrieval | the existing local embedding model via `KnowledgeBase._embed` (`rag/knowledge_base.py:117-125`) | already offline, already routed through the model registry | none |
+| Fusion + rerank | **Reciprocal Rank Fusion + a deterministic feature reranker**, written in `backend/rag/reranker.py` | reproducible, explainable in Proof Mode, zero weights to pre-stage, no GPU | none |
+| Optional stronger rerank | `sentence-transformers` cross-encoder `ms-marco-MiniLM-L-6-v2` | measurably better, but drags in `torch` (~800 MB) and a model that must be hash-pinned in the offline bundle | `sentence-transformers`, `torch` — **only if** item 36's bundle can carry them |
+
+**Do not add `rank-bm25`.** It holds the whole corpus in memory and rebuilds statistics per
+query — the same defect the current code has, just someone else's. FTS5 is strictly better and
+free.
+
+Why the current BM25 must be replaced regardless: `rag/knowledge_base.py:303` loads **every
+chunk in the database** into Python on every search (`self.db.iter_chunks(departments)`), then
+`:262` tokenises all of them. Retrieval is O(corpus) per query in wall-clock and memory. With
+a few hundred SOPs on a CPU demo host that is seconds per query, before any inference.
+
+FTS5 addition to `core/database.py` `SCHEMA`:
+
+```sql
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunks_fts USING fts5(
+    content,
+    content='knowledge_chunks',
+    content_rowid='rowid',
+    tokenize='porter unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER IF NOT EXISTS knowledge_chunks_ai AFTER INSERT ON knowledge_chunks BEGIN
+    INSERT INTO knowledge_chunks_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS knowledge_chunks_ad AFTER DELETE ON knowledge_chunks BEGIN
+    INSERT INTO knowledge_chunks_fts(knowledge_chunks_fts, rowid, content)
+    VALUES ('delete', old.rowid, old.content);
+END;
+CREATE TRIGGER IF NOT EXISTS knowledge_chunks_au AFTER UPDATE ON knowledge_chunks BEGIN
+    INSERT INTO knowledge_chunks_fts(knowledge_chunks_fts, rowid, content)
+    VALUES ('delete', old.rowid, old.content);
+    INSERT INTO knowledge_chunks_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+```
+
+A one-time backfill (`INSERT INTO knowledge_chunks_fts(rowid, content) SELECT rowid, content
+FROM knowledge_chunks`) runs on first boot after the migration, guarded by a `schema_version`
+row. FTS5 availability is checked at startup (`sqlite3.connect(':memory:').execute("CREATE
+VIRTUAL TABLE t USING fts5(x)")`); if a host's SQLite lacks it, the system falls back to the
+existing in-memory BM25 and `SystemHealth` reports `retrieval_mode: "lexical-degraded"` rather
+than pretending.
+
+### 7.2 Metadata, and filtering *before* scoring
+
+Columns added to `knowledge_documents`:
+
+```sql
+ALTER TABLE knowledge_documents ADD COLUMN document_key   TEXT;    -- "SOP-INS-014" — stable identity
+ALTER TABLE knowledge_documents ADD COLUMN revision       TEXT;
+ALTER TABLE knowledge_documents ADD COLUMN effective_date TEXT;
+ALTER TABLE knowledge_documents ADD COLUMN supersedes     TEXT;
+ALTER TABLE knowledge_documents ADD COLUMN superseded_by  TEXT;
+ALTER TABLE knowledge_documents ADD COLUMN status         TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE knowledge_documents ADD COLUMN owner_role     TEXT;
+ALTER TABLE knowledge_documents ADD COLUMN equipment_tags TEXT NOT NULL DEFAULT '[]';
+CREATE INDEX IF NOT EXISTS idx_documents_key    ON knowledge_documents(document_key, status);
+CREATE INDEX IF NOT EXISTS idx_documents_status ON knowledge_documents(status);
+```
+
+and to `knowledge_chunks`:
+
+```sql
+ALTER TABLE knowledge_chunks ADD COLUMN page           INTEGER;
+ALTER TABLE knowledge_chunks ADD COLUMN section        TEXT;
+ALTER TABLE knowledge_chunks ADD COLUMN equipment_tags TEXT NOT NULL DEFAULT '[]';
+```
+
+(`ALTER TABLE … ADD COLUMN` is idempotent-safe behind a `PRAGMA table_info` check in the
+migration helper; SQLite has no `IF NOT EXISTS` for columns.)
+
+`backend/rag/metadata.py` owns the filter object and its translation to SQL:
+
+```python
+class RetrievalMode(str, Enum):
+    NORMAL = "normal"        # ACTIVE revisions only
+    AUDIT = "audit"          # all revisions; requires knowledge.read.historical
+    EXPLICIT = "explicit"    # named revisions only
+
+
+class RetrievalFilter(BaseModel):
+    """Everything that narrows the candidate set BEFORE scoring.
+
+    Today the clearance filter runs after retrieval (tools/registry.py:235-240)
+    and after the top_k cut (knowledge_base.py:326-331), so a user without
+    clearance for the top 6 hits gets nothing while permitted passages existed
+    at rank 7. Applying it in SQL fixes both problems at once.
+    """
+
+    max_classification: Sensitivity
+    departments: list[str] | None = None
+    mode: RetrievalMode = RetrievalMode.NORMAL
+    statuses: list[DocumentStatus] | None = None       # derived from mode when None
+    document_keys: list[str] | None = None
+    revision_ids: list[str] | None = None
+    equipment_tags: list[str] | None = None
+    effective_on: date | None = None
+    exclude_quarantined: bool = True
+
+    def where(self) -> tuple[str, list[Any]]:
+        clauses = ["d.classification IN (%s)" % ",".join("?" * len(self._allowed_levels()))]
+        params: list[Any] = list(self._allowed_levels())
+        statuses = self.statuses or (
+            [DocumentStatus.ACTIVE] if self.mode is RetrievalMode.NORMAL
+            else list(DocumentStatus)
+        )
+        clauses.append("d.status IN (%s)" % ",".join("?" * len(statuses)))
+        params.extend(s.value for s in statuses)
+        if self.departments:
+            clauses.append("d.department IN (%s)" % ",".join("?" * len(self.departments)))
+            params.extend(self.departments)
+        if self.document_keys:
+            clauses.append("d.document_key IN (%s)" % ",".join("?" * len(self.document_keys)))
+            params.extend(self.document_keys)
+        if self.effective_on:
+            clauses.append("(d.effective_date IS NULL OR d.effective_date <= ?)")
+            params.append(self.effective_on.isoformat())
+        if self.equipment_tags:
+            clauses.append(
+                "(" + " OR ".join(["d.equipment_tags LIKE ?"] * len(self.equipment_tags)) + ")"
+            )
+            params.extend(f'%"{tag}"%' for tag in self.equipment_tags)
+        return " AND ".join(clauses), params
+```
+
+### 7.3 `backend/rag/hybrid.py` — parallel channels, fused locally
+
+```python
+"""Hybrid retrieval: lexical and dense in parallel, fused, reranked, filtered.
+
+Ordering matters and is not negotiable:
+    filter (SQL)  ->  retrieve (both channels)  ->  fuse  ->  rerank  ->  register
+Policy never runs after retrieval, and nothing reaches the model that was not
+registered as evidence first.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+
+RRF_K = 60          # standard RRF damping; fixed so scores are reproducible
+
+
+@dataclass
+class Candidate:
+    chunk_id: str
+    document_id: str
+    document_key: str | None
+    title: str
+    content: str
+    location: str | None
+    page: int | None
+    section: str | None
+    revision: str | None
+    status: str
+    effective_date: date | None
+    superseded_by: str | None
+    department: str | None
+    classification: Sensitivity
+    equipment_tags: list[str]
+    lexical_rank: int | None = None
+    lexical_score: float | None = None
+    dense_rank: int | None = None
+    dense_score: float | None = None
+    fused_score: float = 0.0
+    rerank_score: float = 0.0
+    rerank_reasons: list[str] = field(default_factory=list)
+
+    @property
+    def channel(self) -> str:
+        if self.lexical_rank is not None and self.dense_rank is not None:
+            return "fused"
+        return "lexical" if self.lexical_rank is not None else "dense"
+
+
+class HybridRetriever:
+    def __init__(self, database=None) -> None:
+        self.db = database or get_database()
+        self.kb = get_knowledge_base()
+        self.reranker = LocalReranker()
+
+    async def search(
+        self,
+        query: str,
+        *,
+        filters: RetrievalFilter,
+        top_k: int = 8,
+        pool: int = 40,
+    ) -> RetrievalOutcome:
+        lexical_task = asyncio.to_thread(self._lexical, query, filters, pool)
+        dense_task = self._dense(query, filters, pool)
+        lexical, dense = await asyncio.gather(lexical_task, dense_task)
+
+        merged = self._fuse(lexical, dense)
+        ranked = self.reranker.rank(query, merged, filters)[:top_k]
+        return RetrievalOutcome(
+            query=query,
+            candidates=ranked,
+            lexical_count=len(lexical),
+            dense_count=len(dense),
+            mode=("hybrid" if dense else "lexical"),
+            filters=filters,
+        )
+
+    def _lexical(self, query: str, filters: RetrievalFilter, pool: int) -> list[Candidate]:
+        where, params = filters.where()
+        sql = f"""
+            SELECT c.id, c.document_id, c.location, c.page, c.section, c.content,
+                   c.equipment_tags AS chunk_tags,
+                   d.title, d.document_key, d.revision, d.status, d.effective_date,
+                   d.superseded_by, d.department, d.classification, d.equipment_tags,
+                   bm25(knowledge_chunks_fts) AS score
+              FROM knowledge_chunks_fts
+              JOIN knowledge_chunks c ON c.rowid = knowledge_chunks_fts.rowid
+              JOIN knowledge_documents d ON d.id = c.document_id
+             WHERE knowledge_chunks_fts MATCH ?
+               AND {where}
+             ORDER BY score            -- bm25() returns lower-is-better
+             LIMIT ?
+        """
+        rows = self.db.query(sql, [_to_fts_query(query), *params, pool])
+        return [_candidate(row, lexical_rank=i, lexical_score=-float(row["score"]))
+                for i, row in enumerate(rows, start=1)]
+```
+
+`_to_fts_query` escapes the query into an FTS5 `MATCH` expression — quoting each token and
+OR-joining — so a user query containing `"` or `NEAR` cannot become an FTS injection. That
+sanitiser gets its own test.
+
+`_dense` applies the same `filters.where()` to select the embedded candidate rows, then scores
+by cosine, reusing `_cosine` and `_unpack` from `rag/knowledge_base.py:41-62`.
+
+Fusion is RRF:
+
+```python
+    @staticmethod
+    def _fuse(lexical, dense) -> list[Candidate]:
+        by_id: dict[str, Candidate] = {}
+        for item in lexical:
+            by_id[item.chunk_id] = item
+        for item in dense:
+            existing = by_id.get(item.chunk_id)
+            if existing is None:
+                by_id[item.chunk_id] = item
+            else:
+                existing.dense_rank = item.dense_rank
+                existing.dense_score = item.dense_score
+        for candidate in by_id.values():
+            score = 0.0
+            if candidate.lexical_rank is not None:
+                score += 1.0 / (RRF_K + candidate.lexical_rank)
+            if candidate.dense_rank is not None:
+                score += 1.0 / (RRF_K + candidate.dense_rank)
+            candidate.fused_score = score
+        return sorted(by_id.values(), key=lambda c: c.fused_score, reverse=True)
+```
+
+### 7.4 `backend/rag/reranker.py` — explainable, local, deterministic
+
+```python
+"""Local rerank. Every adjustment is a named, bounded feature with a reason
+string, because Proof Mode has to explain why passage 3 outranked passage 1.
+A black-box reranker would be better at NDCG and worse at the actual job."""
+
+FEATURES = {
+    "term_coverage":     0.35,   # fraction of query terms present in the chunk
+    "tag_match":         0.20,   # query names an asset tag this chunk carries
+    "authority":         0.15,   # ACTIVE > DRAFT; owner department match
+    "recency":           0.10,   # newer effective_date wins, saturating at 5 years
+    "section_specificity": 0.10, # a clause-level chunk beats a whole-document chunk
+    "channel_agreement": 0.10,   # found by BOTH lexical and dense
+}
+
+
+class LocalReranker:
+    def rank(self, query, candidates, filters) -> list[Candidate]:
+        terms = set(TOKEN_RE.findall(query.lower()))
+        tags = set(TAG_RE.findall(query))
+        for candidate in candidates:
+            reasons: list[str] = []
+            score = candidate.fused_score * 10.0      # RRF keeps relative order as the base
+            for name, weight in FEATURES.items():
+                value, reason = getattr(self, f"_{name}")(candidate, terms, tags)
+                if value:
+                    score += weight * value
+                    reasons.append(reason)
+            # A superseded revision that survived the filter (AUDIT mode, or no
+            # active revision exists) is demoted, never silently promoted.
+            if candidate.status != DocumentStatus.ACTIVE.value:
+                score *= 0.6
+                reasons.append(f"demoted: {candidate.status} revision {candidate.revision}")
+            candidate.rerank_score = round(score, 6)
+            candidate.rerank_reasons = reasons
+        return sorted(
+            candidates,
+            key=lambda c: (c.rerank_score, c.fused_score, c.chunk_id),  # total order, no dict-order ties
+            reverse=True,
+        )
+```
+
+### 7.5 Every chunk becomes evidence
+
+```python
+# backend/evidence/provenance.py (continued)
+
+def from_retrieved_chunk(candidate: "Candidate", rank: int) -> EvidenceDraft:
+    return EvidenceDraft(
+        type=EvidenceType.DOCUMENT,
+        modality=Modality.TEXT,
+        source_id=candidate.chunk_id,
+        source_kind="knowledge_revision",
+        filename=candidate.title,
+        location=EvidenceLocation(
+            filename=candidate.title,
+            page=candidate.page,
+            section=candidate.section,
+            ordinal=rank,
+        ),
+        content=candidate.content,
+        confidence=1.0,                      # the text is exact; relevance is a separate axis
+        extraction_method=f"hybrid:{candidate.channel}",
+        classification=candidate.classification,
+        department=candidate.department,
+        document_id=candidate.document_key or candidate.document_id,
+        revision=candidate.revision,
+        effective_date=candidate.effective_date,
+        document_status=DocumentStatus(candidate.status),
+        superseded_by_document=candidate.superseded_by,
+        equipment_tags=candidate.equipment_tags,
+        retrieval_score=candidate.rerank_score,
+        retrieval_rank=rank,
+        retrieval_channel=candidate.channel,  # type: ignore[arg-type]
+        structured={"rerank_reasons": candidate.rerank_reasons},
+    )
+```
+
+`rerank_reasons` riding in `structured` is what makes the retrieval explorer honest: the UI can
+show *"ranked 1 because the query names V-2104 and this is clause 3 of the ACTIVE revision"*
+rather than a bare similarity number.
+
+### 7.6 Document identity, separate from file upload (item 12)
+
+`backend/knowledge/document_registry.py`:
+
+```python
+"""Document identity.
+
+A document is a thing the organisation maintains. A file is one delivery of one
+revision of it. Today they are the same object and the identity is a content
+hash (rag/knowledge_base.py:154-155), so ingesting Rev 4 creates a second
+unrelated document and the system will cite whichever it likes.
+"""
+
+class DocumentIdentity(BaseModel):
+    key: str                      # "SOP-INS-014" — the stable identity, chosen by a human
+    title: str
+    department: str
+    classification: Sensitivity
+    owner_role: str | None = None
+    equipment_tags: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class DocumentRevision(BaseModel):
+    id: str                       # "SOP-INS-014@Rev4"
+    document_key: str
+    revision: str                 # "Rev 4"
+    effective_date: date | None
+    supersedes: str | None        # revision id
+    superseded_by: str | None
+    status: DocumentStatus
+    sha256: str
+    source_path: str
+    media_type: str
+    size_bytes: int
+    chunk_count: int
+    ingested_at: datetime
+    ingested_by: str | None
+
+
+class DocumentRegistry:
+    def identity(self, key: str) -> DocumentIdentity | None: ...
+    def revisions(self, key: str) -> list[DocumentRevision]: ...
+    def active(self, key: str) -> DocumentRevision | None: ...
+    def revision(self, revision_id: str) -> DocumentRevision | None: ...
+    def register_identity(self, identity: DocumentIdentity) -> DocumentIdentity: ...
+```
+
+`document_key` is supplied at ingest — from an explicit field, or inferred by a declared regex
+over the filename/first page (`^(SOP|WI|PR|DWG)[- ]?[A-Z0-9\-]+`) and **confirmed by the
+operator**, never silently guessed. Where no key can be determined the document keeps its
+hash-derived id and status `ACTIVE`, i.e. exactly today's behaviour — so existing corpora keep
+working and revision intelligence is opt-in per document.
+
+### 7.7 `backend/knowledge/revision_manager.py`
+
+```python
+class RevisionManager:
+    def activate(self, revision_id: str, *, actor: str) -> list[DocumentRevision]:
+        """Make one revision authoritative.
+
+        Atomic: the previous ACTIVE revision becomes SUPERSEDED and the two are
+        linked in both directions in the same transaction, so there is never a
+        moment with two active revisions or a dangling supersedes pointer.
+        """
+        revision = self.registry.revision(revision_id)
+        if revision is None:
+            raise KnowledgeError(f"unknown revision '{revision_id}'")
+        changed: list[DocumentRevision] = []
+        with self.db.connect() as connection:
+            previous = connection.execute(
+                "SELECT id FROM knowledge_documents "
+                " WHERE document_key = ? AND status = ? AND id != ?",
+                (revision.document_key, DocumentStatus.ACTIVE.value, revision_id),
+            ).fetchall()
+            for row in previous:
+                connection.execute(
+                    "UPDATE knowledge_documents "
+                    "   SET status = ?, superseded_by = ? WHERE id = ?",
+                    (DocumentStatus.SUPERSEDED.value, revision_id, row["id"]),
+                )
+            connection.execute(
+                "UPDATE knowledge_documents "
+                "   SET status = ?, supersedes = ?, superseded_by = NULL WHERE id = ?",
+                (
+                    DocumentStatus.ACTIVE.value,
+                    previous[0]["id"] if previous else None,
+                    revision_id,
+                ),
+            )
+        self.audit.record(
+            category="knowledge", action="revision_activated", actor=actor,
+            detail={
+                "document_key": revision.document_key,
+                "activated": revision_id,
+                "superseded": [row["id"] for row in previous],
+            },
+        )
+        return changed
+
+    def expire(self, revision_id: str, *, actor: str, reason: str) -> None: ...
+
+    def scope(self, mode: RetrievalMode, user: User) -> list[DocumentStatus]:
+        """Historical material requires an explicit permission, so 'audit mode'
+        is an authorisation decision rather than a query parameter anyone can set."""
+        if mode is RetrievalMode.NORMAL:
+            return [DocumentStatus.ACTIVE]
+        if "knowledge.read.historical" not in get_config().role_permissions(user.role):
+            raise PermissionError(
+                "historical revisions require the 'knowledge.read.historical' "
+                "permission; this query was restricted to active documents"
+            )
+        return list(DocumentStatus)
+```
+
+`config/access-control.yaml` gains `knowledge.read.historical` on the auditor and integrity
+manager roles.
+
+### 7.8 Warning when evidence is superseded
+
+Four layers, so the warning cannot be missed:
+
+1. `Evidence.document_status` and `superseded_by_document` are populated (§7.5).
+2. `prompt_block` annotates the header: `"[S3] SOP-INS-014 — page 4 — SUPERSEDED revision Rev 3"`
+   (`ledger.py`, the `document_status` branch). The model is told, in band.
+3. `ClaimVerifier._status` downgrades any claim resting on it to `NEEDS_REVIEW` with a reason
+   naming the replacement (§5.5).
+4. `RetrievalStage` appends a limitation: *"SOP-INS-014 Rev 3 is superseded by Rev 4, effective
+   2025-06-01. The active revision was not retrieved for this query."* — and, when an active
+   revision exists but did not rank, retries the lexical channel restricted to it, so the
+   report can show both.
+
+### 7.9 Ordering guarantee for item 11's "Done when"
+
+> *Relevant answers retrieve the correct passage while respecting classification and metadata constraints.*
+
+Mechanised as an invariant test: for a corpus containing a RESTRICTED chunk that is the best
+lexical match, a NORMAL-clearance user's `RetrievalOutcome` must (a) not contain it, (b) still
+contain the best permitted passage, and (c) the SQL must never have selected it —
+asserted by counting rows returned from `_lexical` with a spy on `db.query`.
+
+---
+
+## 8. ORCHESTRATOR REFACTOR INTO TYPED STAGES (item 30)
+
+### 8.1 What the 1313 lines actually are
+
+```
+  1- 156  module setup, EvidenceLedger, regex constants, helpers
+ 157- 212  AgentOrchestrator.__init__, _checkpoint, _emit, _stage
+ 213- 333  _generate          — routing + model policy + memory admission + inference + audit (120 lines)
+ 336- 369  _call_tool
+ 371- 417  _visual_inputs
+ 419- 471  _record_extraction
+ 474- 625  _plan + _fallback_plan
+ 627- 667  _vision_extraction, _extract_calculations
+ 670-1007  run()              — THE MONOLITH: 337 lines, one try block, 9 stages inline
+1010-1143  _mark_step, _run_code_stage
+1145-1246  _reason, _draft
+1248-1290  _render_deliverable
+```
+
+`run()` is untestable in isolation: it needs a router, a registry, an inference client, a model
+manager, a tool registry, a policy gateway, a verifier, an audit log and an event bus, all
+acquired as module singletons in `__init__` (`orchestrator.py:160-174`). There is no test file
+for it. Every stage boundary is a comment.
+
+### 8.2 `backend/workflow/context.py`
+
+```python
+"""The state one task run carries between stages.
+
+Stages receive this, mutate their own slot, and return a StageResult. Nothing
+reaches across into another stage's slot — that constraint is what makes a
+stage independently testable.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Awaitable, Callable
+
+from backend.core.schemas import (
+    AgentPlan, ApprovalRecord, RoutingDecision, SandboxResult, Task,
+    TaskProfile, TaskStatus, ToolCall, User, VerificationReport,
+)
+from backend.engineering.registry import CalculationResult
+from backend.evidence.ledger import EvidenceLedger
+from backend.rag.hybrid import RetrievalOutcome
+from backend.verification.contradictions import EvidenceConflict
+from backend.verification.models import ClaimReport
+
+
+class StageName(str, Enum):
+    CLASSIFY = "classify"
+    POLICY = "policy"
+    VISION = "vision"
+    RETRIEVE = "retrieve"
+    PLAN = "plan"
+    EXECUTE = "execute"
+    VERIFY = "verify"
+    APPROVE = "approve"
+    DELIVER = "deliver"
+
+
+class StageOutcome(str, Enum):
+    OK = "ok"
+    SKIPPED = "skipped"        # did not apply to this task
+    DEGRADED = "degraded"      # partial result; the run continues, a limitation is recorded
+    BLOCKED = "blocked"        # policy refused; the run stops, this is not an error
+    FAILED = "failed"          # something broke; the run stops per the stage's failure policy
+
+
+class StageResult(BaseModel):
+    stage: StageName
+    outcome: StageOutcome
+    detail: str
+    started_at: datetime
+    finished_at: datetime
+    duration_ms: int
+    evidence_ids: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    error: str | None = None
+    data: dict[str, Any] = Field(default_factory=dict)   # small, SSE- and Proof-Mode-safe
+
+
+@dataclass
+class VisionStageOutput:
+    pages_profiled: dict[str, int]          # filename -> page count
+    pages_read: dict[str, list[int]]        # filename -> page numbers actually read
+    pages_skipped: dict[str, list[int]]
+    batches: int
+    extraction_summary: dict[str, Any]      # document_type + top findings, for the planner
+
+
+@dataclass
+class ExecutionStageOutput:
+    sandbox: SandboxResult | None = None
+    calculations: list[CalculationResult] = field(default_factory=list)
+    refusals: list[str] = field(default_factory=list)    # dimensional/domain refusals
+
+
+@dataclass
+class WorkflowContext:
+    # -- inputs, never mutated by a stage
+    task: Task
+    user: User
+    workspace: Path
+
+    # -- shared services, injected so a stage can be tested with fakes
+    ledger: EvidenceLedger
+    tools: "ToolRegistry"
+    gateway: "PolicyGateway"
+    audit: "AuditLog"
+    generate: Callable[..., Awaitable[tuple[str, RoutingDecision]]]
+    emit: Callable[[str, dict[str, Any]], Awaitable[None]]
+    checkpoint: Callable[[], None]
+    is_cancelled: Callable[[], bool]
+
+    # -- per-stage outputs
+    stage_results: dict[StageName, StageResult] = field(default_factory=dict)
+    vision: VisionStageOutput | None = None
+    retrieval: RetrievalOutcome | None = None
+    plan: AgentPlan | None = None
+    execution: ExecutionStageOutput = field(default_factory=ExecutionStageOutput)
+    answer: str = ""
+    draft: dict[str, Any] | None = None
+    claims: ClaimReport | None = None
+    conflicts: list[EvidenceConflict] = field(default_factory=list)
+    verification: VerificationReport | None = None
+    approval: ApprovalRecord | None = None
+
+    # -- accumulators
+    limitations: list[str] = field(default_factory=list)
+
+    @property
+    def profile(self) -> TaskProfile:
+        assert self.task.profile is not None
+        return self.task.profile
+
+    def evidence_block(self, **kwargs) -> str:
+        block, included, omitted = self.ledger.prompt_block(**kwargs)
+        if omitted:
+            self.limitations.append(
+                f"{len(omitted)} evidence item(s) did not fit the context budget and "
+                f"were not shown to the model: {', '.join(omitted)}. Claims resting "
+                f"on them cannot be cited."
+            )
+        self.citable_ids = included
+        return block
+```
+
+That `evidence_block` helper is small but it is the fix for §1.7: truncation is now impossible
+to do silently, because the only method that truncates also records what it dropped.
+
+### 8.3 `backend/workflow/pipeline.py`
+
+```python
+class Stage(Protocol):
+    name: StageName
+    on_failure: Literal["abort", "continue_degraded"]
+
+    async def applies(self, ctx: WorkflowContext) -> bool: ...
+    async def run(self, ctx: WorkflowContext) -> StageResult: ...
+
+
+class Pipeline:
+    """Coordinates stage transitions. Contains no domain logic — if this class
+    ever needs to know what a corrosion rate is, a stage is in the wrong place."""
+
+    def __init__(self, stages: Sequence[Stage]) -> None:
+        self.stages = list(stages)
+
+    async def run(self, ctx: WorkflowContext) -> WorkflowContext:
+        for stage in self.stages:
+            if ctx.is_cancelled():
+                await self._finish(ctx, TaskStatus.CANCELLED, "Stopped at your request.")
+                return ctx
+
+            if not await stage.applies(ctx):
+                ctx.stage_results[stage.name] = _skipped(stage.name)
+                await ctx.emit("task.stage.skipped", {"stage": stage.name.value})
+                continue
+
+            started = datetime.now(timezone.utc)
+            await ctx.emit("task.stage.started", {"stage": stage.name.value})
+            try:
+                result = await stage.run(ctx)
+            except TaskCancelled:
+                raise
+            except Exception as exc:
+                result = StageResult(
+                    stage=stage.name,
+                    outcome=StageOutcome.FAILED,
+                    detail=f"{type(exc).__name__}: {exc}",
+                    started_at=started,
+                    finished_at=datetime.now(timezone.utc),
+                    duration_ms=_ms(started),
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+
+            ctx.stage_results[stage.name] = result
+            ctx.limitations.extend(result.limitations)
+            ctx.checkpoint()
+            await ctx.emit(
+                "task.stage.finished",
+                {
+                    "stage": stage.name.value,
+                    "outcome": result.outcome.value,
+                    "detail": result.detail,
+                    "duration_ms": result.duration_ms,
+                    "evidence_ids": result.evidence_ids,
+                    **result.data,
+                },
+            )
+            ctx.audit.record(
+                category="workflow",
+                action=f"{stage.name.value}:{result.outcome.value}",
+                actor=ctx.user.username,
+                actor_role=ctx.user.role,
+                task_id=ctx.task.id,
+                detail={"detail": result.detail, "duration_ms": result.duration_ms,
+                        "evidence_ids": result.evidence_ids},
+            )
+
+            if result.outcome is StageOutcome.BLOCKED:
+                await self._finish(ctx, TaskStatus.BLOCKED, result.detail)
+                return ctx
+            if result.outcome is StageOutcome.FAILED and stage.on_failure == "abort":
+                await self._finish(ctx, TaskStatus.FAILED, result.error or result.detail)
+                return ctx
+        return ctx
+```
+
+The uniform `task.stage.started` / `task.stage.finished` envelope is what items 24 (Proof Mode)
+and 29 (recovery) both need: one event shape, one audit shape, one persisted record per stage.
+**DEPENDS-ON: Frontend agent** — Proof Mode timeline binds to these two events.
+**DEPENDS-ON: Backend B** — `backend/workflow/checkpoints.py` persists `ctx.stage_results` and
+resumes from the last `OK` stage; the `StageResult` shape above is the contract for that.
+
+### 8.4 The nine stages, with explicit inputs / outputs / failure states
+
+| Stage | Reads | Writes | `applies` when | `BLOCKED` when | `on_failure` |
+|---|---|---|---|---|---|
+| `classify` | `task.prompt`, `task.files` | `task.profile` | profile is `None` (moved out of `task_service.create_task:236`) | — | abort |
+| `policy` | `profile`, `user`, `files` | `task.policy_events` | always | file access or classification denied | abort |
+| `vision` | `files`, profile | `ledger` (`V*`), `ctx.vision` | `profile.requires_vision` and a PDF/image is attached | vision model denied by model policy | continue_degraded |
+| `retrieve` | prompt, `ctx.vision.extraction_summary` | `ledger` (`S*`), `ctx.retrieval` | `profile.requires_retrieval` | clearance blocks every candidate | continue_degraded |
+| `plan` | profile, ledger summary, tool catalogue | `task.plan` | always | — | continue_degraded (falls back to `_fallback_plan`) |
+| `execute` | plan, ledger | `ledger` (`X*`, `C*`), `ctx.execution` | plan contains `python_exec`/calculation, or profile requires it | tool denied | continue_degraded |
+| `verify` | `ctx.answer`, `ctx.draft`, ledger | `ctx.claims`, `ctx.conflicts`, `ctx.verification` | always | — | continue_degraded (a check that cannot run is a failed check, per `orchestrator.py:824-839`) |
+| `approve` | verification, claim gate, conflicts | `task.approval`, `task.status` | always | claim gate returns `DENY` | abort |
+| `deliver` | `ctx.draft`, ledger, verification | `task.deliverables` | `profile.produces_deliverable` | deliverable tool denied | continue_degraded |
+
+Reasoning and drafting are steps *inside* `execute` and `deliver` respectively rather than
+stages of their own, because they share the reasoning model's residency and splitting them
+would force an extra model swap — the same argument documented at `orchestrator.py:713-718`.
+
+One deliberate ordering change: **retrieve now runs before plan**, matching the roadmap's stage
+list. Safe, because the retrieval query is built from `task.prompt` plus the vision extraction
+(`orchestrator.py:776-781`) and never from the plan; and better, because the planner can then
+see what was actually found.
+
+Example stage, showing the shape in full:
+
+```python
+# backend/workflow/stages/vision.py
+
+class VisionStage:
+    name = StageName.VISION
+    on_failure = "continue_degraded"
+
+    def __init__(self, *, config=None) -> None:
+        self.config = config or get_config()
+
+    async def applies(self, ctx: WorkflowContext) -> bool:
+        if not ctx.profile.requires_vision:
+            return False
+        return any(
+            Path(f.stored_path).suffix.lower() in IMAGE_SUFFIXES | {".pdf"}
+            for f in ctx.task.files
+        )
+
+    async def run(self, ctx: WorkflowContext) -> StageResult:
+        started = datetime.now(timezone.utc)
+        settings = self.config.settings.vision
+        registered: list[str] = []
+        limitations: list[str] = []
+        profiled: dict[str, int] = {}
+        read: dict[str, list[int]] = {}
+        skipped: dict[str, list[int]] = {}
+
+        per_file: list[tuple[StoredFile, list[RenderedPage]]] = []
+        for stored in ctx.task.files:
+            path = Path(stored.stored_path)
+            suffix = path.suffix.lower()
+
+            if suffix in IMAGE_SUFFIXES:
+                per_file.append((stored, [_single_image_page(path)]))
+                profiled[stored.filename] = 1
+                continue
+            if suffix != ".pdf":
+                continue
+
+            try:
+                profile = profile_pdf_pages(path)
+            except ParsingError as exc:
+                limitations.append(f"'{stored.filename}' could not be profiled: {exc}")
+                continue
+
+            profiled[stored.filename] = profile.page_count
+            limitations.extend(profile.warnings)
+
+            # Text pages become F-evidence here, one per page, so the text half
+            # of a mixed document is never lost either.
+            for page_profile in profile.text_pages:
+                text = _page_text(path, page_profile.page)
+                if text.strip():
+                    registered.append(
+                        ctx.ledger.register(
+                            from_file_segment(
+                                stored,
+                                text=text,
+                                location=EvidenceLocation(
+                                    page=page_profile.page,
+                                    page_count=profile.page_count,
+                                ),
+                                parser="pymupdf-text",
+                            )
+                        ).id
+                    )
+
+            wanted = [p.page for p in profile.vision_pages]
+            budget = int(settings.get("max_pages_per_file", 0))
+            if budget and len(wanted) > budget:
+                skipped[stored.filename] = wanted[budget:]
+                limitations.append(
+                    f"'{stored.filename}': {len(wanted) - budget} page(s) needing "
+                    f"vision were not read because the configured budget is "
+                    f"{budget} page(s) per file. Pages not read: "
+                    f"{', '.join(str(p) for p in wanted[budget:])}."
+                )
+                wanted = wanted[:budget]
+            if wanted:
+                per_file.append(
+                    (stored, rasterize_pages(path, ctx.workspace / "pages", wanted,
+                                             target_edge=int(settings.get("target_edge", 1100))))
+                )
+
+        if not per_file:
+            return _result(self.name, StageOutcome.SKIPPED,
+                           "No visual input required rendering.", started)
+
+        batches = build_batches(per_file, batch_size=int(settings.get("batch_pages", 3)))
+        floor = float(settings.get("min_page_confidence", 0.35))
+        summary: dict[str, Any] = {"findings": [], "document_types": set()}
+
+        for batch in batches:
+            await ctx.emit("task.vision.batch", {
+                "filename": batch.stored.filename,
+                "pages": batch.page_numbers,
+                "index": batch.index,
+                "total": batch.total,
+            })
+            text, _ = await ctx.generate(
+                stage="vision_extraction",
+                system_prompt=self.config.system_prompt("vision"),
+                prompt=self.config.prompt(
+                    "task.vision_extract_pages",
+                    filename=batch.stored.filename,
+                    page_count=len(batch.pages),
+                    page_map=_page_map(batch),
+                    prompt=ctx.task.prompt,
+                ),
+                images=batch.image_paths,
+                format_json=True,
+            )
+            drafts, batch_limits = drafts_for_batch(
+                batch, _parse_json(text), text,
+                model_id=ctx.last_model_id, floor=floor,
+            )
+            for evidence in ctx.ledger.register_many(drafts):
+                registered.append(evidence.id)
+                read.setdefault(batch.stored.filename, []).append(evidence.location.page)
+                await ctx.emit("task.vision.page", {
+                    "evidence_id": evidence.id,
+                    "filename": evidence.filename,
+                    "page": evidence.location.page,
+                    "confidence": evidence.confidence,
+                })
+            limitations.extend(batch_limits)
+            ctx.checkpoint()          # evidence survives a crash mid-document
+
+        for filename, total in profiled.items():
+            covered = ctx.ledger.pages_covered(filename)
+            missing = sorted(set(range(1, total + 1)) - covered - set(skipped.get(filename, [])))
+            if missing:
+                limitations.append(
+                    f"'{filename}': pages {', '.join(map(str, missing))} produced no "
+                    f"evidence. Nothing on those pages has been used."
+                )
+
+        ctx.vision = VisionStageOutput(
+            pages_profiled=profiled,
+            pages_read={k: sorted(set(v)) for k, v in read.items()},
+            pages_skipped=skipped,
+            batches=len(batches),
+            extraction_summary=summary,
+        )
+        outcome = StageOutcome.DEGRADED if limitations else StageOutcome.OK
+        return _result(
+            self.name, outcome,
+            f"Read {sum(len(v) for v in read.values())} page(s) across "
+            f"{len(batches)} batch(es) from {len(profiled)} file(s).",
+            started, evidence_ids=registered, limitations=limitations,
+            data={"pages_profiled": profiled, "pages_read": ctx.vision.pages_read,
+                  "pages_skipped": skipped},
+        )
+```
+
+### 8.5 What `AgentOrchestrator` becomes
+
+```python
+class AgentOrchestrator:
+    """Kept as the entry point so api/task_service.py:429 does not change.
+
+    Its job is now: build the context, run the pipeline, map the outcome onto
+    the task record. Roughly 120 lines instead of 1313.
+    """
+
+    async def run(self, task, user, persist=None) -> Task:
+        started = datetime.now(timezone.utc)
+        workspace = self.config.settings.path("workspaces") / task.id
+        workspace.mkdir(parents=True, exist_ok=True)
+        ctx = WorkflowContext(
+            task=task,
+            user=user,
+            workspace=workspace,
+            ledger=EvidenceLedger(task.id),
+            tools=self.tools,
+            gateway=self.gateway,
+            audit=self.audit,
+            generate=partial(self._generate, task, user),
+            emit=partial(self._emit, task),
+            checkpoint=partial(self._checkpoint, task),
+            is_cancelled=partial(self._check_cancelled, task),
+        )
+        try:
+            await get_pipeline().run(ctx)
+        except TaskCancelled:
+            task.status = TaskStatus.CANCELLED
+            task.error = "Stopped at your request."
+            await self._emit(task, "task.cancelled", {"reason": "stopped by request"})
+        finally:
+            task.evidence = [_to_legacy_item(e) for e in ctx.ledger.items]   # contract bridge
+            task.updated_at = datetime.now(timezone.utc)
+            task.duration_ms = int((task.updated_at - started).total_seconds() * 1000)
+            await self._emit(task, "task.finished",
+                             {"status": task.status.value, "duration_ms": task.duration_ms})
+        return task
+```
+
+`_generate` (`orchestrator.py:213-333`) moves unchanged to
+`backend/workflow/model_gateway.py` — it is already a clean, correct unit doing routing,
+model policy, memory admission, inference and audit. It is injected into the context rather
+than inherited, which is what finally makes stages testable with a fake.
+
+### 8.6 The `task.stage` compatibility shim
+
+`frontend/hooks/use-event-stream.ts:57` subscribes to `task.stage`. The pipeline keeps emitting
+it alongside the new events, with the same `{status, message}` payload, until the frontend
+migrates. Zero frontend work is required to deploy this refactor, which is the point.
+
+### 8.7 Strangler-fig migration sequence — main is never broken
+
+Each step is independently shippable and independently revertible. A feature flag in
+`config/app.yaml` (`workflow.pipeline_enabled: false`) selects the new path; it flips to `true`
+only at step 6, after parity has been demonstrated.
+
+**Step 0 — characterisation harness.** `tests/test_orchestrator_parity.py` runs a task through
+the current `run()` with every collaborator faked (scripted model responses, an in-memory tool
+registry, a recording event bus) and snapshots: the ordered event list, the final `TaskStatus`,
+the evidence ids and their `source_document`s, and the `VerificationReport`. This is the oracle
+for every later step. No production code changes.
+
+**Step 1 — extract `_generate` to `backend/workflow/model_gateway.py`.** Pure move.
+`AgentOrchestrator._generate` becomes a two-line delegate. Parity snapshot must be byte-identical.
+
+**Step 2 — land `backend/evidence/` beside the old ledger.** New package, new table, no caller
+changes. `EvidenceLedger` in `orchestrator.py` gains a shadow write: every `add()` also
+registers an `EvidenceDraft` in the new ledger. Nothing reads the new one yet. This proves the
+store and the ID allocator under real traffic while the old path remains authoritative.
+
+**Step 3 — cut over the producers, one at a time, each with its own parity run.**
+Order: `file_read` → `knowledge_search` → sandbox → vision. The vision producer is last because
+it is the one whose *output changes* (per-page instead of merged), so its parity snapshot is
+expected to differ and is reviewed by hand. After this step `task.evidence` is populated from
+the new ledger via `_to_legacy_item`, and the frontend sees richer but compatible items.
+
+**Step 4 — land `backend/engineering/` and `backend/verification/` beside the old verifier.**
+`backend/agents/verifier.py` becomes the shim described in §5.7. `orchestrator.run()` is
+unchanged; the shim routes `check_sources`/`check_calculations` into the new engine. Parity
+here *will* differ — fewer claims counted as supported — and that difference is the deliverable.
+
+**Step 5 — introduce `Pipeline` with the nine stages, each stage's body lifted verbatim from
+the corresponding block of `run()`.** Behind `workflow.pipeline_enabled: false`. Both paths
+exist; the parity test runs both and diffs them. A stage is "done" when its lifted body passes
+parity, so the lift is mechanical and reviewable block by block.
+
+**Step 6 — flip the flag.** `run()`'s old body is deleted in the same commit that flips it, so
+there is never a period with two live implementations of the same behaviour. `_visual_inputs`,
+`_record_extraction`, `_extract_calculations` and the 337-line `try` block go here.
+
+**Step 7 — delete the shim.** `backend/agents/verifier.py` removed; `backend/agents/orchestrator.py`
+is ~120 lines; `backend/workflow/` owns the lifecycle.
+
+Rollback at any step is `git revert` of one commit plus, for steps 2–3, dropping the `evidence`
+table — which no other code reads until step 3 completes.
+
+---
+
+## 9. CONTRACT I PUBLISH
+
+Everything in this section is consumed by Backend B and the Frontend agent. Models live in
+`backend/core/schemas.py` unless stated; anything defined in a feature package is re-exported
+from `schemas.py` so the frozen-contract rule at `core/schemas.py:1-6` still holds.
+
+### 9.1 `CONTRACT:` new models
+
+```python
+# re-exported from backend/core/schemas.py
+
+class EvidenceType(str, Enum):        # document|file|vision|calculation|execution|human
+class Modality(str, Enum):            # text|table|image|numeric|graph
+class DocumentStatus(str, Enum):      # draft|active|superseded|expired
+class BoundingBox(BaseModel):         # x0,y0,x1,y1,page_width,page_height
+class EvidenceLocation(BaseModel):    # filename,page,page_count,bbox,section,sheet,cell_range,ordinal
+class Evidence(BaseModel):            # §2.1 in full
+class SourceCoverage(BaseModel):
+    filename: str
+    source_id: str
+    page_count: int
+    pages_read: list[int]
+    pages_skipped: list[int]
+    method: dict[str, str]            # "7" -> "vision" | "text"
+    complete: bool
+
+class ClaimType(str, Enum)
+class ClaimStatus(str, Enum)
+class ClaimImpact(str, Enum)
+class LinkRelation(str, Enum)
+class ClaimQuantity(BaseModel)
+class ClaimEvidenceLink(BaseModel)
+class Claim(BaseModel)
+class ClaimReport(BaseModel)
+
+class ConflictSide(BaseModel)
+class EvidenceConflict(BaseModel)
+class ConflictResolutionRequest(BaseModel):
+    resolution: Literal["prefer_left", "prefer_right", "both_invalid", "acknowledged"]
+    note: str = Field(min_length=1)
+
+class FormulaInputDescriptor(BaseModel)
+class FormulaDescriptor(BaseModel)
+class QuantityInput(BaseModel)
+class CalculationRequest(BaseModel)
+class ResolvedInput(BaseModel)
+class CalculationResult(BaseModel)
+
+class StageName(str, Enum)
+class StageOutcome(str, Enum)
+class StageResult(BaseModel)
+
+class DocumentIdentity(BaseModel)
+class DocumentRevision(BaseModel)
+class RetrievalMode(str, Enum)
+class RetrievalFilter(BaseModel)
+```
+
+### 9.2 `CONTRACT:` changed models
+
+**`EvidenceItem`** — retained verbatim as the legacy projection of `Evidence`, so nothing
+breaks. Gains optional fields, all defaulted:
+
+```python
+class EvidenceItem(BaseModel):
+    # unchanged
+    id: str
+    source_document: str
+    document_id: str | None = None
+    location: str | None = None
+    excerpt: str
+    score: float | None = None
+    department: str | None = None
+    classification: Sensitivity = Sensitivity.NORMAL
+    version: str | None = None
+    ingested_at: datetime | None = None
+    kind: Literal["knowledge_base","uploaded_file","vision_extraction","computation"] = "knowledge_base"
+    # ADDED — all optional
+    type: EvidenceType | None = None
+    modality: Modality | None = None
+    source_id: str | None = None
+    filename: str | None = None
+    page: int | None = None
+    bbox: BoundingBox | None = None
+    confidence: float = 1.0
+    extraction_method: str | None = None
+    extraction_model: str | None = None
+    source_sha256: str | None = None
+    content_sha256: str | None = None
+    revision: str | None = None
+    effective_date: date | None = None
+    document_status: DocumentStatus | None = None
+    superseded_by_document: str | None = None
+    equipment_tags: list[str] = []
+    retrieval_channel: str | None = None
+    derived_from: list[str] = []
+```
+
+`kind` keeps its four legacy values (`EvidenceType.EXECUTION` and `HUMAN` both project to
+`"computation"` / `"human"` — and `"human"` is a **new value in that Literal**, see §9.4).
+
+**`VerificationReport`** — extended per §5.7. All five existing fields keep their meaning; ten
+new fields, all defaulted.
+
+**`VerificationCheck.kind`** — Literal widened with `"conflict"` and `"coverage"`.
+
+**`Task`** — three additions, all defaulted:
+
+```python
+    stage_results: list[StageResult] = Field(default_factory=list)
+    calculations: list[CalculationResult] = Field(default_factory=list)
+    evidence_count: int = 0          # authoritative count; task.evidence may be projected/trimmed
+```
+
+**`SystemHealth.retrieval_mode`** — Literal widened:
+`"embedding" | "lexical" | "hybrid" | "lexical-degraded" | "unavailable"`.
+
+**`TaskStatus`** — unchanged. No new statuses; a blocked claim gate uses the existing `BLOCKED`.
+
+### 9.3 `CONTRACT:` endpoints
+
+All under the existing `/api` prefix and the existing `CurrentUser` dependency
+(`api/routes/tasks.py:25`). New router `backend/api/routes/evidence.py`; knowledge routes
+extend `backend/api/routes/system.py`.
+
+```
+GET  /api/tasks/{task_id}/evidence
+       ?type=vision&source_id=...&page=7&filename=...
+     -> EvidenceLedgerResponse {
+          task_id, items: Evidence[], count, by_type: {document:4,vision:12,...},
+          coverage: SourceCoverage[]
+        }
+
+GET  /api/tasks/{task_id}/evidence/{evidence_id}
+     -> Evidence          404 when unknown
+
+GET  /api/tasks/{task_id}/evidence/{evidence_id}/page.png
+     -> image/png         the rendered page this evidence sits on, for bbox overlay.
+                          410 when the workspace has been cleared. Policy-checked
+                          identically to /api/files/{id}/download.
+
+GET  /api/tasks/{task_id}/claims
+     -> ClaimReport
+
+GET  /api/tasks/{task_id}/claims/{claim_id}
+     -> Claim             with links resolved to full Evidence objects in
+                          `resolved_evidence: Evidence[]`
+
+GET  /api/tasks/{task_id}/conflicts
+     -> { task_id, conflicts: EvidenceConflict[], unresolved: int, blocking: int }
+
+POST /api/tasks/{task_id}/conflicts/{conflict_id}/resolve
+       body ConflictResolutionRequest
+     -> EvidenceConflict  requires 'approval.decide'; registers H-evidence;
+                          re-verifies affected claims; 409 when already resolved
+
+GET  /api/tasks/{task_id}/calculations
+     -> { task_id, calculations: CalculationResult[] }
+
+GET  /api/tasks/{task_id}/stages
+     -> { task_id, stages: StageResult[] }         (Proof Mode timeline source)
+
+GET  /api/engineering/formulas
+     -> FormulaDescriptor[]
+
+POST /api/engineering/calculate
+       body CalculationRequest  (+ optional task_id to register the result as evidence)
+     -> CalculationResult       400 on UnitError/DimensionError with the refusal text
+                                422 on UnsupportedInputError
+                                requires 'tool.calculate'
+
+GET  /api/knowledge/documents/{document_key}/revisions
+     -> { identity: DocumentIdentity, revisions: DocumentRevision[], active: str | null }
+
+POST /api/knowledge/revisions/{revision_id}/activate
+     -> DocumentRevision[]      requires 'knowledge.manage'
+
+GET  /api/knowledge/search?mode=normal|audit
+     -> KnowledgeSearchResponse (extended: retrieval_mode gains "hybrid";
+                                 results carry the new EvidenceItem fields)
+```
+
+### 9.4 `CONTRACT:` SSE events
+
+Added to the stream. `frontend/hooks/use-event-stream.ts:56-72` must extend its list; existing
+entries are untouched.
+
+| Event | `data` |
+|---|---|
+| `task.stage.started` | `{stage}` |
+| `task.stage.finished` | `{stage, outcome, detail, duration_ms, evidence_ids, ...stage data}` |
+| `task.stage.skipped` | `{stage}` |
+| `task.pdf.profiled` | `{filename, page_count, text_pages, vision_pages}` |
+| `task.vision.batch` | `{filename, pages, index, total}` |
+| `task.vision.page` | `{evidence_id, filename, page, confidence}` |
+| `task.evidence.registered` | `{evidence_id, type, filename, page, source_id, confidence}` |
+| `task.calculation` | `{evidence_id, formula_id, formula_version, label, output_value, output_unit, expression, supporting_evidence_ids}` |
+| `task.calculation.refused` | `{formula_id, reason, kind: "unit"\|"dimension"\|"domain"\|"unsupported_input"}` |
+| `task.claim` | `{claim_id, type, impact, status, reason, evidence_ids}` |
+| `task.conflict` | `{conflict_id, subject, attribute, severity, summary, left, right}` |
+| `task.retrieval` | `{mode, lexical_count, dense_count, returned, filters: {mode, statuses, departments}}` |
+
+`task.stage` continues to be emitted unchanged (§8.6). `task.evidence` continues to be emitted
+after the retrieve stage with the same shape.
+
+### 9.5 BREAKING CHANGES — `frontend/lib/types.ts`
+
+Flagged individually. **DEPENDS-ON: Frontend agent** for each.
+
+| # | Change | File:line | Severity | Action |
+|---|---|---|---|---|
+| B1 | `EvidenceItem.kind` gains `"human"`; `EvidenceType` becomes the canonical discriminator | `types.ts:124` | **low** — declared `kind?: string`, and no component switches on its value (verified: only `console-view.tsx:192` reads `.kind`, as a display fallback) | add `type?: EvidenceType` and prefer it |
+| B2 | `VerificationCheck.kind` gains `"conflict"`, `"coverage"` | `types.ts:131` | **low** — `kind?: string` | render the two new checks |
+| B3 | `material_claims_total` / `_supported` change meaning and will **drop sharply** | `types.ts:145-146` | **medium** — the numbers are correct for the first time; any copy saying "claims verified" must not imply the old inflated figure | relabel to "material claims"; link to the claim list |
+| B4 | `VerificationReport` gains 10 fields | `types.ts:142-149` | **none** — additive | add `claims`, `conflicts`, `coverage` |
+| B5 | `Task` gains `stage_results`, `calculations`, `evidence_count` | `types.ts:220-244` | **none** — additive | Proof Mode binds to `stage_results` |
+| B6 | `EvidenceItem` gains 18 optional fields | `types.ts:111-128` | **none** — additive; the three legacy aliases (`source`, `clause`, `similarity`) stay | evidence drawer shows page/bbox/confidence/revision |
+| B7 | `SystemHealth.retrieval_mode` gains `"hybrid"`, `"lexical-degraded"` | `types.ts` (SystemHealth) | **medium** — this is a **union literal**, so a `switch` that is exhaustive today fails to compile | widen the union; add a label for each |
+| B8 | New events on the SSE stream | `hooks/use-event-stream.ts:56-72` | **medium** — the hook filters by an explicit allow-list, so new events are silently dropped until added | extend the list |
+| B9 | `KnowledgeSearchResponse.retrieval_mode` gains `"hybrid"` | `types.ts:327` region | **medium** — same union-literal issue as B7 | widen |
+
+B7 and B9 are the only ones that can break a TypeScript build. Everything else degrades to
+"the UI does not yet show the new thing", which is a safe deploy order: **backend first,
+frontend follows**.
+
+### 9.6 Interfaces I consume from other agents
+
+- **Backend B — `backend/security/`**: `injection_risk` and `quarantined` on `Evidence` are
+  written by the content sanitiser (item 13). I reserve the fields and honour them in
+  `prompt_block` (quarantined evidence is excluded) and in `EvidenceMapper` (quarantined
+  evidence cannot support a claim). The producer is theirs.
+- **Backend B — `backend/sandbox/`**: `SandboxResult` shape is unchanged; I need `code_sha256`
+  and `image_digest` added to it so `X`-evidence can be reproducible (item 28).
+- **Backend B — `backend/workflow/checkpoints.py`**: consumes `StageResult` (§8.2).
+- **Backend B — `backend/proof/`**: the sovereignty certificate reads
+  `ledger.items` hashes, `CalculationResult.calculation_key`, `ClaimReport`, and
+  `EvidenceConflict.resolution`. I provide `ledger.merkle_root()` over
+  `sorted(content_sha256)` for item 26.
+- **Frontend**: Proof Mode timeline ← `task.stage.*` + `GET /api/tasks/{id}/stages`;
+  evidence drawer ← `GET /api/tasks/{id}/evidence` + `page.png`; claim inspector ←
+  `GET /api/tasks/{id}/claims/{claim_id}`; conflict panel ← `GET /api/tasks/{id}/conflicts`.
+
+---
+
+## 10. TESTS — mapped to the roadmap's "Done when"
+
+Existing files keep passing. `tests/test_evidence.py` and `tests/test_verifier_robustness.py`
+change only in what they import. `tests/test_visual_inputs.py:83-94` keeps its assertion and
+gets a rewritten docstring (§3.2).
+
+### Item 1 — *"A 20-page scanned PDF can be processed end-to-end and every cited fact maps to the correct page."*
+
+`tests/test_pdf_completeness.py`
+
+| Test | Asserts |
+|---|---|
+| `test_every_page_of_a_twenty_page_scan_is_rendered` | fixture builds a 20-page image-only PDF; `rasterize_pages` over the profile returns 20 `RenderedPage`s with `page == 1..20` |
+| `test_default_rasterize_has_no_cap` | `rasterize_pdf(path, dest)` with no `max_pages` returns 20 — the regression guard for `parsing.py:112` |
+| `test_explicit_budget_is_still_honoured` | `max_pages=3` → 3 (keeps the old test's intent) |
+| `test_mixed_document_routes_each_page_by_its_own_content` | 5-page PDF, pages 1 and 5 born-digital, 2–4 scanned → `profile.text_pages == [1,5]`, `vision_pages == [2,3,4]` |
+| `test_batches_are_three_pages_and_never_span_files` | 20 vision pages across 2 files → 7 batches, every batch's `stored` identical within itself |
+| `test_page_map_tells_the_model_real_page_numbers` | batch 3 renders `"image 1 = page 7"` |
+| `test_every_page_produces_evidence_or_a_named_limitation` | for a scripted response omitting page 11, the limitation text contains `"page 11"` and no evidence claims page 11 |
+| `test_evidence_is_persisted_before_reasoning` | after batch 2 of 7, `EvidenceStore.by_task()` already returns the pages from batches 1–2 |
+| `test_ledger_pages_covered_equals_page_count` | the item-1 acceptance assertion, stated once |
+
+### Item 2 — *"Uploading multiple files never causes a finding from one file to be attributed to another."*
+
+`tests/test_provenance.py`
+
+| Test | Asserts |
+|---|---|
+| `test_two_scans_keep_their_own_filenames` | two scanned PDFs, scripted per-file vision responses → every `V` evidence item's `filename` matches the file whose batch produced it. **The direct regression test for `orchestrator.py:429`.** |
+| `test_vision_evidence_cannot_be_built_without_a_file_and_page` | `from_vision_page` raises `ProvenanceError` / `TypeError` with no `stored` or `page < 1` |
+| `test_model_inventing_a_page_number_is_discarded` | response claims page 99 for a batch of 7–9 → no evidence, one limitation naming 99 |
+| `test_file_read_with_unknown_id_does_not_silently_read_another_file` | regression for `tools/registry.py:257-259` |
+| `test_every_evidence_item_resolves_to_a_real_source` | property test over a full run: `ledger.get(e.source_id kind)` resolves for all |
+| `test_source_and_content_hashes_are_recorded` | `source_sha256 == StoredFile.sha256`, `content_sha256 == sha256(content)` |
+
+### Item 3 — *"Vision, calculation, sandbox, file, document and human evidence are all verifiable through one interface."*
+
+`tests/test_evidence_typing.py`
+
+- `test_all_six_types_round_trip_through_the_ledger` — one of each registered, all resolvable
+  by `get`, `by_type`, `by_source`.
+- `test_prefix_and_type_cannot_disagree` — constructing `Evidence(id="F1", type=VISION)` raises.
+- `test_citation_prefix_class_is_derived_from_the_enum` — adding a type to `EvidenceType`
+  without touching `citations.py` still parses; the regression guard for the hand-maintained
+  `[SFVCE]` literal at `verifier.py:45`.
+- `test_verification_never_reads_the_citation_regex` — `ClaimVerifier` produces correct statuses
+  for a draft containing **zero** inline citations (mapping is independent).
+
+### Item 4 — *"No material claim can be produced without traceable ledger evidence or an explicit unsupported status."*
+
+`tests/test_ledger.py`
+
+- `test_every_material_claim_has_links_or_unsupported_status` — property over a full run: for
+  each claim, `claim.links != [] or claim.status is UNSUPPORTED`.
+- `test_lookup_by_task_source_type_page_and_id` — the four lookup APIs item 4 names.
+- `test_ids_are_never_reissued_after_resume` — ports `test_evidence.py:51-61` to the new ledger.
+- `test_prompt_block_records_what_it_omitted` — regression for `orchestrator.py:1171`.
+- `test_quarantined_evidence_never_enters_a_prompt` — the Backend B interlock.
+
+### Items 7–8 — *"The same inputs always produce the same result"* / *"unit conversion tests pass and dimensionally invalid calculations are refused before execution."*
+
+`tests/test_engineering.py`
+
+| Test | Asserts |
+|---|---|
+| `test_remaining_life_matches_api_570_worked_example` | `t_actual=9.4mm, t_required=6.0mm, CR=0.55mm/yr` → `6.1818… years`, rounded display `6.18` |
+| `test_corrosion_rate_long_and_short_term` | both formulas against hand-computed values |
+| `test_inspection_interval_is_the_lesser_of_half_life_and_the_class_maximum` | RL=6.18 → 3.09; RL=30 with max 5 → 5 |
+| `test_identical_inputs_give_an_identical_calculation_key` | 100 executions, one distinct `calculation_key`, one distinct `output_value` |
+| `test_unit_conversion_is_exact_across_systems` | `0.0217 in/yr` ≡ `0.55 mm/yr`; `9.4 mm` ≡ `0.37008 in`; mpy round-trip |
+| `test_pressure_plus_thickness_is_refused` | `parse_quantity("P", 18, "mm", expect="pressure")` raises `DimensionError` **before** `fn` is called (spy asserts `fn` not invoked) |
+| `test_input_without_evidence_is_refused` | `UnsupportedInputError` naming the input |
+| `test_negative_corrosion_rate_is_a_domain_refusal_not_infinity` | `FormulaError` with the engineering explanation |
+| `test_wall_below_minimum_refuses_rather_than_reporting_negative_life` | ditto |
+| `test_asme_ug27_thin_wall_limit_is_enforced` | `t > R/2` refused with the paragraph's own limit quoted |
+| `test_calculation_evidence_stores_formula_id_version_inputs_output_units_and_support` | item 7's five required fields, plus `derived_from` |
+| `test_original_and_normalised_units_are_both_preserved` | item 8's explicit requirement |
+
+### Item 9 — *"The UI can open any important claim and show exactly why it was accepted, rejected or escalated."*
+
+`tests/test_claim_verification.py`
+
+- `test_atomic_extraction_splits_a_compound_sentence` — "wall is 9.4 mm and the minimum is
+  6.0 mm" → two claims.
+- `test_each_claim_type_is_classified` — five parametrised cases.
+- `test_numerical_claim_matching_a_calculation_is_verified` — status `VERIFIED`, reason names
+  formula id and version.
+- `test_numerical_claim_disagreeing_with_recomputation_is_conflicted` — draft says 8.2 years,
+  formula gives 6.18 → `CONFLICTED`, reason quotes both.
+- `test_unit_mismatched_restatement_still_matches` — "74 months" vs 6.18 years → `VERIFIED`.
+- `test_claim_citing_a_nonexistent_id_is_unsupported` — `[S47]` with 4 evidence items →
+  `UNSUPPORTED`, `invented_ids == ["S47"]`.
+- `test_citing_real_but_irrelevant_evidence_is_unsupported` — the `CITED_BUT_UNSUPPORTED`
+  path; **the regression test for `verifier.py:99-104`**.
+- `test_three_shared_words_are_no_longer_support` — the exact sentence that passes today's
+  `_claim_supported` token rule scores below threshold; **the regression test for
+  `verifier.py:112-123`**.
+- `test_high_impact_recommendation_is_always_needs_review`.
+- `test_every_claim_carries_a_human_readable_reason` — property: `reason != ""` for all.
+- `test_unsupported_high_impact_claim_blocks_the_gate` — `ClaimGate` → `DENY`, task `BLOCKED`,
+  deliverable `released is False`.
+- `test_verification_report_keeps_its_legacy_fields_populated` — the frontend contract.
+
+### Item 10 — *"Conflicting evidence produces an explicit conflict object and blocks unsupported automatic conclusions."*
+
+`tests/test_contradictions.py`
+
+- `test_eighteen_bar_versus_sixteen_bar` — the roadmap's own example; one `EvidenceConflict`,
+  `kind="numeric"`, `subject="V-2104"`, `attribute="design_pressure"`, severity `critical`,
+  `summary == "18 bar vs 16 bar"`.
+- `test_same_value_in_different_units_is_not_a_conflict` — `18 bar` vs `261 psi` → none.
+- `test_active_versus_superseded_procedure` — `kind="status"`, `preferred_evidence_id` set,
+  `resolution == "superseded_preferred"`, does not block.
+- `test_two_revisions_of_the_same_document_conflict` — `kind="revision"`, severity `high`.
+- `test_values_about_different_assets_are_not_compared` — V-2104 vs P-101.
+- `test_a_document_restating_its_own_number_is_not_a_conflict`.
+- `test_unresolved_high_severity_conflict_requires_human_review` — `ApprovalRecord.required`,
+  reason contains the summary.
+- `test_claims_resting_on_a_conflict_become_conflicted`.
+- `test_conflict_object_carries_both_sides_for_side_by_side_rendering` — both `ConflictSide`s
+  have `excerpt`, `filename`, `page`, `value`.
+- `test_resolution_registers_human_evidence_and_reverifies` — `H1` exists, affected claims
+  re-run, gate re-evaluated.
+
+### Items 11–12 — *"Relevant answers retrieve the correct passage while respecting classification and metadata constraints"* / *"Queries automatically use the active revision."*
+
+`tests/test_hybrid_retrieval.py`, `tests/test_revisions.py`
+
+- `test_lexical_and_dense_run_in_parallel_and_are_fused` — both channels' ranks present on a
+  fused candidate; `channel == "fused"`.
+- `test_rrf_is_deterministic` — 20 runs, identical ordering.
+- `test_exact_tag_query_beats_semantic_neighbour` — the case pure-dense loses: query `"TML-07"`
+  returns the chunk containing `TML-07`, not the semantically similar `TML-08` chunk.
+- `test_classification_filter_runs_in_sql_not_in_python` — spy on `db.query` asserts the
+  restricted row is never returned; **regression for `tools/registry.py:235-240`**.
+- `test_permitted_passage_is_returned_even_when_outranked_by_a_restricted_one` —
+  **regression for the `top_k`-before-filter bug at `knowledge_base.py:326-331`**.
+- `test_fts_query_sanitiser_handles_quotes_and_operators` — `'NEAR("a" b)'` as a user query
+  does not raise and does not match everything.
+- `test_every_returned_chunk_is_registered_as_evidence` — `len(outcome.candidates) == len(ledger.by_type(DOCUMENT))`.
+- `test_rerank_reasons_are_attached_and_non_empty` — Proof Mode's requirement.
+- `test_normal_mode_returns_only_active_revisions`.
+- `test_audit_mode_requires_the_historical_permission` — `PermissionError` for a role without it.
+- `test_activating_rev4_supersedes_rev3_atomically` — exactly one ACTIVE, links in both
+  directions.
+- `test_superseded_evidence_downgrades_the_claim_to_needs_review` — reason names Rev 4.
+- `test_superseded_evidence_is_labelled_in_the_prompt_block` — `"SUPERSEDED revision"` in the
+  rendered header.
+- `test_document_identity_survives_a_new_file_of_the_same_revision` —
+  **regression for `knowledge_base.py:154-155`**.
+
+### Item 30 — *"Every stage is independently testable and the main pipeline primarily coordinates stage transitions."*
+
+`tests/test_workflow_pipeline.py`, `tests/test_orchestrator_parity.py`
+
+- `test_each_stage_runs_with_only_its_declared_inputs` — nine tests, one per stage, each
+  constructing a `WorkflowContext` with fakes and no other stage having run.
+- `test_blocked_stage_stops_the_pipeline_and_does_not_mark_failed` — `TaskStatus.BLOCKED`.
+- `test_degraded_stage_continues_and_records_a_limitation`.
+- `test_failed_abort_stage_stops_the_pipeline`.
+- `test_cancellation_is_honoured_at_every_stage_boundary` — parametrised over all nine.
+- `test_every_stage_emits_started_and_finished_exactly_once`.
+- `test_stage_results_are_persisted_for_recovery` — the Backend B interlock.
+- `test_legacy_task_stage_event_is_still_emitted` — the frontend interlock.
+- `test_pipeline_matches_the_legacy_orchestrator_snapshot` — the parity oracle from step 0 of
+  §8.7, run in both modes.
+
+### Cross-cutting
+
+`tests/adversarial/test_evidence_integrity.py` (**DEPENDS-ON: Backend B** owns the directory,
+item 32; these are my contributions to it):
+
+- fabricated citation `[S99]` → `UNSUPPORTED`, never `SUPPORTED`
+- a draft that cites real evidence for an invented conclusion → `UNSUPPORTED`
+- contradictory SOPs in one corpus → conflict raised, approval forced
+- an outdated SOP as the only match → `NEEDS_REVIEW` with the active replacement named
+- unit-mismatched calculation request → refused pre-execution
+- a 20-page scan where the answer is on page 17 → the fact is found and cited to page 17
+
+That last one is the single test that best demonstrates items 1–4 together, and it is the one
+to run in front of a judge.
+
+---
+
+## 11. BUILD SEQUENCE
+
+Ordered by dependency, not by roadmap number. Each line is shippable on its own.
+
+| # | Work | Roadmap | Depends on | Effort |
+|---|---|---|---|---|
+| A1 | `tests/test_orchestrator_parity.py` characterisation harness | — | nothing | S |
+| A2 | `backend/evidence/{models,provenance,store,ledger,citations}.py` + `evidence` table | 2, 3, 4 | A1 | **L** |
+| A3 | Shadow-write from the old ledger; prove the store under real traffic | 4 | A2 | S |
+| A4 | Convert producers: `file_read`, `knowledge_search`, sandbox | 2, 4 | A3 | M |
+| A5 | `parsing.profile_pdf_pages` + `rasterize_pages` + `vision_batches` + `vision_merge` | 1 | A2 | M |
+| A6 | `VisionStage` behaviour into the current `run()`; delete `_record_extraction` | 1, 2 | A4, A5 | M |
+| A7 | `backend/engineering/{errors,units,registry,corrosion}.py` + Pint | 7, 8 | A2 | M |
+| A8 | `pressure.py`, `piping.py` | 7 | A7 | S |
+| A9 | `backend/verification/{models,claim_extractor,evidence_mapper,numeric_verifier,verifier}.py` | 9 | A4, A7 | **L** |
+| A10 | `contradictions.py` + conflict endpoints + `from_human` | 10 | A9 | M |
+| A11 | `gate.py` + `approval-rules.yaml` + gateway wiring | 9, 10 | A9, A10 | S |
+| A12 | `VerificationReport` extension + `agents/verifier.py` shim | 9 | A9 | S |
+| A13 | FTS5 table, triggers, backfill, `RetrievalFilter`, SQL-side filtering | 11 | A2 | M |
+| A14 | `hybrid.py` + `reranker.py` + `from_retrieved_chunk` | 11 | A13 | M |
+| A15 | `knowledge/{document_registry,revision_manager}.py` + revision columns | 12 | A13 | M |
+| A16 | Revision warnings through prompt / claim / limitation | 12 | A15, A9 | S |
+| A17 | `workflow/{context,pipeline,model_gateway}.py` + nine stages behind the flag | 30 | A6, A9, A14 | **L** |
+| A18 | Flip the flag; delete the old `run()` body | 30 | A17 + parity green | S |
+| A19 | New endpoints + SSE events | contract | A9, A10, A17 | M |
+| A20 | Delete `agents/verifier.py`; deprecate `material_claims_*` | 9 | A18, A19 | S |
+
+**Critical path: A1 → A2 → A4 → A9 → A17.** Everything else parallelises around it.
+
+Parallelisable immediately after A2 lands: A5/A6 (PDF), A7/A8 (engineering), A13/A14/A15
+(retrieval) are three independent tracks touching disjoint files.
+
+**Hand-offs.** A2's `Evidence` model must land before the Frontend agent starts the evidence
+drawer. A17's `StageResult` must land before Backend B starts checkpoints (item 29). A19's
+endpoints must land before Proof Mode.
+
+### What I would CUT, in the order I would cut it
+
+The demo is Demo 1 (scanned inspection report → evidence → corrosion → verification →
+approval → report) plus Demo 3's evidence half. Judge everything against that.
+
+**Cut first — no demo impact:**
+
+1. **`pressure.py` and `piping.py` (A8).** Four formulas nobody demonstrates. Corrosion rate +
+   remaining life + inspection interval carries item 7 entirely. *Saves ~1 day.*
+2. **The `EXPLICIT` retrieval mode** and `/api/knowledge/revisions/{id}/activate`. Ship
+   revision *awareness* (status on evidence, the warning, ACTIVE-only default); make activation
+   a seeded-data concern. *Saves ~1 day.*
+3. **`from_human` / conflict resolution endpoint (part of A10).** Detect and block conflicts;
+   resolving one in the UI is a nice-to-have. The `HUMAN` type stays in the enum so the
+   contract does not churn. *Saves ~1 day.*
+4. **Dense-channel rerank features `recency` and `section_specificity`.** Keep `term_coverage`,
+   `tag_match`, `authority`, `channel_agreement`. *Saves hours.*
+5. **`page.png` endpoint.** Only needed for bbox overlay, which is really item 18 (P&ID
+   viewer). *Saves ~half a day.*
+
+**Cut second — degrades the story but survives:**
+
+6. **The model-based claim extractor (half of A9).** Ship `ClaimExtractor.deterministic` only.
+   It over-segments slightly and misses cross-sentence claims, but it never hallucinates, needs
+   no extra inference pass on a CPU host, and every downstream test still passes. *Saves ~1 day
+   and ~8 s per task on the demo machine.*
+7. **`piping`/`pressure` formula *catalogue* in the planner prompt.** Hard-bind the demo to
+   the corrosion formulas via the plan.
+8. **The full pipeline refactor (A17/A18).** This is the one genuinely optional item: it buys
+   testability, recovery and Proof Mode structure, but it changes no behaviour a judge sees. If
+   the calendar collapses, ship A1–A16 + A19 with the monolith intact and the stage events
+   emitted from inside `run()` by hand. **Warning:** cutting A17 means Backend B cannot build
+   item 29 (recovery) and the Frontend's Proof Mode has to read a less structured timeline —
+   so cut it only in consultation with both.
+
+**Never cut, at any cost:**
+
+- **A2 — the evidence ledger.** Items 5, 9, 10, 16, 24, 26, 27 and 28 all read it. Without it
+  the rest of the roadmap has no substrate, and the product's one-sentence claim ("evidence-
+  verified") is not true.
+- **A5/A6 — PDF completeness.** The demo document is a scan. Reading 4 pages of 20 is the
+  defect most likely to be found by a judge who asks "what's on page 12?".
+- **A4 — per-file provenance.** Two attachments in a demo and a mis-attributed finding ends the
+  conversation.
+- **A9 + A11 — claim verification and the gate.** The current `material_claims_supported` number
+  is indefensible under questioning. Replacing it with a smaller, true number is worth more
+  than any feature on this list.
+
+### Demo-ware and embarrassment flags (shared-brief rule 6)
+
+| Thing | Why it embarrasses | Fix |
+|---|---|---|
+| `test_page_count_is_capped` (`test_visual_inputs.py:83`) | the test suite asserts that dropping document pages is correct | A5; rewrite the docstring |
+| `_claim_supported` token overlap (`verifier.py:112-123`) | "supported by local evidence" currently means "shares three words" | A9 |
+| `source = task.files[0].filename` (`orchestrator.py:429`) | provenance is a lie with two attachments | A4/A6 |
+| `f"    value = ({expression})"` (`verifier.py:190-203`) | model-authored source executed as the *verification* step | A7 |
+| clearance filter after retrieval (`tools/registry.py:235-240`) | restricted content is read and ranked before being dropped | A13 |
+| `document_id = sha256(name + content)` (`knowledge_base.py:154`) | Rev 4 and Rev 3 are unrelated documents | A15 |
+| `except (ParsingError, Exception)` (`orchestrator.py:398`) | reads as a typo; catches everything | A6 |
+| evidence lives only in `tasks.payload` | there is no ledger to inspect, export or hash | A2 |

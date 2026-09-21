@@ -282,7 +282,7 @@ function SopTable({ docs, onRefresh }: { docs: KnowledgeDocument[]; onRefresh: (
               <tr key={d.id} className="hover:bg-surface-sunken/60 transition-colors">
                 <td className="px-4 py-3.5 font-medium text-foreground">{d.title || d.source_path || 'SOP Document'}</td>
                 <td className="px-4 py-3.5 font-mono text-[12px] text-foreground-secondary">{d.department || 'Operations'}</td>
-                <td className="px-4 py-3.5 font-mono text-[12px] text-foreground">{d.chunk_count || 12}</td>
+                <td className="px-4 py-3.5 font-mono text-[12px] text-foreground">{d.chunk_count ?? 0}</td>
                 <td className="px-4 py-3.5">
                   <ClassificationTag level={(d.classification?.toUpperCase() as any) || 'CONFIDENTIAL'} />
                 </td>
