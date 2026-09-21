@@ -1,5 +1,5 @@
-import { ConsoleView } from '@/components/console/console-view'
+import { ThreadView } from '@/features/thread/ui/thread-view'
 
-export default function ConsolePage() {
-  return <ConsoleView />
+export default function ThreadPage() {
+  return <ThreadView />
 }
