@@ -10,25 +10,60 @@ import { TechnicalLabel } from './primitives'
 import { useToast } from './toast'
 import { useRole } from './role-context'
 
-/* Renders an answer body, converting [S1]/[F1] tokens into clickable chips. */
-function AnswerBody({ text, onCite }: { text: string; onCite: (id: string) => void }) {
+/**
+ * Renders an answer body, converting [S1]/[F1] tokens into citation chips.
+ *
+ * A citation is only an affordance if it leads somewhere. A model will
+ * sometimes cite evidence that was never retrieved — on this host a run
+ * produced "The remaining life of the pipe is 35 years [S1]" against an
+ * evidence list of length zero, citing [S1] four times. Rendered as an
+ * ordinary chip, that invites a reviewer to click a control that silently
+ * does nothing, and it lends the sentence the appearance of support.
+ *
+ * An id with no matching evidence is therefore drawn as an unresolved
+ * citation: struck through, not a button, and labelled. It is a finding about
+ * the answer, not a link.
+ */
+function AnswerBody({
+  text,
+  evidence,
+  onCite,
+}: {
+  text: string
+  evidence: EvidenceItem[]
+  onCite: (id: string) => void
+}) {
   // Every prefix the backend ledger mints: S knowledge base, F uploaded file,
   // V vision extraction, C computation, E unrecognised. Matching only S and F
   // rendered vision and calculation citations as inert text.
   const parts = text.split(/(\[[SFVCE]\d+\])/g)
+  const known = new Set(evidence.map((item) => item.id))
   return (
     <p className="whitespace-pre-line text-[15px] leading-[1.7] text-foreground-secondary">
       {parts.map((p, i) => {
         const m = p.match(/^\[([SFVCE]\d+)\]$/)
         if (m) {
+          const id = m[1]
+          if (!known.has(id)) {
+            return (
+              <span
+                key={i}
+                title={`No evidence with id ${id} was recorded for this run. The citation is unresolved.`}
+                className="mx-0.5 inline-flex -translate-y-px items-center gap-1 border border-dashed border-[var(--critical)] px-1.5 align-middle font-mono text-[11px] text-[var(--critical)]"
+              >
+                <span className="line-through">{id}</span>
+                <span className="not-italic">unresolved</span>
+              </span>
+            )
+          }
           return (
             <button
               key={i}
               type="button"
-              onClick={() => onCite(m[1])}
+              onClick={() => onCite(id)}
               className="mx-0.5 inline-flex -translate-y-px items-center border border-border px-1.5 align-middle font-mono text-[11px] text-foreground transition-colors hover:border-foreground hover:bg-surface-sunken"
             >
-              {m[1]}
+              {id}
             </button>
           )
         }
@@ -173,7 +208,7 @@ export function ResultExperience({
   return (
     <div>
       <Section index="A—1" label="Answer">
-        <AnswerBody text={answer} onCite={openCite} />
+        <AnswerBody text={answer} evidence={evidence} onCite={openCite} />
         {evidence.length > 0 && (
           <button
             type="button"
