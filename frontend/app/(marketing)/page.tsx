@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { ChainCard } from '@/components/landing/chain-card'
 import { CommandBlock } from '@/components/landing/command-block'
+import { DisplayHeading } from '@/components/landing/display-heading'
 import { CHAIN, HERO, LIMITS, PREMISE, PROOF, RUN, RUN_IT } from '@/components/landing/copy'
 import { LandingButton } from '@/components/landing/landing-button'
 import { LimitList } from '@/components/landing/limit-list'
@@ -30,14 +31,45 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* 01 — Hero                                                         */}
       {/* ---------------------------------------------------------------- */}
-      <section aria-labelledby="hero-title" className="pb-16 pt-12 md:pb-20 md:pt-[88px] lg:pt-[152px]">
+      <section
+        aria-labelledby="hero-title"
+        className="relative overflow-hidden pb-16 pt-12 md:pb-20 md:pt-[88px] lg:pt-[128px]"
+      >
+        {/*
+          Two ambient layers, both aria-hidden and both cheap: a 1px dot
+          field and one very soft warm pool behind the headline. Neither
+          animates and neither carries meaning — this is texture, so that
+          the page has a surface rather than being a white void, which is
+          the difference between "restrained" and "unfinished".
+        */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, oklch(0.275 0.0255 84.57 / 0.16) 1px, transparent 0)',
+            backgroundSize: '28px 28px',
+            maskImage: 'radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%)',
+            WebkitMaskImage: 'radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%)',
+          }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-[-18%] -z-10 h-[520px] w-[900px] -translate-x-1/2"
+          style={{
+            background:
+              'radial-gradient(closest-side, oklch(0.92 0.02 84.57 / 0.55), transparent)',
+          }}
+        />
+
         <div className={SHELL}>
-          <h1
+          <DisplayHeading
             id="hero-title"
-            className="max-w-[16ch] text-display font-medium leading-[1.03] tracking-[-0.02em] text-foreground md:text-[48px] md:leading-[47px] md:tracking-[-0.028em] lg:text-[64px] lg:leading-[61px] lg:tracking-[-0.032em]"
-          >
-            {HERO.headline}
-          </h1>
+            as="h1"
+            scale="hero"
+            lead={HERO.headline}
+            turn={HERO.headlineTurn}
+          />
 
           <p className="mt-4 max-w-[54ch] text-heading tracking-[-0.008em] text-foreground-secondary md:mt-5 md:text-[18px] md:leading-[28px] md:tracking-[-0.011em]">
             {HERO.sub}
@@ -96,6 +128,7 @@ export default function LandingPage() {
         index={PREMISE.index}
         eyebrow={PREMISE.eyebrow}
         title={PREMISE.title}
+        titleTurn={PREMISE.titleTurn}
         lede={PREMISE.lede}
       >
         <Reveal>
@@ -131,6 +164,7 @@ export default function LandingPage() {
         index={CHAIN.index}
         eyebrow={CHAIN.eyebrow}
         title={CHAIN.title}
+        titleTurn={CHAIN.titleTurn}
         lede={CHAIN.lede}
         tone="surface"
       >
@@ -162,6 +196,7 @@ export default function LandingPage() {
         index={RUN.index}
         eyebrow={RUN.eyebrow}
         title={RUN.title}
+        titleTurn={RUN.titleTurn}
         lede={RUN.lede}
       >
         <Reveal>
@@ -180,6 +215,7 @@ export default function LandingPage() {
         index={PROOF.index}
         eyebrow={PROOF.eyebrow}
         title={PROOF.title}
+        titleTurn={PROOF.titleTurn}
         lede={PROOF.lede}
         tone="surface"
       >
@@ -270,6 +306,7 @@ export default function LandingPage() {
         index={LIMITS.index}
         eyebrow={LIMITS.eyebrow}
         title={LIMITS.title}
+        titleTurn={LIMITS.titleTurn}
         lede={LIMITS.lede}
       >
         <Reveal>

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { DisplayHeading } from './display-heading'
 import { MONO_LABEL, MONO_META, PROSE, SECTION_LEDE, SECTION_TITLE, SHELL } from './tokens'
 
 export interface SectionShellProps {
@@ -9,8 +10,16 @@ export interface SectionShellProps {
   index: string
   /** Uppercase mono eyebrow. Two to four words. */
   eyebrow: string
-  /** The `h2`. Sentence case. */
+  /** The `h2`, first line: sans, full ink. */
   title: ReactNode
+  /**
+   * The second line, set serif italic and receded.
+   *
+   * Optional, so a section without a natural turn keeps a single sans line
+   * rather than having one invented for it. Splitting a heading that does
+   * not want to be split is worse than not splitting it.
+   */
+  titleTurn?: ReactNode
   /** Optional single paragraph under the heading. */
   lede?: ReactNode
   /** Paints the block on --surface instead of --background, with hairlines. */
@@ -29,6 +38,7 @@ export function SectionShell({
   index,
   eyebrow,
   title,
+  titleTurn,
   lede,
   tone = 'paper',
   children,
@@ -53,9 +63,20 @@ export function SectionShell({
           <span className={MONO_META}>{index}</span>
         </div>
 
-        <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-8 max-w-[22ch]')}>
-          {title}
-        </h2>
+        {titleTurn ? (
+          <DisplayHeading
+            id={headingId}
+            as="h2"
+            scale="section"
+            lead={title}
+            turn={titleTurn}
+            className="mt-8"
+          />
+        ) : (
+          <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-8 max-w-[22ch]')}>
+            {title}
+          </h2>
+        )}
         {lede ? <p className={cn(SECTION_LEDE, PROSE)}>{lede}</p> : null}
 
         <div className="mt-10 md:mt-12">{children}</div>

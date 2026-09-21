@@ -205,6 +205,21 @@
   --weight-mono-med: 510;
 
   /* ------------------------------------------------------------------ */
+  /* Display serif.                                                      */
+  /*                                                                     */
+  /* One face, one job: the second line of a display heading, set italic
+     against the sans first line. Two weights and two lightnesses in one
+     headline is the cheapest character a page can buy — it reads as
+     considered rather than generated, and it costs nothing structurally.
+
+     A system stack, not a webfont. This product is sold as air-gapped and
+     the build must not reach for a font server; Georgia ships on Windows
+     and macOS, and its italic is genuinely good at display sizes. The
+     fallbacks degrade to whatever serif the host has.                    */
+  /* ------------------------------------------------------------------ */
+  --font-serif: ui-serif, Georgia, 'Times New Roman', Times, serif;
+
+  /* ------------------------------------------------------------------ */
   /* Spacing, radii, control sizes, density.                             */
   /* ------------------------------------------------------------------ */
   --space-0: 0px;  --space-1: 2px;  --space-2: 4px;  --space-3: 6px;
@@ -460,6 +475,8 @@
   --text-meta:    var(--size-meta);     --text-meta--line-height:    var(--lh-meta);
   --text-ledger:  var(--size-ledger);   --text-ledger--line-height:  var(--lh-ledger);
 
+  --font-serif: var(--font-serif);
+
   --font-weight-normal: var(--weight-normal);
   --font-weight-medium: var(--weight-medium);
   --font-weight-strong: var(--weight-strong);
@@ -474,6 +491,12 @@
 @layer base {
   * {
     border-color: var(--border);
+  }
+  html {
+    /* Anchor jumps glide rather than cut. The reduced-motion block below
+       returns this to `auto`, where an instant jump is the correct
+       behaviour rather than a degraded one. */
+    scroll-behavior: smooth;
   }
   body {
     background-color: var(--background);

@@ -33,7 +33,10 @@ export const META = {
 // --------------------------------------------------------------------------- //
 
 export const HERO = {
+  // Two lines, because the argument is a turn. The claim in sans, the
+  // qualification in serif italic — the typography performs the sentence.
   headline: 'Local is not enough.',
+  headlineTurn: 'So prove the rest.',
   sub: 'An air-gapped AI workbench for regulated industrial work. Every answer is cited to a page, checked against your policy, and recorded.',
   primary: { label: 'Open the workbench', href: '/sign-in' },
   secondary: { label: 'Read the source', href: REPO_URL },
@@ -50,7 +53,8 @@ export const PREMISE = {
   id: 'premise',
   index: '01',
   eyebrow: 'The problem',
-  title: 'Running the model locally answers one question.',
+  title: 'Running the model locally',
+  titleTurn: 'answers one question.',
   lede: 'Self-hosting solves privacy. It is silent on everything a regulated organisation is actually asked afterwards.',
   solved: {
     label: 'Solved by running it yourself',
@@ -78,7 +82,8 @@ export const CHAIN = {
   id: 'chain',
   index: '02',
   eyebrow: 'The chain',
-  title: 'Cited. Checked. Recorded.',
+  title: 'Cited. Checked.',
+  titleTurn: 'Recorded.',
   lede: 'Three things happen to every answer before it is allowed to become an action. Each one leaves an artifact you can open.',
   cards: [
     {
@@ -152,7 +157,8 @@ export const RUN = {
   id: 'run',
   index: '03',
   eyebrow: 'The run',
-  title: 'One run, end to end.',
+  title: 'One run,',
+  titleTurn: 'end to end.',
   lede: 'Seven stages. Each one declares what capability it needs, is routed to a model policy permits and the host can actually hold in memory, and leaves something behind.',
   stages: [
     {
@@ -210,7 +216,8 @@ export const PROOF = {
   id: 'proof',
   index: '04',
   eyebrow: 'Proof',
-  title: 'Check it yourself.',
+  title: 'Check it',
+  titleTurn: 'yourself.',
   lede: 'AEGIS has no customers, no certifications and no published benchmark. What it has is artifacts. Four of them are below, and all four can be disproved without asking us anything.',
 
   chain: {
@@ -311,7 +318,8 @@ export const LIMITS = {
   id: 'limits',
   index: '05',
   eyebrow: 'Limits',
-  title: 'What this is not.',
+  title: 'What this',
+  titleTurn: 'is not.',
   lede: 'Stated plainly, because these affect whether AEGIS is right for a deployment. Every item is also in the README, and none of it gets softer there.',
   items: [
     {
