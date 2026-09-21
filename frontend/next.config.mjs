@@ -19,8 +19,14 @@ const nextConfig = {
       { source: '/workspace', destination: '/', permanent: false },
       { source: '/library', destination: '/registry', permanent: false },
       { source: '/knowledge', destination: '/registry', permanent: false },
-      { source: '/history', destination: '/tasks', permanent: false },
       { source: '/record', destination: '/audit', permanent: false },
+      // The thread absorbed both dispatchers. Ask was the console with the
+      // deliverable format fixed to "answer", and a task is now an assistant
+      // turn, so a separate list of them is a second place to look for
+      // something already on screen.
+      { source: '/ask', destination: '/', permanent: false },
+      { source: '/tasks', destination: '/', permanent: false },
+      { source: '/history', destination: '/', permanent: false },
     ]
   },
 

@@ -9,13 +9,25 @@ import { SovereigntyStatus } from './sovereignty-status'
 import { RoleSwitcher } from './role-switcher'
 import { AegisLogo } from './aegis-logo'
 
+/**
+ * Seven tabs become five.
+ *
+ * Ask and Tasks are gone because the thread absorbed both. Two dispatchers
+ * was always a product smell — Ask was the console with the deliverable
+ * format fixed to "answer" — and a task is now simply an assistant turn, so
+ * a separate list of them is a second place to look for something already on
+ * screen. Both paths redirect to the thread rather than 404, since an open
+ * tab or a bookmark should land somewhere useful.
+ *
+ * Registry becomes Knowledge and Security becomes Assurance: both are named
+ * for what a user goes there to do rather than for the subsystem behind
+ * them.
+ */
 const LINKS = [
-  { href: '/', label: 'Console' },
-  { href: '/ask', label: 'Ask' },
-  { href: '/tasks', label: 'Tasks' },
+  { href: '/', label: 'Thread' },
   { href: '/approvals', label: 'Approvals' },
-  { href: '/registry', label: 'Registry' },
-  { href: '/security', label: 'Security' },
+  { href: '/registry', label: 'Knowledge' },
+  { href: '/security', label: 'Assurance' },
   { href: '/audit', label: 'Audit' },
 ]
 
