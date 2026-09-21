@@ -56,7 +56,282 @@
   --destructive: var(--critical);
   --destructive-foreground: #ffffff;
   --input: var(--border);
-  --ring: #8a8783;
+
+  /* ------------------------------------------------------------------ */
+  /* Status — text variants.                                             */
+  /*                                                                     */
+  /* The four status colours are fills. Used as text on paper they fail: */
+  /*   --sovereign #16a34a  3.07:1   --active   #0284c7  3.82:1          */
+  /*   --approval  #d97706  2.97:1   --critical #dc2626  4.50:1          */
+  /* Only critical clears AA body text, and approval fails even the 3:1  */
+  /* non-text threshold. White on an approval fill is 3.19:1, which is   */
+  /* unreadable, so an amber badge with white text could not be read at  */
+  /* all.                                                                */
+  /*                                                                     */
+  /* Grafana and Temporal both ship a separate `text` value per status   */
+  /* for exactly this reason. Each variant below holds the base hue and  */
+  /* chroma in OKLCH and lowers lightness to ~L 0.50, so all four share  */
+  /* an optical weight, then snaps to the nearest in-gamut sRGB hex.     */
+  /* Hue drift from the base is at most 2.9 degrees: the same colour,    */
+  /* darker.                                                             */
+  /*                                                                     */
+  /* Shipped as literal hex, not as a live oklch(from ...) expression.   */
+  /* At this lightness all four fall outside sRGB, so the browser would  */
+  /* gamut-map them and the shipped ratio would not be the proved one.   */
+  /*                                                                     */
+  /* Measured (WCAG 2.x), recomputed independently against               */
+  /* --background #f7f7f5:                                               */
+  /* ------------------------------------------------------------------ */
+  --sovereign-text: #0b7434;   /* 5.50:1 on paper — was 3.07 */
+  --active-text:    #08689f;   /* 5.61:1 on paper — was 3.82 */
+  --approval-text:  #9a4f04;   /* 5.60:1 on paper — was 2.97, the outright failure */
+  --critical-text:  #b91c1c;   /* 6.03:1 on paper — was 4.50 */
+
+  /* Text ON a solid status fill. A status fill may carry a glyph or a
+     short mono label and nothing else; prose never sits on one. */
+  --on-sovereign: #0a0a0a;   /* 6.01:1 on #16a34a. White would be 3.30. */
+  --on-active:    #0a0a0a;   /* 4.83:1 on #0284c7. White would be 4.10. */
+  --on-approval:  #0a0a0a;   /* 6.21:1 on #d97706. White would be 3.19 — unreadable. */
+  --on-critical:  #ffffff;   /* 4.83:1 on #dc2626. Ink would be 4.10. Critical is the
+                                one status whose glyph inverts, which is correct: it
+                                is the one that must never be mistaken for another,
+                                and the inversion is a free non-hue channel. */
+
+  /* Usage rule, no third case: the four base status colours are for
+     fills, rings, markers, rails and glyphs. A status colour applied to
+     a text node uses its -text variant. */
+
+  /* ------------------------------------------------------------------ */
+  /* Lines.                                                              */
+  /*                                                                     */
+  /* Supabase derives every hairline from the ink colour at half chroma  */
+  /* and low alpha, so rules inherit the page's warmth instead of        */
+  /* reading grey. Done naively here it fails: --foreground is #0a0a0a,  */
+  /* chroma 0.0000, so deriving from it yields grey rules on warm paper. */
+  /* The donor is therefore its own token, and its hue is measured off   */
+  /* the palette the product already ships — --border #dcdad6 is         */
+  /* oklch(0.8888 0.0059 84.57), so h = 84.57.                           */
+  /*                                                                     */
+  /* Dividers and control edges are split, which is Linear's arrangement */
+  /* and the one structural gap in the old single --border: a table rule */
+  /* and an input border are doing different jobs and want different     */
+  /* weights.                                                            */
+  /* ------------------------------------------------------------------ */
+  --line-ink: oklch(0.275 0.0255 84.57);   /* donor only, never painted */
+  --line-chroma: 0.54;
+  --contrast-lines: 0;                     /* one knob, every hairline; 0 -> 1 */
+
+  /* dividers, table rules, grid — lighter than control edges */
+  --line-subtle:  oklch(from var(--line-ink) l calc(c * var(--line-chroma)) h
+                        / calc(6%  + 5%  * var(--contrast-lines)));
+  --line-default: oklch(from var(--line-ink) l calc(c * var(--line-chroma)) h
+                        / calc(14% + 10% * var(--contrast-lines)));
+  --line-strong:  oklch(from var(--line-ink) l calc(c * var(--line-chroma)) h
+                        / calc(24% + 16% * var(--contrast-lines)));
+
+  /* control edges — inputs, buttons, chips. Deliberately darker. */
+  --control-subtle:  oklch(from var(--line-ink) l calc(c * var(--line-chroma)) h
+                           / calc(10% + 8%  * var(--contrast-lines)));
+  --control-default: oklch(from var(--line-ink) l calc(c * var(--line-chroma)) h
+                           / calc(18% + 12% * var(--contrast-lines)));
+  --control-strong:  oklch(from var(--line-ink) l calc(c * var(--line-chroma)) h
+                           / calc(30% + 18% * var(--contrast-lines)));
+
+  /* Legacy names resolve through the new family, so every existing
+     className keeps working and all hairlines now move together. */
+  --grid:          var(--line-subtle);
+  --border:        var(--control-default);
+  --border-strong: var(--control-strong);
+
+  /* ------------------------------------------------------------------ */
+  /* Status surfaces and borders — derived, never hand-picked.           */
+  /* Safe as live oklch(from ...) because only alpha changes, so no      */
+  /* gamut mapping can occur.                                            */
+  /* ------------------------------------------------------------------ */
+  --sovereign-surface: oklch(from var(--sovereign) l c h / 8%);
+  --active-surface:    oklch(from var(--active)    l c h / 8%);
+  --approval-surface:  oklch(from var(--approval)  l c h / 8%);
+  --critical-surface:  oklch(from var(--critical)  l c h / 8%);
+
+  --sovereign-border:  oklch(from var(--sovereign) l c h / 30%);
+  --active-border:     oklch(from var(--active)    l c h / 30%);
+  --approval-border:   oklch(from var(--approval)  l c h / 30%);
+  --critical-border:   oklch(from var(--critical)  l c h / 30%);
+
+  /* Selection is deliberately not the interactive accent — ink is the
+     one value that is never a status, so "selected" never reads as
+     "link". */
+  --selected-rail:    var(--foreground);
+  --selected-surface: var(--surface-sunken);
+
+  /* A light scrim, not black. A black overlay makes paper-coloured UI
+     look cheap; Vercel dims a light interface with a light scrim. */
+  --scrim: color-mix(in srgb, #efeeea 80%, transparent);
+
+  --opacity-disabled: 0.32;   /* keeps hue, recedes, does not turn to mud */
+  --opacity-dim: 0.45;        /* selecting one thing dims the rest */
+
+  /* ------------------------------------------------------------------ */
+  /* Type. Sizes and line-heights are even integers so baselines land    */
+  /* on a shared grid. Tracking splits at 16px: negative above, zero in  */
+  /* the middle, positive below, because small type is what a projector  */
+  /* loses. Role names rather than sizes — the components currently      */
+  /* hardcode [9px]..[15px] in roughly 344 places.                       */
+  /*                                                                     */
+  /* Named --size-*, not --text-*: Tailwind v4 owns the --text-*         */
+  /* namespace and writes it back into :root, so declaring both here     */
+  /* and in @theme inline would be circular. The mapping is below.       */
+  /* ------------------------------------------------------------------ */
+  --size-display: 32px; --lh-display: 36px; --ls-display: -0.03em;
+  --size-title:   20px; --lh-title:   28px; --ls-title:   -0.015em;
+  --size-heading: 16px; --lh-heading: 24px; --ls-heading: -0.01em;
+  --size-answer:  15px; --lh-answer:  24px; --ls-answer:  -0.006em;
+  --size-body:    13px; --lh-body:    20px; --ls-body:    0;
+  --size-ui:      12px; --lh-ui:      16px; --ls-ui:      0;
+  --size-meta:    11px; --lh-meta:    16px; --ls-meta:    0.01em;
+  --size-ledger:  10px; --lh-ledger:  14px; --ls-ledger:  0.06em;
+
+  /* Geist Sans is variable, so Linear's non-integer stops are available.
+     510 lifts a label without making it shout. Nothing in the product
+     surface goes above 590. */
+  --weight-normal: 400;
+  --weight-medium: 510;
+  --weight-strong: 590;
+
+  /* Mono regular is 425, not 400: a monospace face at the same nominal
+     weight reads lighter beside its sans counterpart, so a run id in 400
+     looks washed out next to a 400 sans label. */
+  --weight-mono:     425;
+  --weight-mono-med: 510;
+
+  /* ------------------------------------------------------------------ */
+  /* Spacing, radii, control sizes, density.                             */
+  /* ------------------------------------------------------------------ */
+  --space-0: 0px;  --space-1: 2px;  --space-2: 4px;  --space-3: 6px;
+  --space-4: 8px;  --space-5: 12px; --space-6: 16px; --space-7: 20px;
+  --space-8: 24px; --space-9: 32px; --space-10: 40px; --space-11: 48px;
+  --space-12: 64px;
+
+  /* House radius stays 4px. The rest exist for nesting: an inner radius
+     is the outer radius minus the padding. */
+  --radius-xs: 2px;
+  --radius-sm-token: 3px;
+  --radius-md-token: 6px;   /* floating: menu, popover, toast */
+  --radius-lg-token: 8px;   /* sheets, modals, the composer */
+  --menu-pad: 4px;
+  --radius-menu-row: 2px;
+
+  /* Exactly three control sizes, so no component invents a fourth. */
+  --control-sm: 32px;
+  --control-md: 36px;
+  --control-lg: 40px;
+
+  /* Two row scales, by job. */
+  --row-interactive: 36px;
+  --row-data: 32px;
+  --row-data-compact: 28px;
+
+  /* Density is the primary expressive tool once hue is fixed. */
+  --pad-comfortable: 12px;
+  --pad-compact: 8px;
+  --pad-dense: 4px;
+
+  /* ------------------------------------------------------------------ */
+  /* Elevation — rings, not borders.                                     */
+  /*                                                                     */
+  /* Every ring is a box-shadow so it does not consume layout: a 36px    */
+  /* row stays 36px and hover never shifts it by a pixel. Each floating  */
+  /* rung ends with an opaque ring in the page colour — translucent      */
+  /* black outside, opaque paper inside — which is what makes a menu     */
+  /* read as a physical object rather than a rectangle with a shadow.    */
+  /* Alpha falls as elevation rises: big soft shadows must be fainter.   */
+  /* ------------------------------------------------------------------ */
+  --elev-0: 0 0 0 1px var(--line-default);
+
+  --elev-1:
+    0 0 0 1px oklch(0 0 0 / 0.07),
+    0 1px 1px oklch(0 0 0 / 0.04),
+    0 0 0 1px var(--background);
+
+  --elev-2:
+    0 0 0 1px oklch(0 0 0 / 0.07),
+    0 1px 1px oklch(0 0 0 / 0.03),
+    0 4px 8px -4px oklch(0 0 0 / 0.04),
+    0 16px 24px -8px oklch(0 0 0 / 0.06),
+    0 0 0 1px var(--surface);
+
+  --elev-3:
+    0 0 0 1px oklch(0 0 0 / 0.07),
+    0 8px 24px -12px oklch(0 0 0 / 0.08),
+    0 32px 72px -12px oklch(0 0 0 / 0.06),
+    0 0 0 1px var(--surface);
+
+  /* One 1px inset under a raised row reads as a physical lip. */
+  --elev-seat: inset 0 -1px 1px oklch(0 0 0 / 0.07);
+
+  /* ------------------------------------------------------------------ */
+  /* Focus — a gap ring: 2px of page colour, then 2px of ink.            */
+  /*                                                                     */
+  /* The gap is what makes a focus ring read as deliberate rather than   */
+  /* as a border that got thick. Ink rather than an accent hue:          */
+  /* --foreground on --background is 18.46:1. The old --ring #8a8783 was */
+  /* 3.33:1 on paper and 2.56:1 against --border, so it failed the 3:1   */
+  /* requirement against adjacent colours — it was decoration.           */
+  /* ------------------------------------------------------------------ */
+  --focus-gap: 2px;
+  --focus-ring:
+    0 0 0 var(--focus-gap) var(--surface),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+  --focus-ring-on-paper:
+    0 0 0 var(--focus-gap) var(--background),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+  --focus-ring-on-sunken:
+    0 0 0 var(--focus-gap) var(--surface-sunken),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+  --ring: var(--foreground);
+
+  /* ------------------------------------------------------------------ */
+  /* Motion.                                                             */
+  /*                                                                     */
+  /* The hover pair is asymmetric, which is the highest-return change    */
+  /* available against the old stylesheet: a highlight appears in zero   */
+  /* milliseconds and decays over 150. Transitioning both directions is  */
+  /* what makes an interface feel laggy on hover.                        */
+  /* ------------------------------------------------------------------ */
+  --dur-tick:   90ms;    /* a glyph or colour flipping in place        */
+  --dur-state: 160ms;    /* a stage changing status                    */
+  --dur-enter: 240ms;    /* a new row arriving in a ledger             */
+  --dur-panel: 320ms;    /* a drawer or rail opening                   */
+  --dur-hold:  480ms;    /* the denial settle                          */
+  --dur-seal:  640ms;    /* the certificate signature, used once       */
+
+  --hover-in:  0ms;
+  --hover-out: 150ms;
+
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit:  cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-move:  cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-enter-sharp: cubic-bezier(0.24, 1, 0.32, 1);
+  --ease-exit-sharp:  cubic-bezier(0.64, 0, 0.8, 0);
+
+  --stagger: 40ms;
+  --stagger-cap: 5;      /* a 40-row burst resolves in 440ms, not 1.6s */
+  --shift-sm: 4px;
+  --shift-md: 8px;
+
+  /* ------------------------------------------------------------------ */
+  /* Z-index. Menus sit ABOVE modals, deliberately: a select inside a    */
+  /* modal must not clip.                                                */
+  /* ------------------------------------------------------------------ */
+  --z-base: 0;
+  --z-rail: 20;
+  --z-strip: 30;
+  --z-topbar: 40;
+  --z-drawer: 200;
+  --z-modal: 300;
+  --z-menu: 2001;
+  --z-toast: 5000;
+  --z-tooltip: 99999;
 }
 
 @theme inline {
@@ -102,10 +377,86 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* The existing radius scale is left alone deliberately. The new
+     --radius-*-token values in :root are available to new components via
+     arbitrary values; remapping --radius-md here from 4px to 6px would
+     silently restyle every rounded-md already in the product. */
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 6px;
   --radius-xl: 10px;
+
+  /* ---------------------------------------------------------------- */
+  /* Additions. Everything above this line is unchanged.               */
+  /* ---------------------------------------------------------------- */
+  --color-sovereign-text: var(--sovereign-text);
+  --color-active-text:    var(--active-text);
+  --color-approval-text:  var(--approval-text);
+  --color-critical-text:  var(--critical-text);
+
+  --color-on-sovereign: var(--on-sovereign);
+  --color-on-active:    var(--on-active);
+  --color-on-approval:  var(--on-approval);
+  --color-on-critical:  var(--on-critical);
+
+  --color-sovereign-surface: var(--sovereign-surface);
+  --color-active-surface:    var(--active-surface);
+  --color-approval-surface:  var(--approval-surface);
+  --color-critical-surface:  var(--critical-surface);
+
+  --color-sovereign-border: var(--sovereign-border);
+  --color-active-border:    var(--active-border);
+  --color-approval-border:  var(--approval-border);
+  --color-critical-border:  var(--critical-border);
+
+  --color-line-subtle:  var(--line-subtle);
+  --color-line-default: var(--line-default);
+  --color-line-strong:  var(--line-strong);
+  --color-control-subtle:  var(--control-subtle);
+  --color-control-default: var(--control-default);
+  --color-control-strong:  var(--control-strong);
+
+  /* Verification verdicts. Absence is not wrongness, so UNSUPPORTED is
+     muted ink rather than red; CONFLICTED — two sources that disagree —
+     is the one that earns critical. SUPPORTED carries no hue at all: a
+     source said so, but nobody checked the arithmetic. */
+  --color-verdict-verified:     var(--sovereign-text);
+  --color-verdict-supported:    var(--foreground);
+  --color-verdict-needs-review: var(--approval-text);
+  --color-verdict-unsupported:  var(--foreground-muted);
+  --color-verdict-conflicted:   var(--critical-text);
+
+  /* Stage states. */
+  --color-stage-pending:     var(--foreground-muted);
+  --color-stage-active:      var(--active);
+  --color-stage-done:        var(--sovereign);
+  --color-stage-skipped:     var(--control-strong);
+  --color-stage-failed:      var(--critical);
+  --color-stage-held:        var(--approval);
+  --color-stage-blocked:     var(--control-strong);
+  --color-stage-denied:      var(--critical);
+  --color-stage-unavailable: var(--control-strong);
+
+  /* The --text-x / --text-x--line-height pair is what binds a
+     line-height to the generated utility. */
+  --text-display: var(--size-display);  --text-display--line-height: var(--lh-display);
+  --text-title:   var(--size-title);    --text-title--line-height:   var(--lh-title);
+  --text-heading: var(--size-heading);  --text-heading--line-height: var(--lh-heading);
+  --text-answer:  var(--size-answer);   --text-answer--line-height:  var(--lh-answer);
+  --text-body:    var(--size-body);     --text-body--line-height:    var(--lh-body);
+  --text-ui:      var(--size-ui);       --text-ui--line-height:      var(--lh-ui);
+  --text-meta:    var(--size-meta);     --text-meta--line-height:    var(--lh-meta);
+  --text-ledger:  var(--size-ledger);   --text-ledger--line-height:  var(--lh-ledger);
+
+  --font-weight-normal: var(--weight-normal);
+  --font-weight-medium: var(--weight-medium);
+  --font-weight-strong: var(--weight-strong);
+
+  --shadow-elev-0: var(--elev-0);
+  --shadow-elev-1: var(--elev-1);
+  --shadow-elev-2: var(--elev-2);
+  --shadow-elev-3: var(--elev-3);
+  --shadow-focus:  var(--focus-ring);
 }
 
 @layer base {
@@ -121,6 +472,16 @@
   ::selection {
     background: #0a0a0a;
     color: #f7f7f5;
+  }
+
+  /* Stated once here so no component restates it.
+     Mono at 425 optically matches adjacent sans; tabular figures belong
+     at the base layer because every id, hash, latency, count and
+     coordinate in this product is mono, and columns of numbers that do
+     not align read as untrustworthy. */
+  code, kbd, samp, pre, .font-mono, [class*='font-mono'] {
+    font-variation-settings: 'wght' var(--weight-mono);
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -141,20 +502,65 @@
   background-size: 56px 56px;
 }
 
-@utility glass-chassis {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+/* glass-chassis and glass-chassis-dark are gone. A full-width
+   backdrop-filter re-samples everything beneath it on every frame the
+   stage board changes, and against flat warm paper it was visually
+   near-identical to a plain tinted surface. Neither had any consumer
+   outside this file. */
+
+/* The 1px vertical connector behind a timeline's markers. */
+@utility rail-line {
+  width: 1px;
+  background: var(--line-default);
 }
 
-@utility glass-chassis-dark {
-  background: rgba(18, 18, 17, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--ink-border);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+/* Applied to any latency, score, hash fragment, count or coordinate that
+   needs to line up in a column. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Card-less grouping: one container, hairline rules, a background tint.
+   This is what replaces a stack of separate cards — Stripe ran a "zero
+   cards" exercise across 150+ designs and takes depth from background
+   tint alone. */
+@utility grouped {
+  background: var(--surface);
+  box-shadow: var(--elev-0);
+  border-radius: var(--radius);
+}
+@utility grouped-row {
+  border-bottom: 1px solid var(--line-subtle);
+}
+@utility grouped-row-last {
+  border-bottom: 0;
+}
+
+/* The asymmetric hover. Enter is instantaneous; only the decay is
+   animated. Transitioning both directions is what reads as lag. */
+@utility hover-decay {
+  transition:
+    background-color var(--hover-out) var(--ease-move),
+    color var(--hover-out) var(--ease-move),
+    box-shadow var(--hover-out) var(--ease-move);
+
+  /* Nested, not a second `@utility hover-decay:hover` rule — a Tailwind
+     v4 utility name has to be alphanumeric, so the pseudo-class variant
+     belongs inside the definition. */
+  &:hover {
+    transition-duration: var(--hover-in);
+  }
+}
+
+/* Forced truncation for hashes and model ids: never wrap, never let one
+   cell change a row's height. */
+@utility truncate-cell {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -166,11 +572,20 @@
 }
 .sov-pulse { animation: sov-pulse 2.4s ease-in-out infinite; }
 
-@keyframes sov-blink {
-  0%, 45% { opacity: 1; }
-  55%, 100% { opacity: 0.15; }
-}
-.sov-blink { animation: sov-blink 1.6s steps(1) infinite; }
+/* Removed: sov-blink, sov-dash, sov-trace, sov-drift, sov-spin-slow,
+   sov-radar-sweep, sov-laser-flow, sov-glow-pulse / .sov-glow-sovereign,
+   sov-glow-pulse-active / .sov-glow-active, sov-deflection /
+   .sov-deflection-burst, and .cursor-grab.
+
+   Every one was referenced only from this stylesheet — verified by
+   grepping all 39 components. Each is either an infinite ambient loop or
+   a celebration burst: motion running while nothing is happening, or
+   motion rewarding an outcome. In a product whose job is to report what
+   a governed run actually did, neither is meaningful, and an infinite
+   loop competes with local inference for the main thread.
+
+   sov-pulse, sov-reveal and sov-line-grow survive; sov-pulse has six
+   consumers and arrow-shift is used by the button. */
 
 @keyframes sov-reveal {
   from { opacity: 0; transform: translateY(14px); }
@@ -181,63 +596,6 @@
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
-
-@keyframes sov-dash {
-  to { stroke-dashoffset: -1000; }
-}
-
-@keyframes sov-trace {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-@keyframes sov-drift {
-  0% { transform: translate(0, 0); }
-  50% { transform: translate(6px, -8px); }
-  100% { transform: translate(0, 0); }
-}
-
-@keyframes sov-spin-slow {
-  to { transform: rotate(360deg); }
-}
-.sov-spin-slow { animation: sov-spin-slow 3s linear infinite; }
-
-@keyframes sov-radar-sweep {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-.sov-radar-sweep { animation: sov-radar-sweep 4s linear infinite; }
-
-@keyframes sov-laser-flow {
-  0% { stroke-dashoffset: 100; }
-  100% { stroke-dashoffset: 0; }
-}
-.sov-laser-flow {
-  stroke-dasharray: 8 16;
-  animation: sov-laser-flow 1.2s linear infinite;
-}
-
-@keyframes sov-glow-pulse {
-  0%, 100% { box-shadow: 0 0 12px rgba(22, 163, 74, 0.25), inset 0 0 8px rgba(22, 163, 74, 0.1); }
-  50% { box-shadow: 0 0 24px rgba(22, 163, 74, 0.5), inset 0 0 16px rgba(22, 163, 74, 0.25); }
-}
-.sov-glow-sovereign { animation: sov-glow-pulse 3s ease-in-out infinite; }
-
-@keyframes sov-glow-pulse-active {
-  0%, 100% { box-shadow: 0 0 12px rgba(2, 132, 199, 0.25), inset 0 0 8px rgba(2, 132, 199, 0.1); }
-  50% { box-shadow: 0 0 24px rgba(2, 132, 199, 0.5), inset 0 0 16px rgba(2, 132, 199, 0.25); }
-}
-.sov-glow-active { animation: sov-glow-pulse-active 3s ease-in-out infinite; }
-
-@keyframes sov-deflection {
-  0% { transform: scale(0.95); opacity: 0; }
-  20% { opacity: 1; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
-.sov-deflection-burst { animation: sov-deflection 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-.cursor-grab { cursor: grab; }
-.cursor-grab:active, .cursor-grabbing { cursor: grabbing; }
 
 .reveal {
   opacity: 0;
@@ -253,17 +611,48 @@
   transform: translateX(4px);
 }
 
+/* ------------------------------------------------------------------ */
+/* Reduced-motion contract.                                            */
+/*                                                                     */
+/* Because durations and travel distances are tokens, zeroing the      */
+/* tokens IS the contract. This replaces a `*` / !important            */
+/* sledgehammer that also clobbered animation-fill-mode edge cases and */
+/* did nothing at all about travel distance — a 14px slide at 0.001ms  */
+/* is still a 14px jump.                                               */
+/*                                                                     */
+/* --dur-tick is deliberately kept. A 90ms colour cross-fade involves  */
+/* no movement and is not a vestibular trigger; WCAG 2.3.3 targets     */
+/* motion, not every transition.                                       */
+/* ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
+  :root {
+    --dur-state: 0ms;
+    --dur-enter: 0ms;
+    --dur-panel: 0ms;
+    --dur-hold: 0ms;
+    --dur-seal: 0ms;
+    --hover-out: 0ms;
+    --stagger: 0ms;
+    --shift-sm: 0px;
+    --shift-md: 0px;
   }
+  /* Transforms are gated at the keyframe, not the duration. */
   .reveal {
-    opacity: 1 !important;
+    opacity: 1;
+    animation: none;
+  }
+  .sov-pulse {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .arrow-shift,
+  .group:hover .arrow-shift {
+    transition: none;
+    transform: none;
+  }
+  html {
+    scroll-behavior: auto;
   }
 }
 
