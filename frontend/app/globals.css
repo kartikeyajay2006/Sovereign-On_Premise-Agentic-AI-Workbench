@@ -361,6 +361,165 @@
   --z-tooltip: 99999;
 }
 
+/* ==================================================================== */
+/* DARK                                                                  */
+/*                                                                       */
+/* Derived, not inverted. Every value below was computed and its         */
+/* contrast measured against all three grounds before it was written;    */
+/* the derivation is reproducible and the worst-case ratio is quoted on  */
+/* each line.                                                            */
+/*                                                                       */
+/* Four rules this follows, each of which is where naive dark themes     */
+/* fail:                                                                 */
+/*                                                                       */
+/*  1. The ground is not #000. Pure black with light text haloes, and it */
+/*     leaves nowhere to put a surface BELOW the base layer. It also     */
+/*     throws away the palette's warmth.                                 */
+/*  2. The warmth is kept. The light theme's hairlines were measured at  */
+/*     OKLCH hue 84.57 off --border #dcdad6; reusing that hue is what    */
+/*     stops this reading as generic cold slate.                         */
+/*  3. Status colours go LIGHTER here, not darker. The light theme       */
+/*     darkened them to ~L 0.50 to clear 4.5:1 on paper. On a dark       */
+/*     ground that is backwards.                                         */
+/*  4. Line alphas are NOT reused. A dark hairline on paper separates    */
+/*     strongly at 14%; light ink on a dark ground at 14% is mud, which  */
+/*     is the usual reason a dark theme feels indistinct.                */
+/* ==================================================================== */
+:root {
+  color-scheme: dark;
+
+  /* Grounds. Elevation rises toward light, the opposite of the light
+     theme where a raised surface is whiter than paper but a sunken one
+     is greyer. */
+  --background: #100e0b;        /* OKLCH 0.165 0.006 84.57 */
+  --surface: #191714;           /* OKLCH 0.205 0.0065 84.57 — raised */
+  --surface-sunken: #0a0907;    /* OKLCH 0.138 0.0055 84.57 — recessed */
+
+  /* Inks. Not pure white: #ffffff on a dark ground haloes, and leaves no
+     headroom above body text. Worst-case ratio across all three grounds
+     is quoted. */
+  --foreground: #eeede9;            /* 15.27:1 */
+  --foreground-secondary: #b7b5b3;  /*  8.75:1 */
+  --foreground-muted: #898785;      /*  5.00:1 — clears AA body, which the
+                                       light theme's #8a8783 never did at
+                                       3.33:1 despite carrying most of the
+                                       small mono labels in the product. */
+
+  /* The contrast surface flips: "ink" now means the light panel. */
+  --ink: #f4f3f0;
+  --ink-surface: #eeede9;
+  --ink-foreground: #100e0b;
+  --ink-muted: #5f5b57;
+  --ink-border: #d8d5d0;
+  --ink-grid: #e4e1dc;
+
+  /* Status fills are unchanged — a fill is a fill on any ground. */
+
+  /* Status TEXT, recomputed for dark. Two of the four base colours turn
+     out to work as text here without modification, which is the exact
+     inverse of the light theme where all four failed. */
+  --sovereign-text: #16a34a;   /* 5.43:1 worst — the base colour, unchanged */
+  --active-text:    #0f87c9;   /* 4.54:1 worst — lifted from #0284c7 */
+  --approval-text:  #d97708;   /* 5.62:1 worst — the base colour, unchanged */
+  --critical-text:  #e9443c;   /* 4.56:1 worst — lifted from #dc2626 */
+
+  /* On-fill inks are unchanged: a solid fill's luminance did not move. */
+
+  /* Lines. The donor is now LIGHT and still warm, and the alphas are
+     solved rather than carried over. */
+  --line-ink: oklch(0.92 0.0080 84.57);   /* ~#e7e4df */
+
+  --line-subtle:  oklch(from var(--line-ink) l c h / calc(9%  + 6%  * var(--contrast-lines)));
+  --line-default: oklch(from var(--line-ink) l c h / calc(16% + 10% * var(--contrast-lines)));
+  --line-strong:  oklch(from var(--line-ink) l c h / calc(26% + 14% * var(--contrast-lines)));
+
+  /* Control edges are solved to clear WCAG 2.2's 3:1 for non-text, which
+     the divider ramp does not reach on this ground. --control-subtle is
+     deliberately below it and is only used where a fill or a label also
+     carries the affordance, never as a control's sole boundary. */
+  --control-subtle:  oklch(from var(--line-ink) l c h / calc(16% + 8%  * var(--contrast-lines)));
+  --control-default: oklch(from var(--line-ink) l c h / calc(39% + 10% * var(--contrast-lines)));  /* 3.03:1 */
+  --control-strong:  oklch(from var(--line-ink) l c h / calc(44% + 12% * var(--contrast-lines)));  /* 3.64:1 */
+
+  /* Status surfaces need more alpha to register against a dark ground. */
+  --sovereign-surface: oklch(from var(--sovereign) l c h / 14%);
+  --active-surface:    oklch(from var(--active)    l c h / 14%);
+  --approval-surface:  oklch(from var(--approval)  l c h / 14%);
+  --critical-surface:  oklch(from var(--critical)  l c h / 14%);
+
+  --sovereign-border:  oklch(from var(--sovereign) l c h / 42%);
+  --active-border:     oklch(from var(--active)    l c h / 42%);
+  --approval-border:   oklch(from var(--approval)  l c h / 42%);
+  --critical-border:   oklch(from var(--critical)  l c h / 42%);
+
+  --selected-rail: var(--foreground);
+  --selected-surface: oklch(from var(--line-ink) l c h / 8%);
+
+  /* A dark scrim on a dark UI, where the light theme used a light one. */
+  --scrim: color-mix(in srgb, #050403 78%, transparent);
+
+  /* Elevation. A black shadow is invisible here, so the ring does the
+     separating and the shadow only adds depth beneath it. The opaque
+     inner ring is painted in the ground rather than in white. */
+  --elev-0: 0 0 0 1px var(--line-default);
+
+  --elev-1:
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.10),
+    0 1px 2px oklch(0 0 0 / 0.5),
+    0 0 0 1px var(--background);
+
+  --elev-2:
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.12),
+    0 2px 4px oklch(0 0 0 / 0.45),
+    0 8px 16px -6px oklch(0 0 0 / 0.55),
+    0 0 0 1px var(--surface);
+
+  --elev-3:
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.14),
+    0 12px 28px -12px oklch(0 0 0 / 0.65),
+    0 36px 72px -16px oklch(0 0 0 / 0.55),
+    0 0 0 1px var(--surface);
+
+  --elev-seat: inset 0 -1px 1px oklch(0 0 0 / 0.4);
+
+  /* The focus ring inverts with the theme: light ink, and the gap painted
+     in whichever ground the control sits on. */
+  --focus-ring:
+    0 0 0 var(--focus-gap) var(--surface),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+  --focus-ring-on-paper:
+    0 0 0 var(--focus-gap) var(--background),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+  --focus-ring-on-sunken:
+    0 0 0 var(--focus-gap) var(--surface-sunken),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--foreground);
+  --ring: var(--foreground);
+
+  --focus-halo:
+    0 0 0 1px var(--foreground),
+    0 0 0 4px oklch(from var(--foreground) l c h / 0.14);
+  --focus-halo-invalid:
+    0 0 0 1px var(--critical),
+    0 0 0 4px oklch(from var(--foreground) l c h / 0.14);
+
+  /* shadcn compatibility, re-pointed. */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --secondary: var(--surface-sunken);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-sunken);
+  --muted-foreground: var(--foreground-muted);
+  --accent: var(--surface-sunken);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--critical);
+  --destructive-foreground: #ffffff;
+  --input: var(--control-default);
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans), 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
@@ -505,8 +664,10 @@
     text-rendering: optimizeLegibility;
   }
   ::selection {
-    background: #0a0a0a;
-    color: #f7f7f5;
+    /* Selection inverts with the theme, or selected text on a dark ground
+       becomes a black block. Tokens rather than literals so it follows. */
+    background: var(--foreground);
+    color: var(--background);
   }
 
   /* Stated once here so no component restates it.

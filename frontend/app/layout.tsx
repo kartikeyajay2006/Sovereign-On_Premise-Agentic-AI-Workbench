@@ -19,8 +19,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light',
-  themeColor: '#f7f7f5',
+  // Both follow the palette. themeColor is what a mobile browser paints its
+  // chrome with, and leaving it on paper white put a bright bar above a dark
+  // application.
+  colorScheme: 'dark',
+  themeColor: '#100e0b',
   width: 'device-width',
   initialScale: 1,
 }

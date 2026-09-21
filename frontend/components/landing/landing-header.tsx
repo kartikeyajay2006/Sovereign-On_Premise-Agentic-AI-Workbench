@@ -30,8 +30,14 @@ export function LandingHeader() {
   // on the server for a marketing page.
   const { authenticated } = useRole()
 
+  // The ground was hardcoded to the light paper value, so the header stayed
+  // white when the palette went dark. A token, so it follows the theme
+  // instead of needing to be remembered.
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-[rgba(247,247,245,0.88)] backdrop-blur-[12px]">
+    <header
+      className="sticky top-0 z-50 border-b border-line-default backdrop-blur-[12px]"
+      style={{ background: 'color-mix(in srgb, var(--background) 88%, transparent)' }}
+    >
       <div className={`${SHELL} flex h-14 items-center justify-between gap-4 md:h-16`}>
         <Link
           href="/"
