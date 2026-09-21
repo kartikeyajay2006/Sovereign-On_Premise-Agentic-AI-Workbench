@@ -46,7 +46,15 @@ export function EvidenceDrawer({
           {items.map((e) => {
             const src = e.source || e.source_document || 'Local Document'
             const loc = e.clause || e.location || ''
-            const sim = typeof e.similarity === 'number' ? e.similarity : (typeof e.score === 'number' ? e.score : 0.95)
+            // A similarity bar filled to an invented 0.95 is a measurement the
+            // system never took. When the backend reports no score the whole
+            // row is omitted rather than drawn at a flattering default.
+            const sim =
+              typeof e.similarity === 'number'
+                ? e.similarity
+                : typeof e.score === 'number'
+                  ? e.score
+                  : null
 
             return (
               <div
@@ -61,18 +69,20 @@ export function EvidenceDrawer({
                   {loc && <span className="font-mono text-[11px] text-foreground-muted">{loc}</span>}
                 </div>
                 <p className="mt-3 text-[13px] leading-relaxed text-foreground-secondary">{e.excerpt}</p>
-                <div className="mt-4 flex items-center gap-3">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
-                    Similarity
-                  </span>
-                  <span className="relative h-1 flex-1 bg-border">
-                    <span
-                      className="absolute left-0 top-0 h-1 bg-sovereign"
-                      style={{ width: `${Math.min(100, Math.max(0, sim * 100))}%` }}
-                    />
-                  </span>
-                  <span className="font-mono text-[11px] text-foreground">{sim.toFixed(2)}</span>
-                </div>
+                {sim !== null && (
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
+                      Similarity
+                    </span>
+                    <span className="relative h-1 flex-1 bg-border">
+                      <span
+                        className="absolute left-0 top-0 h-1 bg-sovereign"
+                        style={{ width: `${Math.min(100, Math.max(0, sim * 100))}%` }}
+                      />
+                    </span>
+                    <span className="font-mono text-[11px] text-foreground">{sim.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             )
           })}

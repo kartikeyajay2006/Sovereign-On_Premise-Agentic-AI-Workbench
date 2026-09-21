@@ -36,7 +36,13 @@ SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 # Verification reads model output, which is untrusted input, so the figure is
 # recovered rather than assumed.
 LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
-CITATION_PATTERN = re.compile(r"\[(?:S|F)\d+\]")
+# Must cover every prefix EvidenceLedger.PREFIXES can mint — S knowledge base,
+# F uploaded file, V vision extraction, C computation — plus the E fallback for
+# an unrecognised kind. While this matched only S and F, a citation of a vision
+# extraction or a calculation read as no citation at all, so an answer drawn
+# from a scanned drawing counted as uncited and failed verification on evidence
+# it had in fact used.
+CITATION_PATTERN = re.compile(r"\[(?:[SFVCE])\d+\]")
 NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
 
 

@@ -51,26 +51,45 @@ export function useEventStream(options: EventStreamOptions = {}) {
       }
     }
 
-    // Named event listeners matching backend publications
+    // Named event listeners matching backend publications.
+    //
+    // This list is the whole contract. _sse() in backend/api/routes/system.py
+    // always writes an `event:` line, so the browser never fires `onmessage`
+    // and an event missing from this array is dropped in silence — no error,
+    // no console warning, just a feature that appears not to work. That is why
+    // queue position never displayed: the backend publishes task.queued and
+    // wires Task.queue_position end to end, and nothing was listening.
+    //
+    // Sourced from the publish() and _emit() call sites in
+    // backend/agents/orchestrator.py, backend/api/task_service.py and
+    // backend/security/sovereignty.py. Adding a new event on the backend means
+    // adding it here in the same change.
     const namedEvents = [
       'task.created',
+      'task.queued',
       'task.stage',
       'task.planned',
       'task.model_selected',
+      'task.model_completed',
+      'task.model_swapped',
       'task.tool_started',
       'task.tool_completed',
       'task.extraction',
       'task.evidence',
       'task.code_generated',
+      'task.code_retry',
       'task.sandbox_result',
       'task.draft',
+      'task.answer',
       'task.verified',
       'task.deliverable',
       'task.approval_decided',
       'task.finished',
       'task.failed',
       'task.blocked',
+      'task.cancelled',
       'sovereignty.status',
+      'sovereignty.error',
     ]
 
     namedEvents.forEach((eventName) => {

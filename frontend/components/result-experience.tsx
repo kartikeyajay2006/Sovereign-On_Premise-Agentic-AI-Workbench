@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useState } from 'react'
-import { Check, Download, FileCheck2, Loader2 } from 'lucide-react'
+import { Check, Download, FileCheck2, Loader2, Minus, X } from 'lucide-react'
 import type { Deliverable, EvidenceItem, VerificationCheck } from '@/lib/types'
 import { api } from '@/lib/api'
 import { EvidenceDrawer } from './evidence-drawer'
@@ -12,11 +12,14 @@ import { useRole } from './role-context'
 
 /* Renders an answer body, converting [S1]/[F1] tokens into clickable chips. */
 function AnswerBody({ text, onCite }: { text: string; onCite: (id: string) => void }) {
-  const parts = text.split(/(\[[SF]\d+\])/g)
+  // Every prefix the backend ledger mints: S knowledge base, F uploaded file,
+  // V vision extraction, C computation, E unrecognised. Matching only S and F
+  // rendered vision and calculation citations as inert text.
+  const parts = text.split(/(\[[SFVCE]\d+\])/g)
   return (
     <p className="whitespace-pre-line text-[15px] leading-[1.7] text-foreground-secondary">
       {parts.map((p, i) => {
-        const m = p.match(/^\[([SF]\d+)\]$/)
+        const m = p.match(/^\[([SFVCE]\d+)\]$/)
         if (m) {
           return (
             <button
@@ -191,7 +194,15 @@ export function ResultExperience({
             {evidence.map((e) => {
               const src = e.source || e.source_document || 'Local Document'
               const clause = e.clause || e.location || ''
-              const sim = typeof e.similarity === 'number' ? e.similarity : (typeof e.score === 'number' ? e.score : 0.95)
+              // No invented score. A retrieval score is a measurement; when the
+              // backend did not report one the column stays empty rather than
+              // printing a confident 0.95 the system never computed.
+              const sim =
+                typeof e.similarity === 'number'
+                  ? e.similarity
+                  : typeof e.score === 'number'
+                    ? e.score
+                    : null
               return (
                 <button
                   key={e.id}
@@ -203,7 +214,9 @@ export function ResultExperience({
                   <span className="w-24 shrink-0 truncate font-mono text-[12px] text-foreground">{src}</span>
                   {clause && <span className="hidden shrink-0 font-mono text-[11px] text-foreground-muted sm:inline">{clause}</span>}
                   <span className="flex-1 truncate text-[12px] text-foreground-secondary">{e.excerpt}</span>
-                  <span className="font-mono text-[11px] text-sovereign">{sim.toFixed(2)}</span>
+                  <span className="font-mono text-[11px] text-sovereign">
+                    {sim === null ? '' : sim.toFixed(2)}
+                  </span>
                 </button>
               )
             })}
@@ -216,16 +229,40 @@ export function ResultExperience({
           <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-3">
             {verification.map((v) => {
               const label = v.label || v.name || 'Check'
-              const passed = v.ok !== undefined ? v.ok : (v.passed !== undefined ? v.passed : true)
-              const result = v.result || (passed ? 'Verified' : 'Failed')
+              // A check with no verdict is not a pass. This read
+              // `?? v.passed ?? true`, so a check the backend returned without
+              // a result rendered green and said "Verified". VerificationCheck
+              // marks `passed` optional, so that was reachable from real data.
+              const passed: boolean | null =
+                typeof v.ok === 'boolean'
+                  ? v.ok
+                  : typeof v.passed === 'boolean'
+                    ? v.passed
+                    : null
+              const result =
+                v.result || (passed === null ? 'No verdict reported' : passed ? 'Verified' : 'Failed')
+              const tone =
+                passed === null
+                  ? 'var(--approval)'
+                  : passed
+                    ? 'var(--sovereign)'
+                    : 'var(--critical)'
               return (
                 <div key={label} className="flex flex-col gap-2 bg-surface px-4 py-4">
                   <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
                     {label}
                   </span>
-                  <span className="flex items-center gap-2 font-mono text-[13px]" style={{ color: passed ? 'var(--sovereign)' : 'var(--critical)' }}>
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: passed ? 'var(--sovereign)' : 'var(--critical)' }}>
-                      <Check className="h-2.5 w-2.5 text-surface" />
+                  <span className="flex items-center gap-2 font-mono text-[13px]" style={{ color: tone }}>
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: tone }}>
+                      {/* The glyph has to match the verdict. A failed check
+                          previously drew a tick inside a red circle. */}
+                      {passed === null ? (
+                        <Minus className="h-2.5 w-2.5 text-surface" />
+                      ) : passed ? (
+                        <Check className="h-2.5 w-2.5 text-surface" />
+                      ) : (
+                        <X className="h-2.5 w-2.5 text-surface" />
+                      )}
                     </span>
                     {result}
                   </span>
