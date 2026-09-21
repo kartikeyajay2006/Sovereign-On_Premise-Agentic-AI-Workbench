@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { DEFAULT_PIPELINE } from '@/lib/presentation'
 import type { PipelineStage, SystemHealth, SovereigntyStatus } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
-import { EvidenceDrawer } from '@/components/evidence-drawer'
+import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { Composer, type ComposerAttachment } from './composer'
 import { UserTurn } from './user-turn'
 import { AssistantTurn } from './assistant-turn'
@@ -374,7 +375,17 @@ export function ThreadView() {
     | undefined
 
   return (
-    <div className="mx-auto flex w-full max-w-[768px] flex-col gap-6 px-6 py-8">
+    <div
+      className={cn(
+        'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-6 py-8',
+        // Above 1280px the rail docks rather than overlays, so the column
+        // steps aside instead of being covered. Checking a citation should
+        // never cost you the sentence that made the claim.
+        'transition-[padding] ease-[var(--ease-move)]',
+        drawerOpen && 'xl:pr-[420px]',
+      )}
+      style={{ transitionDuration: 'var(--dur-panel)' }}
+    >
       {/* Measured readings only. Each shows an em dash when unread. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line-default pb-3 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]">
         <span className="text-foreground-muted">
@@ -444,7 +455,7 @@ export function ThreadView() {
         />
       </div>
 
-      <EvidenceDrawer
+      <EvidenceRail
         open={drawerOpen}
         items={latestAssistant?.evidence ?? []}
         focusId={focusEvidenceId}

@@ -5,9 +5,7 @@ import {
   Check,
   Loader2,
   Play,
-  Server,
   Network,
-  ShieldCheck,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { SandboxTestResult, SovereigntyStatus } from '@/lib/types'
@@ -18,11 +16,19 @@ import { useToast } from '@/components/toast'
 import { useEventStream } from '@/hooks/use-event-stream'
 import { cn } from '@/lib/utils'
 
-const permColor: Record<string, string> = {
-  ALLOW: 'var(--sovereign)',
-  DENY: 'var(--critical)',
-  REVIEW: 'var(--approval)',
-}
+/**
+ * Unused, and deliberately not revived in this form.
+ *
+ * These are the fill hues. Applied to a policy verdict as text they were
+ * 3.07:1, 4.50:1 and 2.97:1 on paper — the last of which fails even the 3:1
+ * threshold for non-text. A policy matrix whose ALLOW and DENY columns
+ * cannot be read is worse than one with no colour at all, because it looks
+ * like it is telling you something.
+ *
+ * Anything rendering a verdict should use the -text variants and a glyph, so
+ * it survives greyscale and a projector: text-sovereign-text,
+ * text-critical-text, text-approval-text.
+ */
 
 
 export function SecurityView() {
@@ -188,70 +194,64 @@ function ConnectionTelemetry({ status }: { status: SovereigntyStatus | null }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="border border-border bg-surface p-5 transition-all hover:border-foreground">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-              Bound Address
-            </span>
-            <Server className="h-4 w-4 text-foreground-muted" />
-          </div>
-          <div className="mt-2 font-mono text-[20px] font-bold text-[var(--sovereign)]">
-            127.0.0.1 : 8000
-          </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-foreground-secondary">
-            FastAPI process strictly bound to local loopback interface.
-          </p>
-        </div>
+      {/*
+        Two of the three tiles here were configuration, not measurement.
+        "Bound Address 127.0.0.1:8000" and "Frontend Proxy 127.0.0.1:3000"
+        were set in --sovereign and --active as TEXT — 3.07:1 and 3.82:1 on
+        paper, the exact failure the token set exists to fix — and each
+        carried a claim the page cannot check: that the process is "strictly
+        bound to the local loopback interface". This build knows which
+        address it is configured to call. It does not know what the process
+        is bound to, and a browser cannot find out.
 
-        <div className="border border-border bg-surface p-5 transition-all hover:border-foreground">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-              Frontend Proxy
-            </span>
-            <Network className="h-4 w-4 text-foreground-muted" />
-          </div>
-          <div className="mt-2 font-mono text-[20px] font-bold text-[var(--active)]">
-            127.0.0.1 : 3000
-          </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-foreground-secondary">
-            Next.js reverse proxy route for all confidential UI sessions.
-          </p>
+        So they are demoted from metric tiles to a configuration line, in
+        ink, labelled as configuration. Only the egress figure is a reading,
+        and it keeps the caption describing how it was taken.
+      */}
+      <dl className="flex flex-wrap gap-x-8 gap-y-2 border border-line-default bg-surface px-5 py-3">
+        <div className="flex items-baseline gap-2">
+          <dt className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+            API configured at
+          </dt>
+          <dd className="font-mono text-meta text-foreground">127.0.0.1:8000</dd>
         </div>
+        <div className="flex items-baseline gap-2">
+          <dt className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+            Interface served from
+          </dt>
+          <dd className="font-mono text-meta text-foreground">127.0.0.1:3000</dd>
+        </div>
+      </dl>
 
-        <div className="border border-border bg-surface p-5 transition-all hover:border-foreground">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-              External Egress Leaks
-            </span>
-            <ShieldCheck className="h-4 w-4 text-[var(--sovereign)]" />
-          </div>
-          {/*
-            "0 DETECTED" was a literal, and the caption claimed the monitor had
-            "verified 0 egress". It verifies nothing of the sort: it samples
-            connections belonging to the API process tree every couple of
-            seconds, so a short-lived connection between samples is never seen,
-            and it fails open — when it cannot read the connection table it
-            reports an empty list, which is indistinguishable from clean.
-          */}
-          <div
-            className="mt-2 font-mono text-[20px] font-bold"
-            style={{
-              color:
-                status === null
-                  ? 'var(--foreground-muted)'
-                  : status.unapproved_connections > 0
-                    ? 'var(--critical)'
-                    : 'var(--sovereign)',
-            }}
-          >
-            {status === null ? 'NO READING' : `${status.unapproved_connections} DETECTED`}
-          </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-foreground-secondary">
-            Sampled from the API process tree every 2s. Connections that open
-            and close between samples are not observed.
-          </p>
+      <div className="border border-line-default bg-surface p-5">
+        <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+          Unapproved outbound connections
+        </span>
+        <div
+          className={cn(
+            'mt-2 tabular font-mono text-title font-medium',
+            status === null
+              ? 'text-foreground-muted'
+              : status.unapproved_connections > 0
+                ? 'text-critical-text'
+                : 'text-sovereign-text',
+          )}
+        >
+          {status === null ? 'no reading' : status.unapproved_connections}
         </div>
+        {/*
+          The caption used to say the monitor had "verified 0 egress". It
+          verifies nothing of the sort: it samples connections belonging to
+          the API process tree every couple of seconds, so a connection that
+          opens and closes between samples is never seen, and it fails open —
+          when it cannot read the connection table it reports an empty list,
+          which is indistinguishable from clean.
+        */}
+        <p className="mt-1.5 max-w-[66ch] text-ui leading-[var(--lh-body)] text-foreground-secondary">
+          Sampled from the API process tree every 2 seconds. Connections that
+          open and close between samples are not observed, and a monitor that
+          cannot read the connection table reports an empty list.
+        </p>
       </div>
     </section>
   )
