@@ -7,6 +7,7 @@ import { LimitList } from '@/components/landing/limit-list'
 import { LiveContainment } from '@/components/landing/live-containment'
 import { MachineBlock } from '@/components/landing/machine-block'
 import { Reveal } from '@/components/landing/reveal'
+import { ProductShot } from '@/components/landing/product-shot'
 import { RunReceipt } from '@/components/landing/run-receipt'
 import { receiptRows, runId, run } from '@/components/landing/run-fixture'
 import { SectionShell } from '@/components/landing/section-shell'
@@ -66,6 +67,16 @@ export default function LandingPage() {
             a mono string is doing exactly the job mono is for.
           */}
           <p className={`${MONO_VALUE} mt-4 hidden break-all md:block`}>{HERO.repoPath}</p>
+
+          {/*
+            The product first, then the paperwork that proves it ran. A page
+            arguing you should not take its word for anything ought to show
+            the thing before it shows the receipt.
+          */}
+          <ProductShot
+            caption="The console during a real run on this host. The work log reports each stage as it completes and marks the ones that never ran. The answer is withheld until claim verification finishes — this one was held for a reviewer rather than released."
+            facts={['held for review', '3 of 4 checks passed', '272.7s', 'qwen3:8b · local']}
+          />
 
           <RunReceipt
             className="mt-10 md:mt-12"

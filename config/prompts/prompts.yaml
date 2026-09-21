@@ -116,8 +116,26 @@ task:
     Retrieved evidence from the organisation's approved knowledge base:
     {evidence}
 
-    Answer using only the material above, citing inline as [S1], [S2] etc.
-    with the identifiers exactly as shown.
+    Answer using only the material above.
+
+    CITATION FORMAT — this is mechanical and not a matter of style. Every
+    factual statement carries the bracketed identifier of the evidence it
+    came from, copied exactly as it appears above, placed at the end of the
+    sentence before the full stop.
+
+      Correct:   The severity is Medium [S1].
+      Correct:   Inspection intervals are 24 months [S3], extendable only
+                 with a documented assessment [S4].
+      Incorrect: The severity is Medium under SOP-MNT-022, section 4.1.
+      Incorrect: According to the CUI procedure, the severity is Medium.
+
+    Naming the document in prose is NOT a citation. The identifier is what
+    links the sentence to the retrieved passage, and a statement without one
+    is treated as unsupported no matter how accurate it is. You may name the
+    document as well, but the bracketed identifier must be present.
+
+    Use only identifiers that appear above. Do not invent one, and do not
+    cite an identifier you were not shown.
 
     Structure:
     1. The direct answer, first sentence, with its clause cited.
