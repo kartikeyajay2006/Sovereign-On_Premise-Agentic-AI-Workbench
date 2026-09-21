@@ -23,7 +23,6 @@ import { type UploadedFile } from '@/components/file-dropzone'
 import { ResultExperience } from '@/components/result-experience'
 import { SovButton } from '@/components/sov-button'
 import { Reveal, SectionHeading, TechnicalLabel } from '@/components/primitives'
-import { SovereignRadialHero } from '@/components/sovereign-radial-hero'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
 import { cn } from '@/lib/utils'
@@ -421,29 +420,6 @@ export function ConsoleView() {
     setIsHeld(false)
   }
 
-  // Which subsystem is busy right now, so the diagram shows the actual run.
-  const activeNodes: string[] = (() => {
-    const running = stages.find((stage) => stage.status === 'active')
-    if (!running) return phase === 'running' ? ['agent'] : []
-    switch (running.id) {
-      case 'classify':
-      case 'plan':
-        return ['agent', 'model']
-      case 'read':
-        return ['model', 'documents']
-      case 'retrieve':
-        return ['vector', 'documents']
-      case 'sandbox':
-        return ['sandbox']
-      case 'draft':
-        return ['model', 'agent']
-      case 'verify':
-        return ['sandbox', 'audit']
-      default:
-        return ['agent']
-    }
-  })()
-
   const applyTemplate = (t: (typeof CONSOLE_TEMPLATES)[0]) => {
     // Fill in the request only. Attachments used to be invented here — file
     // rows appeared with plausible sizes for documents that had never been
@@ -458,64 +434,51 @@ export function ConsoleView() {
   return (
     <div className="relative">
       <div className="relative mx-auto max-w-[1400px] px-5 py-10 lg:px-10 lg:py-14">
-        {/* Top Hero Section matching Screenshot */}
-        <Reveal>
-          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-8">
-            {/* Left Column: Heading + Pitch + Telemetry */}
-            <div className="flex flex-col lg:col-span-6">
-              {/* Aegis Console Label */}
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[var(--sovereign)]" />
-                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">
-                  AEGIS CONSOLE
-                </span>
-              </div>
+        {/*
+          The hero is gone: a 64px extrabold three-line headline, a marketing
+          sub-line, and a radial diagram whose labels named a model the
+          registry does not hold, a VRAM figure nothing measured, an
+          embedding count, "gVisor Kernel" and "Append-Only Merkle" — two
+          technologies this product does not contain.
 
-              {/* Exact 3-line Headline */}
-              <h1 className="mt-6 text-5xl font-extrabold tracking-[-0.035em] text-foreground sm:text-6xl md:text-[64px] leading-[1.05]">
-                Intelligence
-                <br />
-                under your
-                <br />
-                control.
-              </h1>
+          It occupied the entire first screen of the working surface. A
+          console's job is to let an operator start work and read the state
+          of the host, and neither of those was above the fold. Marketing
+          typography belongs on a landing page; this is an instrument.
 
-              {/* Subtitle */}
-              <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-foreground-secondary">
-                Run agentic workflows entirely on-premise. Your models, documents, tools and audit trail never leave the host.
-              </p>
-
-              {/* Telemetry Row */}
-              <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 font-mono text-[11px]">
-                <div className="flex items-center gap-2">
-                  <span className="uppercase tracking-[0.14em] text-foreground-muted">
-                    Unapproved egress
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {sovereignty ? sovereignty.unapproved_connections : '—'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="uppercase tracking-[0.14em] text-foreground-muted">HOST</span>
-                  <span className="font-bold text-foreground">127.0.0.1</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="uppercase tracking-[0.14em] text-foreground-muted">Models</span>
-                  <span className="font-bold text-foreground">
-                    {health
-                      ? `${health.models_available}/${health.models_registered} ready`
-                      : '—'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Sovereign Radial Topology Diagram */}
-            <div className="flex items-center justify-center lg:col-span-6 lg:justify-end">
-              <SovereignRadialHero activeNodeId={activeNodes[0]} />
-            </div>
-          </div>
-        </Reveal>
+          What survives is the part that was real: three measured readings,
+          on one line, each showing an em dash when it has no reading rather
+          than a favourable default.
+        */}
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-b border-line-default pb-4 font-mono text-meta">
+          <span className="text-foreground-muted">
+            HOST <span className="text-foreground">127.0.0.1</span>
+          </span>
+          <span className="text-foreground-muted">
+            UNAPPROVED EGRESS{' '}
+            <span className="tabular text-foreground">
+              {sovereignty ? sovereignty.unapproved_connections : '—'}
+            </span>
+          </span>
+          <span className="text-foreground-muted">
+            MODELS{' '}
+            <span className="tabular text-foreground">
+              {health ? `${health.models_available}/${health.models_registered}` : '—'}
+            </span>
+          </span>
+          <span className="text-foreground-muted">
+            SANDBOX{' '}
+            <span className="text-foreground">
+              {health ? (health.sandbox_ready ? 'ready' : 'not ready') : '—'}
+            </span>
+          </span>
+          <span className="text-foreground-muted">
+            AUDIT CHAIN{' '}
+            <span className={health?.audit_chain_valid === false ? 'text-critical-text' : 'text-foreground'}>
+              {health ? (health.audit_chain_valid ? 'valid' : 'BROKEN') : '—'}
+            </span>
+          </span>
+        </div>
 
         {/* Compact Modern Command Chassis */}
         <Reveal delay={60} className="mt-8">
@@ -546,11 +509,12 @@ export function ConsoleView() {
             {/* Header Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 px-4 py-2.5 bg-surface-sunken/40">
               <div className="flex items-center gap-3">
+                {/* The "AIR-GAPPED 127.0.0.1" chip that sat here was a
+                    literal with a green dot beside it — a posture claim
+                    asserted by the composer, which measures nothing. The
+                    host's actual readings are on the strip above, where
+                    they come from the API and are allowed to be bad. */}
                 <SectionHeading index="01" title="Task Dispatcher" />
-                <span className="hidden sm:inline-flex items-center gap-1.5 font-mono text-[10px] text-foreground-muted border-l border-border pl-3">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
-                  AIR-GAPPED 127.0.0.1
-                </span>
               </div>
 
               {/* Deliverable Format Selector */}
@@ -660,9 +624,9 @@ export function ConsoleView() {
                     )}
                   </button>
 
-                  <span className="hidden font-mono text-[11px] text-foreground-muted md:inline">
-                    Local: 127.0.0.1 · 0 Egress
-                  </span>
+                  {/* "Local: 127.0.0.1 · 0 Egress" was also a literal. The
+                      egress figure in particular was a hardcoded zero
+                      printed next to a control that dispatches work. */}
                 </div>
 
                 <div className="flex items-center gap-3">

@@ -92,15 +92,6 @@ export const DEFAULT_PIPELINE: PipelineStage[] = [
   stage('verify', '07', 'Verify'),
 ]
 
-export const SOVEREIGN_NODES = [
-  { id: 'model', label: 'LOCAL MODEL' },
-  { id: 'vector', label: 'VECTOR STORE' },
-  { id: 'sandbox', label: 'SANDBOX' },
-  { id: 'docs', label: 'DOCUMENT STORE' },
-  { id: 'agent', label: 'AGENT' },
-  { id: 'audit', label: 'AUDIT LOG' },
-]
-
 export const CONSOLE_TEMPLATES = [
   {
     id: 'approval-note',
