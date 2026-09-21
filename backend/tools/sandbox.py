@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import ast
 import os
-import resource
 import shutil
 import subprocess
 import sys
@@ -37,6 +36,29 @@ from typing import Any
 
 from backend.core.config import get_config
 from backend.core.schemas import SandboxResult
+
+# --------------------------------------------------------- platform capability
+# RLIMIT_CPU, RLIMIT_AS, RLIMIT_FSIZE and RLIMIT_NPROC are POSIX. Windows has
+# no equivalent reachable from `subprocess`, and `preexec_fn` does not exist
+# there either.
+#
+# Importing `resource` at module scope previously made this module unloadable
+# on Windows, which took the whole backend down with it. Importing it
+# conditionally fixes that, but it must not quietly turn the limits into a
+# no-op: the difference between "bounded to 30 CPU seconds and 1 GB" and
+# "unbounded" is the entire value of this layer, and the interface reports a
+# sandbox posture to the operator.
+#
+# So the capability is a probed fact, never a configured claim, and when it is
+# absent execution is refused rather than downgraded. See
+# docs/RUNTIME-ENVIRONMENT.md: the supported host is WSL2 / Ubuntu.
+try:
+    import resource
+
+    RESOURCE_LIMITS_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - platform dependent
+    resource = None  # type: ignore[assignment]
+    RESOURCE_LIMITS_AVAILABLE = False
 
 # Written into every sandbox working directory. Neutralises network syscalls
 # from inside the interpreter and records attempts for the execution report.
@@ -194,7 +216,42 @@ class Sandbox:
 
     @property
     def runtime(self) -> str:
-        return str(self._settings.get("runtime", "subprocess"))
+        """What this host actually does, not what the config file claims.
+
+        `runtime` is reported through /health into the interface, and
+        config/app.yaml offers a `docker` value that no code in this package
+        reads — nothing here starts a container. Returning the configured
+        string unchecked would let the API tell an operator "docker" while
+        generated code ran as an ordinary same-user subprocess. The configured
+        value is therefore only honoured where it matches what is implemented.
+        """
+        configured = str(self._settings.get("runtime", "subprocess"))
+        if configured != "subprocess":
+            return f"subprocess (config requests {configured!r}, not implemented)"
+        if not RESOURCE_LIMITS_AVAILABLE:
+            return "subprocess (unlimited: no resource limits on this platform)"
+        return "subprocess"
+
+    @property
+    def execution_allowed(self) -> tuple[bool, str]:
+        """Whether generated code may run here at all, and why not if it may not.
+
+        Refusing is the honest failure. Running the code anyway with no CPU,
+        memory, file-size or process cap, while the interface continues to
+        describe a sandbox, would be the worst outcome available: the operator
+        would believe a control existed that did not.
+        """
+        if not self.enabled:
+            return False, "The sandbox is disabled in configuration."
+        if not RESOURCE_LIMITS_AVAILABLE:
+            return False, (
+                "This host cannot apply resource limits to a child process, so "
+                "generated code would run unbounded. Execution is refused "
+                "rather than run outside the limits the sandbox is supposed to "
+                "impose. Run the backend under WSL2/Linux — see "
+                "docs/RUNTIME-ENVIRONMENT.md. Every other stage works here."
+            )
+        return True, ""
 
     @property
     def enabled(self) -> bool:
@@ -208,12 +265,19 @@ class Sandbox:
     def _preexec(self) -> Any:
         """Return a child-process hook applying POSIX resource limits.
 
+        Returns ``None`` where the platform has no resource limits to apply.
+        Callers must not treat that as "limits applied": ``execution_allowed``
+        refuses the run instead.
+
         RLIMIT_NPROC is counted **per user**, not per process, so a small
         absolute cap makes every fork fail the moment the operator's own
         session already exceeds it. The cap is therefore expressed as headroom
         above the processes the user is currently running: runaway forking is
         still contained, ordinary work is not strangled.
         """
+        if not RESOURCE_LIMITS_AVAILABLE:
+            return None
+
         cpu_seconds = int(self._settings.get("max_cpu_seconds", 30))
         memory_bytes = int(self._settings.get("max_memory_mb", 1024)) * 1024 * 1024
         file_bytes = int(self._settings.get("max_written_file_bytes", 26214400))
@@ -281,16 +345,21 @@ class Sandbox:
         """Statically validate, then run ``code`` under resource limits."""
         memory_limit = int(self._settings.get("max_memory_mb", 1024))
 
-        if not self.enabled:
+        # Covers both the disabled case and a host that cannot impose the
+        # limits this sandbox is defined by. The static validator still runs
+        # below for anything that is allowed to proceed; what is refused here
+        # is unbounded execution, not review.
+        allowed, refusal = self.execution_allowed
+        if not allowed:
             return SandboxResult(
                 ok=False,
                 exit_code=None,
                 stdout="",
-                stderr="Sandbox is disabled by configuration; execution refused.",
+                stderr=refusal,
                 duration_ms=0,
                 memory_limit_mb=memory_limit,
                 static_validation_passed=False,
-                static_violations=["sandbox disabled"],
+                static_violations=["execution refused: " + refusal.split(".")[0]],
             )
 
         validation = self.validator.validate(code)
@@ -536,8 +605,13 @@ class Sandbox:
             self.validator.validate = original  # type: ignore[assignment]
 
     def is_ready(self) -> bool:
-        """Confirm the sandbox can actually start a child interpreter."""
-        if not self.enabled:
+        """Confirm the sandbox can actually start a child interpreter.
+
+        Ready means "able to run code under its limits". A host with no
+        resource limits is not ready, however well a child process starts.
+        """
+        allowed, _ = self.execution_allowed
+        if not allowed:
             return False
         try:
             with tempfile.TemporaryDirectory() as temporary:

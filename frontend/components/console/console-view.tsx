@@ -8,7 +8,15 @@ import {
   DELIVERABLE_FORMATS,
 } from '@/lib/presentation'
 import { api } from '@/lib/api'
-import type { Deliverable, EvidenceItem, PipelineStage, Task, VerificationCheck } from '@/lib/types'
+import type {
+  Deliverable,
+  EvidenceItem,
+  PipelineStage,
+  SovereigntyStatus,
+  SystemHealth,
+  Task,
+  VerificationCheck,
+} from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
 import { AgentPipeline } from '@/components/agent-pipeline'
 import { type UploadedFile } from '@/components/file-dropzone'
@@ -53,6 +61,22 @@ export function ConsoleView() {
   // fades. If the service is down during a demo the operator needs to still be
   // able to read the reason a minute later.
   const [runError, setRunError] = useState<string | null>(null)
+  // The console's telemetry row printed "EGRESS 0 packets" and "MODEL Qwen3
+  // 8B" as literals. Both are reported by the API, so both are read.
+  const [health, setHealth] = useState<SystemHealth | null>(null)
+  const [sovereignty, setSovereignty] = useState<SovereigntyStatus | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.allSettled([api.health(), api.sovereigntyStatus()]).then(([h, s]) => {
+      if (cancelled) return
+      if (h.status === 'fulfilled') setHealth(h.value)
+      if (s.status === 'fulfilled') setSovereignty(s.value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const { push } = useToast()
@@ -419,16 +443,24 @@ export function ConsoleView() {
               {/* Telemetry Row */}
               <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 font-mono text-[11px]">
                 <div className="flex items-center gap-2">
-                  <span className="uppercase tracking-[0.14em] text-foreground-muted">EGRESS</span>
-                  <span className="font-bold text-foreground">0 packets</span>
+                  <span className="uppercase tracking-[0.14em] text-foreground-muted">
+                    Unapproved egress
+                  </span>
+                  <span className="font-bold text-foreground">
+                    {sovereignty ? sovereignty.unapproved_connections : '—'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="uppercase tracking-[0.14em] text-foreground-muted">HOST</span>
                   <span className="font-bold text-foreground">127.0.0.1</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="uppercase tracking-[0.14em] text-foreground-muted">MODEL</span>
-                  <span className="font-bold text-foreground">Qwen3 8B</span>
+                  <span className="uppercase tracking-[0.14em] text-foreground-muted">Models</span>
+                  <span className="font-bold text-foreground">
+                    {health
+                      ? `${health.models_available}/${health.models_registered} ready`
+                      : '—'}
+                  </span>
                 </div>
               </div>
             </div>

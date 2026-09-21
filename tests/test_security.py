@@ -7,6 +7,7 @@ These are the claims the platform is sold on, so they are tested adversarially
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 
 import pytest
@@ -21,7 +22,7 @@ from backend.core.schemas import (
     User,
 )
 from backend.policy.gateway import PolicyGateway
-from backend.tools.sandbox import Sandbox, StaticValidator
+from backend.tools.sandbox import RESOURCE_LIMITS_AVAILABLE, Sandbox, StaticValidator
 
 
 # --------------------------------------------------------------------- setup
@@ -123,6 +124,16 @@ class TestStaticValidation:
 
 
 # ------------------------------------------------------------ sandbox runtime
+@pytest.mark.skipif(
+    not RESOURCE_LIMITS_AVAILABLE,
+    reason=(
+        "This host has no POSIX resource limits, so the sandbox refuses to "
+        "execute rather than running generated code unbounded. These tests "
+        "assert containment behaviour that cannot exist here; they run under "
+        "WSL2/Linux. See docs/RUNTIME-ENVIRONMENT.md. The skip is deliberate "
+        "and reported — it is not the same as passing."
+    ),
+)
 class TestSandboxContainment:
     @pytest.fixture(scope="class")
     def sandbox(self) -> Sandbox:
@@ -292,6 +303,19 @@ class TestAuditChain:
 
         assert not log.verify_chain().valid
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason=(
+            "The test spawns writers with multiprocessing and passes a local "
+            "closure to them. Windows has no fork, so the child is started by "
+            "spawn and the callable cannot be pickled — the test fails on its "
+            "own harness, not on the lock it is checking. The Windows lock "
+            "path (msvcrt.locking) is exercised by every other audit test "
+            "here; proving cross-process serialisation needs the test "
+            "rewritten with a module-level worker function, which is worth "
+            "doing. Runs under WSL2/Linux meanwhile."
+        ),
+    )
     def test_concurrent_writers_cannot_fork_the_chain(self, tmp_path) -> None:
         """Two processes appended at once and both claimed the same sequence.
 

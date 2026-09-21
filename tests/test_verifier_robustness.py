@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from backend.agents.verifier import VerificationEngine, _coerce_number
+from backend.tools.sandbox import RESOURCE_LIMITS_AVAILABLE
 
 
 class TestNumberRecovery:
@@ -52,6 +53,14 @@ class TestCalculationCheckSurvivesBadInput:
         assert check.name == "calculation_verification"
         assert checked, "the calculation should still be recorded"
 
+    @pytest.mark.skipif(
+        not RESOURCE_LIMITS_AVAILABLE,
+        reason=(
+            "Asserts a recomputed value, which requires the sandbox to "
+            "execute. The sandbox refuses on a host with no resource limits. "
+            "Runs under WSL2/Linux; see docs/RUNTIME-ENVIRONMENT.md."
+        ),
+    )
     def test_unusable_expected_value_is_reported_not_raised(self) -> None:
         engine = VerificationEngine()
         check, checked = engine.check_calculations(
