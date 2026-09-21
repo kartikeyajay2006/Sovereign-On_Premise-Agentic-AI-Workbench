@@ -27,7 +27,17 @@ export function Navigation() {
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-[80] px-3 pt-3 sm:px-5 sm:pt-4">
-      <nav className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[12px] border border-border/80 bg-surface/90 px-4 py-2.5 shadow-[0_4px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-all sm:px-5">
+      {/*
+        No backdrop-filter. A full-width blur re-samples everything beneath
+        it on every frame anything under it changes — and what scrolls under
+        this bar is a live stage board. Against flat warm paper the result
+        was visually near-indistinguishable from an opaque tint, so the cost
+        bought nothing.
+      */}
+      <nav
+        className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[12px] border border-border/80 px-4 py-2.5 shadow-[0_4px_30px_rgba(0,0,0,0.05)] sm:px-5"
+        style={{ background: 'color-mix(in srgb, var(--surface) 92%, transparent)' }}
+      >
         {/* Brand */}
         <Link href="/" className="group flex items-center transition-transform hover:scale-[1.01]">
           <AegisLogo size={30} variant="compact" />
@@ -49,8 +59,11 @@ export function Navigation() {
                 )}
               >
                 {l.label}
+                {/* No glow on the active rule. An ink bar is already the
+                    strongest mark here; a shadow under it only blurs its
+                    edge. */}
                 {active && (
-                  <span className="absolute inset-x-3.5 -bottom-1 h-[2px] bg-foreground shadow-[0_0_8px_rgba(0,0,0,0.3)]" />
+                  <span className="absolute inset-x-3.5 -bottom-1 h-[2px] bg-foreground" />
                 )}
               </Link>
             )

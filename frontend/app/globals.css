@@ -656,19 +656,11 @@
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Sovereign Precision Custom Cursor                                  */
-/* ------------------------------------------------------------------ */
-@media (pointer: fine) {
-  html.custom-cursor-enabled,
-  html.custom-cursor-enabled body,
-  html.custom-cursor-enabled button,
-  html.custom-cursor-enabled a,
-  html.custom-cursor-enabled [role="button"],
-  html.custom-cursor-enabled [role="tab"],
-  html.custom-cursor-enabled [role="menuitem"] {
-    cursor: none !important;
-  }
-}
+/* The custom-cursor block is gone with components/sovereign-cursor.tsx.
+   `cursor: none !important` across html, body, buttons, links and every
+   role is an unrecoverable failure mode: if the component that draws the
+   replacement reticle does not hydrate, the operator has no pointer and
+   no way to get one back. That is not a risk worth carrying into a room
+   with judges in it. */
 
 

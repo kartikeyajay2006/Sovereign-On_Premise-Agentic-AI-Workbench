@@ -2,20 +2,32 @@ import type { ReactNode } from 'react'
 import { Navigation } from '@/components/navigation'
 import { SiteFooter } from '@/components/site-footer'
 import { AuthGuard } from '@/components/auth-guard'
-import { AnimatedTechnicalBackground } from '@/components/animated-technical-background'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AuthGuard>
       <div className="relative flex min-h-dvh flex-col overflow-x-hidden">
-        {/* Ambient Moving Dotted Pattern with radial vignette mask */}
-        <AnimatedTechnicalBackground className="opacity-40" />
+        {/*
+          A static grid, not an animated one.
 
-        {/* Ambient Top Glow / Depth */}
-        <div
-          aria-hidden
-          className="pointer-events-none fixed -top-40 left-1/2 -translate-x-1/2 h-[600px] w-full max-w-[1200px] rounded-full bg-gradient-to-b from-[var(--sovereign)]/5 via-transparent to-transparent blur-3xl -z-10"
-        />
+          This was <AnimatedTechnicalBackground/>, a canvas redrawing a field
+          of dots on every frame behind every page — roughly 2,500 arc-and-
+          stroke operations per frame at 1080p, on the main thread, for the
+          entire life of the session. It never corresponded to anything the
+          system was doing.
+
+          That matters here beyond smoothness. The event bus in
+          backend/core/events.py drops records for a subscriber that cannot
+          keep up, so main-thread time spent animating decoration is time in
+          which stage and evidence events can be lost — and this host runs
+          local model inference at the same time, which wants that CPU.
+
+          The `tech-grid` utility was already in globals.css and is the same
+          visual idea at zero cost. The green radial wash that sat above it
+          is gone too: a --sovereign glow across every screen reads as a
+          status signal, and nothing was signalling.
+        */}
+        <div aria-hidden className="tech-grid pointer-events-none fixed inset-0 -z-10 opacity-40" />
 
         <Navigation />
         <main className="relative z-10 flex-1 pt-[76px]">{children}</main>
