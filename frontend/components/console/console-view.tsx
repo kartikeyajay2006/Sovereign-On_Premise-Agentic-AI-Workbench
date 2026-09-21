@@ -65,6 +65,12 @@ export function ConsoleView() {
   // 8B" as literals. Both are reported by the API, so both are read.
   const [health, setHealth] = useState<SystemHealth | null>(null)
   const [sovereignty, setSovereignty] = useState<SovereigntyStatus | null>(null)
+  // Set when a run reaches a terminal state, which triggers the authoritative
+  // read of the task record below. handleEvent is a useCallback with no deps,
+  // so the id it needs is held in a ref rather than captured from state.
+  const [settledTaskId, setSettledTaskId] = useState<string | null>(null)
+  const activeTaskIdRef = useRef<string | null>(null)
+  activeTaskIdRef.current = activeTaskId
 
   useEffect(() => {
     let cancelled = false
@@ -77,6 +83,42 @@ export function ConsoleView() {
       cancelled = true
     }
   }, [])
+
+  // The authoritative read. Everything shown in the result view comes from
+  // the task record, so a dropped or malformed event cannot leave a finished
+  // run displaying an empty answer against an empty evidence list — which is
+  // exactly what happened while this was reconstructed from event payloads.
+  useEffect(() => {
+    if (!settledTaskId) return
+    let live = true
+    api
+      .getTask(settledTaskId)
+      .then((task) => {
+        if (!live) return
+        setActiveTask(task)
+        setAnswer(task.answer || '')
+        setEvidence(task.evidence || [])
+        if (task.verification?.checks) {
+          setVerification(task.verification.checks)
+        }
+        const first = task.deliverables?.[0]
+        if (first) {
+          setDeliverable({ ...first, sizeKb: Math.round(first.size_bytes / 1024) })
+        }
+        setIsHeld(String(task.status).toLowerCase() === 'awaiting_approval')
+      })
+      .catch((err) => {
+        if (!live) return
+        // A run that finished but whose record cannot be read is reported,
+        // not shown as an empty success.
+        setRunError(
+          err?.message || 'The run finished but its record could not be read back.',
+        )
+      })
+    return () => {
+      live = false
+    }
+  }, [settledTaskId])
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const { push } = useToast()
@@ -194,17 +236,22 @@ export function ConsoleView() {
         stageName === 'approved'
       ) {
         setIsHeld(stageName === 'awaiting_approval')
-        if (data.task) {
-          setActiveTask(data.task)
-          if (data.task.answer) setAnswer(data.task.answer)
-          if (data.task.evidence) setEvidence(data.task.evidence)
-          if (data.task.deliverables?.[0]) {
-            setDeliverable({
-              ...data.task.deliverables[0],
-              sizeKb: Math.round(data.task.deliverables[0].size_bytes / 1024),
-            })
-          }
-        }
+        // The result is read back from the task record, not reconstructed
+        // from the event payload.
+        //
+        // This block used to read `data.task`, which no event carries: the
+        // orchestrator emits {status, duration_ms} on task.finished
+        // (orchestrator.py:1004) and the stage payload has no task either. So
+        // the answer, the evidence and the deliverable were all undefined and
+        // the result view rendered empty — every run looked like it had
+        // produced nothing. ask-view.tsx:224 already did the right thing;
+        // this is the same pattern.
+        //
+        // Fetching the record on settle is also the correct rule generally:
+        // the stream is an optimisation, the snapshot is the truth. A dropped
+        // event — events.py drops for a slow subscriber — cannot leave the
+        // final view wrong.
+        setSettledTaskId(activeTaskIdRef.current)
 
         // Only stages this run actually reached are marked done. Stages that
         // never received an event are marked skipped, not done: this backend
@@ -247,35 +294,27 @@ export function ConsoleView() {
       )
     }
 
-    if (name === 'task.evidence' && data.evidence) {
-      setEvidence((prev) => [...prev, data.evidence])
+    // The payload key is `items`, and it carries the whole retrieved set for
+    // that step. This read `data.evidence`, which no event sends
+    // (orchestrator.py:791-796), so evidence never accumulated during a run.
+    if (name === 'task.evidence' && Array.isArray(data.items)) {
+      setEvidence((prev) => {
+        const seen = new Set(prev.map((item) => item.id))
+        return [...prev, ...data.items.filter((item: EvidenceItem) => !seen.has(item.id))]
+      })
     }
 
-    if (name === 'task.verified' && data.verification) {
-      const v = data.verification
-      if (v.checks) {
-        setVerification(
-          v.checks.map((c: any) => ({
-            label: c.name || c.kind || 'Check',
-            result: c.detail || (c.passed ? 'Verified' : 'Failed'),
-            ok: Boolean(c.passed),
-          }))
-        )
-      }
+    // The verification report arrives unwrapped — the orchestrator publishes
+    // task.verification.model_dump() directly (orchestrator.py:894-896) — so
+    // reading data.verification found nothing and the checks never rendered.
+    if (name === 'task.verified' && Array.isArray(data.checks)) {
+      setVerification(data.checks as VerificationCheck[])
     }
 
     if (name === 'task.finished') {
-      if (data.task) {
-        setActiveTask(data.task)
-        if (data.task.answer) setAnswer(data.task.answer)
-        if (data.task.evidence) setEvidence(data.task.evidence)
-        if (data.task.deliverables?.[0]) {
-          setDeliverable({
-            ...data.task.deliverables[0],
-            sizeKb: Math.round(data.task.deliverables[0].size_bytes / 1024),
-          })
-        }
-      }
+      // Carries only {status, duration_ms} (orchestrator.py:1004-1006). The
+      // record is read back rather than reconstructed from it.
+      setSettledTaskId(activeTaskIdRef.current)
       setPhase('result')
     }
   }, [])
@@ -374,6 +413,12 @@ export function ConsoleView() {
     setFiles([])
     setUploadedFileIds([])
     setRunError(null)
+    setSettledTaskId(null)
+    setAnswer('')
+    setEvidence([])
+    setVerification([])
+    setDeliverable(null)
+    setIsHeld(false)
   }
 
   // Which subsystem is busy right now, so the diagram shows the actual run.
