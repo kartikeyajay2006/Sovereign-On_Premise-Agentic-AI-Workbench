@@ -107,7 +107,7 @@ export default function LandingPage() {
           */}
           <ProductShot
             caption="The console during a real run on this host. The work log reports each stage as it completes and marks the ones that never ran. The answer is withheld until claim verification finishes — this one was held for a reviewer rather than released."
-            facts={['held for review', '3 of 4 checks passed', '272.7s', 'qwen3:8b · local']}
+            facts={['held for review', '3 of 4 checks passed', '214.6s', 'qwen3:8b · local']}
           />
 
           <RunReceipt
