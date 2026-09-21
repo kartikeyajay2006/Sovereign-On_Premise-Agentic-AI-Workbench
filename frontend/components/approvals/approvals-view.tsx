@@ -246,7 +246,9 @@ export function ApprovalsView() {
                 <div className="line-clamp-2 text-[13px] font-medium text-foreground">{i.title}</div>
                 <div className="flex items-center justify-between text-[11px] text-foreground-muted pt-1">
                   <span>{i.submittedBy}</span>
-                  <StatusIndicator status={i.status} pulse={i.status === 'PENDING'} />
+                  {/* No `pulse`. PENDING is waiting on a person, not working,
+                      and a pulsing chip said the opposite. */}
+                  <StatusIndicator status={i.status} />
                 </div>
               </button>
             ))}

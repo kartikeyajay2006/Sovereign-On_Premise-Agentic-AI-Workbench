@@ -245,7 +245,9 @@ export function TasksView() {
                       <ClassificationTag level={classification as any} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5">
-                      <StatusIndicator status={t.status as any} pulse={(t.status || '').toUpperCase().includes('RUNNING')} />
+                      {/* Liveness is derived from the status itself now, so a
+                          caller cannot make a finished run appear to pulse. */}
+                      <StatusIndicator status={String(t.status)} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5 font-mono text-[11px] text-foreground-muted">
                       {started}
