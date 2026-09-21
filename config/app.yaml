@@ -129,6 +129,22 @@ sandbox:
     - __import__
     - breakpoint
     - open_host
+    # Dynamic attribute and namespace access. Without these the validator is
+    # trivially bypassed, because its process-escape rule only fires on an
+    # ast.Attribute whose receiver is literally named 'os':
+    #
+    #   getattr(os, "sys" + "tem")("...")
+    #
+    # is an ast.Call on ast.Name('getattr'), so it raised no violation at all
+    # while 'os' and 'sys' are both allow-listed imports below. Name-building
+    # defeats denied_attributes for the same reason: that check compares the
+    # literal attribute text, which a constructed string never matches.
+    - getattr
+    - setattr
+    - delattr
+    - vars
+    - globals
+    - locals
   denied_attributes:
     - __subclasses__
     - __globals__

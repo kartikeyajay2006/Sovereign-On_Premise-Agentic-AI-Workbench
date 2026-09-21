@@ -81,6 +81,21 @@ class TestStaticValidation:
             "__import__('socket')",
             "(). __class__.__bases__",
             "x = ().__class__.__subclasses__()",
+            # Indirect process escape.
+            #
+            # The suite above only ever tried os.system() spelled out, which
+            # the validator catches by matching an ast.Attribute whose
+            # receiver is named 'os'. Reaching the same function through
+            # getattr is an ast.Call on ast.Name('getattr') and matched
+            # nothing, so these three passed with zero violations while 'os'
+            # and 'sys' were allow-listed imports. Building the attribute
+            # name from pieces also defeats denied_attributes, which compares
+            # the literal attribute text.
+            "import os\ngetattr(os, 'system')('id')",
+            "import os\ngetattr(os, 'sys' + 'tem')('id')",
+            "import os\nvars(os)['system']('id')",
+            "import sys\nsetattr(sys, 'x', 1)",
+            "import os\nglobals()['os'].system('id')",
         ],
     )
     def test_rejects_dangerous_source(self, validator: StaticValidator, source: str) -> None:
