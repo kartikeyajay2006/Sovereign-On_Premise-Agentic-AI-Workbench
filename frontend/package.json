@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "//postinstall": "Next.js collects anonymous usage telemetry by default and sends it to Vercel on build. This product states on its own sign-in page that nothing leaves the host, so the opt-out runs for every developer rather than relying on each of them remembering. It is a local config write and is safe to run offline.",
+    "postinstall": "next telemetry disable"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
