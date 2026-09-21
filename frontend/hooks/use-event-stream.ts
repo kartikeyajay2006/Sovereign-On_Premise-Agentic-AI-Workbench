@@ -9,10 +9,26 @@ export interface EventStreamOptions {
   onEvent?: (event: StreamEvent) => void
 }
 
+/**
+ * Subscribe to the backend's server-sent event stream.
+ *
+ * Rendering cost is a correctness concern here, not a polish one. The event
+ * bus in backend/core/events.py holds MAX_QUEUE = 256 per subscriber and
+ * drops events for a subscriber that cannot keep up, rather than blocking the
+ * agent loop. A tab that spends its time re-rendering is a tab that silently
+ * loses stage and evidence events — on a product whose claim is the
+ * completeness of the record.
+ *
+ * This hook previously called setLastEvent on every message, forcing a React
+ * render per event. Nothing consumed the value: all three call sites
+ * (console-view, ask-view, security-view) pass onEvent and discard the return.
+ * The state is gone, so the hook itself now renders only when the connection
+ * opens or drops. Anything needing the latest event can keep it from onEvent,
+ * where the consumer decides whether it is worth a render.
+ */
 export function useEventStream(options: EventStreamOptions = {}) {
   const { taskId, enabled = true, onEvent } = options
   const [connected, setConnected] = useState(false)
-  const [lastEvent, setLastEvent] = useState<StreamEvent | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const onEventRef = useRef(onEvent)
   onEventRef.current = onEvent
@@ -34,22 +50,11 @@ export function useEventStream(options: EventStreamOptions = {}) {
       setConnected(false)
     }
 
-    // Default message handler
-    es.onmessage = (msg) => {
-      try {
-        const parsed = JSON.parse(msg.data)
-        const streamEvent: StreamEvent = {
-          event: msg.type || 'message',
-          task_id: parsed.task_id || taskId,
-          at: parsed.at || new Date().toISOString(),
-          data: parsed.data || parsed,
-        }
-        setLastEvent(streamEvent)
-        onEventRef.current?.(streamEvent)
-      } catch (err) {
-        console.warn('[sse] Error parsing SSE message:', err)
-      }
-    }
+    // No `onmessage` handler. _sse() in backend/api/routes/system.py always
+    // writes an `event:` line, so the browser routes every message to a named
+    // listener and `onmessage` fires only for the unnamed default type, which
+    // this backend never sends. The handler that used to sit here was
+    // unreachable.
 
     // Named event listeners matching backend publications.
     //
@@ -102,7 +107,6 @@ export function useEventStream(options: EventStreamOptions = {}) {
             at: parsed.at || new Date().toISOString(),
             data: parsed.data || parsed,
           }
-          setLastEvent(streamEvent)
           onEventRef.current?.(streamEvent)
         } catch (err) {
           console.warn(`[sse] Error parsing ${eventName}:`, err)
@@ -117,5 +121,5 @@ export function useEventStream(options: EventStreamOptions = {}) {
     }
   }, [taskId, enabled])
 
-  return { connected, lastEvent }
+  return { connected }
 }
