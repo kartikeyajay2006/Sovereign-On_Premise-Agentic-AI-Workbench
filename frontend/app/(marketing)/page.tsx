@@ -1,0 +1,298 @@
+import { ArrowUpRight } from 'lucide-react'
+import { ChainCard } from '@/components/landing/chain-card'
+import { CommandBlock } from '@/components/landing/command-block'
+import { CHAIN, HERO, LIMITS, PREMISE, PROOF, RUN, RUN_IT } from '@/components/landing/copy'
+import { LandingButton } from '@/components/landing/landing-button'
+import { LimitList } from '@/components/landing/limit-list'
+import { LiveContainment } from '@/components/landing/live-containment'
+import { MachineBlock } from '@/components/landing/machine-block'
+import { Reveal } from '@/components/landing/reveal'
+import { RunReceipt } from '@/components/landing/run-receipt'
+import { receiptRows, runId, run } from '@/components/landing/run-fixture'
+import { SectionShell } from '@/components/landing/section-shell'
+import { StageTable } from '@/components/landing/stage-table'
+import { CARD, MONO_LABEL, MONO_VALUE, PROSE, SHELL } from '@/components/landing/tokens'
+
+/**
+ * The public page at `/`.
+ *
+ * A server component. The only client components it mounts are the header
+ * (which reads session state for one label), LiveContainment (the page's single
+ * fetch), CommandBlock (clipboard) and Reveal (one IntersectionObserver). The
+ * hero itself is static and does not animate: nothing credible in this category
+ * animates above the fold, and a headline that fades in is the clearest single
+ * tell of a template.
+ */
+export default function LandingPage() {
+  return (
+    <>
+      {/* ---------------------------------------------------------------- */}
+      {/* 01 — Hero                                                         */}
+      {/* ---------------------------------------------------------------- */}
+      <section aria-labelledby="hero-title" className="pb-16 pt-12 md:pb-20 md:pt-[88px] lg:pt-[152px]">
+        <div className={SHELL}>
+          <h1
+            id="hero-title"
+            className="max-w-[16ch] text-display font-medium leading-[1.03] tracking-[-0.02em] text-foreground md:text-[48px] md:leading-[47px] md:tracking-[-0.028em] lg:text-[64px] lg:leading-[61px] lg:tracking-[-0.032em]"
+          >
+            {HERO.headline}
+          </h1>
+
+          <p className="mt-4 max-w-[54ch] text-heading tracking-[-0.008em] text-foreground-secondary md:mt-5 md:text-[18px] md:leading-[28px] md:tracking-[-0.011em]">
+            {HERO.sub}
+          </p>
+
+          <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:gap-3 md:mt-8">
+            <LandingButton href={HERO.primary.href} variant="primary" size="lg" blockOnMobile className="sm:h-10 sm:text-body">
+              {HERO.primary.label}
+            </LandingButton>
+            <LandingButton
+              href={HERO.secondary.href}
+              variant="outline"
+              size="lg"
+              blockOnMobile
+              rel="noreferrer"
+              target="_blank"
+              className="sm:h-10 sm:text-body"
+            >
+              {HERO.secondary.label}
+              <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            </LandingButton>
+          </div>
+
+          {/*
+            Selectable text, not just a link. It survives an offline demo where
+            the href does not resolve, and it is the one place on the page where
+            a mono string is doing exactly the job mono is for.
+          */}
+          <p className={`${MONO_VALUE} mt-4 hidden break-all md:block`}>{HERO.repoPath}</p>
+
+          <RunReceipt
+            className="mt-10 md:mt-12"
+            runId={runId}
+            capturedOn={run.captured_on}
+            rows={receiptRows}
+            caption={HERO.receiptCaption}
+          />
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 02 — The premise                                                  */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={PREMISE.id}
+        index={PREMISE.index}
+        eyebrow={PREMISE.eyebrow}
+        title={PREMISE.title}
+        lede={PREMISE.lede}
+      >
+        <Reveal>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-12 lg:gap-20">
+            <div className={`${CARD} p-5`}>
+              <span className={MONO_LABEL}>{PREMISE.solved.label}</span>
+              <p className="mt-3 text-answer text-foreground">{PREMISE.solved.body}</p>
+            </div>
+
+            <div className={`${CARD} p-5`}>
+              <span className={MONO_LABEL}>{PREMISE.open.label}</span>
+              <ul className="mt-3 flex list-none flex-col gap-2.5 p-0">
+                {PREMISE.open.items.map((item) => (
+                  <li key={item} className="text-body leading-[22px] text-foreground-secondary">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <p className={`mt-10 text-heading text-foreground md:text-[18px] md:leading-[28px] ${PROSE}`}>
+            {PREMISE.closing}
+          </p>
+        </Reveal>
+      </SectionShell>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 03 — Cited. Checked. Recorded.                                    */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={CHAIN.id}
+        index={CHAIN.index}
+        eyebrow={CHAIN.eyebrow}
+        title={CHAIN.title}
+        lede={CHAIN.lede}
+        tone="surface"
+      >
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8">
+          {CHAIN.cards.map((card, i) => (
+            <Reveal key={card.verb} step={i === 0 ? 0 : i === 1 ? 1 : 2} className="flex">
+              <ChainCard
+                className="w-full"
+                index={card.index}
+                verb={card.verb}
+                mechanism={card.mechanism}
+                body={card.body}
+                artifact={
+                  <MachineBlock label={card.artifact.label} source={card.artifact.source}>
+                    {card.artifact.lines.join('\n')}
+                  </MachineBlock>
+                }
+              />
+            </Reveal>
+          ))}
+        </div>
+      </SectionShell>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 04 — One run, end to end                                          */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={RUN.id}
+        index={RUN.index}
+        eyebrow={RUN.eyebrow}
+        title={RUN.title}
+        lede={RUN.lede}
+      >
+        <Reveal>
+          <StageTable stages={[...RUN.stages]} />
+          <p className={`mt-6 text-body leading-[22px] text-foreground-secondary ${PROSE}`}>
+            {RUN.closing}
+          </p>
+        </Reveal>
+      </SectionShell>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 05 — Check it yourself                                            */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={PROOF.id}
+        index={PROOF.index}
+        eyebrow={PROOF.eyebrow}
+        title={PROOF.title}
+        lede={PROOF.lede}
+        tone="surface"
+      >
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+          {/* Cell 1 — the audit chain */}
+          <Reveal className="flex">
+            <section aria-labelledby="proof-chain" className="flex w-full flex-col gap-4">
+              <h3 id="proof-chain" className="text-heading font-medium text-foreground">
+                {PROOF.chain.label}
+              </h3>
+              <MachineBlock
+                className="flex-1"
+                label={PROOF.chain.label}
+                source={PROOF.chain.source}
+                caption={PROOF.chain.caption}
+              >
+                {PROOF.chain.lines.join('\n')}
+              </MachineBlock>
+            </section>
+          </Reveal>
+
+          {/* Cell 2 — a policy that refuses */}
+          <Reveal step={1} className="flex">
+            <section aria-labelledby="proof-policy" className="flex w-full flex-col gap-4">
+              <h3 id="proof-policy" className="text-heading font-medium text-foreground">
+                {PROOF.policy.label}
+              </h3>
+              <MachineBlock label={PROOF.policy.label} source={PROOF.policy.source}>
+                {PROOF.policy.lines.join('\n')}
+              </MachineBlock>
+              <MachineBlock
+                className="flex-1"
+                label={PROOF.sandbox.label}
+                source={PROOF.sandbox.source}
+                caption={PROOF.sandbox.caption}
+              >
+                {PROOF.sandbox.lines.join('\n')}
+              </MachineBlock>
+            </section>
+          </Reveal>
+
+          {/* Cell 3 — containment, read live */}
+          <Reveal step={2} className="flex">
+            <section aria-labelledby="proof-containment" className="flex w-full flex-col gap-4">
+              <h3 id="proof-containment" className="text-heading font-medium text-foreground">
+                {PROOF.containment.label}
+              </h3>
+              <LiveContainment />
+              <p className="text-body leading-[20px] text-foreground-secondary">
+                {PROOF.containment.caption}
+              </p>
+              <figure className="m-0 border-l border-border-strong pl-4">
+                <blockquote className="m-0 text-body leading-[22px] text-foreground">
+                  “{PROOF.containment.quote}”
+                </blockquote>
+                <figcaption className={`${MONO_VALUE} mt-2`}>
+                  — {PROOF.containment.quoteSource}
+                </figcaption>
+              </figure>
+            </section>
+          </Reveal>
+
+          {/* Cell 4 — this page */}
+          <Reveal step={2} className="flex">
+            <section aria-labelledby="proof-page" className="flex w-full flex-col gap-4">
+              <h3 id="proof-page" className="text-heading font-medium text-foreground">
+                {PROOF.page.label}
+              </h3>
+              <MachineBlock
+                className="flex-1"
+                label={PROOF.page.label}
+                source={PROOF.page.source}
+                caption={PROOF.page.caption}
+                wrap
+              >
+                {PROOF.page.lines.join('\n')}
+              </MachineBlock>
+            </section>
+          </Reveal>
+        </div>
+      </SectionShell>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 06 — What this is not                                             */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={LIMITS.id}
+        index={LIMITS.index}
+        eyebrow={LIMITS.eyebrow}
+        title={LIMITS.title}
+        lede={LIMITS.lede}
+      >
+        <Reveal>
+          <LimitList items={[...LIMITS.items]} />
+        </Reveal>
+      </SectionShell>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 07 — Run it                                                       */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={RUN_IT.id}
+        index={RUN_IT.index}
+        eyebrow={RUN_IT.eyebrow}
+        title={RUN_IT.title}
+        lede={RUN_IT.lede}
+        tone="surface"
+      >
+        <Reveal>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[3fr_2fr]">
+            <CommandBlock label="Terminal" lines={[...RUN_IT.commands]} />
+            <dl className="m-0 flex flex-col gap-6">
+              {RUN_IT.facts.map((fact) => (
+                <div key={fact.label}>
+                  <dt className={MONO_LABEL}>{fact.label}</dt>
+                  <dd className="m-0 mt-1.5 text-body leading-[20px] text-foreground">
+                    {fact.line}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </Reveal>
+      </SectionShell>
+    </>
+  )
+}

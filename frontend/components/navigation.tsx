@@ -24,7 +24,8 @@ import { AegisLogo } from './aegis-logo'
  * them.
  */
 const LINKS = [
-  { href: '/', label: 'Thread' },
+  // The thread moved off `/` when the public landing page took the front door.
+  { href: '/console', label: 'Thread' },
   { href: '/approvals', label: 'Approvals' },
   { href: '/registry', label: 'Knowledge' },
   { href: '/security', label: 'Assurance' },
@@ -35,7 +36,10 @@ export function Navigation() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href))
+  // The `href === '/'` exact-match special case is gone with the route: every
+  // link now has a real path segment, so a prefix match is correct for all of
+  // them and nothing matches everything.
+  const isActive = (href: string) => pathname.startsWith(href)
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-[80] px-3 pt-3 sm:px-5 sm:pt-4">
@@ -51,7 +55,12 @@ export function Navigation() {
         style={{ background: 'color-mix(in srgb, var(--surface) 92%, transparent)' }}
       >
         {/* Brand */}
-        <Link href="/" className="group flex items-center transition-transform hover:scale-[1.01]">
+        {/* Inside the app the mark goes to the console, not out to the public
+            page. Clicking a logo should not sign you out of the room. */}
+        <Link
+          href="/console"
+          className="group flex items-center transition-transform hover:scale-[1.01]"
+        >
           <AegisLogo size={30} variant="compact" />
         </Link>
 

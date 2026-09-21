@@ -1,0 +1,43 @@
+import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
+import { LandingFooter } from '@/components/landing/landing-footer'
+import { LandingHeader } from '@/components/landing/landing-header'
+import { META } from '@/components/landing/copy'
+
+export const metadata: Metadata = {
+  title: META.title,
+  description: META.description,
+  openGraph: {
+    title: 'AEGIS',
+    description: META.description,
+    // No og:image. A social card would have to be generated, and until it can
+    // be generated locally a missing card beats one that fetches a font.
+  },
+}
+
+/**
+ * The public shell.
+ *
+ * There is no AuthGuard here and there is no auto-redirect to /console for a
+ * visitor who already has a session: a redirect makes this page unreachable
+ * for the one person most likely to want to send its URL to someone else, and
+ * an auto-redirect on a public page is a surprise. The header's button reads
+ * "Open workbench" instead.
+ */
+export default function MarketingLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-background">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[4px] focus:bg-foreground focus:px-4 focus:py-2 focus:text-body focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
+      <LandingHeader />
+      <main id="main" className="flex-1">
+        {children}
+      </main>
+      <LandingFooter />
+    </div>
+  )
+}

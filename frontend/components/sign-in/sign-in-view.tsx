@@ -66,7 +66,7 @@ export function SignInView() {
     setBusy(true)
     try {
       await login(username.trim(), password)
-      router.push('/')
+      router.push('/console')
     } catch (err: any) {
       // One message for both fields. Saying which half was wrong tells an
       // attacker which usernames exist on this host.
@@ -84,7 +84,7 @@ export function SignInView() {
     setBusy(true)
     try {
       await login(roleId)
-      router.push('/')
+      router.push('/console')
     } catch (err: any) {
       setError(err?.detail || err?.message || 'Could not sign in with that role.')
       setBusy(false)

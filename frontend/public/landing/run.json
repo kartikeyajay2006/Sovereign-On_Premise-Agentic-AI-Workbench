@@ -1,0 +1,36 @@
+{
+  "_comment": "Written by scripts/capture_landing_fixture.py from a real completed run. Never hand-edited. Hashes are truncated to 8 hex characters for display; the full value is kept in hash_full. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
+  "captured_at": "2026-09-21T18:29:36Z",
+  "captured_from": "developer host, ollama loopback, CPU-only, api http://127.0.0.1:8000",
+  "task_id": "e8f1e597-5fca-4c76-b741-aaeb1c96b4d2",
+  "status": "awaiting_approval",
+  "prompt": "What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve continued operation? Cite the clauses.",
+  "created_at": "2026-09-21T18:06:09.086887Z",
+  "captured_on": "21 Sep 2026",
+  "duration_ms": 246792,
+  "models": [
+    "qwen2.5:3b"
+  ],
+  "cited": {
+    "value": "6 passages from 2 documents",
+    "meta": "SOP-MNT-022 §4. Assessment"
+  },
+  "checked": {
+    "value": "3 of 3 material claims traced to evidence",
+    "meta": "3 of 4 checks passed"
+  },
+  "computed": {
+    "value": "No code was generated for this run",
+    "meta": "sandbox not entered"
+  },
+  "decision": {
+    "label": "HELD",
+    "value": "Held for a reviewer before release",
+    "meta": "administrator or reviewer"
+  },
+  "recorded": {
+    "value": "17 records appended to the audit chain",
+    "meta": "seq 375 · 3cffeb7b",
+    "hash_full": "3cffeb7b8a7387050dc0527d504029818bdd3efdeab7166e0f39df898c6c7a7f"
+  }
+}
