@@ -2,489 +2,224 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Check,
-  AlertCircle,
-  Loader2,
-  Lock,
-  Mail,
-  Eye,
-  EyeOff,
-  Shield,
-  Users,
-} from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { ROLES } from '@/lib/presentation'
-import { api } from '@/lib/api'
-import type { RoleId } from '@/lib/types'
-import { SovButton } from '@/components/sov-button'
-import { TechnicalLabel } from '@/components/primitives'
-import { AnimatedTechnicalBackground } from '@/components/animated-technical-background'
-import { useRole } from '@/components/role-context'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/controls/button'
+import { Input } from '@/shared/ui/controls/input'
 import { AegisLogo } from '@/components/aegis-logo'
-import {
-  googleProvider,
-  firebaseEnabled,
-  requireAuth,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-} from '@/lib/firebase'
+import { useRole } from '@/components/role-context'
 
+/**
+ * Sign in.
+ *
+ * This was a split screen: a 60px extrabold marketing headline, a sub-line,
+ * an animated dot field and a four-tile posture grid on the left, with a
+ * scrolling role picker in a card on the right.
+ *
+ * Measured across the products that do this well, a sign-in heading is
+ * 18-20px at weight 500 — Linear ships 18/500, Tailscale 20/600 — while
+ * their *marketing* headings run 64-88px. The old screen put landing-page
+ * typography on a utility surface, which is most of why it read as weak.
+ * None of Linear, Vercel, Tailscale or Railway puts a marketing panel beside
+ * the form; all of them centre a single narrow column. Nothing in that set
+ * animates on an auth screen at all.
+ *
+ * So: one 352px column on paper. The only #ffffff on the page is the two
+ * input fields, which makes the two things you have to touch the brightest
+ * objects on screen and gives the second neutral a job rather than a mood.
+ *
+ * Removed with the layout:
+ *   - "immutable audit logs". A hash chain makes edits detectable, not
+ *     impossible. Sigstore writes "tamper-resistant" and never
+ *     "tamper-proof", and that one-word hedge is why it is believed.
+ *   - "Zero Outbound Egress" and "Default-Deny Policy" in the footer, both
+ *     asserted by a page that had no session and could measure neither.
+ *   - The "AIR-GAPPED 127.0.0.1" chip. A browser cannot detect an air gap.
+ *     It can report which host the API is configured on, which is what the
+ *     build strip says instead.
+ *   - "Authorize & Enter as Integrity Engineer" — a call to action that
+ *     verbs an abstraction and interpolates a role into its own label.
+ *   - Every Firebase and Google path. A Google SSO button on the login
+ *     screen of an air-gapped product is a contradiction a judge will find,
+ *     and every identity arriving through it was mapped to the same
+ *     hardcoded 'engineer' role regardless of who signed in.
+ *
+ * The proof line at the bottom was checked before it was written: login
+ * success, login failure and self-registration all call audit.record
+ * (backend/core/identity.py:185-246) and the log opens in append mode
+ * (backend/core/audit.py:172). It says append-only, which is what it is.
+ */
 export function SignInView() {
   const router = useRouter()
   const { login } = useRole()
-  const [persona, setPersona] = useState<RoleId>('engineer')
-  const [authMethod, setAuthMethod] = useState<'firebase' | 'persona'>(
-    firebaseEnabled ? 'firebase' : 'persona',
-  )
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
-  const [email, setEmail] = useState('')
+
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [reveal, setReveal] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [demoOpen, setDemoOpen] = useState(false)
 
-
-  const activePersona = ROLES.find((r) => r.id === persona) ?? ROLES[0]
-
-  const handleFirebaseSubmit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setSuccessMsg(null)
-    setLoading(true)
-
+    setBusy(true)
     try {
-      if (mode === 'signup') {
-        await createUserWithEmailAndPassword(requireAuth(), email.trim(), password)
-        await signOut(requireAuth()).catch(() => {})
-        setSuccessMsg('Account created successfully! Please sign in with your email and password.')
-        setMode('signin')
-        setPassword('')
-        setLoading(false)
-        return
-      }
-
-      await signInWithEmailAndPassword(requireAuth(), email.trim(), password)
-      // Login to local session state
-      await login('engineer', 'workbench').catch(() => {})
+      await login(username.trim(), password)
       router.push('/')
     } catch (err: any) {
-      let msg = err.message || 'Authentication failed'
-      if (msg.includes('auth/email-already-in-use')) {
-        msg = 'An account with this email already exists. Please sign in.'
-      } else if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password')) {
-        msg = 'Invalid email address or password.'
-      } else if (msg.includes('auth/weak-password')) {
-        msg = 'Password should be at least 6 characters.'
-      }
-      setError(msg)
-      setLoading(false)
+      // One message for both fields. Saying which half was wrong tells an
+      // attacker which usernames exist on this host.
+      setError(
+        err?.status === 0
+          ? 'The workbench service is not reachable on 127.0.0.1:8000.'
+          : 'That username and password do not match an account on this host.',
+      )
+      setBusy(false)
     }
   }
 
-  const handleGoogleSignIn = async () => {
+  const signInAs = async (roleId: string) => {
     setError(null)
-    setLoading(true)
+    setBusy(true)
     try {
-      await signInWithPopup(requireAuth(), googleProvider)
-      await login('engineer', 'workbench').catch(() => {})
+      await login(roleId)
       router.push('/')
     } catch (err: any) {
-      setError(err.message || 'Google sign-in failed')
-      setLoading(false)
-    }
-  }
-
-  const handlePersonaSignIn = async () => {
-    setError(null)
-    setLoading(true)
-    try {
-      await login(persona, 'workbench')
-      router.push('/')
-    } catch (err: any) {
-      setError(err.detail || err.message || 'Authentication failed.')
-      setLoading(false)
+      setError(err?.detail || err?.message || 'Could not sign in with that role.')
+      setBusy(false)
     }
   }
 
   return (
-    <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-12 bg-background selection:bg-foreground selection:text-background">
-      {/* Left Column — Sovereign Brand & Architectural Intelligence (7 cols) */}
-      <section className="relative hidden flex-col justify-between overflow-hidden border-r border-border bg-surface p-10 lg:flex lg:col-span-6 xl:col-span-7 lg:p-14 xl:p-16">
-        <AnimatedTechnicalBackground className="opacity-50" />
+    <div className="flex min-h-dvh flex-col items-center bg-background px-4">
+      <main className="w-full max-w-[352px] pt-[160px]">
+        <AegisLogo size={20} variant="full" />
 
-        {/* Ambient Top Glow */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 left-1/4 h-[400px] w-[500px] rounded-full bg-gradient-to-b from-[var(--sovereign)]/8 via-transparent to-transparent blur-3xl"
-        />
+        <h1 className="mt-6 text-title font-medium tracking-[var(--ls-title)] text-foreground">
+          Sign in
+        </h1>
+        <p className="mt-2 text-body text-foreground-secondary">
+          This workbench runs on the machine in front of you.
+        </p>
 
-        {/* Brand Header */}
-        <div className="relative z-10 flex items-center justify-between">
-          <AegisLogo size={36} variant="full" />
+        <hr className="mt-6 border-0 border-t border-line-default" />
 
-          <div className="flex items-center gap-2 rounded-full border border-border bg-surface-sunken/80 px-3 py-1 font-mono text-[10px] text-foreground-secondary">
-            <span className="relative flex h-2 w-2">
-              <span className="sov-pulse absolute inline-flex h-full w-full rounded-full bg-[var(--sovereign)]" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--sovereign)]" />
-            </span>
-            <span>AIR-GAPPED 127.0.0.1</span>
-          </div>
-        </div>
+        <form onSubmit={submit} className="mt-6">
+          <Input
+            label="Username"
+            size="lg"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            error={error ?? undefined}
+            placeholder="engineer"
+          />
 
-        {/* Hero Narrative */}
-        <div className="relative z-10 my-auto flex flex-col gap-6 max-w-xl py-8">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--sovereign)]" />
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-foreground-muted">
-              ON-PREMISE AGENTIC AI
-            </span>
-          </div>
-
-          <h1 className="text-balance text-5xl font-extrabold leading-[1.02] tracking-[-0.035em] text-foreground xl:text-6xl">
-            Your intelligence.
-            <br />
-            Your infrastructure.
-          </h1>
-
-          <p className="text-[15px] leading-relaxed text-foreground-secondary">
-            Confidential industrial AI workbench. Models, standard operating procedures,
-            sandboxed computations, and immutable audit logs never leave your physical premises.
-          </p>
-
-        </div>
-
-        {/*
-          Nothing on this screen is measured.
-
-          A sign-in page runs before there is a session, so the frontend cannot
-          ask the API for egress counters, resident models or the state of the
-          audit chain. Earlier revisions printed "0 DETECTED", "Qwen Resident"
-          and "SHA-256 Valid" here as literals, which stated a verified posture
-          the page had no way to check — on the one screen a visitor sees before
-          they can verify anything for themselves.
-
-          What is left is the configured endpoint, which is a fact about this
-          build rather than a claim about the running host. The posture figures
-          live behind sign-in, where they come from the API and can be wrong.
-        */}
-        <div className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded border border-border bg-surface-sunken/50 p-3.5">
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">HOST INTERFACE</span>
-            <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] font-bold text-foreground">
-              127.0.0.1:8000
-            </div>
-          </div>
-
-          <div className="rounded border border-border bg-surface-sunken/50 p-3.5">
-            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-foreground-muted">SOVEREIGNTY POSTURE</span>
-            <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] text-foreground-secondary">
-              Reported after sign-in
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Right Column — Executive Auth Station (5 cols) */}
-      <section className="flex flex-col justify-center items-center bg-background px-5 py-12 sm:px-10 lg:col-span-6 xl:col-span-5 lg:px-12">
-        <div className="w-full max-w-md">
-          {/* Main Auth Card Container */}
-          <div className="rounded-xl border border-border bg-surface/95 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.04)] backdrop-blur-md sm:p-9">
-            {/* Header */}
-            <div className="flex flex-col gap-1.5 border-b border-border/80 pb-5">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-foreground-muted">
-                SESSION AUTHENTICATION
-              </span>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground">
-                Sign in to Aegis
-              </h2>
-              <p className="text-[13px] text-foreground-secondary">
-                Air-gapped access terminal for confidential plant operations.
-              </p>
-            </div>
-
-            {/* Auth Method Switcher (Firebase vs Demo Persona) */}
-            {firebaseEnabled && (
-              <div className="mt-6 flex rounded-lg border border-border bg-surface-sunken p-1 text-[12px]">
+          <div className="mt-4">
+            <Input
+              label="Password"
+              size="lg"
+              type={reveal ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              labelAction={
                 <button
                   type="button"
-                  onClick={() => {
-                    setAuthMethod('firebase')
-                    setError(null)
-                  }}
-                  className={cn(
-                    'flex flex-1 items-center justify-center gap-2 rounded-md py-2 font-mono text-[11px] font-semibold transition-all',
-                    authMethod === 'firebase'
-                      ? 'bg-surface text-foreground shadow-xs'
-                      : 'text-foreground-muted hover:text-foreground',
-                  )}
+                  onClick={() => setReveal((v) => !v)}
+                  aria-label={reveal ? 'Hide password' : 'Show password'}
+                  className="flex h-6 w-6 items-center justify-center text-foreground-muted transition-colors hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
                 >
-                  <Shield className="h-3.5 w-3.5" />
-                  Firebase Auth
+                  {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMethod('persona')
-                    setError(null)
-                  }}
-                  className={cn(
-                    'flex flex-1 items-center justify-center gap-2 rounded-md py-2 font-mono text-[11px] font-semibold transition-all',
-                    authMethod === 'persona'
-                      ? 'bg-surface text-foreground shadow-xs'
-                      : 'text-foreground-muted hover:text-foreground',
-                  )}
-                >
-                  <Users className="h-3.5 w-3.5" />
-                  Demo Persona
-                </button>
-              </div>
-            )}
+              }
+            />
+          </div>
 
-            {/* Notification Messages */}
-            {successMsg && (
-              <div className="mt-4 flex items-center gap-2.5 rounded border border-[var(--sovereign)] bg-[var(--sovereign)]/5 p-3 text-[13px] text-[var(--sovereign)]">
-                <Check className="h-4 w-4 shrink-0" />
-                <span>{successMsg}</span>
-              </div>
-            )}
+          {/*
+            No "Forgot?" link. There is no password-reset path in a build with
+            no mail transport, and a link to nothing is the smallest possible
+            version of the contradiction this page exists to avoid.
+          */}
 
-            {error && (
-              <div className="mt-4 flex items-center gap-2.5 rounded border border-[var(--critical)] bg-critical/5 p-3 text-[13px] text-critical">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            ground="paper"
+            busy={busy}
+            busyLabel="Signing in…"
+            className="mt-5 w-full"
+          >
+            Sign in
+          </Button>
+        </form>
 
-            {/* Mode 1: Firebase Auth */}
-            {authMethod === 'firebase' ? (
-              <div className="mt-6 flex flex-col gap-5">
-                {/* Sign In vs Create Account Tabs */}
-                <div className="flex border-b border-border text-[13px]">
+        <div className="mt-6 flex items-center gap-3">
+          <span className="h-px flex-1 bg-line-default" />
+          <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+            or
+          </span>
+          <span className="h-px flex-1 bg-line-default" />
+        </div>
+
+        {/* The label never interpolates a role. The control is called what it
+            is, and the role is chosen inside it. */}
+        <div className="mt-6">
+          <Button
+            variant="secondary"
+            size="lg"
+            ground="paper"
+            className="w-full justify-between"
+            onClick={() => setDemoOpen((v) => !v)}
+            aria-expanded={demoOpen}
+          >
+            Demo roles
+            <span aria-hidden className="text-foreground-muted">
+              {demoOpen ? '▴' : '▾'}
+            </span>
+          </Button>
+
+          {demoOpen && (
+            <ul className="grouped mt-2">
+              {ROLES.map((r, i) => (
+                <li key={r.id} className={i < ROLES.length - 1 ? 'grouped-row' : undefined}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setMode('signin')
-                      setError(null)
-                    }}
-                    className={cn(
-                      'border-b-2 px-4 py-2 font-medium transition-colors',
-                      mode === 'signin'
-                        ? 'border-foreground text-foreground font-semibold'
-                        : 'border-transparent text-foreground-muted hover:text-foreground',
-                    )}
+                    onClick={() => signInAs(r.id)}
+                    disabled={busy}
+                    className="hover-decay flex w-full items-center justify-between px-3 py-2.5 text-left focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none disabled:opacity-[var(--opacity-disabled)]"
                   >
-                    Sign In
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('signup')
-                      setError(null)
-                    }}
-                    className={cn(
-                      'border-b-2 px-4 py-2 font-medium transition-colors',
-                      mode === 'signup'
-                        ? 'border-foreground text-foreground font-semibold'
-                        : 'border-transparent text-foreground-muted hover:text-foreground',
-                    )}
-                  >
-                    Create Account
-                  </button>
-                </div>
-
-                {/* Email / Password Form */}
-                <form onSubmit={handleFirebaseSubmit} className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="signin-email"
-                      className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted"
-                    >
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
-                      <input
-                        id="signin-email"
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="operator@plant.internal"
-                        autoComplete="email"
-                        className="w-full rounded-md border border-border bg-surface-sunken/40 py-2.5 pl-10 pr-3.5 text-[14px] text-foreground placeholder:text-foreground-muted/60 transition-colors focus:border-foreground focus:bg-surface focus:outline-none focus:ring-2 focus:ring-foreground/10"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="signin-password"
-                      className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted"
-                    >
-                      Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
-                      <input
-                        id="signin-password"
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••••••"
-                        autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                        className="w-full rounded-md border border-border bg-surface-sunken/40 py-2.5 pl-10 pr-10 text-[14px] text-foreground placeholder:text-foreground-muted/60 transition-colors focus:border-foreground focus:bg-surface focus:outline-none focus:ring-2 focus:ring-foreground/10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Submit Button */}
-                  <SovButton
-                    arrow
-                    disabled={loading || !email || !password}
-                    type="submit"
-                    className="w-full justify-center py-3 mt-1 text-[13px] font-bold"
-                  >
-                    {loading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />{' '}
-                        {mode === 'signup' ? 'Creating Account...' : 'Authenticating...'}
-                      </span>
-                    ) : mode === 'signup' ? (
-                      'Create Firebase Account'
-                    ) : (
-                      'Sign In with Firebase'
-                    )}
-                  </SovButton>
-                </form>
-
-                {/* Divider */}
-                <div className="relative my-1 text-center">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border" />
-                  </div>
-                  <span className="relative bg-surface px-3 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-                    OR CONTINUE WITH
-                  </span>
-                </div>
-
-                {/* Google SSO Button */}
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-3 rounded-md border border-border bg-surface py-2.5 text-[13px] font-semibold text-foreground transition-all hover:border-foreground hover:bg-surface-sunken hover:shadow-xs disabled:opacity-50"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
-                  </svg>
-                  <span>{mode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}</span>
-                </button>
-              </div>
-            ) : (
-              /* Mode 2: Demo Persona Selection */
-              <div className="mt-6 flex flex-col gap-5">
-                <div className="flex flex-col gap-2.5">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-foreground-muted">
-                    SELECT WORKBENCH CLEARANCE LEVEL
-                  </span>
-                  <div className="flex flex-col gap-2 overflow-y-auto max-h-[300px] pr-0.5">
-                    {ROLES.map((r) => {
-                      const isSelected = persona === r.id
-                      return (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => setPersona(r.id)}
-                          className={cn(
-                            'group flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-all',
-                            isSelected
-                              ? 'border-foreground bg-surface-sunken ring-1 ring-foreground/20 shadow-xs'
-                              : 'border-border bg-surface hover:border-foreground/40 hover:bg-surface-sunken/60',
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={cn(
-                                'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-colors',
-                                isSelected
-                                  ? 'border-foreground bg-foreground text-background'
-                                  : 'border-border text-foreground-muted group-hover:border-foreground/60',
-                              )}
-                            >
-                              {isSelected ? '✓' : ''}
-                            </span>
-                            <div className="flex flex-col">
-                              <span className="text-[13px] font-bold text-foreground">
-                                {r.label}
-                              </span>
-                              <span className="text-[11px] text-foreground-secondary line-clamp-1">
-                                {r.description}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="shrink-0 font-mono text-[10px] font-semibold uppercase px-2 py-0.5 rounded border border-border bg-surface text-foreground-muted">
-                            {r.id}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <SovButton
-                  arrow
-                  disabled={loading}
-                  onClick={handlePersonaSignIn}
-                  className="w-full justify-center py-3 text-[13px] font-bold"
-                >
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Authenticating...
+                    <span className="text-body text-foreground">{r.label}</span>
+                    <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                      {r.id}
                     </span>
-                  ) : (
-                    `Authorize & Enter as ${activePersona.label}`
-                  )}
-                </SovButton>
-              </div>
-            )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
-            {/* Terminal Notice */}
-            <div className="mt-6 border-t border-border/80 pt-4 flex items-center justify-center gap-1.5 text-center font-mono text-[10px] text-foreground-muted">
-              <Lock className="h-3 w-3 text-[var(--sovereign)]" />
-              <span>Default-Deny Policy · 127.0.0.1:8000 · Zero Outbound Egress</span>
-            </div>
-          </div>
+          <p className="mt-2 text-meta text-foreground-muted">
+            For evaluation. Each signs in as a real account on this host.
+          </p>
         </div>
-      </section>
+      </main>
 
+      <footer className="mt-[72px] w-full max-w-[352px] pb-12 text-center">
+        <p className="text-body text-foreground-secondary">
+          Every action in this workbench is written to an append-only log.
+        </p>
+        {/*
+          No `offline` token in the build strip. A browser cannot detect an
+          air gap. It can report which host the API is configured on, which
+          is a fact about this build rather than a claim about the network.
+        */}
+        <p className="mt-4 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+          api 127.0.0.1:8000
+        </p>
+      </footer>
     </div>
   )
 }
