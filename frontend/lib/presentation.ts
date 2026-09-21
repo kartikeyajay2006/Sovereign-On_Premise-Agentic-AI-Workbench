@@ -59,14 +59,37 @@ export const ROLES: Role[] = [
 // stage and how long it took are filled in from the run itself, because
 // showing a model name and a latency before anything has executed states two
 // things the host has not done.
+// Every row exists as `pending` from the moment a run starts, and events
+// mutate rows rather than appending them. That is what makes the board
+// stable: no layout shift by construction, and a stage that never reports is
+// visibly a stage that never reported rather than a row that never appeared.
+//
+// `at` and `elapsedMs` start null, not 0. Null is "no reading"; 0 would claim
+// the stage took no time. The previous shape initialised latencyMs to 0 for
+// all seven and nothing ever wrote to it.
+const stage = (
+  id: string,
+  index: string,
+  name: string,
+): PipelineStage => ({
+  id,
+  index,
+  name,
+  model: '',
+  status: 'pending',
+  at: null,
+  elapsedMs: null,
+  headline: null,
+})
+
 export const DEFAULT_PIPELINE: PipelineStage[] = [
-  { id: 'classify', index: '01', name: 'Classify', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'plan', index: '02', name: 'Plan', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'read', index: '03', name: 'Read', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'retrieve', index: '04', name: 'Retrieve', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'sandbox', index: '05', name: 'Sandbox', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'draft', index: '06', name: 'Draft', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'verify', index: '07', name: 'Verify', model: '', latencyMs: 0, status: 'pending' },
+  stage('classify', '01', 'Classify'),
+  stage('plan', '02', 'Plan'),
+  stage('read', '03', 'Read'),
+  stage('retrieve', '04', 'Retrieve'),
+  stage('sandbox', '05', 'Sandbox'),
+  stage('draft', '06', 'Draft'),
+  stage('verify', '07', 'Verify'),
 ]
 
 export const SOVEREIGN_NODES = [

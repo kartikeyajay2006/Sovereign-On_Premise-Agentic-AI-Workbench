@@ -18,7 +18,7 @@ import type {
   VerificationCheck,
 } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
-import { AgentPipeline } from '@/components/agent-pipeline'
+import { StageTimeline } from '@/shared/ui/timeline/stage-timeline'
 import { type UploadedFile } from '@/components/file-dropzone'
 import { ResultExperience } from '@/components/result-experience'
 import { SovButton } from '@/components/sov-button'
@@ -784,7 +784,18 @@ export function ConsoleView() {
                   state machine · 7 stages
                 </span>
               </div>
-              <AgentPipeline stages={stages} />
+              <StageTimeline
+                stages={stages.map((s) => ({
+                  id: s.id,
+                  index: s.index,
+                  label: s.name,
+                  state: s.status,
+                  at: s.at,
+                  elapsedMs: s.elapsedMs,
+                  headline: s.detail ?? null,
+                  model: s.model || null,
+                }))}
+              />
             </div>
           </Reveal>
         )}

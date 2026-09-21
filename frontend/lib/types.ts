@@ -61,16 +61,56 @@ export interface Session {
   expires_at: string
 }
 
-export type StageStatus = 'pending' | 'active' | 'done' | 'failed' | 'held' | 'skipped'
+/**
+ * The nine states a pipeline stage can be in.
+ *
+ * This shipped with six. The three additions are the ones that carry the
+ * demo, because four of these states describe a stage that produced no
+ * result and they are not the same fact:
+ *
+ *   skipped      the system chose not to run it — no numeric claims were
+ *                made, so there was nothing to recompute
+ *   blocked      the system correctly stopped upstream, so this stage never
+ *                got its turn
+ *   denied       policy refused it. This is the product working, not failing
+ *   unavailable  this host structurally cannot report on it
+ *
+ * Collapsing them is what let the old board paint stages green that had
+ * never received an event. The distinction between "the system broke" and
+ * "the system correctly stopped" is the single most important thing this
+ * interface has to communicate.
+ *
+ * Re-exported from shared/ui/types so the primitives and the app agree on
+ * one vocabulary.
+ */
+export type { StageState as StageStatus } from '@/shared/ui/types'
+import type { StageState as StageStatus } from '@/shared/ui/types'
 
 export interface PipelineStage {
   id: string
   index: string
   name: string
   model: string
-  latencyMs: number
   status: StageStatus
   detail?: string
+  /**
+   * ISO timestamp of when this stage started. Drives the measured dwell
+   * counter. Null until it starts — never a placeholder.
+   */
+  at: string | null
+  /**
+   * Final elapsed time, frozen when the stage settles. Null while running or
+   * if it never ran.
+   *
+   * Replaces `latencyMs: number`, which was initialised to 0 for every stage
+   * in DEFAULT_PIPELINE and never filled in by anything — so the board was
+   * reading a hardcoded zero and suppressing it with `latencyMs > 0`. Null
+   * says "no reading"; 0 would say "instantaneous", and those are different
+   * claims.
+   */
+  elapsedMs: number | null
+  /** One short backend-authored clause. Never templated in the UI. */
+  headline?: string | null
 }
 
 export interface StoredFile {
