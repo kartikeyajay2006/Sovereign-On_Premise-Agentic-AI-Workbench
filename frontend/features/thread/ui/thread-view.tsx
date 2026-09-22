@@ -174,6 +174,29 @@ export function ThreadView() {
         }))
       }
 
+      // Fragments as the model produces them. Appended, never replaced: the
+      // backend sends only what is new since the last frame.
+      //
+      // Routed by stage, because not every stage produces prose. `drafting`
+      // is the reader's text. `planning` is JSON, so its fragments drive a
+      // progress readout and nothing more -- showing a reader raw `{"steps":`
+      // is worse than showing them a stage that is honestly still working.
+      if (name === 'task.token' && typeof data.delta === 'string') {
+        const stage = String(data.stage || '')
+        patchLatest((t) =>
+          stage === 'drafting'
+            ? { ...t, streamingDraft: (t.streamingDraft ?? '') + data.delta }
+            : {
+                ...t,
+                streamProgress: {
+                  stage,
+                  chars: (t.streamProgress?.stage === stage ? t.streamProgress.chars : 0) +
+                    data.delta.length,
+                },
+              },
+        )
+      }
+
       // The payload key is `items`, and it carries the whole retrieved set.
       if (name === 'task.evidence' && Array.isArray(data.items)) {
         patchLatest((t) => {
@@ -214,6 +237,10 @@ export function ThreadView() {
         ...t,
         outcome: outcomeFor(String(task.status).toLowerCase()),
         answer: task.answer || null,
+        // The checked answer supersedes the draft. Dropping it here is what
+        // stops provisional text surviving into the verified slot.
+        streamingDraft: null,
+        streamProgress: null,
         evidence: task.evidence || [],
         verification: task.verification?.checks || [],
         deliverable: first ? { ...first, sizeKb: Math.round(first.size_bytes / 1024) } : null,
@@ -330,6 +357,8 @@ export function ThreadView() {
         outcome: 'running',
         stages: freshStages,
         answer: null,
+        streamingDraft: null,
+        streamProgress: null,
         evidence: [],
         verification: [],
         deliverable: null,

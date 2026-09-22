@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,7 +43,11 @@ from backend.core.schemas import (
     User,
     VerificationCheck,
 )
-from backend.models_layer.client import InferenceError, get_inference_client
+from backend.models_layer.client import (
+    GenerationResult,
+    InferenceError,
+    get_inference_client,
+)
 from backend.models_layer.manager import get_model_manager
 from backend.models_layer.registry import get_model_registry
 from backend.models_layer.router import NoEligibleModelError, get_model_router
@@ -139,6 +144,31 @@ def _strip_reasoning(text: str) -> str:
     return THINK_BLOCK.sub("", text or "").strip()
 
 
+def _visible_so_far(raw: str) -> str:
+    """The part of a partial stream that is safe to show the reader.
+
+    `_strip_reasoning` only removes *closed* `<think>` blocks, which is all a
+    finished response can contain. A stream in flight can also end part-way
+    into an open one, so everything from an unclosed opener onward is dropped
+    too -- otherwise the reader watches the model think.
+
+    A trailing partial tag is held back for the same reason: `<thi` at the end
+    of the buffer may be the start of an opener, and showing it would leak a
+    fragment of markup that the next fragment turns into a block.
+    """
+    visible = THINK_BLOCK.sub("", raw or "")
+    opener = visible.find("<think>")
+    if opener != -1:
+        visible = visible[:opener]
+    # Hold back a trailing prefix of "<think>" that may still be completed.
+    tail = visible[-7:]
+    for cut in range(len(tail), 0, -1):
+        if "<think>".startswith(tail[-cut:]):
+            visible = visible[:-cut]
+            break
+    return visible
+
+
 def _parse_json(text: str) -> dict[str, Any] | None:
     """Recover a JSON object from model output that may carry prose around it."""
     cleaned = _strip_reasoning(text)
@@ -221,8 +251,17 @@ class AgentOrchestrator:
         prompt: str,
         images: list[Path] | None = None,
         format_json: bool = False,
+        stream_to_user: bool = False,
     ) -> tuple[str, RoutingDecision]:
-        """Route to a model for this stage, enforce model policy, then generate."""
+        """Route to a model for this stage, enforce model policy, then generate.
+
+        `stream_to_user` publishes each fragment as `task.token` while the
+        model is still producing. Only the stage whose text the reader will
+        actually read should set it: the planning and verification stages run
+        against the same models, and streaming those into the answer pane
+        would show the reader a draft of reasoning they were never meant to
+        see mistaken for the answer.
+        """
         assert task.profile is not None
         decision = await self.router.route(
             task.profile,
@@ -297,15 +336,27 @@ class AgentOrchestrator:
             },
         )
 
-        result = await self.client.generate(
-            model=descriptor.provider_model,
-            prompt=prompt,
-            system=system_prompt,
-            images=images,
-            options=self.router.generation_options(descriptor.id, stage=stage),
-            serving=self.router.serving_options(descriptor.id),
-            format_json=format_json,
-        )
+        if stream_to_user:
+            result = await self._generate_streaming(
+                task,
+                model=descriptor.provider_model,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                images=images,
+                options=self.router.generation_options(descriptor.id, stage=stage),
+                stage=stage,
+                format_json=format_json,
+            )
+        else:
+            result = await self.client.generate(
+                model=descriptor.provider_model,
+                prompt=prompt,
+                system=system_prompt,
+                images=images,
+                options=self.router.generation_options(descriptor.id, stage=stage),
+                serving=self.router.serving_options(descriptor.id),
+                format_json=format_json,
+            )
         await self._emit(
             task,
             "task.model_completed",
@@ -331,6 +382,76 @@ class AgentOrchestrator:
             },
         )
         return _strip_reasoning(result.text), decision
+
+    async def _generate_streaming(
+        self,
+        task: Task,
+        *,
+        model: str,
+        prompt: str,
+        system_prompt: str,
+        images: list[Path] | None,
+        options: dict[str, Any],
+        stage: str,
+        format_json: bool = False,
+    ) -> GenerationResult:
+        """Stream one stage, publishing `task.token` as the text arrives.
+
+        Two things make this more than a loop over fragments.
+
+        A reasoning model emits `<think>` blocks the reader must never see,
+        and a fragment boundary can fall anywhere -- including between the
+        `<` and the `think>`. So the visible text is recomputed from the whole
+        raw buffer each time rather than filtered per fragment: closed blocks
+        are removed, and an unclosed one truncates everything after it. The
+        delta published is whatever that leaves beyond what was already sent,
+        which is correct however the fragments happen to split.
+
+        Fragments also arrive far faster than a reader reads. Publishing each
+        one would put thousands of SSE frames on the wire for a single answer,
+        so they are coalesced into roughly 20 frames a second: still
+        continuous to the eye, two orders of magnitude cheaper.
+        """
+        raw = ""
+        sent = ""
+        stats: dict[str, Any] = {}
+        started = time.perf_counter()
+        last_flush = 0.0
+        FLUSH_INTERVAL = 0.05
+
+        async def flush() -> None:
+            nonlocal sent
+            visible = _visible_so_far(raw)
+            if len(visible) > len(sent):
+                delta = visible[len(sent) :]
+                sent = visible
+                await self._emit(task, "task.token", {"stage": stage, "delta": delta})
+
+        async for fragment in self.client.stream(
+            model=model,
+            prompt=prompt,
+            system=system_prompt,
+            images=images,
+            options=options,
+            format_json=format_json,
+            stats_out=stats,
+        ):
+            raw += fragment
+            now = time.perf_counter()
+            if now - last_flush >= FLUSH_INTERVAL:
+                last_flush = now
+                await flush()
+
+        await flush()
+
+        return GenerationResult(
+            text=raw,
+            model=model,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            prompt_eval_count=stats.get("prompt_eval_count"),
+            eval_count=stats.get("eval_count"),
+            raw=stats,
+        )
 
     # -- tool invocation ---------------------------------------------------
     async def _call_tool(
@@ -525,6 +646,11 @@ class AgentOrchestrator:
                 system_prompt=self.config.system_prompt("planning"),
                 prompt=prompt,
                 format_json=True,
+                # 79 seconds of the measured run, generating 1218 characters
+                # the reader never saw. The text is JSON and is never shown as
+                # prose -- the client counts these frames to report real
+                # progress instead of leaving the stage blank.
+                stream_to_user=True,
             )
             parsed = _parse_json(text) or {}
         except (InferenceError, NoEligibleModelError):
@@ -1183,7 +1309,13 @@ class AgentOrchestrator:
             stage="drafting",
             system_prompt=self.config.system_prompt("reasoning"),
             prompt=prompt,
+            # The one stage whose output the reader reads as the answer.
+            stream_to_user=True,
         )
+        # Still emitted: `task.token` carries the text as it arrives, but a
+        # client that joined late, missed frames, or reloaded has no way to
+        # rebuild it. This is the authoritative copy and the one that is
+        # persisted.
         await self._emit(task, "task.answer", {"answer": text})
         return text
 

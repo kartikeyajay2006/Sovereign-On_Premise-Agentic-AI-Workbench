@@ -250,11 +250,45 @@ export function AssistantTurn({
           guaranteed to be watching. Every other AI product in the room is
           streaming text it has not checked.
         */
-        <div className="flex min-h-[48px] items-center">
-          <p className="text-body text-foreground-secondary">
-            Answer withheld until claim verification completes.
-          </p>
-        </div>
+        turn.streamingDraft ? (
+          /*
+            The draft, live, in a register that cannot be mistaken for the
+            answer: receded ink, a rail, and a label that says what it is.
+            The thesis above is unchanged -- this text is never promoted, it
+            is replaced when the checked answer arrives. What it buys is the
+            four minutes of a CPU run not being a blank rectangle.
+          */
+          <div className="border-l-2 border-line-strong pl-4">
+            <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+              Drafting — not yet verified
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-body text-foreground-secondary">
+              {turn.streamingDraft}
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] bg-foreground-muted motion-safe:animate-pulse"
+              />
+            </p>
+          </div>
+        ) : (
+          <div className="flex min-h-[48px] flex-col justify-center gap-1.5">
+            <p className="text-body text-foreground-secondary">
+              Answer withheld until claim verification completes.
+            </p>
+            {turn.streamProgress && (
+              /*
+                Planning is the longest stage of a CPU run and produced
+                nothing on screen. This is a measured count of characters
+                actually received, not a simulated progress bar -- it moves
+                because the model is producing, and it stops when it stops.
+              */
+              <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                {turn.streamProgress.stage} ·{' '}
+                <span className="tabular">{turn.streamProgress.chars.toLocaleString()}</span> chars
+              </p>
+            )}
+          </div>
+        )
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-1 duration-[var(--dur-enter)] ease-[var(--ease-enter)]">
           <AnswerProse text={turn.answer} evidence={turn.evidence} onCite={onCite ?? (() => {})} />

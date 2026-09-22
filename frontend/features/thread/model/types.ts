@@ -63,6 +63,32 @@ export interface AssistantTurn {
    * complete, already checked.
    */
   answer: string | null
+  /**
+   * The draft as the model is producing it, or null when nothing is in flight.
+   *
+   * This is deliberately NOT `answer`, and the distinction is the whole point.
+   * The rule above stands: the answer arrives once, complete, already checked.
+   * What streams here is the draft, rendered in its own provisional register
+   * and discarded the moment the checked answer lands.
+   *
+   * The failure the rule guards against is unlabelled prose that gets badged
+   * as verified after the reader has already read it. A region that says it
+   * is a draft, and is visibly not the answer, is not that failure -- it is
+   * the same separation Claude draws between thinking and answering. What
+   * would reintroduce the failure is letting this text survive into the
+   * answer slot, so nothing ever promotes it: `task.answer` overwrites.
+   */
+  streamingDraft: string | null
+  /**
+   * Live progress for a stage whose output is not prose the reader can see.
+   *
+   * Planning runs for the better part of a minute on a CPU host and emits
+   * JSON. Rendering that JSON would be noise, and rendering nothing made the
+   * longest stage of the run indistinguishable from a hang. The character
+   * count is the honest middle: it is measured, it moves, and it claims
+   * nothing about what the model is concluding.
+   */
+  streamProgress: { stage: string; chars: number } | null
   evidence: EvidenceItem[]
   verification: VerificationCheck[]
   deliverable: (Deliverable & { sizeKb: number }) | null

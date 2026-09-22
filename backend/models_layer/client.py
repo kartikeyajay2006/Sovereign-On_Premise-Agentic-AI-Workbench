@@ -189,8 +189,17 @@ class OllamaClient:
         system: str | None = None,
         images: list[Path] | None = None,
         options: dict[str, Any] | None = None,
+        format_json: bool = False,
+        stats_out: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
-        """Yield response fragments as the local model produces them."""
+        """Yield response fragments as the local model produces them.
+
+        Ollama's final chunk carries the counters the non-streaming path
+        returns as `prompt_eval_count` and `eval_count`. A generator cannot
+        return a value to an `async for`, so when `stats_out` is supplied it
+        is filled from that last chunk: streaming an answer must not cost the
+        telemetry that the blocking call gets for free.
+        """
         payload: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
@@ -200,6 +209,8 @@ class OllamaClient:
         }
         if system:
             payload["system"] = system
+        if format_json:
+            payload["format"] = "json"
         if images:
             payload["images"] = [self._encode_image(path) for path in images]
         try:
@@ -217,6 +228,15 @@ class OllamaClient:
                         if fragment:
                             yield fragment
                         if chunk.get("done"):
+                            if stats_out is not None:
+                                stats_out.update(
+                                    {
+                                        "prompt_eval_count": chunk.get("prompt_eval_count"),
+                                        "eval_count": chunk.get("eval_count"),
+                                        "total_duration": chunk.get("total_duration"),
+                                        "done_reason": chunk.get("done_reason"),
+                                    }
+                                )
                             return
         except httpx.HTTPError as exc:
             raise InferenceError(f"Streaming failed for model '{model}': {exc}") from exc
