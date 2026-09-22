@@ -107,6 +107,43 @@ task:
 
     User's specific request about this document: {prompt}
 
+  vision_extract_pages: |
+    Transcribe every supplied page of the same industrial PDF independently.
+    Read all visible text on every image, even if it seems unrelated to a
+    question asked later. Do not summarize, select pages, or leave a visible
+    text page empty. If a page truly has no legible content, keep its object
+    and leave its transcription empty.
+    Source filename: {filename}
+    Image order and original PDF page numbers: {page_labels}
+
+    Return JSON only, with a pages array containing exactly one object for
+    each supplied image, in the same order. Use the original page_number
+    given above; never renumber within this batch or combine pages.
+    Fill this JSON skeleton with what each corresponding image actually shows.
+    Keep its page_number values and replace the empty content fields:
+    {page_skeleton}
+    Fields contain label/value objects; findings contain description, severity
+    and location objects; tables contain caption and rows. Transcribe all
+    legible text, including values needed by the user's question.
+    Confidence, if estimated, must be a number from 0 to 1. Use null if
+    uncertain. Empty or unreadable pages must still have an object.
+
+  reason_with_page_evidence: |
+    User request:
+    {prompt}
+
+    {extraction_block}
+
+    Page-labelled evidence from the uploaded files and local knowledge base:
+    {evidence}
+
+    Answer the user's question directly using only the evidence above. Cite
+    each factual statement with the exact evidence identifier that contains
+    that fact. A [V...] or [F...] citation belongs to the page printed beside
+    its identifier; never describe it as a different page. If evidence for a
+    requested detail is absent or unreadable, say so. Do not invent a governing
+    clause, severity, threshold, or authority that the evidence does not show.
+
   reason_with_evidence: |
     User request:
     {prompt}
@@ -116,8 +153,9 @@ task:
     Retrieved evidence from the organisation's approved knowledge base:
     {evidence}
 
-    Answer using only the material above, citing inline as [S1], [S2] etc.
-    with the identifiers exactly as shown.
+    Answer using only the material above, citing inline with the evidence
+    identifiers exactly as shown, including page-specific [V...] or [F...]
+    identifiers for uploaded PDFs.
 
     Structure:
     1. The direct answer, first sentence, with its clause cited.

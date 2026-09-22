@@ -7,9 +7,9 @@ Two independent layers, in the order the reference architecture specifies:
    builtin, or reaches for interpreter internals. Denied and allowed lists live
    in ``config/app.yaml``.
 2. **Sandbox admission** - execution happens in a throwaway working directory
-   as a child process with POSIX resource limits (CPU seconds, address space,
-   file size, process count), a wall-clock timeout, a scrubbed environment, and
-   no network route.
+   as a child process with POSIX resource limits (CPU seconds, file size,
+   process count, and address space where supported), a wall-clock timeout,
+   a resident-memory watchdog on macOS, a scrubbed environment, and no network route.
 
 Network denial is enforced twice: statically (no networking module may be
 imported) and dynamically (a sitecustomize shim installed into the sandbox
@@ -25,6 +25,7 @@ import ast
 import os
 import resource
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -34,6 +35,8 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import psutil
 
 from backend.core.config import get_config
 from backend.core.schemas import SandboxResult
@@ -235,13 +238,64 @@ class Sandbox:
 
         def apply_limits() -> None:  # pragma: no cover - runs in the child
             resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
-            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+            # macOS maps a very large shared cache into each process. Its
+            # RLIMIT_AS cannot be lowered to a useful value on this host, so
+            # the parent enforces resident memory with a watchdog instead.
+            if sys.platform != "darwin":
+                resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
             resource.setrlimit(resource.RLIMIT_FSIZE, (file_bytes, file_bytes))
             resource.setrlimit(resource.RLIMIT_NPROC, (soft_cap, soft_cap))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             os.setsid()
 
         return apply_limits
+
+    def _run_with_memory_watchdog(
+        self, script: Path, workspace: Path, timeout: float, memory_limit: int
+    ) -> tuple[str, str, int | None, bool]:
+        """Bound resident memory on macOS, where RLIMIT_AS cannot do so."""
+        process = subprocess.Popen(
+            [sys.executable, str(script)],
+            cwd=str(workspace), env=self._environment(workspace),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            preexec_fn=self._preexec(),
+        )
+        observed = psutil.Process(process.pid)
+        deadline = time.monotonic() + timeout
+        memory_bytes = memory_limit * 1024 * 1024
+        timed_out = False
+        memory_exceeded = False
+
+        while True:
+            try:
+                family = [observed, *observed.children(recursive=True)]
+                resident_bytes = sum(member.memory_info().rss for member in family)
+                if resident_bytes > memory_bytes:
+                    memory_exceeded = True
+                    break
+            except psutil.Error:
+                pass  # A process may exit between enumeration and inspection.
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                stdout, stderr = process.communicate(timeout=min(0.05, remaining))
+                return stdout, stderr, process.returncode, False
+            except subprocess.TimeoutExpired:
+                continue
+
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        stdout, stderr = process.communicate()
+        if memory_exceeded:
+            stderr += f"\nExecution exceeded the {memory_limit} MiB sandbox memory limit and was terminated."
+        elif timed_out:
+            stderr += f"\nExecution exceeded the {timeout:g}s sandbox timeout and was terminated."
+        return stdout, stderr, None, timed_out
 
     def _environment(self, workspace: Path) -> dict[str, str]:
         """A scrubbed environment: no host credentials, no proxy, no network hints."""
@@ -332,18 +386,23 @@ class Sandbox:
                 # sitecustomize runtime guard from the workspace PYTHONPATH.
                 # Host environment leakage is prevented by the scrubbed env
                 # dict instead, which is stronger than -E for our purposes.
-                completed = subprocess.run(
-                    [sys.executable, str(script)],
-                    cwd=str(workspace),
-                    env=self._environment(workspace),
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    preexec_fn=self._preexec(),
-                    check=False,
-                )
-                stdout, stderr = completed.stdout, completed.stderr
-                exit_code: int | None = completed.returncode
+                if sys.platform == "darwin":
+                    stdout, stderr, exit_code, timed_out = self._run_with_memory_watchdog(
+                        script, workspace, timeout, memory_limit,
+                    )
+                else:
+                    completed = subprocess.run(
+                        [sys.executable, str(script)],
+                        cwd=str(workspace),
+                        env=self._environment(workspace),
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        preexec_fn=self._preexec(),
+                        check=False,
+                    )
+                    stdout, stderr = completed.stdout, completed.stderr
+                    exit_code = completed.returncode
             except subprocess.TimeoutExpired as exc:
                 timed_out = True
                 stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
