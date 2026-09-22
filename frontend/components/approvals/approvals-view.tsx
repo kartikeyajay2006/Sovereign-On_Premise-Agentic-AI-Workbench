@@ -12,10 +12,20 @@ import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
 import { cn } from '@/lib/utils'
 
-const priorityColor: Record<ApprovalItem['priority'], string> = {
-  CRITICAL: 'var(--critical)',
-  HIGH: 'var(--approval)',
-  NORMAL: 'var(--foreground-muted)',
+/**
+ * Keyed on the data classification the task actually carries.
+ *
+ * This was keyed on a `priority` nothing in the system computes: it was
+ * derived as "restricted -> CRITICAL, everything else -> HIGH", so all
+ * twenty-one queued items wore an identical HIGH badge. A field that is
+ * constant carries no information, and this one implied an urgency that had
+ * never been assessed. Sensitivity is real, varies, and is what decides who
+ * may release the deliverable.
+ */
+const CLASSIFICATION_TONE: Record<string, string> = {
+  restricted: 'var(--critical)',
+  confidential: 'var(--approval)',
+  normal: 'var(--foreground-muted)',
 }
 
 /**
@@ -116,7 +126,7 @@ export function ApprovalsView() {
           title: t.prompt,
           submittedBy: t.user_display_name || 'Operator',
           submittedAt: new Date(t.created_at).toLocaleString(),
-          priority: t.profile?.sensitivity === 'restricted' ? 'CRITICAL' : 'HIGH',
+          sensitivity: t.profile?.sensitivity || 'normal',
           status:
             t.status === 'awaiting_approval'
               ? 'PENDING'
@@ -281,10 +291,13 @@ export function ApprovalsView() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] text-foreground-muted truncate">{i.id.slice(0, 8)}…</span>
                   <span
-                    className="font-mono text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
-                    style={{ borderColor: priorityColor[i.priority], color: priorityColor[i.priority] }}
+                    className="rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase"
+                    style={{
+                      borderColor: CLASSIFICATION_TONE[i.sensitivity] ?? 'var(--foreground-muted)',
+                      color: CLASSIFICATION_TONE[i.sensitivity] ?? 'var(--foreground-muted)',
+                    }}
                   >
-                    {i.priority}
+                    {i.sensitivity}
                   </span>
                 </div>
                 <div className="line-clamp-2 text-[13px] font-medium text-foreground">{i.title}</div>

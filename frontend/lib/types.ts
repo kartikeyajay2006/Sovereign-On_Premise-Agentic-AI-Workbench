@@ -312,7 +312,8 @@ export interface ApprovalItem {
   title: string
   submittedBy: string
   submittedAt: string
-  priority: 'CRITICAL' | 'HIGH' | 'NORMAL'
+  /** The task's data classification, as the profile reports it. */
+  sensitivity: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   classification: 'CONFIDENTIAL' | 'RESTRICTED' | 'INTERNAL'
   document: string

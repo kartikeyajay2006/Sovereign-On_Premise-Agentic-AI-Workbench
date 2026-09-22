@@ -306,7 +306,7 @@ function SandboxSelfTest() {
     <section className="flex flex-col gap-4 border border-border bg-surface p-6 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
-          <SectionHeading index="03" title="Process Confinement Verification" />
+          <SectionHeading index="02" title="Process Confinement Verification" />
           <p className="text-[13px] text-foreground-secondary">
             Adversarial payload injection testing AST import checks, socket creation, and CPU limits.
           </p>
@@ -380,7 +380,7 @@ function PolicyMatrixTable() {
   return (
     <section className="flex flex-col gap-4 border border-border bg-surface p-6 sm:p-8">
       <div className="flex items-center justify-between border-b border-border pb-4">
-        <SectionHeading index="04" title="Policy Gateway Matrix" />
+        <SectionHeading index="03" title="Policy Gateway Matrix" />
         <span className="font-mono text-[11px] text-foreground-muted">default-deny enforcement</span>
       </div>
 
