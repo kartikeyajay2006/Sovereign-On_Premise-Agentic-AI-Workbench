@@ -16,7 +16,9 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from itertools import groupby
 from pathlib import Path
 from typing import Any, Callable
 
@@ -47,6 +49,7 @@ from backend.models_layer.manager import get_model_manager
 from backend.models_layer.registry import get_model_registry
 from backend.models_layer.router import NoEligibleModelError, get_model_router
 from backend.policy.gateway import get_policy_gateway
+from backend.rag.parsing import inspect_pdf_pages
 from backend.tools.registry import ToolContext, get_tool_registry
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
@@ -72,6 +75,13 @@ class TaskCancelled(RuntimeError):
 
     def __init__(self, task_id: str) -> None:
         super().__init__(f"Task {task_id} was stopped by request")
+
+
+@dataclass(frozen=True)
+class VisualInput:
+    path: Path
+    source: StoredFile
+    page_number: int | None = None
 
 
 class EvidenceLedger:
@@ -125,15 +135,6 @@ class EvidenceLedger:
         return len(self._items)
 
 
-def _pdf_has_text(path: Path) -> bool:
-    from backend.rag.parsing import has_extractable_text
-
-    try:
-        return has_extractable_text(path)
-    except Exception:
-        return True
-
-
 def _strip_reasoning(text: str) -> str:
     """Remove chain-of-thought blocks some reasoning models emit."""
     return THINK_BLOCK.sub("", text or "").strip()
@@ -182,6 +183,11 @@ class AgentOrchestrator:
         except Exception:
             # Losing a checkpoint must not abort a run that is otherwise fine.
             pass
+
+    def _persist_evidence(self, task: Task) -> None:
+        """Evidence must reach storage before later reasoning can use it."""
+        if self._persist is not None:
+            self._persist(task)
 
     def _check_cancelled(self, task: Task) -> bool:
         return bool(self._is_cancelled and self._is_cancelled(task.id))
@@ -370,7 +376,7 @@ class AgentOrchestrator:
 
     def _visual_inputs(
         self, task: Task, workspace: Path, limitations: list[str]
-    ) -> list[Path]:
+    ) -> list[VisualInput]:
         """Everything the vision model should look at.
 
         Images are obvious. Scanned PDFs are the case that matters: a scan
@@ -381,28 +387,32 @@ class AgentOrchestrator:
 
         A born-digital PDF keeps the text path, which is faster and exact.
         """
-        from backend.rag.parsing import ParsingError, has_extractable_text, rasterize_pdf
+        from backend.rag.parsing import inspect_pdf_pages, rasterize_pdf
 
-        visual: list[Path] = []
+        visual: list[VisualInput] = []
         for stored in task.files:
             path = Path(stored.stored_path)
             suffix = path.suffix.lower()
 
             if suffix in IMAGE_SUFFIXES:
-                visual.append(path)
+                visual.append(VisualInput(path, stored))
                 continue
 
-            if suffix == ".pdf" and not has_extractable_text(path):
-                try:
-                    pages = rasterize_pdf(path, workspace / "pages")
-                except (ParsingError, Exception) as exc:
-                    limitations.append(
-                        f"'{stored.filename}' appears to be a scan but could not be "
-                        f"rendered for the vision model: {exc}"
+            if suffix == ".pdf":
+                page_details = inspect_pdf_pages(path)
+                numbers = [page.number for page in page_details if page.needs_vision]
+                if numbers:
+                    # Each attachment gets its own directory: equal filenames
+                    # from different uploads must never overwrite page images.
+                    pages = rasterize_pdf(
+                        path, workspace / "pages" / stored.id, page_numbers=numbers
                     )
-                    continue
-                if pages:
-                    visual.extend(pages)
+                    if len(pages) != len(numbers):
+                        raise RuntimeError(f"Only {len(pages)} of {len(numbers)} pages rendered for {stored.filename}")
+                    visual.extend(
+                        VisualInput(rendered, stored, number)
+                        for number, rendered in zip(numbers, pages, strict=True)
+                    )
                     self.audit.record(
                         category="tool",
                         action="pdf_rasterized",
@@ -411,64 +421,156 @@ class AgentOrchestrator:
                         detail={
                             "filename": stored.filename,
                             "pages_rendered": len(pages),
-                            "reason": "no extractable text; treated as a scan",
+                            "page_numbers": numbers,
+                            "reason": "pages without sufficient extractable text",
                         },
                     )
         return visual
 
-    def _record_extraction(
+    def _record_pdf_batch(
         self,
         task: Task,
         ledger: EvidenceLedger,
+        batch: list[VisualInput],
         extraction: dict[str, Any] | None,
-        raw_extraction: str,
+        model_id: str,
         limitations: list[str],
-    ) -> None:
-        """Turn what the vision model read into citable evidence."""
+    ) -> list[dict[str, Any]]:
+        """Validate a batch before recording one durable item per source page."""
         assert task.profile is not None
-        source = task.files[0].filename if task.files else "visual input"
+        expected = [item.page_number for item in batch]
+        pages = extraction.get("pages") if isinstance(extraction, dict) else None
+        if not isinstance(pages, list) or len(pages) != len(expected):
+            raise InferenceError(f"Vision extraction omitted pages of {batch[0].source.filename}: expected {expected}")
+        by_number: dict[int, dict[str, Any]] = {}
+        for page in pages:
+            if not isinstance(page, dict) or type(page.get("page_number")) is not int:
+                raise InferenceError(f"Vision extraction returned an unlabelled page for {batch[0].source.filename}")
+            number = page["page_number"]
+            if number in by_number:
+                raise InferenceError(f"Vision extraction returned page {number} twice for {batch[0].source.filename}")
+            by_number[number] = page
+        # The PDF page numbers come from the renderer, never from the model.
+        # Some vision models label a batch 1..N even when shown the original
+        # numbers. That is safe to translate only when every position is
+        # present exactly once; any other response is ambiguous and retried.
+        if set(by_number) == set(expected):
+            source_pages = by_number
+        elif set(by_number) == set(range(1, len(batch) + 1)):
+            source_pages = {
+                item.page_number: by_number[index]
+                for index, item in enumerate(batch, start=1)
+            }
+        else:
+            raise InferenceError(f"Vision extraction page mismatch for {batch[0].source.filename}: expected {expected}, got {sorted(by_number)}")
 
-        if not extraction:
-            limitations.append(
-                "The vision model's extraction could not be parsed as structured "
-                "data; its raw reading was used instead."
-            )
-            ledger.add(
-                EvidenceItem(
-                    id="pending",
-                    source_document=source,
-                    location="transcribed content",
-                    excerpt=raw_extraction[:1500],
-                    classification=task.profile.sensitivity,
-                    kind="vision_extraction",
-                )
-            )
-            return
-
-        for finding in extraction.get("findings") or []:
-            ledger.add(
-                EvidenceItem(
-                    id="pending",
-                    source_document=source,
-                    location=str(finding.get("location") or "visual observation"),
-                    excerpt=str(finding.get("description", "")),
-                    classification=task.profile.sensitivity,
-                    kind="vision_extraction",
-                )
+        if len(batch) > 1 and any(
+            not any(source_pages[item.page_number].get(key) for key in (
+                "transcription", "fields", "findings", "tables", "illegible_regions",
+            ))
+            for item in batch
+        ):
+            raise InferenceError(
+                f"Vision extraction left pages empty in {batch[0].source.filename}; retrying individually"
             )
 
-        transcription = str(extraction.get("transcription") or "")
-        if transcription:
-            ledger.add(
-                EvidenceItem(
-                    id="pending",
-                    source_document=source,
-                    location="transcribed content",
-                    excerpt=transcription[:1500],
-                    classification=task.profile.sensitivity,
-                    kind="vision_extraction",
-                )
+        ordered: list[dict[str, Any]] = []
+        for item in batch:
+            number = item.page_number
+            assert number is not None
+            reported = source_pages[number]
+            page = {**reported, "page_number": number}
+            if reported["page_number"] != number:
+                page["model_reported_page_number"] = reported["page_number"]
+            parts: list[str] = []
+            for field in page.get("fields") or []:
+                if isinstance(field, dict):
+                    parts.append(f"{field.get('label', '')}: {field.get('value', '')}")
+            for finding in page.get("findings") or []:
+                if isinstance(finding, dict):
+                    parts.append(str(finding.get("description") or ""))
+            for table in page.get("tables") or []:
+                if isinstance(table, dict):
+                    parts.append(json.dumps(table, ensure_ascii=False))
+            parts.append(str(page.get("transcription") or "").strip())
+            for region in page.get("illegible_regions") or []:
+                parts.append(f"Illegible region: {region}")
+            content = "\n".join(part for part in parts if part).strip()
+            raw_confidence = page.get("confidence")
+            confidence = (
+                float(raw_confidence)
+                if isinstance(raw_confidence, (int, float)) and not isinstance(raw_confidence, bool)
+                and 0 <= raw_confidence <= 1 else None
             )
+            extraction_method = "vision"
+            extraction_model = model_id
+            if not content:
+                from backend.rag.parsing import ParsingError, ocr_image
+
+                try:
+                    ocr = ocr_image(item.path)
+                except ParsingError as exc:
+                    ocr = None
+                    limitations.append(str(exc))
+                if ocr and ocr.text:
+                    content = ocr.text
+                    page["transcription"] = ocr.text
+                    page["ocr_confidence"] = ocr.confidence
+                    page["vision_model"] = model_id
+                    confidence = ocr.confidence
+                    extraction_method = "ocr"
+                    extraction_model = "tesseract"
+                else:
+                    content = "No legible content extracted from this page."
+                    limitations.append(f"Vision and local OCR found no legible content on {item.source.filename}, page {number}.")
+            ledger.add(EvidenceItem(
+                id="pending",
+                source_document=item.source.filename,
+                document_id=item.source.id,
+                location=f"page {number}",
+                page_number=number,
+                excerpt=content,
+                extraction_method=extraction_method,
+                extraction_model=extraction_model,
+                extraction_data=page,
+                confidence=confidence,
+                source_sha256=item.source.sha256,
+                classification=task.profile.sensitivity,
+                kind="vision_extraction",
+            ))
+            self._persist_evidence(task)
+            ordered.append(page)
+        return ordered
+
+    def _record_image_extraction(
+        self, task: Task, ledger: EvidenceLedger, item: VisualInput,
+        extraction: dict[str, Any] | None, raw: str, model_id: str,
+    ) -> list[str]:
+        assert task.profile is not None
+        observations: list[tuple[str, str]] = []
+        if extraction:
+            for finding in extraction.get("findings") or []:
+                if isinstance(finding, dict):
+                    observations.append((
+                        str(finding.get("location") or "visual observation"),
+                        str(finding.get("description") or ""),
+                    ))
+            if extraction.get("transcription"):
+                observations.append(("transcribed content", str(extraction["transcription"])[:1500]))
+        if not observations:
+            observations.append(("transcribed content", raw[:1500]))
+        added_ids: list[str] = []
+        for location, content in observations:
+            added = ledger.add(EvidenceItem(
+                id="pending", source_document=item.source.filename,
+                document_id=item.source.id, location=location,
+                excerpt=content, extraction_method="vision", extraction_model=model_id,
+                source_sha256=item.source.sha256,
+                classification=task.profile.sensitivity, kind="vision_extraction",
+            ))
+            self._persist_evidence(task)
+            added_ids.append(added.id)
+        return added_ids
 
     # -- stages ------------------------------------------------------------
     async def _plan(
@@ -625,20 +727,57 @@ class AgentOrchestrator:
         return steps
 
     async def _vision_extraction(
-        self, task: Task, user: User, images: list[Path]
-    ) -> tuple[dict[str, Any] | None, str]:
-        prompt = self.config.prompt("task.vision_extract", prompt=task.prompt)
-        text, _ = await self._generate(
+        self, task: Task, user: User, batch: list[VisualInput]
+    ) -> tuple[dict[str, Any] | None, str, str]:
+        if batch[0].page_number is not None:
+            labels = "; ".join(
+                f"image {index} = page {item.page_number}"
+                for index, item in enumerate(batch, start=1)
+            )
+            page_skeleton = json.dumps({"pages": [
+                {"page_number": item.page_number, "transcription": "",
+                 "fields": [], "findings": [], "tables": [],
+                 "illegible_regions": [], "confidence": None}
+                for item in batch
+            ]}, ensure_ascii=False)
+            prompt = self.config.prompt(
+                "task.vision_extract_pages",
+                filename=batch[0].source.filename, page_labels=labels,
+                page_skeleton=page_skeleton,
+            )
+        else:
+            prompt = self.config.prompt("task.vision_extract", prompt=task.prompt)
+        text, decision = await self._generate(
             task,
             user,
             stage="vision_extraction",
             system_prompt=self.config.system_prompt("vision"),
             prompt=prompt,
-            images=images,
+            images=[item.path for item in batch],
             format_json=True,
         )
         parsed = _parse_json(text)
-        return parsed, text
+        return parsed, text, decision.selected_model or "unknown"
+
+    async def _extract_pdf_batch(
+        self, task: Task, user: User, ledger: EvidenceLedger,
+        batch: list[VisualInput], limitations: list[str],
+    ) -> list[dict[str, Any]]:
+        parsed, _, model_id = await self._vision_extraction(task, user, batch)
+        try:
+            return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
+        except InferenceError:
+            if len(batch) == 1:
+                raise
+            # Do not discard a whole batch because its page labels or count
+            # were ambiguous. Single-image calls have an unambiguous source.
+            recovered: list[dict[str, Any]] = []
+            for item in batch:
+                parsed, _, model_id = await self._vision_extraction(task, user, [item])
+                recovered.extend(self._record_pdf_batch(
+                    task, ledger, [item], parsed, model_id, limitations,
+                ))
+            return recovered
 
     async def _extract_calculations(
         self, task: Task, user: User, text: str
@@ -707,7 +846,7 @@ class AgentOrchestrator:
 
         try:
             images = self._visual_inputs(task, workspace, limitations)
-            reads_images = bool(profile.requires_vision and images)
+            reads_images = bool(images)
 
             # Read the visual input before planning when there is one.
             #
@@ -722,21 +861,35 @@ class AgentOrchestrator:
                     TaskStatus.EXECUTING,
                     f"Reading {len(images)} visual input(s) with the vision model",
                 )
-                extraction, raw_extraction = await self._vision_extraction(
-                    task, user, images
-                )
-                self._record_extraction(task, ledger, extraction, raw_extraction, limitations)
-                if extraction:
-                    await self._emit(
-                        task,
-                        "task.extraction",
-                        {
-                            "document_type": extraction.get("document_type"),
-                            "fields": extraction.get("fields", [])[:12],
-                            "findings": extraction.get("findings", [])[:12],
-                            "illegible": extraction.get("illegible_regions", []),
-                        },
-                    )
+                findings: list[dict[str, Any]] = []
+                for _, grouped in groupby(images, key=lambda item: item.source.id):
+                    source_items = list(grouped)
+                    if source_items[0].page_number is not None:
+                        batches = [source_items[offset:offset + 3] for offset in range(0, len(source_items), 3)]
+                    else:
+                        batches = [[item] for item in source_items]
+                    for batch in batches:
+                        if batch[0].page_number is not None:
+                            pages = await self._extract_pdf_batch(task, user, ledger, batch, limitations)
+                            for page in pages:
+                                for finding in page.get("findings") or []:
+                                    if isinstance(finding, dict):
+                                        findings.append({**finding, "page_number": page["page_number"], "filename": batch[0].source.filename})
+                            await self._emit(task, "task.extraction", {
+                                "filename": batch[0].source.filename,
+                                "pages": [page["page_number"] for page in pages],
+                                "evidence_ids": [item.id for item in ledger.items[-len(pages):]],
+                            })
+                        else:
+                            parsed, raw, model_id = await self._vision_extraction(task, user, batch)
+                            added_ids = self._record_image_extraction(task, ledger, batch[0], parsed, raw, model_id)
+                            if parsed:
+                                findings.extend(parsed.get("findings") or [])
+                            await self._emit(task, "task.extraction", {
+                                "filename": batch[0].source.filename,
+                                "evidence_ids": added_ids,
+                            })
+                extraction = {"document_type": "visual inputs", "findings": findings}
 
             # ---------------------------------------------------- plan
             await self._stage(task, TaskStatus.PLANNED, "Producing an execution plan")
@@ -752,11 +905,11 @@ class AgentOrchestrator:
                 stored
                 for stored in task.files
                 if Path(stored.stored_path).suffix.lower() not in IMAGE_SUFFIXES
-                # A scan already read by the vision model has no text to parse.
+                # Pure scans have no embedded text; mixed PDFs still need their
+                # text pages read through the ordinary file tool.
                 and not (
                     Path(stored.stored_path).suffix.lower() == ".pdf"
-                    and reads_images
-                    and not _pdf_has_text(Path(stored.stored_path))
+                    and not any(not page.needs_vision for page in inspect_pdf_pages(Path(stored.stored_path)))
                 )
             ]
             for stored in text_files:
@@ -766,6 +919,12 @@ class AgentOrchestrator:
                 if call.ok:
                     for item in call.output.get("evidence", []):
                         ledger.add(EvidenceItem(**item))
+                        self._persist_evidence(task)
+                elif Path(stored.stored_path).suffix.lower() == ".pdf":
+                    raise RuntimeError(
+                        f"Could not read text pages of {stored.filename}: "
+                        f"{call.error or call.output_summary}"
+                    )
 
             # ------------------------------------------------- retrieval
             if profile.requires_retrieval:
@@ -837,6 +996,7 @@ class AgentOrchestrator:
                         detail=f"This check could not be completed: {exc}",
                     )
                 )
+            checks.append(self.verifier.check_page_citations(answer_text, evidence))
 
             checked_calculations: list[dict[str, Any]] = []
             try:
@@ -1152,27 +1312,30 @@ class AgentOrchestrator:
     ) -> str:
         extraction_block = ""
         if extraction:
-            # Compact, not pretty-printed: indentation is tokens, and tokens
-            # are both wall-clock time and cache on a CPU host.
-            extraction_block = (
-                "Content extracted from the visual input by the local vision model:\n"
-                + json.dumps(extraction, separators=(",", ":"))[:2500]
-            )
+            extraction_block = "Visual content is recorded in the page-labelled evidence below."
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
                 "\n\nOutput of code executed in the secure sandbox:\n"
                 + sandbox_result.stdout[:2000]
             )
 
+        page_items = sorted(
+            (item for item in evidence if item.page_number is not None),
+            key=lambda item: (
+                next((index for index, source in enumerate(task.files) if source.id == item.document_id), len(task.files)),
+                item.page_number or 0,
+            ),
+        )
+        other_items = [item for item in evidence if item.page_number is None][:6]
         evidence_block = "\n\n".join(
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
-            + f"\n{item.excerpt[:500]}"
-            for item in evidence[:6]
+            + f"\n{item.excerpt[:400 if item.page_number is not None else 500]}"
+            for item in [*page_items, *other_items]
         ) or "No local evidence was retrieved."
 
         prompt = self.config.prompt(
-            "task.reason_with_evidence",
+            "task.reason_with_page_evidence" if page_items else "task.reason_with_evidence",
             prompt=task.prompt,
             extraction_block=extraction_block or "No visual or computed input for this task.",
             evidence=evidence_block,
@@ -1207,11 +1370,13 @@ class AgentOrchestrator:
                 for entry in calculations
             )
 
+        page_items = [item for item in evidence if item.page_number is not None]
+        other_items = [item for item in evidence if item.page_number is None][:10]
         evidence_block = "\n".join(
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
-            + f": {item.excerpt[:300]}"
-            for item in evidence[:10]
+            + f": {item.excerpt[:250]}"
+            for item in [*page_items, *other_items]
         ) or "No evidence available."
 
         prompt = self.config.prompt(

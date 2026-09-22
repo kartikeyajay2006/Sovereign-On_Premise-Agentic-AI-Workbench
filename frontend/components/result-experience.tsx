@@ -10,13 +10,13 @@ import { TechnicalLabel } from './primitives'
 import { useToast } from './toast'
 import { useRole } from './role-context'
 
-/* Renders an answer body, converting [S1]/[F1] tokens into clickable chips. */
+/* Renders an answer body, converting source IDs into clickable chips. */
 function AnswerBody({ text, onCite }: { text: string; onCite: (id: string) => void }) {
-  const parts = text.split(/(\[[SF]\d+\])/g)
+  const parts = text.split(/(\[[SFV]\d+\])/g)
   return (
     <p className="whitespace-pre-line text-[15px] leading-[1.7] text-foreground-secondary">
       {parts.map((p, i) => {
-        const m = p.match(/^\[([SF]\d+)\]$/)
+        const m = p.match(/^\[([SFV]\d+)\]$/)
         if (m) {
           return (
             <button

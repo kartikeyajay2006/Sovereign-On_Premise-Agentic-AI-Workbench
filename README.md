@@ -164,7 +164,7 @@ MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  
 - Inference is pinned to loopback and refused otherwise.
 - Tool invocation is default-deny, resolved per role from policy files.
 - Generated code is statically validated before execution — imports and call targets are scanned.
-- Execution runs in a subprocess under `RLIMIT_CPU`, `RLIMIT_AS`, `RLIMIT_FSIZE`, `RLIMIT_NPROC` and `RLIMIT_CORE`, with a scrubbed environment and a scoped working directory.
+- Execution runs in a subprocess under `RLIMIT_CPU`, `RLIMIT_FSIZE`, `RLIMIT_NPROC` and `RLIMIT_CORE`, plus `RLIMIT_AS` where supported. On macOS, a parent watchdog enforces the resident-memory limit because a useful address-space limit cannot be applied. The environment is scrubbed and the working directory is scoped.
 - Socket primitives are replaced inside the sandbox interpreter, so an outbound call raises rather than connects, and the attempt is recorded.
 - File access is confined to the task workspace; path escapes are refused by the policy gateway.
 - Approval is separated from execution: the role that runs a task does not hold `approval.decide`.
@@ -217,7 +217,7 @@ There is no PostgreSQL, pgvector, Neo4j or Redis in this project — the store i
 
 ## Quick start
 
-**Prerequisites** — Python 3.11+, Node 20+, and [Ollama](https://ollama.com) running locally.
+**Prerequisites** — Python 3.11+, Node 20+, [Ollama](https://ollama.com) running locally, and Tesseract OCR (`brew install tesseract` on macOS; included in the Docker image) for scanned pages the vision model cannot read.
 
 ```bash
 # 1. Clone

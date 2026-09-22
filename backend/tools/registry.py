@@ -284,6 +284,7 @@ class ToolRegistry:
 
         max_chars = int(arguments.get("max_chars") or 12000)
         text = parsed.full_text[:max_chars]
+        segments = parsed.segments if path.suffix.lower() == ".pdf" else parsed.segments[:6]
         return {
             "__summary__": (
                 f"read '{stored.filename}' ({parsed.parser}, {len(parsed.segments)} "
@@ -301,11 +302,14 @@ class ToolRegistry:
                     source_document=stored.filename,
                     document_id=stored.id,
                     location=segment.location,
-                    excerpt=segment.text[:800],
+                    page_number=segment.page_number,
+                    excerpt=segment.text if segment.page_number is not None else segment.text[:800],
+                    extraction_method="embedded_text" if segment.page_number is not None else parsed.parser,
+                    source_sha256=stored.sha256,
                     classification=stored.classification,
                     kind="uploaded_file",
                 ).model_dump(mode="json")
-                for index, segment in enumerate(parsed.segments[:6], start=1)
+                for index, segment in enumerate(segments, start=1)
             ],
         }
 

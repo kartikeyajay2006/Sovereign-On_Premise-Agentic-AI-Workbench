@@ -7,6 +7,7 @@ These are the claims the platform is sold on, so they are tested adversarially
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 
 import pytest
@@ -57,6 +58,15 @@ def make_file(
         department=department,
         uploaded_at=datetime.now(timezone.utc),
     )
+
+
+def _write_audit_events(path, worker: int) -> None:
+    """Module-level worker so macOS spawn can import it in child processes."""
+    log = AuditLog(path=path)
+    for index in range(12):
+        log.record(
+            category="test", action=f"w{worker}-{index}", actor=f"worker{worker}"
+        )
 
 
 # ------------------------------------------------------- static code review
@@ -141,6 +151,16 @@ class TestSandboxContainment:
         assert not result.ok
         # Killed by the CPU rlimit or the wall-clock timeout; either is correct.
         assert result.timed_out or (result.exit_code or 0) != 0
+
+    def test_enforces_memory_limit(self, sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setitem(sandbox.config.settings.sandbox, "max_memory_mb", 100)
+        result = sandbox.execute(
+            "import time\nblob = bytearray(256 * 1024 * 1024)\n"
+            "print('MEMORY_LIMIT_MISSED')\ntime.sleep(5)"
+        )
+        assert not result.ok
+        if sys.platform == "darwin":
+            assert "memory limit" in result.stderr.lower()
 
     def test_workspace_is_isolated_per_run(self, sandbox: Sandbox) -> None:
         first = sandbox.execute("open('marker.txt', 'w').write('x')\nprint('wrote')")
@@ -288,15 +308,9 @@ class TestAuditChain:
 
         path = tmp_path / "audit.jsonl"
 
-        def writer(worker: int) -> None:
-            log = AuditLog(path=path)
-            for index in range(12):
-                log.record(
-                    category="test", action=f"w{worker}-{index}", actor=f"worker{worker}"
-                )
-
         processes = [
-            multiprocessing.Process(target=writer, args=(worker,)) for worker in range(3)
+            multiprocessing.Process(target=_write_audit_events, args=(path, worker))
+            for worker in range(3)
         ]
         for process in processes:
             process.start()
