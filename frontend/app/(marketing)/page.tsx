@@ -63,7 +63,18 @@ export default function LandingPage() {
         />
 
         <div className={SHELL}>
-          <DisplayHeading
+          {/*
+            Centred, not left-aligned.
+
+            Left-aligned, the hero filled the leftmost 640px of the viewport
+            and the entire right half was empty. Asymmetry reads as a choice
+            only when something holds the other side; with nothing there it
+            reads as a page that failed to finish loading. The references this
+            page was measured against centre their heroes, and it costs
+            nothing here: the type is unchanged, only its axis.
+          */}
+          <div className="flex flex-col items-center text-center">
+            <DisplayHeading
             id="hero-title"
             as="h1"
             scale="hero"
@@ -99,6 +110,7 @@ export default function LandingPage() {
             a mono string is doing exactly the job mono is for.
           */}
           <p className={`${MONO_VALUE} mt-4 hidden break-all md:block`}>{HERO.repoPath}</p>
+          </div>
 
           {/*
             The product first, then the paperwork that proves it ran. A page
