@@ -125,6 +125,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id={PREMISE.id}
+        density="tight"
         index={PREMISE.index}
         eyebrow={PREMISE.eyebrow}
         title={PREMISE.title}
@@ -193,6 +194,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id={RUN.id}
+        density="tight"
         index={RUN.index}
         eyebrow={RUN.eyebrow}
         title={RUN.title}
@@ -212,6 +214,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id={PROOF.id}
+        density="full"
         index={PROOF.index}
         eyebrow={PROOF.eyebrow}
         title={PROOF.title}
@@ -319,6 +322,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id={RUN_IT.id}
+        density="tight"
         index={RUN_IT.index}
         eyebrow={RUN_IT.eyebrow}
         title={RUN_IT.title}

@@ -24,9 +24,29 @@ export interface SectionShellProps {
   lede?: ReactNode
   /** Paints the block on --surface instead of --background, with hairlines. */
   tone?: 'paper' | 'surface'
+  /**
+   * How much air the block gets, chosen by how much it carries.
+   *
+   * Uniform padding is not rhythm. Every section paid the same 96px top and
+   * bottom, so a block with 324px of content spent more height on its own
+   * title than on its substance, and the page read as padded emptiness. The
+   * fix is proportion: a thin block is held tight so its content does not
+   * float, a block carrying a full product surface is given room.
+   *
+   * Measured at 1440px before the change: premise 324px of content inside
+   * 790px (41%), run 426/892 (48%), run-it 363/745 (49%) -- against proof at
+   * 1208/1700 (71%), which was the only section whose air was earned.
+   */
+  density?: 'tight' | 'default' | 'full'
   children: ReactNode
   className?: string
 }
+
+const DENSITY = {
+  tight: 'py-12 md:py-14 lg:py-[68px]',
+  default: 'py-14 md:py-18 lg:py-[88px]',
+  full: 'py-16 md:py-24 lg:py-[120px]',
+} as const
 
 /**
  * Every block from 02 to 07 is wrapped in this. It owns the index, the eyebrow,
@@ -41,6 +61,7 @@ export function SectionShell({
   titleTurn,
   lede,
   tone = 'paper',
+  density = 'default',
   children,
   className,
 }: SectionShellProps) {
@@ -52,7 +73,8 @@ export function SectionShell({
       aria-labelledby={headingId}
       // scroll-mt clears the sticky header when an anchor is followed.
       className={cn(
-        'scroll-mt-16 py-14 md:py-20 lg:py-24',
+        'scroll-mt-16',
+        DENSITY[density],
         tone === 'surface' && 'border-y border-border bg-surface',
         className,
       )}
@@ -70,16 +92,16 @@ export function SectionShell({
             scale="section"
             lead={title}
             turn={titleTurn}
-            className="mt-8"
+            className="mt-6"
           />
         ) : (
-          <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-8 max-w-[22ch]')}>
+          <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-6 max-w-[22ch]')}>
             {title}
           </h2>
         )}
         {lede ? <p className={cn(SECTION_LEDE, PROSE)}>{lede}</p> : null}
 
-        <div className="mt-10 md:mt-12">{children}</div>
+        <div className="mt-8 md:mt-10">{children}</div>
       </div>
     </section>
   )
