@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import type {
   EvidenceItem,
   KnowledgeDocument,
+  ModelDescriptor,
   ModelsStatus,
   SopRecord,
   StoredFile,
@@ -132,15 +133,20 @@ export function RegistryView() {
  */
 function ModelEstateTable() {
   const [status, setStatus] = useState<ModelsStatus | null>(null)
+  // The estate itself. /models/status carries counts; the descriptors this
+  // table renders come from /models, which is a separate endpoint. Reading
+  // the count as though it were the list is what crashed this page.
+  const [models, setModels] = useState<ModelDescriptor[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    api
-      .modelsStatus()
-      .then((s) => {
-        if (!cancelled) setStatus(s)
+    Promise.all([api.modelsStatus(), api.listModels()])
+      .then(([s, m]) => {
+        if (cancelled) return
+        setStatus(s)
+        setModels(m)
       })
       .catch((err) => {
         if (!cancelled) setError(err?.message || 'Could not read the model registry')
@@ -153,14 +159,17 @@ function ModelEstateTable() {
     }
   }, [])
 
-  const installed = new Set(status?.installed_on_host ?? [])
+  // Provider models present on the host but absent from the registry. The
+  // field was read as `installed_on_host`, which the route never returns, so
+  // this set was silently always empty and every model read as not installed.
+  const installed = new Set(status?.unregistered_installed ?? [])
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <TechnicalLabel>Registered models</TechnicalLabel>
         <span className="font-mono text-[11px] text-foreground-muted">
-          {status ? `provider ${status.provider} · ${status.provider_reachable ? 'reachable' : 'unreachable'}` : ''}
+          {status ? `provider ${status.provider} · ${status.reachable ? 'reachable' : 'unreachable'}` : ''}
         </span>
       </div>
 
@@ -178,14 +187,14 @@ function ModelEstateTable() {
         </div>
       )}
 
-      {status && status.registered.length === 0 && (
+      {!loading && models.length === 0 && (
         <p className="text-[13px] text-foreground-secondary">
           No models are registered on this host.
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {status?.registered.map((model) => {
+        {models.map((model) => {
           const present = model.available || installed.has(model.provider_model)
           return (
             <div

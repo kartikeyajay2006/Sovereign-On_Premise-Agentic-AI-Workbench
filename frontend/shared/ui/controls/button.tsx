@@ -78,7 +78,14 @@ export function Button({
       ) : (
         Icon && iconPosition === 'start' && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       )}
-      <span>{label}</span>
+      {/*
+        inline-flex, because callers pass icons inside the label as well as
+        through `icon`. As a bare span its contents were inline, and as a
+        flex item it shrinks, so "＋ Ingest new SOP" broke after the icon and
+        put the plus on a line of its own above the words. A single text
+        label is unaffected: gap needs two children to apply.
+      */}
+      <span className="inline-flex shrink-0 items-center gap-2">{label}</span>
       {!busy && Icon && iconPosition === 'end' && (
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       )}

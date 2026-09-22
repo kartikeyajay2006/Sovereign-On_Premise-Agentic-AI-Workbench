@@ -1,6 +1,18 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
+/**
+ * Written out rather than interpolated: Tailwind scans source for complete
+ * class names, and a template literal like `md:grid-cols-${n}` produces no
+ * CSS at all.
+ */
+const META_COLUMNS: Record<number, string> = {
+  1: 'md:grid-cols-1',
+  2: 'md:grid-cols-2',
+  3: 'md:grid-cols-3',
+  4: 'md:grid-cols-4',
+}
+
 export function PageHeader({
   eyebrow,
   title,
@@ -53,7 +65,25 @@ export function PageHeader({
         </div>
 
         {meta && (
-          <div className={cn('mt-10 grid grid-cols-2 gap-px border md:grid-cols-4', dark ? 'border-ink-border bg-ink-border' : 'border-border bg-border')}>
+          /*
+            The column count follows the number of stats.
+
+            The hairlines here are a painted container showing through a
+            one-pixel gap between cells, which only works while the cells
+            fill the grid. This was fixed at four columns whatever it was
+            given, so the Registry's two stats left two cells of bare
+            container -- a pair of grey blocks half the width of the page,
+            and the ugliest thing in the app. Approvals, with three, showed
+            one.
+          */
+          <div
+            className={cn(
+              'mt-10 grid gap-px border',
+              meta.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
+              META_COLUMNS[Math.min(meta.length, 4)],
+              dark ? 'border-ink-border bg-ink-border' : 'border-border bg-border',
+            )}
+          >
             {meta.map((m) => (
               <div key={m.label} className={cn('flex flex-col gap-1.5 px-4 py-3.5', dark ? 'bg-ink' : 'bg-surface')}>
                 <span className={cn('font-mono text-[10px] uppercase tracking-[0.16em]', dark ? 'text-ink-muted' : 'text-foreground-muted')}>

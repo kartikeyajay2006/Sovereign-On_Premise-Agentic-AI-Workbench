@@ -479,13 +479,34 @@ export interface ModelDescriptor {
   notes?: string | null
 }
 
+/**
+ * GET /api/models/status, transcribed from the route rather than imagined.
+ *
+ * The previous declaration had four of its six fields wrong: `registered` was
+ * typed as ModelDescriptor[] when the route returns `len(snapshot.models)`, a
+ * number; `provider_reachable`, `installed_on_host` and `unregistered_on_host`
+ * do not exist on the response at all. request<T>() asserts rather than
+ * validates, so tsc had nothing to check against and the Registry page
+ * compiled clean and crashed on load with `status?.registered.map is not a
+ * function` the moment the fetch resolved.
+ *
+ * This is counts and roles. The model list is a different endpoint,
+ * GET /api/models, which is what api.models() returns.
+ */
 export interface ModelsStatus {
   provider: string
-  provider_reachable: boolean
-  registered: ModelDescriptor[]
-  installed_on_host: string[]
-  unregistered_on_host: string[]
-  roles: Record<string, string>
+  base_url: string
+  reachable: boolean
+  /** How many models the registry knows about. A count, not a list. */
+  registered: number
+  /** How many of those are actually present on the host. */
+  available: number
+  /** Provider models installed on the host that the registry does not list. */
+  unregistered_installed: string[]
+  residency: Record<string, unknown>
+  resident_in_runtime: string[]
+  /** role -> the ids of the available models serving it. */
+  roles: Record<string, string[]>
 }
 
 export interface StreamEvent {
