@@ -43,8 +43,8 @@ const CLASSIFICATION_TONE: Record<string, string> = {
 function CitedText({ text, known }: { text: string; known: Set<string> }) {
   return (
     <>
-      {text.split(/(\[[SFVCXH]\d+\])/g).map((part, i) => {
-        const match = part.match(/^\[([SFVCXH]\d+)\]$/)
+      {text.split(/(\[[SFVCE]\d+\])/g).map((part, i) => {
+        const match = part.match(/^\[([SFVCE]\d+)\]$/)
         if (!match) return <span key={i}>{part}</span>
         const id = match[1]
         if (!known.has(id)) {

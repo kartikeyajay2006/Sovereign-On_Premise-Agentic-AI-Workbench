@@ -128,26 +128,23 @@ function AnswerProse({
   return (
     <div className="flex flex-col gap-4">
       {paragraphs.map((para, pi) => {
-        const parts = para.split(/(\[[SFVCXH]\d+\])/g)
+        const parts = para.split(/(\[[SFVCE]\d+\])/g)
         return (
           // Full ink. This is the one thing on the screen the whole pipeline
           // exists to produce; it was set in secondary while the status rows
           // above it were not, which told the eye the machinery mattered more.
           <p key={pi} className="text-answer leading-[var(--lh-answer)] text-foreground">
             {parts.map((p, i) => {
-              const m = p.match(/^\[([SFVCXH]\d+)\]$/)
+              const m = p.match(/^\[([SFVCE]\d+)\]$/)
               if (!m) return <InlineMarkdown key={i} text={p} />
               const id = m[1]
               if (!known.has(id)) {
-                // A citation that leads nowhere is a finding about the answer,
-                // not a link. Rendering it as an ordinary chip lends the
-                // sentence the appearance of support the verifier refused it.
-                // Still marked, and still not a link -- but as a mark on the
-                // sentence rather than a box beside it. Five of these set as
-                // bordered chips reading "S1 unresolved" outweighed the prose
-                // they were annotating, which inverts what the reader is
-                // supposed to come away with. The finding survives at a
-                // fraction of the ink; the tooltip carries the detail.
+                // A citation that leads nowhere is a finding about the
+                // answer, not a link, so it is marked rather than linked --
+                // but as a mark on the sentence rather than a box beside it.
+                // Five bordered chips reading "S1 unresolved" outweighed the
+                // prose they annotated, inverting what the reader is meant to
+                // come away with. The tooltip carries the detail.
                 return (
                   <sup
                     key={i}

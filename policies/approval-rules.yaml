@@ -48,6 +48,15 @@ verification:
     - "\\b\\d+(?:\\.\\d+)?\\s*(mm|cm|m|kg|t|bar|psi|kpa|mpa|°c|degc|%|hrs?|hours?|days?|years?)\\b"
     - "\\b(shall|must|required to|not permitted|prohibited|mandatory)\\b"
     - "\\b(clause|section|para|paragraph|table)\\s+[0-9ivx.]+\\b"
+    # A sentence carrying a citation is a sourced factual assertion by
+    # construction: the model reached for evidence to back it. Without this
+    # the patterns above only caught sentences containing a quantity or a
+    # directive verb, so "The approving authority for this severity
+    # classification is the Head of Inspection + Plant Manager [S4]" was not
+    # counted as a claim at all -- and an answer making three assertions was
+    # reported as "1 of 1 material claims supported (100%)", which is a far
+    # stronger statement than examining one sentence of three can justify.
+    - "\\[[SFVCE]\\d+\\]"
   min_evidence_per_material_claim: 1
   # Fraction of material claims that must be supported for the check to pass.
   min_supported_fraction: 0.6

@@ -66,6 +66,35 @@ def _coerce_number(value: Any) -> float | None:
     return None
 
 
+WORD_PATTERN = re.compile(r"[A-Za-z][A-Za-z\-]{4,}")
+
+
+def _corroborates(claim: str, excerpt: str) -> bool:
+    """Whether a passage carries the substance of a claim.
+
+    Two signals, both lexical: a figure from the claim appearing in the
+    passage, or enough of its distinctive words doing so.
+
+    This is deliberately a low bar, and its limit is worth stating where
+    someone will read it. It establishes that a claim is ABOUT the passage it
+    cites -- it cannot establish that the passage supports it. A claim reading
+    the wrong row of a table quotes that table's own words and passes here.
+    Catching that needs entailment, or the reviewer this system routes to,
+    which is why a failed check holds the task for a human rather than
+    rewriting the answer.
+    """
+    numbers = set(NUMBER_PATTERN.findall(claim))
+    if numbers and numbers & set(NUMBER_PATTERN.findall(excerpt)):
+        return True
+
+    tokens = {word.lower() for word in WORD_PATTERN.findall(claim)}
+    if not tokens:
+        return False
+    excerpt_tokens = {word.lower() for word in WORD_PATTERN.findall(excerpt)}
+    overlap = tokens & excerpt_tokens
+    return len(overlap) >= max(3, int(len(tokens) * 0.35))
+
+
 class VerificationEngine:
     """Independent checks over model and tool output."""
 
@@ -99,28 +128,22 @@ class VerificationEngine:
         cited = CITATION_PATTERN.findall(claim)
         if cited:
             referenced = {marker.strip("[]") for marker in cited}
-            matching = [item.id for item in evidence if item.id in referenced]
+            matching = [item for item in evidence if item.id in referenced]
+            # Citing a passage that was retrieved is not the same as that
+            # passage saying what the claim says. This returned True on the
+            # existence of the id alone, so any sentence ending in [S1] was
+            # "supported" whatever it asserted -- the check could be passed by
+            # citing at random. The claim's own terms must also appear in the
+            # passage it names.
+            for item in matching:
+                if _corroborates(claim, item.excerpt):
+                    return True, [item.id]
             if matching:
-                return True, matching
+                return False, []
 
-        numbers = set(NUMBER_PATTERN.findall(claim))
-        if numbers:
-            for item in evidence:
-                if numbers & set(NUMBER_PATTERN.findall(item.excerpt)):
-                    return True, [item.id]
-
-        tokens = {
-            word.lower()
-            for word in re.findall(r"[A-Za-z][A-Za-z\-]{4,}", claim)
-        }
-        if tokens:
-            for item in evidence:
-                excerpt_tokens = {
-                    word.lower() for word in re.findall(r"[A-Za-z][A-Za-z\-]{4,}", item.excerpt)
-                }
-                overlap = tokens & excerpt_tokens
-                if len(overlap) >= max(3, int(len(tokens) * 0.35)):
-                    return True, [item.id]
+        for item in evidence:
+            if _corroborates(claim, item.excerpt):
+                return True, [item.id]
         return False, []
 
     def check_sources(self, text: str, evidence: list[EvidenceItem]) -> VerificationCheck:
