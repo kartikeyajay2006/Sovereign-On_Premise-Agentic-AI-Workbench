@@ -39,9 +39,9 @@ export function ProductShot({ caption, facts }: ProductShotProps) {
         <div className="relative max-h-[520px] overflow-hidden">
           <Image
             src="/landing/thread-run.png"
-            alt="The AEGIS console during a completed run: a question about cladding damage severity, a seven-stage work log, and an answer held for review with three of four verification checks passed."
+            alt="The AEGIS console after a completed run: a question about cladding damage severity, the verdict HELD with three of four checks passed, a folded work log reporting four of seven stages ran, and the answer with its clauses cited."
             width={1280}
-            height={1470}
+            height={720}
             priority
             className="block h-auto w-full"
           />

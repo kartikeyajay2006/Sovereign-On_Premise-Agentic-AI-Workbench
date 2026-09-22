@@ -118,8 +118,8 @@ export default function LandingPage() {
             the thing before it shows the receipt.
           */}
           <ProductShot
-            caption="The console during a real run on this host. The work log reports each stage as it completes and marks the ones that never ran. The answer is withheld until claim verification finishes — this one was held for a reviewer rather than released."
-            facts={['held for review', '3 of 4 checks passed', '214.6s', 'qwen3:8b · local']}
+            caption="The console after a real run on this host. The answer is withheld until claim verification finishes, and this one did not pass: three checks of four, so it was held for a reviewer rather than released. The work log folds to a line once the run is over and opens again if you want to audit it."
+            facts={['held for review', '3 of 4 checks passed', '195.2s', 'qwen2.5:3b · local']}
           />
 
           <RunReceipt
