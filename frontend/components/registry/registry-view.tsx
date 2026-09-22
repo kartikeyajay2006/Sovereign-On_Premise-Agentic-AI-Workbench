@@ -397,19 +397,36 @@ function SemanticSearch() {
       </div>
 
       <div className="flex items-center justify-between font-mono text-[11px] text-foreground-muted">
-        <span>Mode: <strong className="text-foreground">{mode}</strong> (MiniLM-L6-v2 Cosine)</span>
+        {/*
+          The mode is reported by the search response. The model was not: this
+          said "MiniLM-L6-v2 Cosine", which is a 384-dimension model this host
+          does not have. Retrieval runs on nomic-embed-text at 768 dimensions
+          per config/models.yaml. Naming the wrong model on the page a
+          reviewer reads to judge retrieval is not a cosmetic error, so the
+          claim is gone rather than swapped for another hardcoded one.
+        */}
+        <span>Mode: <strong className="text-foreground">{mode}</strong></span>
         <span>Latency: <strong className="text-[var(--sovereign)]">{tookMs === null ? '—' : `${tookMs}ms`}</strong></span>
       </div>
 
       <div className="divide-y divide-border rounded-xl border border-border bg-surface shadow-sm overflow-hidden">
         {results.map((r) => {
           const src = r.source || r.source_document || 'Local SOP'
-          const score = typeof r.similarity === 'number' ? r.similarity : 0.94
+          // `similarity` is a UI alias the backend never sends, so this always
+          // fell through to 0.94 and printed it to three decimals -- an
+          // invented figure wearing the costume of a measurement, on the
+          // screen built to demonstrate that retrieval works. The real number
+          // is `score`; when there is none the row says nothing.
+          const score = typeof r.similarity === 'number' ? r.similarity : r.score
           return (
             <div key={r.id} className="p-4 transition-colors hover:bg-surface-sunken">
               <div className="flex items-center justify-between font-mono text-[11px]">
                 <span className="font-semibold text-foreground">{src}</span>
-                <span className="font-bold text-[var(--sovereign)]">{score.toFixed(3)} cosine match</span>
+                {typeof score === 'number' && (
+                  <span className="font-bold text-[var(--sovereign)]">
+                    {score.toFixed(3)} {mode === 'embedding' ? 'cosine' : 'lexical'}
+                  </span>
+                )}
               </div>
               <p className="mt-2 text-[13px] leading-relaxed text-foreground-secondary">{r.excerpt}</p>
             </div>

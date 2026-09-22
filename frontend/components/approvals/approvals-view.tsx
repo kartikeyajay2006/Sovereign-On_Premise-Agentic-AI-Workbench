@@ -18,6 +18,50 @@ const priorityColor: Record<ApprovalItem['priority'], string> = {
   NORMAL: 'var(--foreground-muted)',
 }
 
+/**
+ * The deliverable preview, with its citations turned into links.
+ *
+ * A reviewer reading "the approving authority is X [S4]" had no way to learn
+ * which of six unlabelled passages S4 was, so checking a claim against its
+ * source -- the entire job this screen exists for -- meant guessing. Each
+ * citation now jumps to the passage it names.
+ *
+ * A citation with no matching passage is marked rather than linked: it cites
+ * nothing, and that is a finding about the answer the reviewer is about to
+ * release, not a broken link.
+ */
+function CitedText({ text, known }: { text: string; known: Set<string> }) {
+  return (
+    <>
+      {text.split(/(\[[SFVCXH]\d+\])/g).map((part, i) => {
+        const match = part.match(/^\[([SFVCXH]\d+)\]$/)
+        if (!match) return <span key={i}>{part}</span>
+        const id = match[1]
+        if (!known.has(id)) {
+          return (
+            <span
+              key={i}
+              title={`No passage with id ${id} was retrieved for this run.`}
+              className="font-mono text-[12px] text-critical-text"
+            >
+              [{id}]
+            </span>
+          )
+        }
+        return (
+          <a
+            key={i}
+            href={`#evidence-${id}`}
+            className="rounded-[3px] bg-surface-sunken px-1 font-mono text-[12px] text-foreground underline-offset-2 hover:underline"
+          >
+            [{id}]
+          </a>
+        )
+      })}
+    </>
+  )
+}
+
 export function ApprovalsView() {
   const [items, setItems] = useState<ApprovalItem[]>([])
   const [activeId, setActiveId] = useState<string>('')
@@ -369,7 +413,10 @@ export function ApprovalsView() {
               <div className="flex flex-col gap-3">
                 <TechnicalLabel>Generated Deliverable Preview</TechnicalLabel>
                 <div className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-5 text-[14px] leading-relaxed text-foreground-secondary">
-                  {active.draft || active.extractedText}
+                  <CitedText
+                    text={active.draft || active.extractedText || ''}
+                    known={new Set(active.evidence.map((e) => e.id))}
+                  />
                 </div>
               </div>
 
@@ -378,17 +425,48 @@ export function ApprovalsView() {
                 <div className="flex flex-col gap-3">
                   <TechnicalLabel>Corroborating Evidence ({active.evidence.length})</TechnicalLabel>
                   <div className="divide-y divide-border rounded-lg border border-border bg-surface">
-                    {active.evidence.map((e) => (
-                      <div key={e.id} className="p-4">
-                        <div className="flex items-center justify-between font-mono text-[11px]">
-                          <span className="text-foreground">{e.source || e.source_document}</span>
-                          <span className="text-[var(--sovereign)] font-bold">
-                            {typeof e.similarity === 'number' ? e.similarity.toFixed(2) : '0.96'}
-                          </span>
+                    {active.evidence.map((e) => {
+                      // `similarity` is a UI alias the backend never sends, so
+                      // every passage printed the 0.96 fallback: six identical
+                      // invented scores on the screen where a human decides
+                      // whether to release a deliverable. The measured values
+                      // for this very run are 0.80, 0.73, 0.73, 0.70, 0.70 and
+                      // 0.69 -- a materially weaker set than 0.96 six times
+                      // implies. `score` is the real field.
+                      const score = typeof e.similarity === 'number' ? e.similarity : e.score
+                      return (
+                        <div
+                          key={e.id}
+                          id={`evidence-${e.id}`}
+                          className="scroll-mt-24 p-4 target:bg-surface-sunken"
+                        >
+                          <div className="flex items-center justify-between gap-3 font-mono text-[11px]">
+                            <span className="flex min-w-0 items-center gap-2">
+                              {/* The citation id, so the reviewer can tell which
+                                  passage the answer's [S4] actually refers to.
+                                  Six unlabelled cards made that unanswerable. */}
+                              <span className="shrink-0 rounded-[3px] bg-surface-sunken px-1.5 py-0.5 text-foreground">
+                                {e.id}
+                              </span>
+                              <span className="truncate text-foreground">
+                                {e.source || e.source_document}
+                              </span>
+                            </span>
+                            {typeof score === 'number' && (
+                              <span className="shrink-0 font-bold text-[var(--sovereign)]">
+                                {score.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                          {e.location && (
+                            <p className="mt-1 font-mono text-[11px] text-foreground-muted">
+                              {e.location}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[13px] text-foreground-secondary">{e.excerpt}</p>
                         </div>
-                        <p className="mt-1 text-[13px] text-foreground-secondary">{e.excerpt}</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
