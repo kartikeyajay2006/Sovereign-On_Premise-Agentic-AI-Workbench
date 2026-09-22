@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, Lock } from 'lucide-react'
+import { ChevronRight, Download, Lock } from 'lucide-react'
 import { StageTimeline } from '@/shared/ui/timeline/stage-timeline'
 import { ErrorState } from '@/shared/ui/data/error-state'
 import { cn } from '@/lib/utils'
@@ -130,7 +130,10 @@ function AnswerProse({
       {paragraphs.map((para, pi) => {
         const parts = para.split(/(\[[SFVCXH]\d+\])/g)
         return (
-          <p key={pi} className="text-answer leading-[var(--lh-answer)] text-foreground-secondary">
+          // Full ink. This is the one thing on the screen the whole pipeline
+          // exists to produce; it was set in secondary while the status rows
+          // above it were not, which told the eye the machinery mattered more.
+          <p key={pi} className="text-answer leading-[var(--lh-answer)] text-foreground">
             {parts.map((p, i) => {
               const m = p.match(/^\[([SFVCXH]\d+)\]$/)
               if (!m) return <InlineMarkdown key={i} text={p} />
@@ -139,14 +142,20 @@ function AnswerProse({
                 // A citation that leads nowhere is a finding about the answer,
                 // not a link. Rendering it as an ordinary chip lends the
                 // sentence the appearance of support the verifier refused it.
+                // Still marked, and still not a link -- but as a mark on the
+                // sentence rather than a box beside it. Five of these set as
+                // bordered chips reading "S1 unresolved" outweighed the prose
+                // they were annotating, which inverts what the reader is
+                // supposed to come away with. The finding survives at a
+                // fraction of the ink; the tooltip carries the detail.
                 return (
-                  <span
+                  <sup
                     key={i}
-                    title={`No evidence with id ${id} was recorded for this run.`}
-                    className="mx-0.5 inline-flex items-center gap-1 border border-dashed border-critical-border px-1 align-middle font-mono text-meta text-critical-text"
+                    title={`No evidence with id ${id} was recorded for this run. This citation supports nothing.`}
+                    className="mx-px cursor-help font-mono text-[0.68em] text-critical-text decoration-dotted underline-offset-2 [text-decoration-line:underline]"
                   >
-                    <span className="line-through">{id}</span> unresolved
-                  </span>
+                    {id}
+                  </sup>
                 )
               }
               return (
@@ -154,7 +163,7 @@ function AnswerProse({
                   key={i}
                   type="button"
                   onClick={() => onCite(id)}
-                  className="hover-decay mx-0.5 inline-flex items-center border border-control-default px-1 align-middle font-mono text-meta text-foreground hover:border-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+                  className="hover-decay mx-px rounded-[var(--radius-xs)] bg-surface px-1 align-super font-mono text-[0.68em] text-foreground-secondary hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
                 >
                   {id}
                 </button>
@@ -164,6 +173,25 @@ function AnswerProse({
         )
       })}
     </div>
+  )
+}
+
+/** The stage rows, mapped once for both the live and the folded view. */
+function RunLog({ stages }: { stages: AssistantTurnModel['stages'] }) {
+  return (
+    <StageTimeline
+      stages={stages.map((s) => ({
+        id: s.id,
+        index: s.index,
+        label: s.name,
+        state: s.status,
+        at: s.at,
+        elapsedMs: s.elapsedMs,
+        headline: s.detail ?? null,
+        model: s.model || null,
+      }))}
+      density="compact"
+    />
   )
 }
 
@@ -209,19 +237,36 @@ export function AssistantTurn({
       </header>
 
       {/* ── Zone 2 — the work log ─────────────────────────────────────── */}
-      <StageTimeline
-        stages={turn.stages.map((s) => ({
-          id: s.id,
-          index: s.index,
-          label: s.name,
-          state: s.status,
-          at: s.at,
-          elapsedMs: s.elapsedMs,
-          headline: s.detail ?? null,
-          model: s.model || null,
-        }))}
-        density="compact"
-      />
+      {/*
+        Expanded while the run is live, collapsed once it is not.
+
+        Seven rows is the right amount of detail for the minutes you spend
+        watching a run and the wrong amount afterwards: four of them are
+        typically stages that never ran, so a finished turn was spending
+        ~350px -- more than the answer -- on greyed-out placeholders. The
+        detail is not deleted, it is folded, because the point of the log is
+        that it can be checked. The answer gets to be the biggest thing on
+        the screen, which for an answering product it always should have been.
+      */}
+      {running ? (
+        <RunLog stages={turn.stages} />
+      ) : (
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 py-1 font-mono text-meta text-foreground-muted transition-colors hover:text-foreground-secondary [&::-webkit-details-marker]:hidden">
+            <ChevronRight
+              className="size-3 shrink-0 transition-transform duration-[var(--dur-quick)] group-open:rotate-90"
+              aria-hidden
+            />
+            <span className="uppercase tracking-[var(--ls-meta)]">Work log</span>
+            <span className="tabular">
+              {turn.stages.filter((s) => s.status === 'done').length} of {turn.stages.length} stages
+            </span>
+          </summary>
+          <div className="pt-2">
+            <RunLog stages={turn.stages} />
+          </div>
+        </details>
+      )}
 
       {/* ── Zone 3 — the answer, or the reason there is none ──────────── */}
       {denied ? (

@@ -154,11 +154,18 @@ export function Composer({
               type="button"
               onClick={() => onFormatChange(f.id)}
               aria-pressed={format === f.id}
+              /*
+                Five outlined boxes gave a settings row the weight of a
+                primary action, and the eye read the composer's least
+                important control first. Only the chosen one is drawn now;
+                the rest are quiet text until hovered. Same targets, same
+                affordance, a fifth of the ink.
+              */
               className={cn(
-                'hover-decay border px-2 py-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
+                'hover-decay rounded-[var(--radius-xs)] px-2 py-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
                 format === f.id
-                  ? 'border-foreground bg-foreground text-background'
-                  : 'border-control-default text-foreground-secondary',
+                  ? 'bg-surface-sunken text-foreground'
+                  : 'text-foreground-muted hover:text-foreground-secondary',
               )}
             >
               {f.label}

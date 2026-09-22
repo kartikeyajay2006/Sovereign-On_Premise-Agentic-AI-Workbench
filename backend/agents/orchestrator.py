@@ -423,9 +423,22 @@ class AgentOrchestrator:
             nonlocal sent
             visible = _visible_so_far(raw)
             if len(visible) > len(sent):
-                delta = visible[len(sent) :]
                 sent = visible
-                await self._emit(task, "task.token", {"stage": stage, "delta": delta})
+                # The whole visible text, not the delta since the last frame.
+                #
+                # A delta protocol cannot survive a dropped frame, and frames
+                # do get dropped: the client's EventSource is torn down when
+                # its task id or enabled flag changes and reconnects on any
+                # error, and token frames are deliberately excluded from the
+                # replay buffer. A client that missed one frame would append
+                # the next onto a gap and render a draft that silently begins
+                # mid-sentence -- observed losing the first 22 characters of
+                # an answer.
+                #
+                # Sending the cumulative text makes every frame a complete
+                # repair of the one before it. The cost is bytes on a loopback
+                # connection, which is the cheapest thing this system spends.
+                await self._emit(task, "task.token", {"stage": stage, "text": visible})
 
         async for fragment in self.client.stream(
             model=model,

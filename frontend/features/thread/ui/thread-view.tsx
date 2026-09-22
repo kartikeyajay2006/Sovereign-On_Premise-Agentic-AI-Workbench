@@ -174,26 +174,21 @@ export function ThreadView() {
         }))
       }
 
-      // Fragments as the model produces them. Appended, never replaced: the
-      // backend sends only what is new since the last frame.
+      // The text so far, as the model produces it. Replaced, never appended:
+      // each frame carries the whole visible draft, so a frame lost to an
+      // EventSource reconnect is repaired by the next one instead of leaving
+      // a permanent gap. Appending is what made a draft start mid-sentence.
       //
       // Routed by stage, because not every stage produces prose. `drafting`
-      // is the reader's text. `planning` is JSON, so its fragments drive a
+      // is the reader's text. `planning` is JSON, so its frames drive a
       // progress readout and nothing more -- showing a reader raw `{"steps":`
       // is worse than showing them a stage that is honestly still working.
-      if (name === 'task.token' && typeof data.delta === 'string') {
+      if (name === 'task.token' && typeof data.text === 'string') {
         const stage = String(data.stage || '')
         patchLatest((t) =>
           stage === 'drafting'
-            ? { ...t, streamingDraft: (t.streamingDraft ?? '') + data.delta }
-            : {
-                ...t,
-                streamProgress: {
-                  stage,
-                  chars: (t.streamProgress?.stage === stage ? t.streamProgress.chars : 0) +
-                    data.delta.length,
-                },
-              },
+            ? { ...t, streamingDraft: data.text }
+            : { ...t, streamProgress: { stage, chars: data.text.length } },
         )
       }
 

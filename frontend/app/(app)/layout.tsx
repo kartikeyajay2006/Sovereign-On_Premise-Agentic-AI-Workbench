@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Navigation } from '@/components/navigation'
-import { SiteFooter } from '@/components/site-footer'
 import { AuthGuard } from '@/components/auth-guard'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -30,8 +29,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div aria-hidden className="tech-grid pointer-events-none fixed inset-0 -z-10 opacity-40" />
 
         <Navigation />
-        <main className="relative z-10 flex-1 pt-[76px]">{children}</main>
-        <SiteFooter />
+        {/*
+          The header is fixed and 90px tall: a status strip over a nav bar.
+          This was 76px, so the first 14px of every screen sat underneath it
+          and the opening line of a thread was clipped. Measured, plus 16px
+          so the content clears the rule rather than touching it.
+        */}
+        <main className="relative z-10 flex-1 pt-[106px]">{children}</main>
       </div>
     </AuthGuard>
   )

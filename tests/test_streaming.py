@@ -45,13 +45,13 @@ class TestVisibleSoFar:
         # still arrives once anything follows it.
         assert _visible_so_far("a < b") == "a < b"
 
-    def test_deltas_only_ever_grow(self):
-        """The invariant the publisher relies on to compute a delta.
+    def test_visible_text_only_ever_grows(self):
+        """The invariant that lets each frame carry the whole visible draft.
 
-        Fragments are appended and the visible text recomputed from the whole
-        buffer each time. If visible text could ever shrink, the slice
-        `visible[len(sent):]` would silently emit nothing while the reader's
-        copy kept stale text.
+        Frames are cumulative, so a client replaces rather than appends and a
+        frame lost to a reconnect is repaired by the next one. That only holds
+        if visible text never shrinks: if it could, a later frame would
+        silently retract text the reader had already been shown.
         """
         raw = ""
         previous = ""
@@ -79,7 +79,7 @@ class TestTokenFramesAreEphemeral:
         bus = EventBus()
         await bus.publish("task.model_selected", task_id="t1", data={"model": "qwen3:8b"})
         for fragment in ["The ", "answer ", "is ", "42."]:
-            await bus.publish("task.token", task_id="t1", data={"delta": fragment})
+            await bus.publish("task.token", task_id="t1", data={"text": fragment})
         await bus.publish("task.answer", task_id="t1", data={"answer": "The answer is 42."})
 
         replayed = [e.event for e in bus.replay(task_id="t1")]
@@ -93,7 +93,7 @@ class TestTokenFramesAreEphemeral:
         bus = EventBus()
         await bus.publish("task.model_selected", task_id="t1", data={})
         for i in range(REPLAY_BUFFER * 2):
-            await bus.publish("task.token", task_id="t1", data={"delta": f"{i} "})
+            await bus.publish("task.token", task_id="t1", data={"text": f"{i} "})
 
         replayed = [e.event for e in bus.replay(task_id="t1")]
         assert replayed == ["task.model_selected"], (
@@ -105,7 +105,7 @@ class TestTokenFramesAreEphemeral:
         """Excluded from replay, never from the live fan-out."""
         bus = EventBus()
         async with bus.subscribe() as queue:
-            await bus.publish("task.token", task_id="t1", data={"delta": "hi"})
+            await bus.publish("task.token", task_id="t1", data={"text": "hi"})
             event = await queue.get()
         assert event.event == "task.token"
-        assert event.data["delta"] == "hi"
+        assert event.data["text"] == "hi"
