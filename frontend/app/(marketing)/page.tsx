@@ -9,6 +9,7 @@ import { LimitList } from '@/components/landing/limit-list'
 import { LiveContainment } from '@/components/landing/live-containment'
 import { MachineBlock } from '@/components/landing/machine-block'
 import { Reveal } from '@/components/landing/reveal'
+import { ScrollRevealText } from '@/components/landing/scroll-reveal-text'
 import { ProductShot } from '@/components/landing/product-shot'
 import { RunReceipt } from '@/components/landing/run-receipt'
 import { receiptRows, runId, run } from '@/components/landing/run-fixture'
@@ -180,9 +181,17 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <p className={`mt-10 text-heading text-foreground md:text-[18px] md:leading-[28px] ${PROSE}`}>
-            {PREMISE.closing}
-          </p>
+          {/*
+            The one sentence on the page that earns a scroll-linked effect:
+            it is the claim the whole product rests on. Words reach full ink
+            as the line is scrolled through, and the sentence is legible at
+            every position including the first frame -- what changes is the
+            weight of the ink, never whether the words are there.
+          */}
+          <ScrollRevealText
+            text={PREMISE.closing}
+            className={`mt-10 text-heading md:text-[18px] md:leading-[28px] ${PROSE}`}
+          />
         </Reveal>
       </SectionShell>
 
