@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import time
 from pathlib import Path
 from typing import Any
 
@@ -332,6 +333,14 @@ def build_pdf(report_id: str = DEFAULT_REPORT, image: Image.Image | None = None)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     target = pdf_path(report_id)
     page = (image or render(report_id)).convert("L")
+    # Fixed document dates, so a rebuild is byte-identical. Pillow stamps the
+    # save time into /CreationDate and /ModDate by default: the rendered page
+    # was already deterministic, but those two timestamps made every seeding
+    # run rewrite both committed PDFs with a ten-byte difference and nothing
+    # else, which reads in git as the scans having changed.
+    # A struct_time, which is what Pillow's PDF writer serialises as a date;
+    # a datetime is rejected mid-write and leaves a truncated file behind.
+    fixed = time.gmtime(1767225600)  # 2026-01-01T00:00:00Z
     page.save(
         target,
         "PDF",
@@ -339,6 +348,8 @@ def build_pdf(report_id: str = DEFAULT_REPORT, image: Image.Image | None = None)
         quality=PDF_JPEG_QUALITY,
         title=f"Scanned inspection report {report_id} (SYNTHETIC)",
         author="AEGIS demonstration corpus (synthetic)",
+        creationDate=fixed,
+        modDate=fixed,
     )
     return target
 
