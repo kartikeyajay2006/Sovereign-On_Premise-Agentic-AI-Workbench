@@ -62,7 +62,7 @@ export const HERO = {
   secondary: { label: 'Read the source', href: REPO_URL },
   repoPath: REPO_PATH,
   shotAlt:
-    'The AEGIS console after a completed run: a question about cladding damage severity, the verdict HELD with three of four checks passed, a folded work log reading 4 of 7 stages, and a three-sentence answer citing S1 and S4.',
+    'The AEGIS console after a completed run: a question about cladding damage severity, the verdict HELD with three of four checks passed, a folded work log reading 5 of 7 stages, and a three-sentence answer citing S1 and S4.',
   // The two captions below name the run in the picture, so each has a
   // version for when run.json holds a different one.
   shotCaption:
@@ -352,11 +352,6 @@ export const RUN = {
   ] satisfies Stage[],
   closing:
     'The task then stops. A deliverable is held until a role holding approval.decide signs it, and the role that ran the task is not that role.',
-  // The one place the page and its own screenshot disagree, stated rather
-  // than left for a reader to find. features/thread/ui/thread-view.tsx maps
-  // backend statuses to stage rows, and TaskStatus has no drafting state.
-  consoleNote:
-    'The work log in the screenshot reads 4 of 7. The console gets no event when drafting starts, so it cannot mark Draft as run; the audit log records the drafting call, and this table is read from the audit log.',
 } as const
 
 // --------------------------------------------------------------------------- //

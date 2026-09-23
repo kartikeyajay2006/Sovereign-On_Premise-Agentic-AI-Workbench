@@ -6,8 +6,10 @@ export interface ProductShotProps {
   caption: string
   /**
    * What the image shows, as the image shows it. Describes the pixels rather
-   * than vouching for them: the work log in the picture reads "4 of 7", and
-   * the audit log says five stages ran, so the alt text says "reading".
+   * than vouching for them, so the alt text says "reading". (An earlier
+   * capture read "4 of 7" while the audit log said five stages ran; the
+   * console now reconciles its board with the record, and the recaptured
+   * picture reads 5 of 7.)
    */
   alt: string
   /** The facts of the run in the image, from its record. Empty when the fixture is another run. */

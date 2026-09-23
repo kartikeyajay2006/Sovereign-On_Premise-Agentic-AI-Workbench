@@ -586,9 +586,6 @@ export default function LandingPage() {
           />
           <div className="mt-6 flex flex-col gap-3">
             <p className={`m-0 text-body leading-[22px] text-foreground-secondary ${PROSE}`}>{RUN.closing}</p>
-            {isScreenshotRun ? (
-              <p className={`m-0 text-ui leading-[18px] text-foreground-muted ${PROSE}`}>{RUN.consoleNote}</p>
-            ) : null}
           </div>
         </Reveal>
       </SectionShell>
