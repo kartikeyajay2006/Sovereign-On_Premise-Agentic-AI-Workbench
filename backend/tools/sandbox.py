@@ -239,6 +239,37 @@ class _WindowsRunMeasurement:
     terminated_processes: int | None
 
 
+# The script the Windows child starts. An uncaught exception used to print
+# the runner's own frames above the program's -- this file and three runpy
+# frames -- each with the absolute path of the workspace, which names the
+# service's checkout and the account it runs as. That is host layout handed to
+# whoever submitted the code, and none of it is theirs. The traceback now
+# starts at the first frame in program.py, and the workspace and the
+# interpreter's install paths in any later frame (the sitecustomize guard, a
+# stdlib module) are written as <workspace> and <python>. The exception and
+# its message are unchanged, and the exit code is 1, as for any uncaught
+# exception; SystemExit passes through untouched.
+_WINDOWS_RUNNER = (
+    "import os, sys, runpy, traceback\n"
+    "sys.stdin.buffer.read(1)\n"
+    "try:\n"
+    "    runpy.run_path('program.py', run_name='__main__')\n"
+    "except SystemExit:\n"
+    "    raise\n"
+    "except BaseException as exc:\n"
+    "    tb = exc.__traceback__\n"
+    "    while tb is not None and tb.tb_frame.f_code.co_filename != 'program.py':\n"
+    "        tb = tb.tb_next\n"
+    "    text = ''.join(traceback.format_exception(type(exc), exc, tb))\n"
+    "    for path, name in ((os.getcwd(), '<workspace>'), (sys.prefix, '<python>'),\n"
+    "                       (sys.base_prefix, '<python>')):\n"
+    "        text = text.replace(path, name)\n"
+    "    sys.stderr.write(text)\n"
+    "    sys.stderr.flush()\n"
+    "    sys.exit(1)\n"
+)
+
+
 def _win_run(
     code: str,
     *,
@@ -269,12 +300,7 @@ def _win_run(
     # runpy runs program.py with __name__ == "__main__", so a traceback points
     # at program.py:<line> exactly as a direct `python program.py` would. The
     # sentinel read is the first thing that happens, before any user code.
-    (workspace / "_runner.py").write_text(
-        "import sys, runpy\n"
-        "sys.stdin.buffer.read(1)\n"
-        "runpy.run_path('program.py', run_name='__main__')\n",
-        encoding="utf-8",
-    )
+    (workspace / "_runner.py").write_text(_WINDOWS_RUNNER, encoding="utf-8")
 
     job = k.CreateJobObjectW(None, None)
     if not job:

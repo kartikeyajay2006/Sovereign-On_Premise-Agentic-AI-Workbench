@@ -149,3 +149,45 @@ class TestWindowsContainment:
             "Process spawning is capped",
             "Filesystem write confinement",
         } <= names
+
+
+class TestWindowsTracebacks:
+    """What a failing program shows its author, and what it keeps from them."""
+
+    def test_traceback_starts_at_the_program(self, sandbox: Sandbox) -> None:
+        # The runner and runpy frames used to lead the traceback, each with the
+        # workspace's absolute path: the service's checkout and account name.
+        outcome = sandbox.execute_detailed(
+            "def check(x):\n    raise ValueError('wall below minimum: ' + str(x))\n\ncheck(5.2)\n"
+        )
+        stderr = outcome.result.stderr
+        assert outcome.result.exit_code == 1
+        assert 'File "program.py", line 2, in check' in stderr
+        assert "ValueError: wall below minimum: 5.2" in stderr
+        assert "_runner.py" not in stderr
+        assert "runpy" not in stderr
+        assert str(sandbox_module.Path.cwd()) not in stderr
+        assert sys.prefix not in stderr
+        assert sys.base_prefix not in stderr
+
+    def test_guard_frames_name_the_workspace_not_the_host(self, sandbox: Sandbox) -> None:
+        outcome = sandbox.execute_detailed("open('../../escape_probe.txt', 'w').write('x')\n")
+        stderr = outcome.result.stderr
+        assert "SovereignFilesystemBlocked" in stderr
+        assert "<workspace>" in stderr
+        assert "storage" not in stderr
+
+    def test_a_syntax_error_still_names_the_line(self, sandbox: Sandbox) -> None:
+        # validate=False: the static validator refuses unparseable code before
+        # it reaches the runner, and this is about what the runner prints.
+        outcome = sandbox.execute_detailed("x = (1,\n", validate=False)
+        stderr = outcome.result.stderr
+        assert outcome.result.exit_code == 1
+        assert "SyntaxError" in stderr
+        assert "program.py" in stderr
+        assert "_runner.py" not in stderr
+
+    def test_system_exit_keeps_its_code_and_prints_nothing(self, sandbox: Sandbox) -> None:
+        outcome = sandbox.execute_detailed("raise SystemExit(3)\n")
+        assert outcome.result.exit_code == 3
+        assert "Traceback" not in outcome.result.stderr
