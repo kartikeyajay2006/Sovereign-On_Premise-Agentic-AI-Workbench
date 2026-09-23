@@ -565,7 +565,19 @@ export interface ModelsStatus {
   /** Provider models installed on the host that the registry does not list. */
   unregistered_installed: string[]
   residency: Record<string, unknown>
-  resident_in_runtime: string[]
+  /**
+   * Ollama's own /api/ps entries, passed through unchanged by
+   * manager.resident_models() -- objects, not names. This was typed string[]
+   * when it was transcribed, which the registry screen had to work around
+   * with a type of its own.
+   */
+  resident_in_runtime: {
+    name?: string
+    model?: string
+    size?: number
+    size_vram?: number
+    expires_at?: string
+  }[]
   /** role -> the ids of the available models serving it. */
   roles: Record<string, string[]>
 }

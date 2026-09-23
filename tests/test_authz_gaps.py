@@ -153,3 +153,47 @@ class TestSeparationOfDuties:
         decided = asyncio.run(get_task_service().decide_approval(task.id, admin, "approve", None))
         assert decided.approval.decision == "approved"
         assert decided.approval.reviewer_id == admin.id
+
+
+class TestCatalogueRespectsScope:
+    """The document list must not announce what search would refuse."""
+
+    def test_titles_outside_scope_or_clearance_are_not_listed(self, monkeypatch):
+        from datetime import datetime, timezone
+
+        from backend.core.schemas import KnowledgeDocument
+
+        def doc(title: str, department: str, classification: str) -> KnowledgeDocument:
+            return KnowledgeDocument(
+                id=title,
+                title=title,
+                source_path=f"{title}.md",
+                department=department,
+                classification=Sensitivity(classification),
+                version="1.0",
+                chunk_count=1,
+                sha256="0" * 64,
+                ingested_at=datetime.now(timezone.utc),
+                media_type="text/markdown",
+                size_bytes=10,
+            )
+
+        class Catalogue:
+            def list_documents(self):
+                return [
+                    doc("ops-normal", "operations", "normal"),
+                    doc("general-restricted", "general", "restricted"),
+                    doc("inspection-confidential", "inspection", "confidential"),
+                ]
+
+        monkeypatch.setattr(system_routes, "get_knowledge_base", lambda: Catalogue())
+        get_identity_service().ensure_seed_users()
+        with TestClient(create_app()) as client:
+            token = client.post(
+                "/api/auth/login", json={"username": "operator", "password": "workbench"}
+            ).json()["token"]
+            listed = client.get(
+                "/api/knowledge/documents", headers={"Authorization": f"Bearer {token}"}
+            ).json()
+        # operator: operations + general, clearance confidential.
+        assert [d["title"] for d in listed] == ["ops-normal"]

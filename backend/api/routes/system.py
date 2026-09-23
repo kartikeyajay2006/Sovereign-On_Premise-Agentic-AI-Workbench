@@ -200,7 +200,25 @@ def policies(user: CurrentUser) -> dict[str, Any]:
 # ----------------------------------------------------------------- knowledge
 @router.get("/knowledge/documents", response_model=list[KnowledgeDocument])
 def knowledge_documents(user: CurrentUser) -> list[KnowledgeDocument]:
-    return get_knowledge_base().list_documents()
+    """The documents this account could retrieve from, and no others.
+
+    This listed every document to every signed-in role, so an operator saw
+    the title, department and classification of a Restricted design memo it
+    could never open -- search refused the content, and the catalogue
+    announced that it existed and what it was about. Filtered by the same
+    two rules as search: the caller's departments unless theirs is an
+    override role, and nothing above their clearance.
+    """
+    config = get_config()
+    overrides = config.access_control.get("file_access", {}).get("override_roles", [])
+    clearance = config.classification_rank(user.max_data_classification.value)
+    allowed = None if user.role in overrides else {user.department, "general"}
+    return [
+        document
+        for document in get_knowledge_base().list_documents()
+        if (allowed is None or document.department in allowed)
+        and config.classification_rank(document.classification.value) <= clearance
+    ]
 
 
 @router.post("/knowledge/search", response_model=KnowledgeSearchResponse)
