@@ -207,6 +207,28 @@ class EvidenceLedger:
         return len(self._items)
 
 
+def _raised_reason(items: list[EvidenceItem], level: Sensitivity) -> str:
+    """An approval reason naming the evidence that raised a run's class.
+
+    Written as the policy engine writes its own ("rule: description"), so the
+    screens that already split and render those reasons show it unchanged.
+    A document is named by its code, the part of the source before the
+    title, which is how the corpus and the demo script refer to it.
+    """
+    ids = ", ".join(item.id for item in items)
+    documents: list[str] = []
+    for item in items:
+        code = item.source_document.split(" — ")[0].strip()
+        if code and code not in documents:
+            documents.append(code)
+    source = f"{ids} ({', '.join(documents)})" if documents else ids
+    verb = "is" if len(items) == 1 else "are"
+    return (
+        f"classification_raised: Evidence {source} {verb} {level.value}, "
+        f"so the run is {level.value} too."
+    )
+
+
 def _pdf_has_text(path: Path) -> bool:
     from backend.rag.parsing import has_extractable_text
 
@@ -1328,6 +1350,7 @@ class AgentOrchestrator:
             # raises the output to its own level before the approval gate
             # reads it. It only ever rises.
             raised = self._classification_of_evidence(task.evidence)
+            raised_by: list[EvidenceItem] = []
             if raised is not None and self.config.classification_rank(
                 raised.value
             ) > self.config.classification_rank(profile.sensitivity.value):
@@ -1335,6 +1358,7 @@ class AgentOrchestrator:
                 profile = profile.model_copy(update={"sensitivity": raised})
                 task.profile = profile
                 self._checkpoint(task)
+                raised_by = [item for item in task.evidence if item.classification == raised]
                 self.audit.record(
                     category="policy",
                     action="classification_raised",
@@ -1344,11 +1368,7 @@ class AgentOrchestrator:
                     detail={
                         "from": previous.value,
                         "to": raised.value,
-                        "because": [
-                            item.id
-                            for item in task.evidence
-                            if item.classification == raised
-                        ],
+                        "because": [item.id for item in raised_by],
                     },
                 )
                 await self._emit(
@@ -1367,6 +1387,14 @@ class AgentOrchestrator:
                 prompt=task.prompt,
                 verification_valid=task.verification.valid,
             )
+            # The gate's own reason says only that sensitive or restricted
+            # work needs an authority. When the class came from the evidence
+            # rather than the request, a reader saw "4 of 4 checks passed"
+            # beside HELD and had no way to learn that retrieval had admitted
+            # a Restricted design memo. The reason now names it, ahead of the
+            # rule it triggered.
+            if raised_by and any(r.startswith("sensitive_classification") for r in reasons):
+                reasons = [_raised_reason(raised_by, profile.sensitivity), *reasons]
             task.approval = ApprovalRecord(
                 required=required,
                 reasons=reasons,
