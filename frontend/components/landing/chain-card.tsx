@@ -25,7 +25,15 @@ export function ChainCard({ index, verb, mechanism, body, artifact, className }:
       </div>
       <p className={MONO_LABEL}>{mechanism}</p>
       <p className="text-body leading-[22px] text-foreground-secondary">{body}</p>
-      <div className="mt-auto pt-1">{artifact}</div>
+      {/*
+        No `mt-auto`. It belonged to the flex layout, where it pushed the
+        artifact to the bottom of a stretched column. Inside the shared
+        subgrid row it does the opposite of what is wanted: it bottom-aligns
+        each block within the row, so three blocks of unequal height start at
+        three different heights -- the exact stagger the subgrid was added to
+        remove.
+      */}
+      <div className="pt-1">{artifact}</div>
     </article>
   )
 }

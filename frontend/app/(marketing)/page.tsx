@@ -181,11 +181,27 @@ export default function LandingPage() {
         lede={CHAIN.lede}
         tone="surface"
       >
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8">
+        {/*
+          Four explicit rows, and each card is a subgrid spanning them, so
+          heading sits level with heading and artifact with artifact across
+          all three.
+
+          Before this they were three independent flex columns. The cards
+          stretched to equal height and the artifact was pushed down with
+          mt-auto, which bottom-aligned three blocks of unequal height --
+          281px, 221px and 181px -- so their header bars landed 100px apart
+          and a row meant to read as one set read as a mistake.
+
+          The Reveal wrapper is gone from between the grid and the cards:
+          subgrid needs the card to be the grid item, and an element in
+          between breaks the row inheritance. The lift moves onto the card
+          itself, so the motion survives.
+        */}
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8 md:[grid-template-rows:auto_auto_1fr_auto]">
           {CHAIN.cards.map((card, i) => (
-            <Reveal key={card.verb} step={i === 0 ? 0 : i === 1 ? 1 : 2} className="flex">
+            <Reveal key={card.verb} step={i === 0 ? 0 : i === 1 ? 1 : 2} className="contents">
               <ChainCard
-                className="w-full"
+                className="w-full min-w-0 md:row-span-4 md:grid md:grid-cols-1 md:grid-rows-subgrid md:gap-5"
                 index={card.index}
                 verb={card.verb}
                 mechanism={card.mechanism}
