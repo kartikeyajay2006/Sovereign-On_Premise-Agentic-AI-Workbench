@@ -472,3 +472,66 @@ class TestSelfTestOnAHostThatCannotExecute:
         report = engine.self_test_report()
         assert report["passed"] == 0
         assert report["all_passed"] is False
+
+
+class TestSandboxConsoleIsGoverned:
+    """The interactive console must be no weaker than an agent tool call.
+
+    It is the security demo surface, so the temptation is to make it 'just run
+    the code'. These assert that it goes through the same gates: authentication,
+    the python_exec RBAC check, and the static validator - none of which the
+    endpoint may bypass, however direct the console feels.
+    """
+
+    def setup_method(self) -> None:
+        from backend.core.identity import get_identity_service
+
+        get_identity_service().ensure_seed_users()
+
+    @staticmethod
+    def _login(client, username: str) -> dict[str, str]:
+        response = client.post(
+            "/api/auth/login", json={"username": username, "password": "workbench"}
+        )
+        assert response.status_code == 200, response.text
+        return {"Authorization": f"Bearer {response.json()['token']}"}
+
+    def test_console_requires_authentication(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import create_app
+
+        with TestClient(create_app()) as client:
+            assert client.post("/api/sandbox/execute", json={"code": "print(1)"}).status_code == 401
+
+    def test_console_denies_a_role_without_python_exec(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import create_app
+
+        # The auditor holds read-only oversight and is not granted python_exec
+        # in tool-permissions.yaml. The console must refuse it, not run it.
+        with TestClient(create_app()) as client:
+            headers = self._login(client, "auditor")
+            response = client.post(
+                "/api/sandbox/execute", json={"code": "print(1)"}, headers=headers
+            )
+            assert response.status_code == 403
+
+    def test_console_cannot_bypass_the_static_validator(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import create_app
+
+        with TestClient(create_app()) as client:
+            headers = self._login(client, "engineer")
+            response = client.post(
+                "/api/sandbox/execute",
+                json={"code": "import os\ngetattr(os, 'sys' + 'tem')('id')"},
+                headers=headers,
+            )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            # The indirect process escape must be caught before execution.
+            assert body["result"]["static_validation_passed"] is False
+            assert body["result"]["ok"] is False
