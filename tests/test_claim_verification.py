@@ -112,3 +112,26 @@ class TestCorroborationLimits:
 
     def test_unrelated_text_does_not(self):
         assert _corroborates("The pump requires quarterly lubrication", S4_FINDINGS_TABLE) is False
+
+
+class TestShortClaims:
+    """A claim shorter than the match floor must still be checkable.
+
+    The floor was a flat three matching words, so a claim carrying only two
+    distinctive words could never corroborate however exactly it matched.
+    "The severity is Medium [S1]" -- correct, and citing the passage that
+    says precisely that -- was reported unsupported on a real run.
+    """
+
+    def test_a_two_word_claim_matching_exactly_is_corroborated(self):
+        assert _corroborates(
+            "The severity is Medium",
+            "Where cladding damage exceeds 20% of the surface area of an insulated "
+            "section, that section shall be classified as a Medium severity finding.",
+        ) is True
+
+    def test_a_short_claim_that_does_not_match_is_still_rejected(self):
+        assert _corroborates(
+            "The severity is Critical",
+            "Insulation shall be inspected every 24 months by a competent person.",
+        ) is False

@@ -92,7 +92,13 @@ def _corroborates(claim: str, excerpt: str) -> bool:
         return False
     excerpt_tokens = {word.lower() for word in WORD_PATTERN.findall(excerpt)}
     overlap = tokens & excerpt_tokens
-    return len(overlap) >= max(3, int(len(tokens) * 0.35))
+    # The floor cannot exceed what the claim has to offer. Requiring three
+    # matching words flatly meant a short claim could never corroborate
+    # however exact it was: "The severity is Medium [S1]" carries two
+    # distinctive words, matched both against the passage that says exactly
+    # that, and was still reported unsupported.
+    required = min(len(tokens), max(3, int(len(tokens) * 0.35)))
+    return len(overlap) >= required
 
 
 class VerificationEngine:
