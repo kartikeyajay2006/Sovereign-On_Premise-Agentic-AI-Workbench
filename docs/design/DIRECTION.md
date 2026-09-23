@@ -115,7 +115,7 @@ The system in globals.css stands: eight roles from display (32/36) to ledger (10
 * **The serif turn** (a system serif, italic, on the second line of a display heading) belongs to the landing page and sign-in only. The app never uses it.
 * **Numbers are tabular everywhere**, and changing numbers roll (P5).
 
-**Fonts are an open decision for the lead.** The build currently fetches Geist from Google through `next/font/google` (the running pages never do). An air-gapped build cannot, so this is a real deployment blocker, not a purity point. The fix is `npm install geist` plus two import lines in `app/layout.tsx`, and the comment there spells out both. The package sets the same CSS variables, so nothing else changes. It is a new dependency, so it was not installed.
+**Fonts are local.** Geist Sans and Geist Mono come from the `geist` package (Vercel's distribution, loaded through `next/font/local`), so neither the build nor the running pages reach Google. The switch was made after a dev server that could not download from Google silently rendered every ledger figure in a fallback face: the air-gap blocker, observed rather than predicted. The package sets the same CSS variables, so nothing else changed.
 
 ---
 
@@ -267,7 +267,7 @@ The repo's own prior research (docs/plan/04, 14, 20) is the foundation this buil
 
 ## 10. Decisions this needs from the lead
 
-1. **Fonts:** `npm install geist` and the two-line switch in `app/layout.tsx`. It fixes the air-gapped build.
+1. **Fonts:** done. `geist` is installed and `app/layout.tsx` loads it locally.
 2. **Motion library:** recommended no (§9).
 3. **Template leftovers in `frontend/public/`:** `icon.svg` (a v0 template mark, which may also collide with the `/icon.svg` route that `app/icon.svg` generates), `apple-icon.png`, `icon-*-32x32.png`, `placeholder-*`. These are outside the files I own. They should be deleted or redrawn from the new mark.
 4. **A count endpoint for approvals.** The header reads `GET /api/approvals`, which returns whole task records, only to count them. It does so on navigation, never on a timer. A `GET /api/approvals/count` would make it cheap.
