@@ -1,10 +1,16 @@
 # SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)
 
+> **SYNTHETIC DOCUMENT** — fictional procedure written for the AEGIS demonstration corpus. It is not a real site procedure and must not be used for real equipment.
+
 **Document:** SOP-MNT-022
-**Revision:** 2.1
+**Revision:** 2.2
+**Status:** SYNTHETIC
 **Department:** Inspection & Integrity
-**Effective date:** 15 June 2025
 **Classification:** Confidential — Internal Use Only
+**Effective date:** 01 September 2026
+**Supersedes:** SOP-MNT-022 Rev 2.1
+**Related:** SOP-INS-014, SOP-INS-017, SOP-INS-021
+**Revision note:** Rev 2.2 splits Clause 4 so that 4.1, 4.2 and 4.3 can each be retrieved and cited on its own. The wording of every clause is unchanged from Rev 2.1.
 
 ---
 
@@ -39,12 +45,18 @@ is observed:
 
 ## 4. Assessment
 
+### 4.1 Cladding Damage Over 20%
+
 4.1 Where cladding damage exceeds 20% of the surface area of an insulated
 section, that section shall be classified as a **Medium** severity finding
 under SOP-INS-014 Clause 5.
 
+### 4.2 Pitting Beneath Insulation
+
 4.2 Localised pitting discovered beneath insulation shall be measured by pit
 gauge and reported with maximum pit depth and pit density per 100 cm².
+
+### 4.3 Remaining Wall Below t-min
 
 4.3 Where remaining wall thickness beneath a CUI site falls below t-min as
 defined in SOP-INS-014 Clause 3, the finding shall be escalated to **High**

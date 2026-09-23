@@ -1,45 +1,400 @@
 {
+  "_synthetic": "SYNTHETIC. Every document, reading and person here is invented for the AEGIS demonstration. Values are computed by scripts/seed_demo_data.py from the same numbers the documents carry.",
   "per_location": [
     {
       "location": "Shell course 1 (top)",
       "rate_mm_yr": 0.225,
-      "remaining_life_years": 21.78
+      "remaining_life_years": 21.78,
+      "short_term_mm_yr": 0.225,
+      "long_term_mm_yr": 0.055
     },
     {
       "location": "Shell course 2 (mid)",
       "rate_mm_yr": 0.55,
-      "remaining_life_years": 6.18
+      "remaining_life_years": 6.18,
+      "short_term_mm_yr": 0.55,
+      "long_term_mm_yr": 0.13
     },
     {
       "location": "Shell course 3 (bot)",
       "rate_mm_yr": 0.2,
-      "remaining_life_years": 25.5
+      "remaining_life_years": 25.5,
+      "short_term_mm_yr": 0.2,
+      "long_term_mm_yr": 0.045
     },
     {
       "location": "Bottom head",
       "rate_mm_yr": 0.15,
-      "remaining_life_years": 36.0
+      "remaining_life_years": 36.0,
+      "short_term_mm_yr": 0.15,
+      "long_term_mm_yr": 0.03
     },
     {
       "location": "Inlet nozzle N1",
       "rate_mm_yr": 0.325,
-      "remaining_life_years": 12.92
+      "remaining_life_years": 12.92,
+      "short_term_mm_yr": 0.325,
+      "long_term_mm_yr": 0.09
     },
     {
       "location": "Manway M1 flange",
       "rate_mm_yr": 0.05,
-      "remaining_life_years": 116.0
+      "remaining_life_years": 116.0,
+      "short_term_mm_yr": 0.05,
+      "long_term_mm_yr": 0.01
     }
   ],
   "governing_location": "Shell course 2 (mid)",
   "governing_rate_mm_yr": 0.55,
   "governing_remaining_life_years": 6.18,
   "severity": "medium",
-  "severity_basis": "SOP-MNT-022 Clause 4.1 \u2014 cladding damage over 20% of the insulated section (35% recorded); the remaining-life rule in SOP-INS-014 Clause 4.5 does NOT apply, since life exceeds 4 years",
-  "approver": "Head of Inspection (SOP-OPS-008 authority matrix)",
+  "severity_basis": "SOP-MNT-022 Clause 4.1 — cladding damage over 20% of the insulated section (35% recorded), classified Medium under SOP-INS-014 Clause 5 (Clause 5.2). The remaining-life rule in SOP-INS-014 Clause 4.5 does NOT apply, since life exceeds 4 years",
+  "approver": "Head of Inspection (SOP-INS-014 Clause 5.2; SOP-OPS-008 Clause 2.2)",
   "traps": [
-    "Remaining life is above 4 years, so citing SOP-INS-014 Clause 4.5 as the basis for Medium severity is incorrect.",
-    "The governing location is the worst remaining life, not the thinnest absolute reading.",
-    "Inlet nozzle N1 has a higher corrosion rate but more margin, so it is not governing."
-  ]
+    "Remaining life is 6.18 years, above 4, so citing SOP-INS-014 Clause 4.5 as the basis for Medium severity is incorrect; the basis is SOP-MNT-022 Clause 4.1.",
+    "The long-term rate at Shell course 2 (mid) (0.13 mm/year) is below the short-term rate (0.55 mm/year), so the short-term rate governs (SOP-INS-014 Clause 4.3).",
+    "No reading is below t-min (6.0 mm), so the High escalation in SOP-MNT-022 Clause 4.3 does not apply.",
+    "Local metal loss at the governing location is 21.7% of nominal, under the 25% trigger of SOP-INS-021 Clause 2.3, so no FFS assessment is triggered.",
+    "The approving authority for a Medium finding is the Head of Inspection alone. 'Head of Inspection + Plant Manager' is the High authority (SOP-INS-014 Clause 5.1) and is wrong here."
+  ],
+  "vessels": {
+    "V-2104": {
+      "report_no": "INS-2026-0417",
+      "tag": "V-2104",
+      "service_category": "Corrosive (SOP-INS-014 Cl. 2.2)",
+      "nominal_mm": 12.0,
+      "t_min_mm": 6.0,
+      "years_between": 4.0,
+      "years_in_service": 20.0,
+      "per_location": [
+        {
+          "location": "Shell course 1 (top)",
+          "previous_mm": 11.8,
+          "current_mm": 10.9,
+          "short_term_mm_yr": 0.225,
+          "long_term_mm_yr": 0.055,
+          "rate_mm_yr": 0.225,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 21.78,
+          "below_t_min": false
+        },
+        {
+          "location": "Shell course 2 (mid)",
+          "previous_mm": 11.6,
+          "current_mm": 9.4,
+          "short_term_mm_yr": 0.55,
+          "long_term_mm_yr": 0.13,
+          "rate_mm_yr": 0.55,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 6.18,
+          "below_t_min": false
+        },
+        {
+          "location": "Shell course 3 (bot)",
+          "previous_mm": 11.9,
+          "current_mm": 11.1,
+          "short_term_mm_yr": 0.2,
+          "long_term_mm_yr": 0.045,
+          "rate_mm_yr": 0.2,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 25.5,
+          "below_t_min": false
+        },
+        {
+          "location": "Bottom head",
+          "previous_mm": 12.0,
+          "current_mm": 11.4,
+          "short_term_mm_yr": 0.15,
+          "long_term_mm_yr": 0.03,
+          "rate_mm_yr": 0.15,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 36.0,
+          "below_t_min": false
+        },
+        {
+          "location": "Inlet nozzle N1",
+          "previous_mm": 11.5,
+          "current_mm": 10.2,
+          "short_term_mm_yr": 0.325,
+          "long_term_mm_yr": 0.09,
+          "rate_mm_yr": 0.325,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 12.92,
+          "below_t_min": false
+        },
+        {
+          "location": "Manway M1 flange",
+          "previous_mm": 12.0,
+          "current_mm": 11.8,
+          "short_term_mm_yr": 0.05,
+          "long_term_mm_yr": 0.01,
+          "rate_mm_yr": 0.05,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 116.0,
+          "below_t_min": false
+        }
+      ],
+      "governing_location": "Shell course 2 (mid)",
+      "governing_rate_mm_yr": 0.55,
+      "governing_remaining_life_years": 6.18,
+      "locations_below_t_min": [],
+      "cladding_damage_percent": 35,
+      "local_metal_loss_percent_at_governing": 21.7,
+      "severity": "medium",
+      "severity_basis": "SOP-MNT-022 Clause 4.1 — cladding damage over 20% of the insulated section (35% recorded), classified Medium under SOP-INS-014 Clause 5 (Clause 5.2). The remaining-life rule in SOP-INS-014 Clause 4.5 does NOT apply, since life exceeds 4 years",
+      "approver": "Head of Inspection (SOP-INS-014 Clause 5.2; SOP-OPS-008 Clause 2.2)",
+      "ffs_triggers": []
+    },
+    "V-2107": {
+      "report_no": "INS-2026-0588",
+      "tag": "V-2107",
+      "service_category": "Corrosive (SOP-INS-014 Cl. 2.2)",
+      "nominal_mm": 10.0,
+      "t_min_mm": 6.0,
+      "years_between": 2.0,
+      "years_in_service": 15.0,
+      "per_location": [
+        {
+          "location": "Shell course 1 (liquid zone)",
+          "previous_mm": 7.1,
+          "current_mm": 5.8,
+          "short_term_mm_yr": 0.65,
+          "long_term_mm_yr": 0.28,
+          "rate_mm_yr": 0.65,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": -0.31,
+          "below_t_min": true
+        },
+        {
+          "location": "Shell course 2 (vapour zone)",
+          "previous_mm": 9.2,
+          "current_mm": 9.0,
+          "short_term_mm_yr": 0.1,
+          "long_term_mm_yr": 0.0667,
+          "rate_mm_yr": 0.1,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 30.0,
+          "below_t_min": false
+        },
+        {
+          "location": "Top head",
+          "previous_mm": 9.5,
+          "current_mm": 9.4,
+          "short_term_mm_yr": 0.05,
+          "long_term_mm_yr": 0.04,
+          "rate_mm_yr": 0.05,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 68.0,
+          "below_t_min": false
+        },
+        {
+          "location": "Bottom head",
+          "previous_mm": 8.6,
+          "current_mm": 8.2,
+          "short_term_mm_yr": 0.2,
+          "long_term_mm_yr": 0.12,
+          "rate_mm_yr": 0.2,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 11.0,
+          "below_t_min": false
+        },
+        {
+          "location": "Outlet nozzle N2",
+          "previous_mm": 8.8,
+          "current_mm": 8.3,
+          "short_term_mm_yr": 0.25,
+          "long_term_mm_yr": 0.1133,
+          "rate_mm_yr": 0.25,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 9.2,
+          "below_t_min": false
+        },
+        {
+          "location": "Inlet nozzle N1",
+          "previous_mm": 9.4,
+          "current_mm": 9.3,
+          "short_term_mm_yr": 0.05,
+          "long_term_mm_yr": 0.0467,
+          "rate_mm_yr": 0.05,
+          "governing_rate_is": "short-term",
+          "remaining_life_years": 66.0,
+          "below_t_min": false
+        }
+      ],
+      "governing_location": "Shell course 1 (liquid zone)",
+      "governing_rate_mm_yr": 0.65,
+      "governing_remaining_life_years": -0.31,
+      "locations_below_t_min": [
+        "Shell course 1 (liquid zone)"
+      ],
+      "cladding_damage_percent": null,
+      "local_metal_loss_percent_at_governing": 42.0,
+      "severity": "high",
+      "severity_basis": "SOP-INS-014 Clause 5.1 — thickness below t-min at Shell course 1 (liquid zone); withdraw immediately (Clause 3.3) and within 24 hours (Clause 5.1)",
+      "approver": "Head of Inspection + Plant Manager (SOP-INS-014 Clause 5.1): the Inspection Engineer and Head of Inspection recommend, the Plant Manager approves (SOP-OPS-008 Clauses 2.3 and 3.5)",
+      "ffs_triggers": [
+        "SOP-INS-021 Clause 2.1 — thickness below t-min without a through-wall defect",
+        "SOP-INS-021 Clause 2.2 — remaining life below 2 years",
+        "SOP-INS-021 Clause 2.3 — local metal loss 42.0% of nominal exceeds 25%"
+      ]
+    }
+  },
+  "piping": {
+    "circuit": "P-2104-OVHD-01",
+    "report_no": "INS-2026-0522",
+    "nominal_mm": 8.18,
+    "t_min_mm": 2.8,
+    "years_between": 5.0,
+    "years_in_service": 10.0,
+    "class_max_years": 5.0,
+    "per_cml": [
+      {
+        "location": "CML-01 (nozzle pipe)",
+        "previous_mm": 7.9,
+        "current_mm": 7.6,
+        "short_term_mm_yr": 0.06,
+        "long_term_mm_yr": 0.058,
+        "rate_mm_yr": 0.06,
+        "governing_rate_is": "short-term",
+        "remaining_life_years": 80.0,
+        "below_t_min": false
+      },
+      {
+        "location": "CML-02 (riser elbow)",
+        "previous_mm": 7.5,
+        "current_mm": 6.9,
+        "short_term_mm_yr": 0.12,
+        "long_term_mm_yr": 0.128,
+        "rate_mm_yr": 0.128,
+        "governing_rate_is": "long-term",
+        "remaining_life_years": 32.03,
+        "below_t_min": false
+      },
+      {
+        "location": "CML-03 (elbow after wash-water injection)",
+        "previous_mm": 6.1,
+        "current_mm": 4.6,
+        "short_term_mm_yr": 0.3,
+        "long_term_mm_yr": 0.358,
+        "rate_mm_yr": 0.358,
+        "governing_rate_is": "long-term",
+        "remaining_life_years": 5.03,
+        "below_t_min": false
+      },
+      {
+        "location": "CML-04 (header tee)",
+        "previous_mm": 7.7,
+        "current_mm": 7.1,
+        "short_term_mm_yr": 0.12,
+        "long_term_mm_yr": 0.108,
+        "rate_mm_yr": 0.12,
+        "governing_rate_is": "short-term",
+        "remaining_life_years": 35.83,
+        "below_t_min": false
+      }
+    ],
+    "governing_cml": "CML-03 (elbow after wash-water injection)",
+    "governing_rate_mm_yr": 0.358,
+    "governing_rate_is": "long-term",
+    "governing_remaining_life_years": 5.03,
+    "next_measurement_interval_months": 30,
+    "next_measurement_due": "2028-09-12",
+    "trap_short_term_only": {
+      "remaining_life_years": 6.0,
+      "interval_months": 36,
+      "due": "2029-03-12"
+    }
+  },
+  "inspection_history": {
+    "as_of": "2026-10-01",
+    "overdue": [
+      "V-2110",
+      "V-2118"
+    ],
+    "vessels": [
+      {
+        "tag": "V-2101",
+        "status": "in service",
+        "service_category": "non-corrosive",
+        "remaining_life_years": 64.0,
+        "interval_months": 48,
+        "interval_halved_by_clause_4_5": false,
+        "next_survey_due": "2028-04-24",
+        "overdue_as_of": "2026-10-01",
+        "overdue": false
+      },
+      {
+        "tag": "V-2104",
+        "status": "in service",
+        "service_category": "corrosive",
+        "remaining_life_years": 6.18,
+        "interval_months": 24,
+        "interval_halved_by_clause_4_5": false,
+        "next_survey_due": "2028-02-18",
+        "overdue_as_of": "2026-10-01",
+        "overdue": false
+      },
+      {
+        "tag": "V-2107",
+        "status": "withdrawn",
+        "service_category": "corrosive",
+        "remaining_life_years": -0.31,
+        "interval_months": 12,
+        "interval_halved_by_clause_4_5": true,
+        "next_survey_due": "2027-05-18",
+        "overdue_as_of": "2026-10-01",
+        "overdue": false
+      },
+      {
+        "tag": "V-2110",
+        "status": "in service",
+        "service_category": "steam",
+        "remaining_life_years": 81.0,
+        "interval_months": 36,
+        "interval_halved_by_clause_4_5": false,
+        "next_survey_due": "2026-06-15",
+        "overdue_as_of": "2026-10-01",
+        "overdue": true
+      },
+      {
+        "tag": "V-2115",
+        "status": "in service",
+        "service_category": "non-corrosive",
+        "remaining_life_years": 256.67,
+        "interval_months": 48,
+        "interval_halved_by_clause_4_5": false,
+        "next_survey_due": "2026-11-03",
+        "overdue_as_of": "2026-10-01",
+        "overdue": false
+      },
+      {
+        "tag": "V-2118",
+        "status": "in service",
+        "service_category": "corrosive",
+        "remaining_life_years": 3.2,
+        "interval_months": 12,
+        "interval_halved_by_clause_4_5": true,
+        "next_survey_due": "2026-06-10",
+        "overdue_as_of": "2026-10-01",
+        "overdue": true
+      }
+    ]
+  },
+  "rbi_v2104": {
+    "pof": 3,
+    "cof": 4,
+    "cof_basis": "flammable service at 10.5 bar(g), at or below 20 bar(g); service category Corrosive, not lethal or toxic (SOP-INS-030 Clause 2.2)",
+    "risk_score": 12,
+    "band": "Medium"
+  },
+  "psv_as_received_example": {
+    "set_pressure_bar_g": 10.5,
+    "opened_at_bar_g": 12.1,
+    "fails_above_bar_g": 11.55,
+    "failed": true
+  },
+  "restricted_cost_question": {
+    "cost": "₹42 lakh (ENG-DBM-2104 Clause 6; classified Restricted)",
+    "approval": "above ₹5 lakh up to ₹50 lakh: recommended by the Head of Inspection, approved by the Plant Manager (SOP-OPS-008 Clause 2.10)"
+  }
 }
