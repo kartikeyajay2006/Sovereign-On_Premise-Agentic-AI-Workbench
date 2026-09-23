@@ -327,7 +327,11 @@ export function ApprovalsView() {
                   disabled={!canApprove || active.status !== 'PENDING'}
                   onClick={() => setConfirm('approve')}
                 >
-                  Approve & release
+                  {/* A task held before any deliverable was rendered has
+                      nothing to release; the decision still records. Saying
+                      "release" over an answer-only task contradicts the line
+                      below it, which says there is no document. */}
+                  {active.document ? 'Approve & release' : 'Approve'}
                 </SovButton>
                 <SovButton
                   variant="danger"
@@ -393,17 +397,19 @@ export function ApprovalsView() {
 
                 {active.status === 'PENDING' && !isStamped ? (
                   <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-surface-sunken/40 p-6 text-center">
+                    {/* Explanation only. This carried a second Approve
+                        button identical in effect to the one in the header,
+                        so the screen offered the same irreversible decision
+                        twice, in two different visual weights, a scroll
+                        apart. The pair of controls stays together at the top
+                        where Approve and Reject can be weighed against each
+                        other. */}
+                    <Stamp className="h-4 w-4 text-foreground-muted" aria-hidden />
                     <p className="max-w-md text-[13px] text-foreground-secondary">
-                      Approving releases this deliverable and records the
-                      decision against your account.
+                      {active.document
+                        ? 'Approving releases this deliverable and records the decision against your account.'
+                        : 'This task produced an answer and no document. Approving records the decision against your account.'}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setConfirm('approve')}
-                      className="flex items-center gap-2 rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)] px-5 py-2.5 font-mono text-[12px] font-bold uppercase tracking-wider text-black transition-colors hover:opacity-90"
-                    >
-                      <Stamp className="h-4 w-4" /> Approve and release
-                    </button>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)]/15 p-4 text-[var(--sovereign)]">
