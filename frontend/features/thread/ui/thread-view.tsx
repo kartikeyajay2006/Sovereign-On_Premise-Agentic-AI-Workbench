@@ -12,6 +12,7 @@ import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { Composer, type ComposerAttachment } from './composer'
 import { UserTurn } from './user-turn'
 import { AssistantTurn } from './assistant-turn'
+import { SessionRail } from './session-rail'
 import type { AssistantTurn as AssistantTurnModel, Turn } from '../model/types'
 
 /**
@@ -57,6 +58,31 @@ function outcomeFor(status: string): AssistantTurnModel['outcome'] {
   }
 }
 
+/**
+ * Reconstruct the stage board from a finished task record.
+ *
+ * A reopened run has no event stream to replay -- token frames are never
+ * kept, and the stage events are long gone -- so the board is derived from
+ * what the record actually evidences. Anything it cannot evidence is marked
+ * skipped rather than done, which is the same rule the live board follows.
+ */
+function stagesFromTask(task: any): PipelineStage[] {
+  const tools: string[] = (task.tool_calls || []).map((c: any) => c.tool)
+  const ran: Record<string, boolean> = {
+    classify: Boolean(task.profile),
+    plan: Boolean(task.plan),
+    read: (task.files || []).length > 0,
+    retrieve: tools.includes('knowledge_search') || (task.evidence || []).length > 0,
+    sandbox: tools.includes('python_exec'),
+    draft: Boolean(task.answer),
+    verify: Boolean(task.verification),
+  }
+  return DEFAULT_PIPELINE.map((stage) => ({
+    ...stage,
+    status: ran[stage.id] ? ('done' as const) : ('skipped' as const),
+  }))
+}
+
 export function ThreadView() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [prompt, setPrompt] = useState('')
@@ -69,6 +95,10 @@ export function ThreadView() {
   const [sovereignty, setSovereignty] = useState<SovereigntyStatus | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusEvidenceId, setFocusEvidenceId] = useState<string | null>(null)
+  // Which past run the thread is showing, and a counter the rail watches so
+  // a run that just finished appears without a reload.
+  const [openedTaskId, setOpenedTaskId] = useState<string | null>(null)
+  const [runsVersion, setRunsVersion] = useState(0)
 
   const { user, role } = useRole()
   const { push } = useToast()
@@ -259,6 +289,8 @@ export function ThreadView() {
     } finally {
       setBusy(false)
       setActiveTaskId(null)
+      // The run is now in the record, so the rail should show it.
+      setRunsVersion((n) => n + 1)
     }
   }, [patchLatest])
 
@@ -328,6 +360,84 @@ export function ThreadView() {
       }
     }
   }
+
+
+  /**
+   * Show a past run in the thread.
+   *
+   * Rebuilt from the task record, not from anything cached in the rail: the
+   * summary the rail lists carries a prompt and a status and nothing else,
+   * and the turn needs the answer, its evidence and its verification. Same
+   * authoritative read a finishing run uses.
+   */
+  const openRun = useCallback(
+    async (taskId: string) => {
+      if (busy) return
+      try {
+        const task = await api.getTask(taskId)
+        const first = task.deliverables?.[0]
+        const status = String(task.status).toLowerCase()
+        setOpenedTaskId(taskId)
+        setDrawerOpen(false)
+        setFocusEvidenceId(null)
+        setTurns([
+          {
+            role: 'user',
+            id: `u-${task.id}`,
+            text: task.prompt,
+            attachments: (task.files || []).map((f) => ({
+              fileId: f.id,
+              filename: f.filename,
+              sizeBytes: f.size_bytes,
+              classification: f.classification,
+            })),
+            author: { displayName: task.user_display_name || 'Operator' },
+            at: task.created_at,
+          },
+          {
+            role: 'assistant',
+            id: `a-${task.id}`,
+            taskId: task.id,
+            outcome: outcomeFor(status),
+            // Each stage read from the record, not blanket-marked done. A
+            // reopened run must not imply work the snapshot cannot account
+            // for: this one retrieved nothing and executed nothing, and
+            // seven green rows would say it did both.
+            stages: stagesFromTask(task),
+            answer: task.answer || null,
+            streamingDraft: null,
+            streamProgress: null,
+            evidence: task.evidence || [],
+            verification: task.verification?.checks || [],
+            deliverable: first ? { ...first, sizeKb: Math.round(first.size_bytes / 1024) } : null,
+            denialReason: task.error || null,
+            error: null,
+            startedAt: task.created_at,
+            elapsedMs: task.duration_ms ?? null,
+            stream: 'closed',
+          },
+        ])
+      } catch (err: any) {
+        push({
+          title: 'Could not open that run',
+          detail: err?.detail || err?.message || 'Its record could not be read.',
+          tone: 'critical',
+        })
+      }
+    },
+    [busy, push],
+  )
+
+  const newRun = useCallback(() => {
+    if (busy) return
+    setTurns([])
+    setOpenedTaskId(null)
+    setPrompt('')
+    setAttachments([])
+    setUploadedIds([])
+    setDrawerOpen(false)
+    setFocusEvidenceId(null)
+  }, [busy])
 
   const run = async () => {
     const text = prompt.trim()
@@ -405,6 +515,19 @@ export function ThreadView() {
     | undefined
 
   return (
+    /*
+      The rail sits beside the reading column rather than inside it. The
+      column keeps its 768px measure -- that is what makes the answer
+      readable -- and the rail takes its own track to the left of it, so
+      neither one narrows the other.
+    */
+    <div className="flex w-full items-stretch">
+      <SessionRail
+        activeTaskId={openedTaskId}
+        onOpen={openRun}
+        onNew={newRun}
+        refreshKey={runsVersion}
+      />
     <div
       className={cn(
         'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-6 py-8',
@@ -491,6 +614,7 @@ export function ThreadView() {
         focusId={focusEvidenceId}
         onClose={() => setDrawerOpen(false)}
       />
+    </div>
     </div>
   )
 }
