@@ -55,7 +55,11 @@ export default function LandingPage() {
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-[-18%] -z-10 h-[520px] w-[900px] -translate-x-1/2"
+          className="pointer-events-none absolute left-1/2 top-[-18%] -z-10 h-[520px] w-[min(900px,100vw)] -translate-x-1/2"
+          /* Clamped to the viewport. At 900px fixed it made the hero 638px
+             wide inside a 375px screen -- clipped by overflow-hidden, so
+             nothing escaped, but the section still laid out and painted
+             263px of pool that could never be seen. */
           style={{
             background:
               'radial-gradient(closest-side, oklch(0.92 0.02 84.57 / 0.55), transparent)',
