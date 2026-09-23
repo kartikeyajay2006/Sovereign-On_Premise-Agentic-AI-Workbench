@@ -16,20 +16,19 @@ export const metadata: Metadata = {
 }
 
 /**
- * The public shell.
+ * The public shell: header, page, footer.
  *
- * There is no AuthGuard here and there is no auto-redirect to /console for a
- * visitor who already has a session: a redirect makes this page unreachable
- * for the one person most likely to want to send its URL to someone else, and
- * an auto-redirect on a public page is a surprise. The header's button reads
- * "Open workbench" instead.
+ * There is no AuthGuard here and no auto-redirect to /console for a visitor
+ * who already has a session: a redirect makes this page unreachable for the
+ * one person most likely to want to send its URL to someone else. The header's
+ * button reads "Open workbench" instead.
  */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-background">
+    <div className="relative flex min-h-dvh flex-col overflow-x-clip bg-background">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[4px] focus:bg-foreground focus:px-4 focus:py-2 focus:text-body focus:text-primary-foreground"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[7px] focus:bg-foreground focus:px-4 focus:py-2 focus:text-body focus:text-primary-foreground"
       >
         Skip to content
       </a>

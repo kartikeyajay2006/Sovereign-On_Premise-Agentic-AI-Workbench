@@ -57,6 +57,12 @@ export const HERO = {
   // qualification in serif italic — the typography performs the sentence.
   headline: 'Local is not enough.',
   headlineTurn: 'So prove the rest.',
+  // The hero's overline and the quiet line under its buttons: statements of
+  // mechanism, each one something the page below demonstrates.
+  // The pill above the headline, and the note under the replay.
+  announce: { tag: 'On-prem', text: 'Models, retrieval and audit run on your own hardware' },
+  replayNote:
+    'A recorded run, replayed. Every value comes from its record; only the pacing is compressed, and each step shows the time it really took on a two-core laptop CPU.',
   sub: 'An air-gapped AI workbench for regulated industrial work. Every answer is cited to a page, checked against your policy, and recorded.',
   primary: { label: 'Open the workbench', href: '/sign-in' },
   secondary: { label: 'Read the source', href: REPO_URL },
@@ -89,12 +95,12 @@ export const ANSWER = {
   index: '01',
   eyebrow: 'The answer',
   title: 'Every citation opens.',
-  titleTurn: 'So open one.',
-  lede: 'This is the answer in the screenshot, rendered from its run record instead of from pixels. Each marker opens the passage retrieval returned for it, exactly as the run stored it.',
+  titleTurn: 'Press one and read what it rests on.',
+  lede: 'The answer from the run above, rendered from its record. Each marker opens the passage retrieval returned for it, exactly as the run stored it.',
   // Used only while the fixture is the run the annotation below was written
   // about, because it names a marker and a row that another run may not have.
   ledeAnnotated:
-    'This is the answer in the screenshot, rendered from its run record instead of from pixels. Each marker opens the passage retrieval returned for it, exactly as the run stored it. Press S4, and read the Medium row.',
+    'The answer from the run above, rendered from its record. Each marker opens the passage retrieval returned for it, exactly as the run stored it. Press S4, and read the Medium row.',
   caption: (run: string, date: string, model: string) =>
     `Run ${run}, ${date}, answered by ${model} on this host. The documents are a synthetic demonstration corpus seeded by scripts/seed_demo_data.py, and every passage is shown as this run retrieved it, whatever the files say now.`,
   labels: {
@@ -242,10 +248,10 @@ export const PREMISE = {
 export const CHAIN = {
   id: 'chain',
   index: '03',
-  eyebrow: 'The chain',
-  title: 'Cited. Checked.',
-  titleTurn: 'Recorded.',
-  lede: 'Three things happen to every answer before it is allowed to become an action. Each one leaves an artifact you can open, and each artifact below is from the run above.',
+  eyebrow: 'How it works',
+  title: 'Cited. Checked. Recorded.',
+  titleTurn: 'Before anything becomes an action.',
+  lede: 'Three things happen to every answer, and each one leaves an artifact you can open. Each artifact below is from the run above.',
   cards: [
     {
       index: '01',
@@ -361,10 +367,10 @@ export const RUN = {
 export const PROOF = {
   id: 'proof',
   index: '05',
-  eyebrow: 'Proof',
-  title: 'Check it',
-  titleTurn: 'yourself.',
-  lede: 'AEGIS has no customers, no certifications and no published benchmark. What it has is artifacts. Four of them are below, and all four can be disproved without asking us anything.',
+  eyebrow: 'Security',
+  title: 'Don’t take our word for it.',
+  titleTurn: 'Check it yourself.',
+  lede: 'No certifications and no published benchmark yet. What AEGIS has is artifacts, and every one below can be disproved without asking us anything.',
 
   chain: {
     label: 'The audit chain, recomputed in your browser',
@@ -459,9 +465,9 @@ export const LIMITS = {
   id: 'limits',
   index: '06',
   eyebrow: 'Limits',
-  title: 'What this',
-  titleTurn: 'is not.',
-  lede: 'Stated plainly, because these affect whether AEGIS is right for a deployment. Every item is also in the README, and none of it gets softer there.',
+  title: 'What this is not.',
+  titleTurn: 'Stated plainly.',
+  lede: 'These affect whether AEGIS is right for a deployment. Every item is also in the README, and none of it gets softer there.',
   items: [
     {
       title: 'Application-level sandboxing is not VM isolation.',
@@ -469,7 +475,7 @@ export const LIMITS = {
     },
     {
       title: 'The sandbox needs a host that can bound a child process.',
-      body: 'Where the platform cannot apply resource limits to a subprocess, the sandbox refuses to execute anything at all — including permitted code. That is the correct direction to fail in. It is also why calculation checks report FAIL rather than PASS on such a host, and why the self-test in the proof section reports it as not assessable rather than as a pass or a breach.',
+      body: 'Where the platform cannot apply resource limits to a subprocess, the sandbox refuses to execute anything at all — including permitted code. That is the correct direction to fail in. It is also why calculation checks report FAIL rather than PASS on such a host, and why the self-test there reports not assessable rather than a pass or a breach. The host this page was captured on can bound a child; its self-test is in the proof section.',
     },
     {
       title: 'Claim checks match words, not meaning.',
@@ -521,8 +527,8 @@ export const LIMITS = {
 export const RUN_IT = {
   id: 'run-it',
   index: '07',
-  eyebrow: 'Run it',
-  title: 'Run it.',
+  eyebrow: 'Get started',
+  title: 'Run it on your own hardware.',
   lede: 'Python 3.11+, Node 20+, and Ollama on the same machine. No account and no key, and once the models are pulled, no network.',
   commands: [
     `git clone ${REPO_URL}`,

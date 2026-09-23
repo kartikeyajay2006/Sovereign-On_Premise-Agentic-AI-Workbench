@@ -17,8 +17,8 @@ import { cn } from '@/lib/utils'
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <AegisLogo variant="mark" size={24} />
-      <span className="text-answer font-medium tracking-[-0.01em] text-foreground">AEGIS</span>
+      <AegisLogo variant="mark" size={26} />
+      <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-foreground">AEGIS</span>
     </span>
   )
 }

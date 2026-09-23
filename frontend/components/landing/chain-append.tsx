@@ -64,14 +64,15 @@ export function ChainAppend({ previous, appended, label, source, caption, classN
         const style = getComputedStyle(last)
         const spatial = ms(last, '--spatial', 300)
         const standard = ms(last, '--standard', 200)
+        // APPEND, as the landing shows it: the record drops the house
+        // --shift-md into its slot at full opacity. Ink never fades in, so
+        // the hash is legible on every frame of the drop.
+        const drop = ms(last, '--shift-md', 8)
         for (const line of lines) {
-          line.animate(
-            [
-              { opacity: 0.35, transform: 'translateY(-10px)' },
-              { opacity: 1, transform: 'none' },
-            ],
-            { duration: spatial, easing: style.getPropertyValue('--ease-spatial').trim() || 'ease-out' },
-          )
+          line.animate([{ transform: `translateY(-${drop}px)` }, { transform: 'none' }], {
+            duration: spatial,
+            easing: style.getPropertyValue('--ease-spatial').trim() || 'ease-out',
+          })
         }
         linkRef.current?.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], {
           duration: standard,

@@ -145,6 +145,8 @@ export interface SandboxSelfTest {
     assessable?: boolean
     overall: string
     reason?: string
+    /** Which containment mechanism ran: windows_job_object, posix_rlimit. */
+    backend?: string
     all_passed: boolean
     duration_ms: number
     ran_at: string

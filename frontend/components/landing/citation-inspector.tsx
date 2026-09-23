@@ -174,27 +174,27 @@ export function CitationInspector({
   const panelRef = useRef<HTMLDivElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const tabRefs = useRef(new Map<string, HTMLButtonElement>())
-  // Motion only answers an action. The first render is not one.
+  // Motion only answers a pointer action. The first render is not one, and
+  // neither is a change made from the keyboard -- arrows through the tabs,
+  // Enter on a marker -- which lands at once, because a keyboard-caused
+  // change never waits on an animation.
   const acted = useRef(false)
 
   useEffect(() => {
     const node = bodyRef.current
     if (!acted.current || !node) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    node.animate(
-      [
-        { opacity: 0.4, transform: 'translateY(6px)' },
-        { opacity: 1, transform: 'none' },
-      ],
-      {
-        duration: duration(node, '--spatial', 300),
-        easing: getComputedStyle(node).getPropertyValue('--ease-spatial').trim() || 'ease-out',
-      },
-    )
+    // The reader opened another passage or view: it settles into place at
+    // full opacity. Only its position moves, never the ink.
+    node.animate([{ transform: 'translateY(6px)' }, { transform: 'none' }], {
+      duration: duration(node, '--spatial', 300),
+      easing: getComputedStyle(node).getPropertyValue('--ease-spatial').trim() || 'ease-out',
+    })
   }, [active, view])
 
-  const select = (id: string, from: 'marker' | 'tab') => {
-    acted.current = true
+  /** `pointer` is false for a change the keyboard made. */
+  const select = (id: string, from: 'marker' | 'tab', pointer: boolean) => {
+    acted.current = pointer
     setActive(id)
     const source = byId.get(id)
     if (source) setAnnouncement(`${source.id}: ${source.code} ${source.section}`)
@@ -211,8 +211,11 @@ export function CitationInspector({
       if (!panel) return
       const top = panel.getBoundingClientRect().top
       if (top > window.innerHeight * 0.72) {
+        // A keyboard press is taken there at once, like any change it causes.
+        // 'instant', not 'auto': 'auto' defers to the page's own smooth
+        // scroll-behavior and would glide anyway.
         const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        panel.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' })
+        panel.scrollIntoView({ block: 'start', behavior: !pointer ? 'instant' : still ? 'auto' : 'smooth' })
       }
     })
   }
@@ -232,7 +235,7 @@ export function CitationInspector({
               : null
     if (!next) return
     event.preventDefault()
-    select(next.id, 'tab')
+    select(next.id, 'tab', false)
     tabRefs.current.get(next.id)?.focus()
   }
 
@@ -257,7 +260,8 @@ export function CitationInspector({
         aria-controls={panelId}
         aria-label={`${source.id}, ${source.code} ${source.section}, ${source.cited ? labels.cited : labels.uncited}`}
         tabIndex={selected ? 0 : -1}
-        onClick={() => select(source.id, 'tab')}
+        // A click the keyboard synthesised (Enter, Space) reports detail 0.
+        onClick={(event) => select(source.id, 'tab', event.detail !== 0)}
         className={cn(
           'relative inline-flex h-8 min-w-9 items-center justify-center rounded-[3px] px-2 font-mono text-meta',
           'pointer-coarse:h-11 pointer-coarse:min-w-11',
@@ -350,7 +354,7 @@ export function CitationInspector({
                                 aria-pressed={pressed}
                                 aria-controls={panelId}
                                 aria-label={`Open ${id}: ${source.code} ${source.section}`}
-                                onClick={() => select(id, 'marker')}
+                                onClick={(event) => select(id, 'marker', event.detail !== 0)}
                                 className={cn(
                                   // 18px tall and raised 0.2em, sized to sit
                                   // inside the 26px line rather than push it
@@ -485,8 +489,8 @@ export function CitationInspector({
                     key={mode}
                     type="button"
                     aria-pressed={view === mode}
-                    onClick={() => {
-                      acted.current = true
+                    onClick={(event) => {
+                      acted.current = event.detail !== 0
                       setView(mode)
                     }}
                     className={cn(

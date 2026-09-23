@@ -1,62 +1,46 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { DisplayHeading } from './display-heading'
-import { Reveal } from './reveal'
-import { MONO_LABEL, MONO_META, PROSE, SECTION_LEDE, SECTION_TITLE, SHELL } from './tokens'
+import { RevealSection } from './reveal-section'
 
 export interface SectionShellProps {
   /** Anchor target. Matches the header nav hrefs where one exists. */
   id: string
-  /** Two-digit ordinal shown at the right of the eyebrow row. */
-  index: string
-  /** Uppercase mono eyebrow. Two to four words. */
+  /** Kept for the copy's structure; the page no longer prints ordinals. */
+  index?: string
+  /** A short label above the heading, in plain sans. */
   eyebrow: string
-  /** The `h2`, first line: sans, full ink. */
+  /** The claim. */
   title: ReactNode
   /**
-   * The second line, set serif italic and receded.
-   *
-   * Optional, so a section without a natural turn keeps a single sans line
-   * rather than having one invented for it. Splitting a heading that does
-   * not want to be split is worse than not splitting it.
+   * The continuation, in grey. Optional, so a section without a natural
+   * turn keeps a single line rather than having one invented for it.
    */
   titleTurn?: ReactNode
   /** Optional single paragraph under the heading. */
   lede?: ReactNode
-  /** Paints the block on --surface instead of --background, with hairlines. */
+  /** A faintly tinted band, for a section that holds a working surface. */
   tone?: 'paper' | 'surface'
-  /**
-   * How much air the block gets, chosen by how much it carries.
-   *
-   * Uniform padding is not rhythm. Every section paid the same 96px top and
-   * bottom, so a block with 324px of content spent more height on its own
-   * title than on its substance, and the page read as padded emptiness. The
-   * fix is proportion: a thin block is held tight so its content does not
-   * float, a block carrying a full product surface is given room.
-   *
-   * Measured at 1440px before the change: premise 324px of content inside
-   * 790px (41%), run 426/892 (48%), run-it 363/745 (49%) -- against proof at
-   * 1208/1700 (71%), which was the only section whose air was earned.
-   */
+  /** How much air the block gets, chosen by how much it carries. */
   density?: 'tight' | 'default' | 'full'
   children: ReactNode
   className?: string
 }
 
 const DENSITY = {
-  tight: 'py-12 md:py-14 lg:py-[68px]',
-  default: 'py-14 md:py-18 lg:py-[88px]',
-  full: 'py-16 md:py-24 lg:py-[120px]',
+  tight: 'py-16 md:py-20',
+  default: 'py-20 md:py-28',
+  full: 'py-20 md:py-32',
 } as const
 
 /**
- * Every block from 02 to 07 is wrapped in this. It owns the index, the eyebrow,
- * the heading, the lede and the vertical padding, so no section invents its own
- * rhythm and the page reads as one instrument rather than seven.
+ * Every section of the public page: a short label, a two-tone headline, one
+ * line of lede, then the content, settling in once as the reader reaches
+ * it. Left-aligned and generously spaced; the space does the separating, so
+ * there are no rules between sections.
  */
 export function SectionShell({
   id,
-  index,
   eyebrow,
   title,
   titleTurn,
@@ -69,48 +53,31 @@ export function SectionShell({
   const headingId = `${id}-title`
 
   return (
-    <section
+    <RevealSection
       id={id}
       aria-labelledby={headingId}
       // scroll-mt clears the sticky header when an anchor is followed.
       className={cn(
         'scroll-mt-16',
-        DENSITY[density],
-        tone === 'surface' && 'border-y border-border bg-surface',
+        tone === 'surface' && 'bg-[color-mix(in_oklab,var(--foreground)_2.5%,var(--background))]',
         className,
       )}
     >
-      <div className={SHELL}>
-        {/*
-          The section's entrance: the heading group settles first, and each
-          block of content under it carries its own Reveal one stagger step
-          behind. Visible from first paint either way -- see reveal.tsx.
-        */}
-        <Reveal>
-          <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
-            <span className={MONO_LABEL}>{eyebrow}</span>
-            <span className={MONO_META}>{index}</span>
-          </div>
-
+      <div className={cn('ae-shell', DENSITY[density])}>
+        <div className="ae-reveal max-w-[760px]">
+          <p className="ae-kicker m-0">{eyebrow}</p>
           {titleTurn ? (
-            <DisplayHeading
-              id={headingId}
-              as="h2"
-              scale="section"
-              lead={title}
-              turn={titleTurn}
-              className="mt-6"
-            />
+            <DisplayHeading id={headingId} as="h2" lead={title} turn={titleTurn} className="mt-3" />
           ) : (
-            <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-6 max-w-[22ch]')}>
+            <h2 id={headingId} className="ae-h2 mt-3">
               {title}
             </h2>
           )}
-          {lede ? <p className={cn(SECTION_LEDE, PROSE)}>{lede}</p> : null}
-        </Reveal>
+          {lede ? <p className="ae-lead mt-5 max-w-[62ch]">{lede}</p> : null}
+        </div>
 
-        <div className="mt-8 md:mt-10">{children}</div>
+        <div className="mt-12 md:mt-14">{children}</div>
       </div>
-    </section>
+    </RevealSection>
   )
 }

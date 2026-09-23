@@ -77,18 +77,21 @@ export function LiveContainment({ className }: LiveContainmentProps) {
       <div className="flex items-center justify-between gap-3">
         <span className={MONO_LABEL}>Containment</span>
         {/*
-          A 6px fill, never a text node. --sovereign is 3.07:1 on paper and
-          fails AA as text; as a mark beside a sentence that already states the
-          status in words, it carries no meaning alone.
+          A 6px mark beside a sentence that already states the reading in
+          words, so it carries no meaning alone. Ink, not green, when nothing
+          was observed: the monitor samples the connection table and fails
+          open, reporting an empty list when it cannot read it, so a zero is
+          a reading and not a proof, and the page does not glow about what it
+          cannot prove. Critical only for a connection it did observe.
         */}
         <span
           aria-hidden
           className={cn(
             'h-1.5 w-1.5 shrink-0 rounded-full',
-            state.kind === 'reading' && 'bg-border-strong',
-            state.kind === 'unavailable' && 'bg-border-strong',
-            state.kind === 'read' && !breached && 'bg-[var(--sovereign)]',
-            breached && 'bg-[var(--critical)]',
+            state.kind === 'reading' && 'bg-control-strong',
+            state.kind === 'unavailable' && 'bg-control-strong',
+            state.kind === 'read' && !breached && 'bg-foreground',
+            breached && 'bg-critical',
           )}
         />
       </div>
