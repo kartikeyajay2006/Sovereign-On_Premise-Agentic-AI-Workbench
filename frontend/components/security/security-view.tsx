@@ -271,6 +271,10 @@ function SandboxSelfTest() {
     try {
       const res = await api.sandboxSelfTest()
       const checks = res.checks ?? []
+      // Three outcomes, not two. A host that refuses to execute submitted no
+      // payload, so it has neither held nor failed -- and painting that red
+      // accuses the product of a breach it did not have.
+      const assessable = (res as any).assessable !== false
       setDiagnostics(
         checks.map((c: any) => ({
           name: c.name,
@@ -279,12 +283,21 @@ function SandboxSelfTest() {
           detail: c.detail,
         }))
       )
-      setOverall(res.overall ?? 'Test completed.')
-      setFailed(res.all_passed === false)
+      setOverall(
+        [res.overall, assessable ? '' : (res as any).reason].filter(Boolean).join(' ') ||
+          'Test completed.'
+      )
+      setFailed(assessable && res.all_passed === false)
       push({
-        title: res.all_passed ? 'Containment held' : 'CONTAINMENT FAILURE',
-        detail: `${res.passed}/${res.total} checks · ${res.duration_ms}ms`,
-        tone: res.all_passed ? 'sovereign' : 'critical',
+        title: !assessable
+          ? 'Not assessable on this host'
+          : res.all_passed
+            ? 'Containment held'
+            : 'CONTAINMENT FAILURE',
+        detail: assessable
+          ? `${res.passed}/${res.total} checks · ${res.duration_ms}ms`
+          : 'No payload was submitted, so no claim is made either way.',
+        tone: !assessable ? 'default' : res.all_passed ? 'sovereign' : 'critical',
       })
     } catch (err: any) {
       setDiagnostics([])

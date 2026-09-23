@@ -432,3 +432,43 @@ class TestApprovalGateIsActionable:
             assert "approval.decide" in config.role_permissions(role), (
                 f"policy nominated '{role}', which cannot decide approvals"
             )
+
+
+class TestSelfTestOnAHostThatCannotExecute:
+    """Not assessable is a third outcome, and on this class of host it is the
+    true one.
+
+    Every execute() returns the refusal when POSIX resource limits are absent,
+    and the checks read that as containment holding: "Static import review:
+    PASS -- execution refused" claims a control was demonstrated when nothing
+    was submitted. Three refusals scored as passes, the fourth failed because
+    permitted work cannot run either, and the security page reported
+    CONTAINMENT FAILURE -- alarming about the wrong thing while flattering the
+    three it got wrong.
+    """
+
+    def test_a_refusing_host_makes_no_containment_claim(self, monkeypatch):
+        from backend.tools import sandbox as sandbox_module
+
+        engine = sandbox_module.get_sandbox()
+        monkeypatch.setattr(sandbox_module, "RESOURCE_LIMITS_AVAILABLE", False)
+
+        report = engine.self_test_report()
+
+        assert report["assessable"] is False
+        assert report["checks"] == []
+        assert report["total"] == 0
+        assert "CONTAINMENT FAILURE" not in report["overall"]
+        assert "not assessable" in report["overall"].lower()
+        # The operator is told what to do about it, not just that it failed.
+        assert "WSL2" in report["reason"]
+
+    def test_a_refusal_is_never_counted_as_a_passing_check(self, monkeypatch):
+        from backend.tools import sandbox as sandbox_module
+
+        engine = sandbox_module.get_sandbox()
+        monkeypatch.setattr(sandbox_module, "RESOURCE_LIMITS_AVAILABLE", False)
+
+        report = engine.self_test_report()
+        assert report["passed"] == 0
+        assert report["all_passed"] is False

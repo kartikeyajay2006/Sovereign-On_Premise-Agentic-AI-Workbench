@@ -482,6 +482,36 @@ class Sandbox:
         started = time.perf_counter()
         checks: list[dict[str, Any]] = []
 
+        # A host that cannot execute cannot be assessed.
+        #
+        # On a host without POSIX resource limits every execute() returns the
+        # refusal, and the checks below read that as containment holding:
+        # "Static import review: PASS -- execution refused" claims a control
+        # was demonstrated when nothing was submitted. Three refusals scored
+        # as passes, the fourth check failed because permitted work cannot run
+        # either, and the page reported CONTAINMENT FAILURE -- alarming about
+        # the wrong thing while flattering the three it got wrong.
+        #
+        # Neither answer is available here. Not assessable is the third
+        # outcome, and it is the true one.
+        allowed, refusal = self.execution_allowed
+        if not allowed:
+            return {
+                "checks": [],
+                "passed": 0,
+                "total": 0,
+                "assessable": False,
+                "overall": (
+                    "Not assessable on this host. The sandbox refuses to execute, "
+                    "so no payload was submitted and no containment claim is made "
+                    "either way."
+                ),
+                "reason": refusal,
+                "all_passed": False,
+                "duration_ms": int((time.perf_counter() - started) * 1000),
+                "ran_at": datetime.now(timezone.utc).isoformat(),
+            }
+
         # 1. The static validator must refuse networking before execution.
         static_case = self.execute("import socket\nsocket.socket()")
         checks.append(
@@ -553,6 +583,7 @@ class Sandbox:
             "checks": checks,
             "passed": passed,
             "total": len(checks),
+            "assessable": True,
             "overall": (
                 f"{passed} of {len(checks)} containment checks held on this host"
                 if passed == len(checks)
