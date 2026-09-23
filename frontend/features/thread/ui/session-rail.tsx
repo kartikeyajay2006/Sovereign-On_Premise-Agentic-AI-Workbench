@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
-import { MessageSquarePlus, RotateCw } from 'lucide-react'
+import { MessageSquarePlus, RotateCw, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { TaskSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -104,6 +104,8 @@ export const SessionRail = memo(function SessionRail({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
+  // A filter over the runs already read, by the words of the question.
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -123,6 +125,9 @@ export const SessionRail = memo(function SessionRail({
       cancelled = true
     }
   }, [refreshKey, tick])
+
+  const needle = query.trim().toLowerCase()
+  const shown = needle ? runs.filter((task) => task.prompt.toLowerCase().includes(needle)) : runs
 
   const unfinished = runs.some((task) => !FINISHED.has(String(task.status).toLowerCase()))
   useEffect(() => {
@@ -148,6 +153,17 @@ export const SessionRail = memo(function SessionRail({
           <MessageSquarePlus className="size-4 text-foreground-secondary" aria-hidden />
           New run
         </button>
+        <label className="relative mt-2 block">
+          <span className="sr-only">Search runs</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-foreground-muted" aria-hidden />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search runs"
+            className="h-9 w-full rounded-[10px] bg-transparent pl-8 pr-3 text-[13px] text-foreground placeholder:text-foreground-muted transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_4%,var(--background))] focus:bg-surface focus:shadow-[0_0_0_1px_var(--line-default)] focus:outline-none"
+          />
+        </label>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
@@ -166,16 +182,18 @@ export const SessionRail = memo(function SessionRail({
             </p>
           ) : runs.length === 0 ? (
             <p className="px-2 py-2 text-[13px] text-foreground-muted">No runs yet on this host.</p>
+          ) : shown.length === 0 ? (
+            <p className="px-2 py-2 text-[13px] text-foreground-muted">No run matches “{query.trim()}”.</p>
           ) : (
             <ul className="flex list-none flex-col gap-px p-0">
-              {runs.map((task, i) => {
+              {shown.map((task, i) => {
                 const active = task.id === activeTaskId
                 const status = String(task.status).toLowerCase()
                 // The one run this tab is watching live says so; any other
                 // unfinished run shows the status it had when last read.
                 const following = task.id === runningTaskId
                 const group = dayGroup(task.created_at)
-                const firstOfGroup = i === 0 || dayGroup(runs[i - 1].created_at) !== group
+                const firstOfGroup = i === 0 || dayGroup(shown[i - 1].created_at) !== group
                 const stateWords = following ? 'in progress' : status.replace(/_/g, ' ')
                 return (
                   // APPEND: runsVersion -- a run dispatched here, or started

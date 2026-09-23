@@ -59,6 +59,26 @@ const OUTCOME_LABEL: Record<AssistantTurnModel['outcome'], string> = {
   cancelled: 'Stopped',
 }
 
+/** What a stage is doing, said while it does it. */
+const STAGE_ACTIVE: Record<string, string> = {
+  classify: 'Reading the request',
+  plan: 'Planning',
+  read: 'Reading the attachments',
+  retrieve: 'Searching the knowledge base',
+  sandbox: 'Running the calculation',
+  draft: 'Drafting the answer',
+  verify: 'Checking every claim',
+}
+
+/** The verifier's checks, in the words a reader uses. */
+const CHECK_WORDS: Record<string, string> = {
+  source_verification: 'Sources',
+  calculation_verification: 'Calculations',
+  code_verification: 'Code',
+  document_verification: 'Document',
+  hallucination_check: 'Grounding',
+}
+
 /** The outcome as a pill: the fill says the state, the words say it too. */
 const OUTCOME_PILL: Record<AssistantTurnModel['outcome'], string> = {
   running: 'bg-active-surface text-active-text',
@@ -377,6 +397,7 @@ export const AssistantTurn = memo(function AssistantTurn({
     turn.answer !== null &&
     (turn.outcome === 'delivered' || turn.outcome === 'held' || turn.outcome === 'rejected')
 
+  const activeStage = turn.stages.find((stage) => stage.status === 'active') ?? null
   const verifiedCount = turn.verification.filter((v) => v.passed).length
   const checkCount = turn.verification.length
   const verifying = turn.stages.some((s) => s.id === 'verify' && s.status === 'active')
@@ -412,6 +433,10 @@ export const AssistantTurn = memo(function AssistantTurn({
           <span aria-hidden className={cn('size-1.5 rounded-full bg-current', running && 'animate-pulse motion-reduce:animate-none')} />
           {running && turn.stopRequested ? 'Stopping' : OUTCOME_LABEL[turn.outcome]}
         </Light>
+
+        {running && activeStage ? (
+          <span className="ae-shimmer text-[13px] font-medium">{STAGE_ACTIVE[activeStage.id] ?? activeStage.name}…</span>
+        ) : null}
 
         <span className="flex items-center gap-3 text-[12.5px] text-foreground-muted">
           {/* No verdict strip while running. There are no verdicts yet, and
@@ -553,6 +578,36 @@ export const AssistantTurn = memo(function AssistantTurn({
               </p>
             )}
             <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
+            {/*
+              The verifier's checks, each as the verifier reported it: a pill
+              per check, its own detail on hover. A failed check is the one
+              thing here in red.
+            */}
+            {turn.verification.length > 0 && (
+              <ul aria-label="Verification" className="mt-1 flex list-none flex-wrap gap-1.5 p-0">
+                {turn.verification.map((check, i) => {
+                  const name = check.name ?? check.kind ?? check.label ?? `check ${i + 1}`
+                  return (
+                    <li
+                      key={`${name}-${i}`}
+                      title={check.detail}
+                      className={cn(
+                        'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12.5px] font-medium',
+                        check.passed
+                          ? 'border-line-subtle text-foreground-secondary'
+                          : 'border-critical-border bg-critical-surface text-critical-text',
+                      )}
+                    >
+                      <span aria-hidden className={check.passed ? 'text-sovereign-text' : undefined}>
+                        {check.passed ? '✓' : '✕'}
+                      </span>
+                      {CHECK_WORDS[name] ?? name.replace(/_/g, ' ')}
+                      <span className="sr-only">{check.passed ? 'passed' : 'failed'}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </Release>
         ) : !running ? (
           <p className="text-body text-foreground-secondary">This run finished without an answer.</p>
