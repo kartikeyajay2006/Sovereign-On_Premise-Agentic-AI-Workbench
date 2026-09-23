@@ -186,6 +186,9 @@ export function ApprovalsView() {
   const selected: QueueItem | null =
     items.find((i) => i.id === selectedId) ?? filtered[0] ?? null
   const selectedTask = selected ? (records.get(selected.id) ?? selected.task) : null
+  // Separation of duties, as task_service.decide_approval enforces it: the
+  // person who ran a task cannot approve or reject it.
+  const ownRun = Boolean(user && selectedTask && selectedTask.user_id === user.id)
 
   // A decided run arrives as a summary; its record is read when it is opened.
   const loadId = selected && !selectedTask ? selected.id : null
@@ -272,7 +275,7 @@ export function ApprovalsView() {
   }
 
   const openDialog = (kind: DecisionKind) => {
-    if (!selected || selected.decision !== 'held' || !canDecide) return
+    if (!selected || selected.decision !== 'held' || !canDecide || ownRun) return
     setDialog({ kind, id: selected.id })
   }
 
@@ -300,7 +303,7 @@ export function ApprovalsView() {
       event.preventDefault()
       backToList()
     } else if (key === 'a' || key === 'r') {
-      if (!selected || selected.decision !== 'held' || !canDecide) return
+      if (!selected || selected.decision !== 'held' || !canDecide || ownRun) return
       event.preventDefault()
       openDialog(key === 'a' ? 'approve' : 'reject')
     }
@@ -546,6 +549,7 @@ export function ApprovalsView() {
                         key={item.id}
                         item={item}
                         selected={selected?.id === item.id}
+                        mine={Boolean(user && item.task && item.task.user_id === user.id)}
                         onSelect={onSelect}
                         registerRow={registerRow}
                       />
@@ -570,6 +574,7 @@ export function ApprovalsView() {
                     task={selectedTask}
                     detailRead={detailRead && detailRead.id === selected.id ? detailRead : null}
                     canDecide={canDecide}
+                    ownRun={ownRun}
                     reviewer={reviewer}
                     onApprove={() => openDialog('approve')}
                     onReject={() => openDialog('reject')}

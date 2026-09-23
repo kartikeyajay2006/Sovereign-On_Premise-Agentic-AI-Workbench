@@ -25,11 +25,14 @@ export const DECISION_MARK: Record<Decision, { glyph: string; label: string; tex
 export const QueueRow = memo(function QueueRow({
   item,
   selected,
+  mine,
   onSelect,
   registerRow,
 }: {
   item: QueueItem
   selected: boolean
+  /** The signed-in reviewer submitted it, so it waits for someone else. */
+  mine: boolean
   /** `viaKeyboard` is true for Enter or Space, which also opens the detail. */
   onSelect: (id: string, viaKeyboard: boolean) => void
   registerRow: (id: string, el: HTMLButtonElement | null) => void
@@ -87,6 +90,12 @@ export const QueueRow = memo(function QueueRow({
             <>
               <span aria-hidden>·</span>
               <span className="truncate">{item.submittedBy}</span>
+            </>
+          )}
+          {mine && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="shrink-0 text-approval-text">yours</span>
             </>
           )}
           {item.deliverableCount > 0 && (

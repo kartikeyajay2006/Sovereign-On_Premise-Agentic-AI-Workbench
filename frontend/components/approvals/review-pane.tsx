@@ -365,6 +365,7 @@ export function ReviewPane({
   task,
   detailRead,
   canDecide,
+  ownRun,
   reviewer,
   onApprove,
   onReject,
@@ -377,6 +378,12 @@ export function ReviewPane({
   task: Task | null
   detailRead: DetailRead | null
   canDecide: boolean
+  /**
+   * The signed-in reviewer submitted this run. The service refuses a decision
+   * from the person who ran the task, so offering Approve here would only
+   * lead to that refusal.
+   */
+  ownRun: boolean
   reviewer: string
   onApprove: () => void
   onReject: () => void
@@ -433,7 +440,7 @@ export function ReviewPane({
               filled action. Its label says "release" only when there is a
               document to release: an answer-only run releases nothing, and
               saying otherwise contradicts the file list below it. */}
-          {held && (
+          {held && !ownRun && (
             <div className="flex items-center gap-2">
               <Button
                 variant="danger"
@@ -474,7 +481,13 @@ export function ReviewPane({
             return this run.
           </p>
         )}
-        {held && canDecide && (
+        {held && canDecide && ownRun && (
+          <p className="mt-2 text-ui text-approval-text">
+            You ran this, so another reviewer or an administrator decides it. The service refuses a
+            decision from whoever submitted the task.
+          </p>
+        )}
+        {held && canDecide && !ownRun && (
           <p className="mt-2 text-ui text-foreground-muted">
             Your decision is recorded against {reviewer} in the audit chain.
           </p>
