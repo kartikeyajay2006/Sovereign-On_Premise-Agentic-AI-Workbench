@@ -79,6 +79,23 @@ class TaskCancelled(RuntimeError):
         super().__init__(f"Task {task_id} was stopped by request")
 
 
+def _needs_plan(profile: TaskProfile, files: list[StoredFile]) -> bool:
+    """Whether this task's work branches enough to be worth planning.
+
+    A plan earns its cost when there is more than one way through: code to
+    run, a drawing to read, a document to produce, or attachments whose
+    handling depends on what they are. A single retrieval question has one
+    route, and planning it was costing 79 seconds of a 200-second run for an
+    artifact no client renders.
+    """
+    return bool(
+        profile.requires_code_execution
+        or profile.requires_vision
+        or profile.produces_deliverable
+        or files
+    )
+
+
 class EvidenceLedger:
     """Owns evidence identity for one task run.
 
@@ -878,10 +895,46 @@ class AgentOrchestrator:
                     )
 
             # ---------------------------------------------------- plan
-            await self._stage(task, TaskStatus.PLANNED, "Producing an execution plan")
-            task.plan = await self._plan(task, user, extraction=extraction)
+            #
+            # Planned only when there is something to plan.
+            #
+            # This ran unconditionally and was the most expensive stage of
+            # every run -- 79 seconds of a 200-second measured run, producing
+            # 1218 characters of JSON. What consumed it was one membership
+            # test, `"python_exec" in planned_actions`, sitting beside a
+            # `profile.requires_code_execution` that the classifier had
+            # already computed; `_mark_step` wrote statuses onto steps no
+            # client renders, since the frontend subscribes to `task.planned`
+            # and reads nothing from its payload.
+            #
+            # So a single-step retrieval question spent two fifths of its
+            # wall-clock deciding how to answer a question that has one way
+            # to be answered. A plan earns its cost when the work branches:
+            # code to run, files to read, or a document to produce.
+            #
+            # Deliberately not keyed on `step_budget`: that is a ceiling the
+            # classifier allows, not an estimate of what the task needs. A
+            # one-sentence retrieval question comes back with a budget of 14,
+            # so any test against it would keep planning for everything.
+            needs_plan = _needs_plan(profile, task.files)
 
-            planned_actions = {step.action for step in task.plan.steps}
+            if needs_plan:
+                await self._stage(task, TaskStatus.PLANNED, "Producing an execution plan")
+                task.plan = await self._plan(task, user, extraction=extraction)
+                planned_actions = {step.action for step in task.plan.steps}
+            else:
+                # Said, not silently skipped. A stage that did not run must
+                # report that it did not run: this pipeline's claim is that
+                # the log accounts for every stage, and a plan quietly absent
+                # would leave a reader to assume one was made.
+                task.plan = None
+                planned_actions = set()
+                await self._stage(
+                    task,
+                    TaskStatus.PLANNED,
+                    "No plan required: a single retrieval step with no code, files or deliverable",
+                    {"skipped": True},
+                )
 
             if reads_images:
                 self._mark_step(task, {"vision_extract", "vision_analysis"}, "done")
