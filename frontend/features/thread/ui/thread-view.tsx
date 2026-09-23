@@ -129,9 +129,15 @@ export function ThreadView() {
         patchLatest((t) => {
           let stages = t.stages
           if (target) {
+            // A stage the backend reports as skipped is marked skipped, not
+            // walked through active and left as done. The pipeline now
+            // declines to plan a single-step task and says so; painting that
+            // row green would have the board claim work that never ran,
+            // which is the one thing this timeline exists not to do.
+            const reached = data.skipped ? ('skipped' as const) : ('active' as const)
             stages = t.stages.map((s) =>
               s.id === target
-                ? { ...s, status: 'active' as const, detail: message, at: new Date().toISOString() }
+                ? { ...s, status: reached, detail: message, at: new Date().toISOString() }
                 : s.status === 'active'
                   ? { ...s, status: 'done' as const }
                   : s,
