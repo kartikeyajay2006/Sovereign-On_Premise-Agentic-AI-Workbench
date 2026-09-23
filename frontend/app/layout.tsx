@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
+import localFont from 'next/font/local'
 import './globals.css'
 import { AppProviders } from '@/components/app-providers'
 
@@ -18,7 +19,29 @@ import { AppProviders } from '@/components/app-providers'
 
   The package sets the same CSS variables used before, --font-geist-sans and
   --font-geist-mono, so globals.css needed no change.
+
+  Instrument Serif is the Recall scheme's third voice: the one italic phrase
+  in a heading, in red. Bundled here as woff2 (app/fonts, SIL Open Font
+  License) for the same reason as Geist.
 */
+const instrument = localFont({
+  src: [
+    { path: './fonts/instrument-serif-regular.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/instrument-serif-italic.woff2', weight: '400', style: 'italic' },
+  ],
+  variable: '--font-instrument',
+  display: 'swap',
+})
+
+/*
+  The theme is applied before first paint, so a reader who chose ink night
+  never sees a flash of paper. A saved choice wins; otherwise the operating
+  system's preference; paper when neither can be read. data-js marks the page
+  as scripted, which is what lets the public page's reveal start hidden: with
+  no JavaScript, nothing is ever hidden.
+*/
+const THEME_BOOT =
+  "(function(){document.documentElement.dataset.js='1';try{var t=localStorage.getItem('aegis-theme');if(t!=='dark'&&t!=='light')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();"
 
 // The description states the mechanism, not an absolute. "Never leave the
 // host" was a guarantee this page could not show; what the product does show
@@ -33,10 +56,12 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // Both follow the palette. themeColor is what a mobile browser paints its
-  // chrome with, and leaving it on paper white put a bright bar above a dark
-  // application.
-  colorScheme: 'dark',
-  themeColor: '#100e0b',
+  // chrome with, so it tracks the theme the operating system asks for.
+  colorScheme: 'light dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fbfbfa' },
+    { media: '(prefers-color-scheme: dark)', color: '#131210' },
+  ],
   width: 'device-width',
   initialScale: 1,
 }
@@ -55,8 +80,13 @@ export default function RootLayout({
       // visibly glide to the top of the next one. This attribute is Next's
       // opt-in to suspend it for navigations and keep it for anchors.
       data-scroll-behavior="smooth"
-      className={`${GeistSans.variable} ${GeistMono.variable} bg-background`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${instrument.variable} bg-background`}
+      // The boot script sets data-theme before React hydrates.
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body className="font-sans antialiased">
         <AppProviders>{children}</AppProviders>
       </body>

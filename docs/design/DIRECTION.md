@@ -1,5 +1,17 @@
 # MEASURED LIGHT
 
+> **Superseded on 24 Sep 2026.** The product moved from this dark-first
+> direction to a calm, light-first one set by the best AI product sites: warm
+> ivory and near-black ink with a dark theme on a switch, one sans family
+> (Geist), two-tone sentence-case headlines, ink pills for actions, product
+> screens in soft frames, and one cheap fade-up for motion. The mechanism is
+> the token blocks and the THE PUBLIC PAGES and LABELS sections of
+> `frontend/app/globals.css`; the mark is `frontend/components/aegis-logo.tsx`.
+> What stays from this document is its rule about honesty: hue only for a
+> state the system measured, and nothing drawn that nobody measured. The
+> motion primitives in `frontend/shared/motion/` remain in use.
+
+
 **Dark by default. Lit by evidence.**
 
 The design direction for AEGIS. This is the argument; the mechanism is the MEASURED LIGHT and SIGNATURE MOTIONS sections of `frontend/app/globals.css` and the primitives in `frontend/shared/motion/`. `PLAYBOOK.md` says, screen by screen, how to apply it.

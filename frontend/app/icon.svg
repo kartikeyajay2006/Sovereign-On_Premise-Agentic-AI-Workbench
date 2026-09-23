@@ -1,27 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="1.25 1.25 21.5 21.5" width="32" height="32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
   <!--
-    The AEGIS mark at tab size: the shield with the ledger cut through it,
-    one evenodd path, as in components/aegis-logo.tsx.
-
-    Two deliberate differences from the header mark, both for 16px. There
-    is no tile behind it, so the shield fills the square instead of a third
-    of it. And the slots are 2.4 units tall with 1.6 between, not 2 and 2:
-    at 16px the header geometry blurs into a grey block, and these stay
-    three bars. Compared at 16, 24 and 32px on light and dark tab strips
-    before it was drawn.
-
-    The colour follows the browser's theme, so the mark is ink on a light
-    tab strip and paper on a dark one; the product's own ground and ink.
+    The AEGIS mark at tab size: the ink tile with the glyph, as in
+    components/aegis-logo.tsx. The colours follow the browser's theme, so
+    the tile is ink on a light tab strip and ivory on a dark one.
   -->
   <style>
-    path { fill: #100e0b; }
+    .tile { fill: #141413; }
+    .ink { stroke: #faf9f6; fill: none; }
+    .dot { fill: #faf9f6; }
     @media (prefers-color-scheme: dark) {
-      path { fill: #eeede9; }
+      .tile { fill: #f2f1ec; }
+      .ink { stroke: #141413; }
+      .dot { fill: #141413; }
     }
   </style>
-  <path
-    fill-rule="evenodd"
-    clip-rule="evenodd"
-    d="M12 1.5 21.5 5.6V12c0 5.2-3.8 9.3-9.5 10.5C6.3 21.3 2.5 17.2 2.5 12V5.6L12 1.5Z M6.6 6.8h10.8v2.4H6.6Z M7.8 10.8h8.4v2.4H7.8Z M9 14.8h6v2.4H9Z"
-  />
+  <rect class="tile" x="0.5" y="0.5" width="23" height="23" rx="6.5" />
+  <path class="ink" d="M6.6 17.4 12 6.6l5.4 10.8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle class="dot" cx="12" cy="15.1" r="1.55" />
 </svg>

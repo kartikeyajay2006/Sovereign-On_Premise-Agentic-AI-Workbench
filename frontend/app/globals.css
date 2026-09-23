@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is([data-theme='dark'] *));
 
 /* ------------------------------------------------------------------ */
 /* Sovereign Workbench design tokens                                   */
@@ -10,14 +10,16 @@
   color-scheme: light;
 
   /* surfaces */
-  --background: #f7f7f5;
+  --background: #faf9f6;
   --surface: #ffffff;
-  --surface-sunken: #f2f1ee;
+  --surface-sunken: #f2f1ec;
 
   /* text */
-  --foreground: #0a0a0a;
-  --foreground-secondary: #5f5b57;
-  --foreground-muted: #8a8783;
+  --foreground: #141413;
+  --foreground-secondary: #5d5c58;   /* 6.5:1 on ivory */
+  --foreground-muted: #74726d;       /* 4.6:1 on ivory. Recall's own ink3 is 42%
+                                        ink, about 2.8:1; small labels here are
+                                        read, so this one clears AA. */
 
   /* lines */
   --border: #dcdad6;
@@ -38,15 +40,15 @@
   --approval: #d97706;
   --critical: #dc2626;
 
-  --radius: 4px;
+  --radius: 7px;
 
   /* shadcn compatibility mappings */
   --card: var(--surface);
   --card-foreground: var(--foreground);
   --popover: var(--surface);
   --popover-foreground: var(--foreground);
-  --primary: #0a0a0a;
-  --primary-foreground: #f7f7f5;
+  --primary: #141413;
+  --primary-foreground: #faf9f6;
   --secondary: var(--surface-sunken);
   --secondary-foreground: var(--foreground);
   --muted: var(--surface-sunken);
@@ -54,24 +56,19 @@
   --accent: var(--surface-sunken);
   --accent-foreground: var(--foreground);
   /* ------------------------------------------------------------------ */
-  /* ACTION                                                              */
+  /* ACTION: ink.                                                        */
   /*                                                                     */
-  /* The one colour that means "you can do this". Every other hue here   */
-  /* reports a STATE the system found - sovereign proved it, approval    */
-  /* held it, critical refused it - and none of them invite a press, so  */
-  /* nothing on screen said where the action was.                        */
-  /*                                                                     */
-  /* Lime, because it belongs to no status in this palette and reads as  */
-  /* interactive rather than as a verdict. Measured on the dark ground:  */
-  /* 15.43:1 as text, and 15.43:1 for near-black ink on an action fill,  */
-  /* so it carries a label either way. Its hue sits clear of sovereign   */
-  /* green (#16a34a), which is the one confusion that would cost         */
-  /* something.                                                          */
-  /*                                                                     */
-  /* It is rationed. A screen with two action colours has none.          */
-  --action: #dcf23c;
-  --action-ink: var(--background);
-  --action-wash: oklch(from var(--action) l c h / 12%);
+  /* The primary control is the page's own ink -- a near-black pill on   */
+  /* ivory, an ivory pill at night -- the way the calmest AI products    */
+  /* set theirs. Colour is left to the four states, so a hue on screen   */
+  /* always means something the system found. --action-text is the ink   */
+  /* a link or an accent phrase uses.                                    */
+  /* ------------------------------------------------------------------ */
+  --action: #141413;
+  --action-hover: #2e2d2a;
+  --action-text: #141413;
+  --action-ink: #faf9f6;
+  --action-wash: oklch(from var(--action) l c h / 6%);
   /* ------------------------------------------------------------------ */
 
   --destructive: var(--critical);
@@ -233,12 +230,12 @@
      headline is the cheapest character a page can buy — it reads as
      considered rather than generated, and it costs nothing structurally.
 
-     A system stack, not a webfont. This product is sold as air-gapped and
-     the build must not reach for a font server; Georgia ships on Windows
-     and macOS, and its italic is genuinely good at display sizes. The
-     fallbacks degrade to whatever serif the host has.                    */
+     Instrument Serif, the Recall scheme's editorial voice, bundled as
+     woff2 in app/fonts and loaded through next/font/local: the product is
+     sold as air-gapped, so neither the build nor the page reaches a font
+     server. The fallbacks degrade to whatever serif the host has.        */
   /* ------------------------------------------------------------------ */
-  --font-serif: ui-serif, Georgia, 'Times New Roman', Times, serif;
+  --font-serif: var(--font-instrument), 'New York', ui-serif, Georgia, serif;
 
   /* ------------------------------------------------------------------ */
   /* Spacing, radii, control sizes, density.                             */
@@ -250,12 +247,12 @@
 
   /* House radius stays 4px. The rest exist for nesting: an inner radius
      is the outer radius minus the padding. */
-  --radius-xs: 2px;
-  --radius-sm-token: 3px;
-  --radius-md-token: 6px;   /* floating: menu, popover, toast */
-  --radius-lg-token: 8px;   /* sheets, modals, the composer */
+  --radius-xs: 4px;
+  --radius-sm-token: 6px;
+  --radius-md-token: 10px;   /* floating: menu, popover, toast */
+  --radius-lg-token: 14px;   /* sheets, modals, the composer */
   --menu-pad: 4px;
-  --radius-menu-row: 2px;
+  --radius-menu-row: 6px;
 
   /* Exactly three control sizes, so no component invents a fourth. */
   --control-sm: 32px;
@@ -285,21 +282,20 @@
   --elev-0: 0 0 0 1px var(--line-default);
 
   --elev-1:
-    0 0 0 1px oklch(0 0 0 / 0.07),
-    0 1px 1px oklch(0 0 0 / 0.04),
+    0 0 0 1px oklch(0.2 0.006 80 / 0.10),
+    0 1px 2px oklch(0.17 0.006 60 / 0.05),
     0 0 0 1px var(--background);
 
   --elev-2:
-    0 0 0 1px oklch(0 0 0 / 0.07),
-    0 1px 1px oklch(0 0 0 / 0.03),
-    0 4px 8px -4px oklch(0 0 0 / 0.04),
-    0 16px 24px -8px oklch(0 0 0 / 0.06),
+    0 0 0 1px oklch(0.2 0.006 80 / 0.11),
+    0 1px 2px oklch(0.17 0.006 60 / 0.05),
+    0 24px 70px -32px oklch(0.17 0.006 60 / 0.30),
     0 0 0 1px var(--surface);
 
   --elev-3:
-    0 0 0 1px oklch(0 0 0 / 0.07),
-    0 8px 24px -12px oklch(0 0 0 / 0.08),
-    0 32px 72px -12px oklch(0 0 0 / 0.06),
+    0 0 0 1px oklch(0.2 0.006 80 / 0.12),
+    0 3px 8px -2px oklch(0.17 0.006 60 / 0.10),
+    0 50px 92px -36px oklch(0.17 0.006 60 / 0.42),
     0 0 0 1px var(--surface);
 
   /* One 1px inset under a raised row reads as a physical lip. */
@@ -430,22 +426,22 @@
 /*     strongly at 14%; light ink on a dark ground at 14% is mud, which  */
 /*     is the usual reason a dark theme feels indistinct.                */
 /* ==================================================================== */
-:root {
+html[data-theme='dark'] {
   color-scheme: dark;
 
   /* Grounds. Elevation rises toward light, the opposite of the light
      theme where a raised surface is whiter than paper but a sunken one
      is greyer. */
-  --background: #100e0b;        /* OKLCH 0.165 0.006 84.57 */
-  --surface: #191714;           /* OKLCH 0.205 0.0065 84.57 — raised */
-  --surface-sunken: #0a0907;    /* OKLCH 0.138 0.0055 84.57 — recessed */
+  --background: #141413;        /* warm night */
+  --surface: #1d1c1a;           /* raised, one step above the ground */
+  --surface-sunken: #0f0f0e;    /* recessed */
 
   /* Inks. Not pure white: #ffffff on a dark ground haloes, and leaves no
      headroom above body text. Worst-case ratio across all three grounds
      is quoted. */
-  --foreground: #eeede9;            /* 15.27:1 */
-  --foreground-secondary: #b7b5b3;  /*  8.75:1 */
-  --foreground-muted: #898785;      /*  5.00:1 — clears AA body, which the
+  --foreground: #f2f1ec;            /* 16.1:1 */
+  --foreground-secondary: #afada7;  /*  8.2:1 */
+  --foreground-muted: #8d8b85;      /*  5.00:1 — clears AA body, which the
                                        light theme's #8a8783 never did at
                                        3.33:1 despite carrying most of the
                                        small mono labels in the product. */
@@ -453,10 +449,16 @@
   /* The contrast surface flips: "ink" now means the light panel. */
   --ink: #f4f3f0;
   --ink-surface: #eeede9;
-  --ink-foreground: #100e0b;
+  --ink-foreground: #141413;
   --ink-muted: #5f5b57;
   --ink-border: #d8d5d0;
   --ink-grid: #e4e1dc;
+
+  /* Ink inverted: the primary control is an ivory pill at night. */
+  --action: #f2f1ec;
+  --action-hover: #dcdad3;
+  --action-text: #f2f1ec;
+  --action-ink: #141413;
 
   /* Status fills are unchanged — a fill is a fill on any ground. */
 
@@ -684,30 +686,6 @@
   --rim: inset 0 1px 0 0 oklch(1 0 0 / 4.5%);
 
   /* ------------------------------------------------------------------ */
-  /* Elevation, re-issued with the rim as its first layer. Every other   */
-  /* layer is byte-identical to the dark block above, so a surface that */
-  /* already used a rung keeps its ring, its shadow and its opaque inner */
-  /* ring and gains only the lip.                                        */
-  /* ------------------------------------------------------------------ */
-  --elev-1:
-    var(--rim),
-    0 0 0 1px oklch(from var(--line-ink) l c h / 0.10),
-    0 1px 2px oklch(0 0 0 / 0.5),
-    0 0 0 1px var(--background);
-  --elev-2:
-    var(--rim),
-    0 0 0 1px oklch(from var(--line-ink) l c h / 0.12),
-    0 2px 4px oklch(0 0 0 / 0.45),
-    0 8px 16px -6px oklch(0 0 0 / 0.55),
-    0 0 0 1px var(--surface);
-  --elev-3:
-    var(--rim),
-    0 0 0 1px oklch(from var(--line-ink) l c h / 0.14),
-    0 12px 28px -12px oklch(0 0 0 / 0.65),
-    0 36px 72px -16px oklch(0 0 0 / 0.55),
-    0 0 0 1px var(--surface);
-
-  /* ------------------------------------------------------------------ */
   /* Motion, beyond the three tiers.                                     */
   /*                                                                     */
   /* afterglow  a light cooling after the event that lit it. Opacity     */
@@ -751,6 +729,34 @@
   --size-figure: 28px; --lh-figure: 32px; --ls-figure: -0.02em;
 }
 
+/* The rim of light on a raised object is a dark-room effect; on paper the
+   Recall card shadow above does the work. */
+html[data-theme='dark'] {
+  /* ------------------------------------------------------------------ */
+  /* Elevation, re-issued with the rim as its first layer. Every other   */
+  /* layer is byte-identical to the dark block above, so a surface that */
+  /* already used a rung keeps its ring, its shadow and its opaque inner */
+  /* ring and gains only the lip.                                        */
+  /* ------------------------------------------------------------------ */
+  --elev-1:
+    var(--rim),
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.10),
+    0 1px 2px oklch(0 0 0 / 0.5),
+    0 0 0 1px var(--background);
+  --elev-2:
+    var(--rim),
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.12),
+    0 2px 4px oklch(0 0 0 / 0.45),
+    0 8px 16px -6px oklch(0 0 0 / 0.55),
+    0 0 0 1px var(--surface);
+  --elev-3:
+    var(--rim),
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.14),
+    0 12px 28px -12px oklch(0 0 0 / 0.65),
+    0 36px 72px -16px oklch(0 0 0 / 0.55),
+    0 0 0 1px var(--surface);
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans), 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
@@ -791,6 +797,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-action: var(--action);
   --color-action-ink: var(--action-ink);
+  --color-action-hover: var(--action-hover);
+  --color-action-text: var(--action-text);
   --color-action-wash: var(--action-wash);
   --color-destructive: var(--destructive);
   --color-border-token: var(--border);
@@ -801,10 +809,10 @@
      --radius-*-token values in :root are available to new components via
      arbitrary values; remapping --radius-md here from 4px to 6px would
      silently restyle every rounded-md already in the product. */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 10px;
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
 
   /* ---------------------------------------------------------------- */
   /* Additions. Everything above this line is unchanged.               */
@@ -1180,6 +1188,45 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Verdict badge: the rule set features/verification/ui/verdict-badge  */
+/* asks for in its NEEDS-GLOBAL note.                                  */
+/*                                                                     */
+/* Glyph and label, always, so no verdict is ever icon-only. Only the  */
+/* shared shape lives here; the text colour, the ring and the weight   */
+/* stay per verdict in the component, because they are what differs.  */
+/* The note wrote --text-meta and --text-ui, which are Tailwind's own  */
+/* theme names; these are the --size-* tokens they resolve to, which   */
+/* are always on :root. Every value matches what the component draws   */
+/* inline today, including its inline size and its 4px headline        */
+/* padding, so moving the component onto these classes changes        */
+/* nothing on screen.                                                  */
+/* ------------------------------------------------------------------ */
+.verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--size-meta);
+  line-height: var(--lh-meta);
+  letter-spacing: var(--ls-meta);
+  text-transform: uppercase;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+}
+.verdict[data-size='inline'] {
+  padding: var(--space-0) var(--space-2);
+}
+.verdict[data-size='headline'] {
+  font-size: var(--size-ui);
+  line-height: var(--lh-ui);
+  padding: var(--space-2) var(--space-4);
+}
+.verdict-glyph {
+  font-size: var(--size-meta);
+  line-height: 1;
+}
+
+/* ------------------------------------------------------------------ */
 /* Motion                                                              */
 /* ------------------------------------------------------------------ */
 @keyframes sov-pulse {
@@ -1408,6 +1455,19 @@
 .aegis-light[data-rest='none'] { --light-rest: var(--light-rest-none); }
 .aegis-light[data-rest='rim']  { --light-rest: var(--light-rest-rim); }
 .aegis-light[data-rest='full'] { --light-rest: var(--light-rest-full); }
+
+/* ------------------------------------------------------------------ */
+/* The stage board's connector, drawing into the next stage.            */
+/*                                                                      */
+/* Referent: task.stage moving a stage to done while the board is live. */
+/* Downward from the top, because that is the direction the run flows.  */
+/* A connector that is already drawn when its board mounts was read     */
+/* from the record and never takes this class.                          */
+/* ------------------------------------------------------------------ */
+.aegis-draw-down {
+  transform-origin: top;
+  animation: aegis-draw-y var(--standard) var(--ease-standard) both;
+}
 
 /* ------------------------------------------------------------------ */
 /* VERIFY — a check moving across a set, as far as it has actually got. */
@@ -1793,6 +1853,7 @@
   .aegis-append,
   .aegis-roll-in,
   .aegis-refuse-rule,
+  .aegis-draw-down,
   .aegis-seal[data-draw] .aegis-seal-rule,
   .aegis-seal[data-draw] .aegis-seal-mark {
     animation: none;
@@ -1825,4 +1886,180 @@
    no way to get one back. That is not a risk worth carrying into a room
    with judges in it. */
 
+@layer components {
+/* ==================================================================== */
+/* THE PUBLIC PAGES — landing and sign-in                                */
+/*                                                                       */
+/* Calm and product-first, in the manner of the best AI product sites:   */
+/* one sans family, big tight sentence-case headlines whose second half  */
+/* recedes to grey, ink pills for actions, real product in soft frames,  */
+/* and nothing decorative. Motion is one fade-up per block, opacity and  */
+/* transform only, so it composites without repainting: no blur filters, */
+/* no backdrop filters, no scroll listeners, nothing that loops.         */
+/* ==================================================================== */
+:root {
+  --ae-maxw: 1180px;
+  --ae-pad: clamp(20px, 4vw, 40px);
+  --ae-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+.ae-shell { width: 100%; max-width: var(--ae-maxw); margin-inline: auto; padding-inline: var(--ae-pad); }
+
+/* ---- type ------------------------------------------------------------ */
+.ae-display { margin: 0; font-weight: 600; font-size: clamp(2.6rem, 6.2vw, 4.9rem); line-height: 1.02; letter-spacing: -0.042em; text-wrap: balance; color: var(--foreground); }
+.ae-h2 { margin: 0; font-weight: 600; font-size: clamp(1.9rem, 3.7vw, 3.05rem); line-height: 1.07; letter-spacing: -0.034em; text-wrap: balance; color: var(--foreground); }
+.ae-h3 { margin: 0; font-weight: 600; font-size: 1.1rem; line-height: 1.35; letter-spacing: -0.015em; color: var(--foreground); }
+/* The second half of a headline recedes to grey rather than changing voice. */
+.ae-display .soft, .ae-h2 .soft { color: var(--foreground-muted); }
+.ae-lead { margin: 0; font-size: clamp(1.05rem, 1.45vw, 1.24rem); line-height: 1.55; letter-spacing: -0.011em; color: var(--foreground-secondary); text-wrap: pretty; }
+.ae-body { margin: 0; font-size: 0.98rem; line-height: 1.62; color: var(--foreground-secondary); text-wrap: pretty; }
+.ae-kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; font-weight: 500; letter-spacing: -0.005em; color: var(--foreground-secondary); }
+.ae-note { font-size: 0.82rem; line-height: 1.5; color: var(--foreground-muted); }
+
+/* ---- actions --------------------------------------------------------- */
+.ae-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 9999px; font-size: 0.95rem; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease; }
+.ae-btn:active { transform: scale(0.98); }
+.ae-btn:focus-visible { outline: none; box-shadow: var(--focus-ring-on-paper); }
+.ae-btn.primary { background: var(--action); color: var(--action-ink); }
+.ae-btn.primary:hover { background: var(--action-hover); }
+.ae-btn.secondary { background: color-mix(in oklab, var(--foreground) 7%, var(--background)); color: var(--foreground); }
+.ae-btn.secondary:hover { background: color-mix(in oklab, var(--foreground) 11%, var(--background)); }
+.ae-btn.ghost { background: transparent; color: var(--foreground-secondary); }
+.ae-btn.ghost:hover { color: var(--foreground); background: color-mix(in oklab, var(--foreground) 5%, var(--background)); }
+.ae-btn.sm { height: 36px; padding: 0 16px; font-size: 0.875rem; }
+.ae-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+.ae-btn .ar { transition: transform 0.2s var(--ae-ease); }
+.ae-btn:hover .ar { transform: translateX(2px); }
+
+/* ---- header ------------------------------------------------------------ */
+/* An opaque-enough ground rather than a backdrop blur: blur on a sticky
+   bar repaints on every scroll frame, which is what made the page lag. */
+.ae-header { position: sticky; top: 0; z-index: 50; background: color-mix(in oklab, var(--background) 95%, transparent); border-bottom: 1px solid transparent; transition: border-color 0.2s ease; }
+.ae-header.scrolled { border-bottom-color: var(--line-subtle); }
+.ae-header .row { display: flex; align-items: center; gap: 28px; height: 64px; }
+.ae-nav { display: flex; align-items: center; gap: 4px; }
+.ae-nav a { padding: 8px 12px; border-radius: 9999px; font-size: 0.9rem; color: var(--foreground-secondary); transition: color 0.15s ease, background-color 0.15s ease; }
+.ae-nav a:hover { color: var(--foreground); background: color-mix(in oklab, var(--foreground) 5%, var(--background)); }
+.ae-nav a.active { color: var(--foreground); }
+@media (max-width: 860px) { .ae-nav { display: none; } }
+
+/* ---- the product frame ---------------------------------------------- */
+.ae-frame { border-radius: 24px; padding: clamp(10px, 2.2vw, 28px); background: linear-gradient(180deg, color-mix(in oklab, var(--foreground) 6%, var(--background)) 0%, color-mix(in oklab, var(--foreground) 2.5%, var(--background)) 100%); }
+.ae-frame .inner { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid var(--line-subtle); background: var(--surface); box-shadow: 0 1px 2px oklch(0 0 0 / 0.05), 0 24px 60px -30px oklch(0 0 0 / 0.28); }
+.ae-shot-dark { display: none; }
+html[data-theme='dark'] .ae-shot-light { display: none; }
+html[data-theme='dark'] .ae-shot-dark { display: block; }
+
+/* ---- cards and grids ------------------------------------------------- */
+.ae-card { border: 1px solid var(--line-subtle); border-radius: 18px; background: var(--surface); }
+.ae-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line-subtle); border-radius: 18px; background: var(--line-subtle); }
+.ae-stat { display: flex; flex-direction: column; gap: 6px; padding: clamp(20px, 2.4vw, 28px); background: var(--background); }
+.ae-stat .v { font-weight: 600; font-size: clamp(2rem, 3.4vw, 2.8rem); line-height: 1; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.ae-stat .v small { margin-left: 3px; font-size: 0.45em; font-weight: 500; letter-spacing: 0; color: var(--foreground-muted); }
+.ae-stat .l { font-size: 0.9rem; font-weight: 500; color: var(--foreground); }
+.ae-stat .s { font-size: 0.82rem; color: var(--foreground-muted); }
+@media (max-width: 860px) { .ae-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- motion: one fade-up per block ---------------------------------- */
+:where(html[data-js]) .ae-reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.7s var(--ae-ease), transform 0.7s var(--ae-ease); }
+.ae-in .ae-reveal, .ae-reveal.ae-in { opacity: 1; transform: none; }
+@keyframes ae-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.ae-load-1 { animation: ae-up 0.7s var(--ae-ease) 0.02s both; }
+.ae-load-2 { animation: ae-up 0.7s var(--ae-ease) 0.1s both; }
+.ae-load-3 { animation: ae-up 0.7s var(--ae-ease) 0.18s both; }
+.ae-load-4 { animation: ae-up 0.8s var(--ae-ease) 0.28s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-js]) .ae-reveal { opacity: 1; transform: none; transition: none; }
+  .ae-load-1, .ae-load-2, .ae-load-3, .ae-load-4 { animation: none; }
+  .ae-btn, .ae-btn .ar { transition: none; }
+}
+
+/* ---- the run replay ------------------------------------------------- */
+.ae-replay { overflow: hidden; border-radius: 14px; border: 1px solid var(--line-subtle); background: var(--surface); box-shadow: 0 1px 2px oklch(0 0 0 / 0.05), 0 30px 70px -34px oklch(0 0 0 / 0.3); text-align: left; }
+.ae-replay-bar { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 16px; border-bottom: 1px solid var(--line-subtle); background: color-mix(in oklab, var(--foreground) 2%, var(--surface)); }
+.ae-replay-again { height: 26px; padding: 0 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; color: var(--foreground); background: color-mix(in oklab, var(--foreground) 7%, var(--surface)); transition: background-color 0.15s ease; }
+.ae-replay-again:hover { background: color-mix(in oklab, var(--foreground) 12%, var(--surface)); }
+.ae-replay-again:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ae-replay-body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 0; min-height: 460px; }
+.ae-replay-body > div { padding: clamp(18px, 3vw, 32px) clamp(18px, 3vw, 36px); }
+@media (max-width: 900px) { .ae-replay-body { grid-template-columns: 1fr; } .ae-replay-sources { display: none; } }
+
+.ae-replay-q { margin-left: auto; max-width: 86%; width: fit-content; padding: 12px 16px; border-radius: 18px 18px 6px 18px; background: color-mix(in oklab, var(--foreground) 6%, var(--surface)); font-size: 0.95rem; line-height: 1.5; color: var(--foreground); opacity: 0; transform: translateY(8px); transition: opacity 0.45s var(--ae-ease), transform 0.45s var(--ae-ease); }
+.ae-replay-a { margin-top: 22px; opacity: 0; transform: translateY(8px); transition: opacity 0.45s var(--ae-ease), transform 0.45s var(--ae-ease); }
+.ae-replay-q.on, .ae-replay-a.on { opacity: 1; transform: none; }
+
+/* A status that is still happening shimmers; a settled one is a pill. */
+.ae-shimmer { background: linear-gradient(90deg, var(--foreground-muted) 0%, var(--foreground) 45%, var(--foreground-muted) 90%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ae-shimmer 1.6s linear infinite; }
+@keyframes ae-shimmer { from { background-position: 100% 0; } to { background-position: -120% 0; } }
+.ae-pill { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px; border-radius: 9999px; font-size: 0.8rem; font-weight: 500; }
+.ae-pill .dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
+.ae-pill.held { color: var(--approval-text); background: var(--approval-surface); }
+.ae-pill.ok { color: var(--sovereign-text); background: var(--sovereign-surface); }
+.ae-pill.fail { color: var(--critical-text); background: var(--critical-surface); }
+
+.ae-replay-steps { margin: 16px 0 0; padding: 0 0 0 12px; list-style: none; border-left: 1px solid var(--line-subtle); display: flex; flex-direction: column; gap: 7px; }
+.ae-replay-steps li { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 0.82rem; opacity: 0; transform: translateX(-4px); transition: opacity 0.35s ease, transform 0.35s var(--ae-ease); }
+.ae-replay-steps li.on { opacity: 1; transform: none; }
+.ae-replay-steps .tick { color: var(--sovereign-text); font-size: 0.75rem; }
+
+.ae-replay-text { margin: 18px 0 0; font-size: 1rem; line-height: 1.7; color: var(--foreground); min-height: 5.1em; }
+.ae-word { animation: ae-word-in 0.35s ease both; }
+@keyframes ae-word-in { from { opacity: 0; } to { opacity: 1; } }
+.ae-cite { display: inline-flex; align-items: center; justify-content: center; margin: 0 2px; padding: 0 6px; height: 20px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; vertical-align: 2px; color: var(--foreground); background: color-mix(in oklab, var(--foreground) 8%, var(--surface)); animation: ae-cite-in 0.4s var(--ae-ease) both; }
+@keyframes ae-cite-in { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+.ae-caret { display: inline-block; width: 7px; height: 1.05em; margin-left: 2px; vertical-align: -3px; border-radius: 2px; background: var(--foreground); animation: ae-caret 1s steps(2) infinite; }
+@keyframes ae-caret { 50% { opacity: 0; } }
+
+.ae-replay-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.ae-check { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 9999px; font-size: 0.8rem; font-weight: 500; border: 1px solid var(--line-subtle); opacity: 0; transform: translateY(4px) scale(0.96); transition: opacity 0.3s ease, transform 0.35s var(--ae-ease); }
+.ae-check.on { opacity: 1; transform: none; }
+.ae-check.pass { color: var(--foreground); }
+.ae-check.pass > span { color: var(--sovereign-text); }
+.ae-check.fail { color: var(--critical-text); border-color: var(--critical-border); background: var(--critical-surface); }
+
+.ae-replay-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-subtle); font-size: 0.8rem; color: var(--foreground-muted); opacity: 0; transition: opacity 0.5s ease; }
+.ae-replay-foot.on { opacity: 1; }
+
+.ae-replay-sources { padding: 24px 20px; border-left: 1px solid var(--line-subtle); background: color-mix(in oklab, var(--foreground) 1.5%, var(--surface)); }
+.ae-src { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; opacity: 0; transform: translateY(6px); transition: opacity 0.4s ease, transform 0.4s var(--ae-ease), border-color 0.3s ease, background-color 0.3s ease; }
+.ae-src.on { opacity: 1; transform: none; }
+.ae-src.lit { border-color: var(--line-default); background: var(--surface); }
+.ae-src .id { width: 26px; flex-shrink: 0; font-size: 0.72rem; font-weight: 600; color: var(--foreground-muted); }
+.ae-src.lit .id { color: var(--foreground); }
+.ae-src .score { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ae-src .track { position: relative; width: 40px; height: 3px; overflow: hidden; border-radius: 3px; background: var(--line-subtle); }
+.ae-src .bar { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--foreground-muted); transition: width 0.9s var(--ae-ease); }
+.ae-src.lit .bar { background: var(--foreground); }
+.ae-src .num { font-size: 0.7rem; color: var(--foreground-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ae-replay-q, .ae-replay-a, .ae-replay-steps li, .ae-check, .ae-replay-foot, .ae-src, .ae-src .bar { transition: none; }
+  .ae-word, .ae-cite, .ae-shimmer, .ae-caret { animation: none; }
+  .ae-shimmer { color: var(--foreground-secondary); background: none; }
+}
+
+/* the announcement pill above the headline */
+.ae-announce { display: inline-flex; align-items: center; gap: 10px; height: 34px; padding: 0 14px 0 5px; border-radius: 9999px; border: 1px solid var(--line-subtle); background: var(--surface); font-size: 0.86rem; color: var(--foreground-secondary); transition: border-color 0.15s ease, color 0.15s ease; }
+.ae-announce:hover { color: var(--foreground); border-color: var(--line-default); }
+.ae-announce .tag { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 9999px; background: var(--foreground); color: var(--background); font-size: 0.74rem; font-weight: 600; }
+.ae-announce:focus-visible { outline: none; box-shadow: var(--focus-ring-on-paper); }
+}
+
+/* ==================================================================== */
+/* LABELS                                                                */
+/*                                                                       */
+/* Small labels were set in uppercase mono with wide tracking, in some   */
+/* two hundred places; across a screen that reads as noise, not as       */
+/* precision. Every such label is now plain sans in the text as written. */
+/* Values stay mono -- a hash, an id, a figure is not uppercase -- so    */
+/* only the labels change. Unlayered on purpose: it has to win over the  */
+/* utilities it replaces.                                                */
+/* ==================================================================== */
+.font-mono.uppercase {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: -0.003em;
+  font-weight: 500;
+}
+.font-mono.uppercase.text-ledger { font-size: 11.5px; line-height: 16px; }
