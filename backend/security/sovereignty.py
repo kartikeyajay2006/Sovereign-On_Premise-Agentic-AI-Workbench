@@ -43,11 +43,13 @@ class SovereigntyMonitor:
         self._dns_attempts = 0
         self._task: asyncio.Task[None] | None = None
         self._running = False
+        # Why the last sample produced no reading, or None when it did. While
+        # it is set the monitor is not monitoring, and says so.
+        self._sample_error: str | None = None
         self._allowed_networks = [
             ipaddress.ip_network(str(cidr))
             for cidr in self.config.settings.sovereignty.get("allowed_cidrs", [])
         ]
-        self._baseline_io = self._external_bytes()
 
     # -- classification ----------------------------------------------------
     def _is_allowed(self, address: str | None) -> bool:
@@ -70,18 +72,6 @@ class SovereigntyMonitor:
             pass
         return pids
 
-    def _external_bytes(self) -> int:
-        """Bytes sent on non-loopback interfaces, as a coarse egress signal."""
-        try:
-            counters = psutil.net_io_counters(pernic=True)
-        except Exception:
-            return 0
-        return sum(
-            stats.bytes_sent
-            for name, stats in counters.items()
-            if not name.startswith("lo")
-        )
-
     # -- sampling ----------------------------------------------------------
     def sample(self) -> SovereigntyStatus:
         """Take one observation of the platform's network posture."""
@@ -92,8 +82,16 @@ class SovereigntyMonitor:
 
         try:
             connections = psutil.net_connections(kind="inet")
-        except (psutil.AccessDenied, PermissionError):
-            connections = []
+        except (psutil.AccessDenied, PermissionError) as exc:
+            # This used to continue with an empty list, so a host that refused
+            # the connection table reported zero violations and sovereign as
+            # if it had looked. Nothing was observed, so nothing is reported:
+            # the monitor is marked as not monitoring, with the reason, and
+            # the last reading keeps its own time.
+            self._sample_error = (
+                f"the connection table could not be read ({type(exc).__name__})"
+            )
+            return self.status()
 
         for connection in connections:
             if connection.pid not in pids:
@@ -148,24 +146,28 @@ class SovereigntyMonitor:
                     detail=violation.model_dump(mode="json"),
                 )
 
+        self._sample_error = None
         self.last_checked = datetime.now(timezone.utc)
         return self.status()
 
     def status(self) -> SovereigntyStatus:
-        egress_bytes = max(0, self._external_bytes() - self._baseline_io)
+        # Two fields that were never readings are gone. cloud_llm_calls was
+        # the constant 0. data_leaving_host_bytes was 0 whenever no violation
+        # had been classified -- derived from the count, not measured -- and
+        # the interface counters it otherwise used are machine-wide, so they
+        # cannot say what this workbench sent.
         return SovereigntyStatus(
             sovereign=self._violation_total == 0,
             external_api_calls=self._violation_total,
-            cloud_llm_calls=0,
             internet_requests=self._violation_total,
             dns_requests=self._dns_attempts,
-            data_leaving_host_bytes=0 if self._violation_total == 0 else egress_bytes,
             unapproved_connections=self._violation_total,
             local_connections=self._local_connections,
             monitored_since=self.started_at,
             last_checked=self.last_checked,
             violations=list(reversed(self._violations[-10:])),
-            monitor_active=self._running,
+            monitor_active=self._running and self._sample_error is None,
+            monitor_error=self._sample_error,
             interfaces=self.interfaces(),
         )
 
@@ -201,9 +203,11 @@ class SovereigntyMonitor:
                 )
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
                 # A monitoring failure must never take the platform down, but it
-                # must be visible rather than silent.
+                # must be visible rather than silent -- including in the status
+                # every screen reads, which otherwise went on saying "active".
+                self._sample_error = f"sampling failed ({type(exc).__name__})"
                 await self.events.publish(
                     "sovereignty.error",
                     data={"message": "sovereignty sampling failed", "at": datetime.now(timezone.utc).isoformat()},

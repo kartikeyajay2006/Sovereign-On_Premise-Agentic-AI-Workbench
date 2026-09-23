@@ -6,9 +6,11 @@ import { request } from '@/lib/api'
  * GET /api/sovereignty returns SovereigntyStatus (backend/core/schemas.py).
  * Three of its counters are the same number: external_api_calls,
  * internet_requests and unapproved_connections are all the monitor's
- * violation total (backend/security/sovereignty.py:154-170), and
- * cloud_llm_calls is the constant 0. The screen shows the one real counter
- * once, under its real name, and does not present the constant as a reading.
+ * violation total (backend/security/sovereignty.py, status()). The screen
+ * shows the one real counter once, under its real name. The two fields that
+ * were never readings (cloud_llm_calls, data_leaving_host_bytes) are gone
+ * from the backend, and monitor_active is false whenever the last sample
+ * took no reading, with monitor_error saying why.
  */
 
 export interface NetworkConnection {
@@ -32,16 +34,15 @@ export interface InterfaceReading {
 export interface SovereigntyStatus {
   sovereign: boolean
   external_api_calls: number
-  cloud_llm_calls: number
   internet_requests: number
   dns_requests: number
-  data_leaving_host_bytes: number
   unapproved_connections: number
   local_connections: number
   monitored_since: string
   last_checked: string
   violations: NetworkConnection[]
   monitor_active: boolean
+  monitor_error?: string | null
   interfaces: Record<string, InterfaceReading>
 }
 

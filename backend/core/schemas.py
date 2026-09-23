@@ -497,16 +497,17 @@ class NetworkConnection(BaseModel):
 class SovereigntyStatus(BaseModel):
     sovereign: bool
     external_api_calls: int = 0
-    cloud_llm_calls: int = 0
     internet_requests: int = 0
     dns_requests: int = 0
-    data_leaving_host_bytes: int = 0
     unapproved_connections: int = 0
     local_connections: int = 0
     monitored_since: datetime
     last_checked: datetime
     violations: list[NetworkConnection] = Field(default_factory=list)
+    # False while the monitor is stopped or its last sample produced no
+    # reading; monitor_error then says why.
     monitor_active: bool = True
+    monitor_error: str | None = None
     interfaces: dict[str, Any] = Field(default_factory=dict)
 
 

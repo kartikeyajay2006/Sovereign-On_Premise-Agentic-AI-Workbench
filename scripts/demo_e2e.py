@@ -295,14 +295,16 @@ def scenario_sovereignty(client: Client) -> None:
 
     Console.step("Live network monitor")
     status = client.get("/api/sovereignty")
-    marker = Console.ok if status["sovereign"] else Console.fail
-    marker(f"sovereign: {status['sovereign']}")
-    Console.detail(f"external API calls:      {status['external_api_calls']}")
-    Console.detail(f"cloud LLM calls:         {status['cloud_llm_calls']}")
-    Console.detail(f"internet requests:       {status['internet_requests']}")
+    if not status["monitor_active"]:
+        # No reading, so no verdict: "sovereign" is only a statement about
+        # what a working monitor observed.
+        Console.fail(f"monitor not reading: {status.get('monitor_error') or 'stopped'}")
+    else:
+        marker = Console.ok if status["sovereign"] else Console.fail
+        marker(f"sovereign: {status['sovereign']}")
     Console.detail(f"unapproved connections:  {status['unapproved_connections']}")
-    Console.detail(f"data leaving host:       {status['data_leaving_host_bytes']} bytes")
     Console.detail(f"local (loopback) conns:  {status['local_connections']}")
+    Console.detail(f"DNS lookups:             {status['dns_requests']}")
 
     Console.step("Sandbox isolation self-test (adversarial)")
     result = client.get("/api/sovereignty/sandbox-test")

@@ -499,16 +499,17 @@ export interface NetworkConnection {
 export interface SovereigntyStatus {
   sovereign: boolean
   external_api_calls: number
-  cloud_llm_calls: number
   internet_requests: number
   dns_requests: number
-  data_leaving_host_bytes: number
   unapproved_connections: number
   local_connections: number
   monitored_since: string
   last_checked: string
   violations: NetworkConnection[]
+  /** False while the monitor is stopped or its last sample took no reading. */
   monitor_active: boolean
+  /** Why the last sample took no reading, when it did not. */
+  monitor_error?: string | null
   interfaces: Record<string, any>
 }
 
