@@ -7,7 +7,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { Wordmark } from './wordmark'
 
 const NAV = [
-  { href: '#answer', label: 'Product' },
+  { href: '#product', label: 'Product' },
   { href: '#chain', label: 'How it works' },
   { href: '#proof', label: 'Security' },
   { href: '#limits', label: 'Limits' },

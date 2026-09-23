@@ -12,6 +12,7 @@ import { LandingButton } from '@/components/landing/landing-button'
 import { LimitList } from '@/components/landing/limit-list'
 import { LiveContainment } from '@/components/landing/live-containment'
 import { MachineBlock } from '@/components/landing/machine-block'
+import { ProductGallery, type GallerySlide } from '@/components/landing/product-gallery'
 import { Reveal } from '@/components/landing/reveal'
 import { RunReplay, type ReplayCheck, type ReplayStep } from '@/components/landing/run-replay'
 import {
@@ -26,6 +27,7 @@ import {
 } from '@/components/landing/run-fixture'
 import { SectionShell } from '@/components/landing/section-shell'
 import { SelfTest } from '@/components/landing/self-test'
+import { StackStrip } from '@/components/landing/stack-strip'
 import { StatsBand, type Stat } from '@/components/landing/stats-band'
 import { MONO_LABEL, MONO_VALUE } from '@/components/landing/tokens'
 import { VerificationReport } from '@/components/landing/verification-report'
@@ -133,7 +135,11 @@ const stats: Stat[] = [
       }
     : null,
   checks.length > 0
-    ? { label: 'Checks on the answer', value: `${passedChecks}/${checks.length}`, sub: outcome.label.toLowerCase() }
+    ? {
+        label: 'Checks on the answer',
+        value: `${passedChecks}/${checks.length}`,
+        sub: outcome.tone === 'held' ? 'held for a reviewer' : outcome.label.toLowerCase(),
+      }
     : null,
   run.audit.count > 0 && run.audit.first_sequence !== null && run.audit.last_sequence !== null
     ? {
@@ -180,6 +186,47 @@ const limits = LIMITS.items.map((item) =>
     ? { ...item, body: LIMITS.latency(durationFact, seconds(modelMs) ?? '', modelCalls.length) }
     : item,
 )
+
+// The gallery: screenshots of the running product, captured on the demo host
+// in both themes (public/landing/shots).
+const GALLERY: GallerySlide[] = [
+  {
+    id: 'thread',
+    label: 'Thread',
+    title: 'Ask in plain language.',
+    body: 'Every answer arrives cited to the passage it rests on, with the checks it passed and the time it took.',
+    light: '/landing/shots/thread-light.png',
+    dark: '/landing/shots/thread-dark.png',
+    alt: 'The AEGIS thread: a question, and an answer held for review with its citations, checks and model usage.',
+  },
+  {
+    id: 'harness',
+    label: 'Harnesses',
+    title: 'Run a whole job, not one question.',
+    body: 'A sweep of questions or a requirements register runs as governed tasks and ends in one hashed report.',
+    light: '/landing/shots/harness-light.png',
+    dark: '/landing/shots/harness-dark.png',
+    alt: 'A finished SOP question sweep: three runs settled, an answer matrix and a hashed report.',
+  },
+  {
+    id: 'approvals',
+    label: 'Approvals',
+    title: 'A person signs what leaves.',
+    body: 'Held work waits for a reviewer, and never for the one who ran it. Built for the keyboard: j, k, a, r.',
+    light: '/landing/shots/approvals-light.png',
+    dark: '/landing/shots/approvals-dark.png',
+    alt: 'The approval queue: held runs on the left, one open on the right with the reason it was held.',
+  },
+  {
+    id: 'audit',
+    label: 'Audit',
+    title: 'Every step on the record.',
+    body: 'Model calls, tool runs and decisions, hash-chained. Recompute the whole chain in your browser.',
+    light: '/landing/shots/audit-light.png',
+    dark: '/landing/shots/audit-dark.png',
+    alt: 'The audit screen: the chain verified by the server, and the newest records with their hashes.',
+  },
+]
 
 function artifact(kind: 'evidence' | 'verification' | 'audit', label: string, source: string): ReactNode {
   if (kind === 'evidence') {
@@ -303,6 +350,25 @@ export default function LandingPage() {
       <section aria-label="The run above, in four numbers" className="ae-shell pb-8 pt-6">
         <StatsBand stats={stats} label="The run above, in four numbers" />
       </section>
+
+      <section aria-label="What runs on the host" className="ae-shell py-14 md:py-16">
+        <StackStrip label="Runs on your own hardware" />
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* The product, screen by screen                                     */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id="product"
+        eyebrow="Product"
+        title="One workbench."
+        titleTurn="Every step on the record."
+        lede="The thread, the harnesses, the approval queue and the audit chain, as they run on the demo host."
+      >
+        <Reveal step={1}>
+          <ProductGallery slides={GALLERY} />
+        </Reveal>
+      </SectionShell>
 
       {/* ---------------------------------------------------------------- */}
       {/* How it works                                                      */}
@@ -499,7 +565,21 @@ export default function LandingPage() {
               </dl>
             </div>
           </div>
-          <div className="mt-14 flex flex-col items-start gap-3 sm:flex-row">
+        </Reveal>
+      </SectionShell>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Closing                                                           */}
+      {/* ---------------------------------------------------------------- */}
+      <section aria-labelledby="closing-title" className="ae-shell pb-24 pt-4">
+        <div className="ae-painted rounded-[28px] px-6 py-16 text-center sm:px-12 md:py-24">
+          <h2 id="closing-title" className="ae-h2 mx-auto max-w-[18ch]">
+            Local is not enough. <span className="soft">So prove the rest.</span>
+          </h2>
+          <p className="ae-lead mx-auto mt-5 max-w-[52ch]">
+            Put a workbench on your own hardware whose every answer shows its sources, its checks and its record.
+          </p>
+          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <LandingButton href={HERO.primary.href} variant="primary">
               {HERO.primary.label}
               <span className="ar" aria-hidden>
@@ -510,8 +590,8 @@ export default function LandingPage() {
               {HERO.secondary.label}
             </LandingButton>
           </div>
-        </Reveal>
-      </SectionShell>
+        </div>
+      </section>
     </>
   )
 }
