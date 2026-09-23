@@ -107,6 +107,28 @@ def _coerce_number(value: Any) -> float | None:
 WORD_PATTERN = re.compile(r"[A-Za-z][A-Za-z\-]{4,}")
 
 
+def _is_quoted_figure(expression: Any) -> bool:
+    """Whether an "expression" is only a number restating itself.
+
+    Parsed, never evaluated: model output is untrusted input. A bare
+    constant, or a negated one, computes nothing; anything with an operator,
+    a name or a call does. An expression that does not parse is left to the
+    recomputation path, which reports it as not evaluable.
+    """
+    import ast
+
+    text = str(expression or "").strip()
+    if not text:
+        return False
+    try:
+        node = ast.parse(text, mode="eval").body
+    except SyntaxError:
+        return False
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        node = node.operand
+    return isinstance(node, ast.Constant) and isinstance(node.value, (int, float))
+
+
 def _corroborates(claim: str, excerpt: str) -> bool:
     """Whether a passage carries the substance of a claim.
 
@@ -256,6 +278,44 @@ class VerificationEngine:
                 [],
             )
 
+        # A figure quoted from a source is not a calculation, and recomputing
+        # it proves nothing.
+        #
+        # Observed on a live run: asked about an approval authority, the model
+        # listed "Insulated piping damage threshold: 20", "Inspection interval:
+        # 24" and "Approval authority: 1 (Head of Inspection)" as calculations
+        # -- bare literals, one of them a person encoded as the number 1. The
+        # sandbox evaluated 20 and got 20, and the report said "3 of 3
+        # calculation(s) independently recomputed and matched": a pass for
+        # three tautologies, on the check whose whole claim is independence.
+        # A literal is now reported as quoted and never counted as recomputed;
+        # only an expression that actually computes something is.
+        quoted = [c for c in calculations if _is_quoted_figure(c.get("expression"))]
+        calculations = [c for c in calculations if not _is_quoted_figure(c.get("expression"))]
+        quoted_entries = [
+            {
+                **dict(c),
+                "recomputed": None,
+                "matched": None,
+                "note": "quoted from the sources, not calculated; nothing to recompute",
+            }
+            for c in quoted
+        ]
+        if not calculations:
+            return (
+                VerificationCheck(
+                    name="calculation_verification",
+                    kind="calculation",
+                    passed=True,
+                    detail=(
+                        f"No calculations were made: {len(quoted)} figure(s) were quoted "
+                        "from the sources rather than computed, so there was nothing to "
+                        "recompute."
+                    ),
+                ),
+                quoted_entries,
+            )
+
         tolerance = float(self._rules.get("calculation_tolerance", 0.01))
         program_lines = ["import json", "results = []"]
         for index, calculation in enumerate(calculations):
@@ -324,6 +384,11 @@ class VerificationEngine:
                         )
             checked.append(entry)
 
+        quoted_note = (
+            f" {len(quoted)} further figure(s) were quoted from the sources, not computed."
+            if quoted
+            else ""
+        )
         return (
             VerificationCheck(
                 name="calculation_verification",
@@ -332,11 +397,11 @@ class VerificationEngine:
                 detail=(
                     f"{verified_count} of {len(calculations)} calculation(s) independently "
                     f"recomputed in the sandbox and matched within "
-                    f"{tolerance:.2%} tolerance."
+                    f"{tolerance:.2%} tolerance.{quoted_note}"
                 ),
                 warnings=mismatches[:5],
             ),
-            checked,
+            checked + quoted_entries,
         )
 
     # -- code --------------------------------------------------------------
