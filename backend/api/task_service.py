@@ -35,6 +35,61 @@ from backend.core.schemas import (
 from backend.policy.gateway import get_policy_gateway
 
 
+def _egress_reading() -> dict[str, Any] | None:
+    """The egress monitor's cumulative count and whether it is watching."""
+    try:
+        from backend.security.sovereignty import get_sovereignty_monitor
+
+        status = get_sovereignty_monitor().status()
+    except Exception:  # the monitor is an observer; its failure must not fail a run
+        return None
+    return {
+        "unapproved_total": status.unapproved_connections,
+        "active": status.monitor_active,
+    }
+
+
+def _egress_over_run(
+    before: dict[str, Any] | None, after: dict[str, Any] | None
+) -> dict[str, Any]:
+    """What the egress monitor observed while one task ran -- and only that.
+
+    This replaces a constant. Every run's audit record carried
+    "network_activity": "none -- all processing local", written whatever
+    happened, into the tamper-evident log, where anyone reading it would take
+    it for an observation. The chain protects that record from being edited
+    afterwards; it cannot make a sentence true that was never checked.
+
+    The count is the difference in the monitor's running total across the
+    run window. It is null, with the reason, when the monitor was not
+    running at both ends, because an unwatched window is not a clean one.
+    The method is stated because the monitor samples: a connection that
+    opens and closes between two samples is not seen.
+    """
+    method = (
+        "process-tree connection sampling; a connection that opens and closes "
+        "between samples is not observed"
+    )
+    if before is None or after is None:
+        return {
+            "unapproved_connections_observed": None,
+            "reason": "the egress monitor could not be read",
+            "method": method,
+        }
+    if not (before["active"] and after["active"]):
+        return {
+            "unapproved_connections_observed": None,
+            "reason": "the egress monitor was not running for the whole run",
+            "method": method,
+        }
+    return {
+        "unapproved_connections_observed": max(
+            0, after["unapproved_total"] - before["unapproved_total"]
+        ),
+        "method": method,
+    }
+
+
 class TaskError(RuntimeError):
     """Raised for task-level failures that map to a client error."""
 
@@ -442,6 +497,7 @@ class TaskService:
                 user = identity.get_user(user_id)
                 if task is None or user is None:
                     continue
+                egress_before = _egress_reading()
                 task = await self.orchestrator.run(task, user, persist=self._persist)
                 self._persist(task)
                 self.audit.record(
@@ -457,7 +513,7 @@ class TaskService:
                         "verification_valid": (
                             task.verification.valid if task.verification else None
                         ),
-                        "network_activity": "none — all processing local",
+                        "egress": _egress_over_run(egress_before, _egress_reading()),
                     },
                 )
             except Exception as exc:  # a worker must never die silently

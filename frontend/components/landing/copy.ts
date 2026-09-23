@@ -400,7 +400,7 @@ export const PROOF = {
     captionNoEdit:
       'The run’s last three records, exactly as stored. When the card is on screen your browser hashes each one the way backend/core/audit.py does and compares the result with the hash stored beside it; nothing on this card is computed for you in advance. Edit any record and it stops hashing to its stored value, which is where the server’s verifier reports the break. It detects tampering. It does not prevent it.',
     networkNote:
-      'One field in the last record, network_activity, is a fixed string the backend writes on every run (backend/api/task_service.py), not a measurement. The measurement is the containment reading in this section.',
+      'One field in the last record, network_activity, is a fixed string the backend wrote on every run when this one was recorded, not a measurement. Runs since carry what the egress monitor actually observed over the run window instead, or null with the reason when it was not watching.',
   },
 
   policy: {
