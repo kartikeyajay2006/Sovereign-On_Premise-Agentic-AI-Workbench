@@ -440,11 +440,31 @@ async def event_stream(user: CurrentUser, task_id: str | None = None) -> Streami
                 detail="You may only subscribe to your own task events",
             )
 
+    # Ownership, remembered per task for the life of this stream.
+    #
+    # This read and parsed the whole task record from SQLite for every event
+    # delivered to a subscriber without task.read.all. While a draft streams
+    # that is about twenty frames a second, so twenty full-record reads a
+    # second per open tab -- and the event bus drops events for a subscriber
+    # that falls behind, which turns a slow ownership check into missing
+    # stage events. A task's owner never changes, so the answer is cached --
+    # both ways, so a foreign task is also asked about only once. A task not
+    # found is NOT cached: an event that outran its row's commit would
+    # otherwise be remembered as "not yours" and hide the whole run from
+    # the person who started it.
+    owners: dict[str, bool] = {}
+
     def visible(event_task_id: str | None) -> bool:
         if event_task_id is None or can_read_all:
             return True
+        known = owners.get(event_task_id)
+        if known is not None:
+            return known
         task = service.get_task(event_task_id)
-        return task is not None and task.user_id == user.id
+        if task is None:
+            return False
+        owners[event_task_id] = task.user_id == user.id
+        return owners[event_task_id]
 
     async def generator() -> AsyncIterator[str]:
         yield ": stream open\n\n"
