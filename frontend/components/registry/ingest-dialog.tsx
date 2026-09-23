@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Paperclip } from 'lucide-react'
 import { Modal } from '@/components/modal'
 import { Button } from '@/shared/ui/controls/button'
@@ -13,6 +13,30 @@ const LEVELS = ['normal', 'confidential', 'sensitive', 'restricted'] as const
 
 const FIELD =
   'hover-decay h-[var(--control-md)] w-full rounded-[var(--radius)] bg-surface px-3 text-body text-foreground shadow-[0_0_0_1px_var(--control-default)] outline-none hover:shadow-[0_0_0_1px_var(--control-strong)] focus:shadow-[var(--focus-halo)]'
+
+/**
+ * How long the upload has been waiting, counted from the moment it was sent.
+ *
+ * One request that returns once, so there is no progress to draw: a bar
+ * here would fill at a rate nobody measured. What is known is the time
+ * since the request left this browser, and that is all this says. It
+ * ticks only while the request is pending, because it is mounted only then.
+ */
+function Waiting({ since }: { since: number }) {
+  const [now, setNow] = useState(since)
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(performance.now()), 100)
+    return () => window.clearInterval(timer)
+  }, [])
+  return (
+    <span
+      className="tabular self-center font-mono text-ui text-foreground-muted"
+      title="Wall time in this browser since the upload was sent: parsing, chunking and embedding happen on the service in that time"
+    >
+      waiting {(Math.max(0, now - since) / 1000).toFixed(1)} s
+    </span>
+  )
+}
 
 /**
  * Ingest a document into the local index.
@@ -40,6 +64,8 @@ export function IngestDialog({
   const [classification, setClassification] = useState<(typeof LEVELS)[number]>('confidential')
   const [version, setVersion] = useState('1.0')
   const [busy, setBusy] = useState(false)
+  // When the pending upload was sent, for the waiting readout.
+  const [sentAt, setSentAt] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const listId = useId()
@@ -52,6 +78,7 @@ export function IngestDialog({
 
   const submit = async () => {
     if (!file || busy) return
+    setSentAt(performance.now())
     setBusy(true)
     setError(null)
     try {
@@ -87,6 +114,7 @@ export function IngestDialog({
       description="Parsed, chunked and indexed by the service on this machine. It becomes retrievable, and citable, as soon as it is indexed."
       footer={
         <>
+          {busy && <Waiting since={sentAt} />}
           <Button variant="ghost" size="md" disabled={busy} onClick={() => { reset(); onClose() }}>
             Cancel
           </Button>

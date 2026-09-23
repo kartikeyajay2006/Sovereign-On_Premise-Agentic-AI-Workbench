@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, RefreshCw, Stamp } from 'lucide-react'
+import { Download, Lock, RefreshCw, Stamp } from 'lucide-react'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ClassificationTag } from '@/components/primitives'
@@ -10,8 +10,8 @@ import { Button } from '@/shared/ui/controls/button'
 import { harnessApi } from '../api'
 import type { HarnessRunView } from '../model/types'
 import { ACTIVE_RUN } from './outcome'
-import { CopyValue, Ledger, Notice, Panel } from './parts'
-import { formatBytes, formatDateTime } from './format'
+import { CopyValue, Ledger, Panel } from './parts'
+import { formatBytes, formatDateTime, plural } from './format'
 
 function message(err: unknown): string {
   return err instanceof ApiError ? String(err.detail || err.message) : String(err)
@@ -130,9 +130,12 @@ export function ReportPanel({
             {/* Sign-off */}
             {record.approval.required ? (
               <div className="flex flex-col gap-2">
+                {/* Held for a person: the wash and the lock carry the state,
+                    and the words on the wash are ink. */}
                 {record.approval.decision === 'pending' && (
-                  <p className="flex items-center gap-2 text-ui font-medium text-approval-text">
-                    <span aria-hidden>⏸</span> Held until someone holding approval.decide releases it.
+                  <p className="wash-approval flex items-center gap-2 rounded-[var(--radius)] border-l-2 border-approval px-3 py-2 text-ui font-medium text-foreground">
+                    <Lock aria-hidden className="size-3.5 shrink-0 text-approval-text" />
+                    Held until someone holding approval.decide releases it.
                   </p>
                 )}
                 {record.approval.decision === 'approved' && (
@@ -162,16 +165,26 @@ export function ReportPanel({
               </p>
             )}
 
+            {/* Out of date: measured by the service, which compares each
+                child's status with the one this version was written from.
+                For a person to look at, so an approval rule; the words and
+                the ◇ are ink. */}
             {view?.stale && (
-              <Notice>
-                <span className="text-foreground">
-                  Item{view.changed_items.length === 1 ? '' : 's'}{' '}
-                  {view.changed_items.map((index) => `#${index}`).join(', ')} changed after this version
-                  was written
-                </span>
-                , for example a held run approved since. This version does not reflect that.
+              <div className="flex flex-col gap-3 border-l-2 border-approval bg-surface-sunken px-4 py-3">
+                <p className="flex items-start gap-2 text-ui text-foreground-secondary">
+                  <span aria-hidden className="font-mono text-foreground">
+                    ◇
+                  </span>
+                  <span>
+                    <span className="text-foreground">
+                      Out of date: {plural(view.changed_items.length, 'item')} changed since this version
+                    </span>{' '}
+                    ({view.changed_items.map((index) => `#${index}`).join(', ')}), for example a held run
+                    approved since. This version does not reflect that.
+                  </span>
+                </p>
                 {run.permissions.can_regenerate_report && (
-                  <span className="mt-3 block">
+                  <div>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -180,12 +193,13 @@ export function ReportPanel({
                       busy={regenerating}
                       busyLabel="Writing…"
                       ground="sunken"
+                      title={`Writes version ${record.version + 1} from the child records as they stand now`}
                     >
-                      Write version {record.version + 1}
+                      Regenerate
                     </Button>
-                  </span>
+                  </div>
                 )}
-              </Notice>
+              </div>
             )}
 
             {/* Files */}
@@ -200,10 +214,17 @@ export function ReportPanel({
                     <Ledger className="text-foreground-secondary">{file.format}</Ledger>
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate font-mono text-meta text-foreground">{file.filename}</span>
+                      {/* SEAL: the report released, when it is written or when
+                          a reviewer releases it. A version held for sign-off
+                          shows the dashed rule, because it is not released. */}
                       <CopyValue
                         label={`${file.format} sha256`}
                         value={file.sha256}
                         display={`sha256 ${file.sha256.slice(0, 24)}…`}
+                        seal={{
+                          sealed: record.released,
+                          srLabel: record.released ? 'report file hash, released' : 'report file hash, not released',
+                        }}
                       />
                     </span>
                     <span className="flex items-center gap-3">

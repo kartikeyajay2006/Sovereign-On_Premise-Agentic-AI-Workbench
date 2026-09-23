@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Seal } from '@/shared/motion'
 import type { HarnessOutcome, RunStatus } from '../model/types'
-import { OUTCOME, RUN_STATUS } from './outcome'
+import { OUTCOME, RUN_STATUS, STATE_GLYPH, STATE_TEXT } from './outcome'
 
 /** The product's mono eyebrow: machine vocabulary, never prose. */
 export function Ledger({ children, className }: { children: ReactNode; className?: string }) {
@@ -20,22 +21,37 @@ export function Ledger({ children, className }: { children: ReactNode; className
   )
 }
 
-export function OutcomeMarker({ outcome, className }: { outcome: HarnessOutcome; className?: string }) {
+/**
+ * An outcome's spectrum cell at marker size, with its glyph: the same cell
+ * the strip at the top draws, so a row and its cell match by eye. Sized by
+ * --cell, because the cell rule is unlayered CSS and outranks any size
+ * utility.
+ */
+export function OutcomeMarker({
+  outcome,
+  size = 16,
+  className,
+}: {
+  outcome: HarnessOutcome
+  /** Edge in px. 16 in a row, 14 in a tally. */
+  size?: number
+  className?: string
+}) {
   const spec = OUTCOME[outcome]
+  // An empty cell and a skipped one say it by their edge and their dash.
+  const glyph = spec.state === 'pending' || spec.state === 'skipped' ? null : spec.glyph
   return (
     <span
       aria-hidden
+      data-state={spec.state}
       className={cn(
-        'relative flex size-4 shrink-0 items-center justify-center rounded-[var(--radius-xs)] font-mono text-[10px] leading-none',
-        spec.marker,
+        'aegis-strip-cell flex items-center justify-center font-mono text-ledger leading-none',
+        STATE_GLYPH[spec.state],
         className,
       )}
+      style={{ '--cell': `${size}px` } as CSSProperties}
     >
-      {spec.live ? (
-        <span className="sov-pulse size-1.5 rounded-full bg-active" />
-      ) : (
-        spec.glyph
-      )}
+      {glyph}
     </span>
   )
 }
@@ -54,7 +70,7 @@ export function OutcomeLabel({
   return (
     <span className={cn('inline-flex items-center gap-2', className)} title={title ?? spec.meaning}>
       <OutcomeMarker outcome={outcome} />
-      <span className={cn('font-mono text-meta uppercase tracking-[var(--ls-meta)]', spec.text)}>
+      <span className={cn('font-mono text-meta uppercase tracking-[var(--ls-meta)]', STATE_TEXT[spec.state])}>
         {spec.label}
       </span>
     </span>
@@ -71,12 +87,7 @@ export function RunStatusBadge({ status, className }: { status: RunStatus; class
         className,
       )}
     >
-      <span className="relative flex size-2 shrink-0">
-        {spec.live && (
-          <span className={cn('sov-pulse absolute inline-flex size-full rounded-full', spec.dot)} />
-        )}
-        <span className={cn('relative inline-flex size-2 rounded-full', spec.dot)} />
-      </span>
+      <span aria-hidden className={cn('inline-flex size-2 shrink-0 rounded-full', spec.dot)} />
       {spec.label}
     </span>
   )
@@ -92,11 +103,17 @@ export function CopyValue({
   label,
   value,
   display,
+  seal,
   className,
 }: {
   label: string
   value: string
   display?: string
+  /**
+   * Draw the value as a SEAL: a rule under it that draws when the value is
+   * committed, dashed while it is not. The copy control stays outside it.
+   */
+  seal?: { sealed: boolean; srLabel?: string }
   className?: string
 }) {
   const [state, setState] = useState<CopyState>('idle')
@@ -120,11 +137,21 @@ export function CopyValue({
     }
   }
 
+  const text = (
+    <span className="truncate-cell font-mono text-meta text-foreground-secondary" title={value}>
+      {display ?? value}
+    </span>
+  )
+
   return (
     <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)}>
-      <span className="truncate-cell font-mono text-meta text-foreground-secondary" title={value}>
-        {display ?? value}
-      </span>
+      {seal ? (
+        <Seal sealed={seal.sealed} token={value} srLabel={seal.srLabel} className="min-w-0">
+          {text}
+        </Seal>
+      ) : (
+        text
+      )}
       <button
         type="button"
         onClick={() => void copy()}

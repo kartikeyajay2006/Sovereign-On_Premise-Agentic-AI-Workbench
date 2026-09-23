@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { Seal } from '@/shared/motion'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, clockTime, type Reading } from '@/shared/ui/data/reading'
 import type { ChainStatus } from './api'
@@ -73,6 +74,15 @@ export function VerificationPanel({
   const server = chain.data
   const serverFresh =
     server !== null && check.finishedAt !== null && chain.readAt !== null && chain.readAt >= check.finishedAt
+  // Two independent computations ending at the same head: this browser's
+  // recompute, and the server's check read after it finished.
+  const headAgreed =
+    check.phase === 'done' &&
+    check.failureCount === 0 &&
+    serverFresh &&
+    server !== null &&
+    server.valid &&
+    server.head_hash === check.headHash
 
   let agreement: ReactNode = null
   if (check.phase === 'done' && serverFresh && server) {
@@ -184,7 +194,17 @@ export function VerificationPanel({
           check.failureCount === 0 ? (
             <Verdict who="This browser" glyph="✓" tone="sovereign">
               {check.total} of {check.total} records recompute, head{' '}
-              <span className="font-mono">{short(check.headHash)}</span>
+              {/* SEAL: the check finishing, then the server's re-read
+                  agreeing on this head. Mounted unsealed with the verdict, so
+                  the rule draws at the moment the agreement arrives; until
+                  then, or if the two disagree, the rule stays dashed. */}
+              <Seal
+                sealed={headAgreed}
+                token={check.headHash}
+                srLabel={headAgreed ? 'chain head, verified in this browser' : 'chain head, not confirmed by the server'}
+              >
+                <span className="font-mono">{short(check.headHash)}</span>
+              </Seal>
               <span className="text-foreground-muted">
                 {' '}
                 · {Math.max(1, Math.round(check.computeMs))} ms recomputing, SHA-256 via{' '}

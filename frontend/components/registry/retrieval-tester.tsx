@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { History, Search } from 'lucide-react'
+import { Append, AppendScope } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { Kbd } from '@/shared/ui/controls/kbd'
 import { Segmented } from '@/shared/ui/controls/segmented'
@@ -72,10 +73,19 @@ function clock(ms: number) {
   return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-function PassageRow({ passage, mode }: { passage: Passage; mode: SearchResponse['retrieval_mode'] }) {
+function PassageRow({
+  passage,
+  mode,
+  rank,
+}: {
+  passage: Passage
+  mode: SearchResponse['retrieval_mode']
+  /** Position in the service's ranking, which is also the stagger step. */
+  rank: number
+}) {
   const score = passage.score
   return (
-    <li className="flex flex-col gap-2 border-b border-line-subtle px-4 py-3 last:border-b-0">
+    <Append as="li" index={rank} className="flex flex-col gap-2 border-b border-line-subtle px-4 py-3 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="shrink-0 rounded-[var(--radius-xs)] px-1 font-mono text-ledger text-foreground shadow-[0_0_0_1px_var(--control-default)]">
@@ -91,11 +101,12 @@ function PassageRow({ passage, mode }: { passage: Passage; mode: SearchResponse[
           <span className="shrink-0 font-mono text-ledger text-foreground-muted">no score</span>
         )}
       </div>
-      {/* The bar draws the number beside it and nothing else. */}
+      {/* The bar draws the number beside it and nothing else. Relevance is
+          a measurement, not a verdict, so it is ink and never green. */}
       {typeof score === 'number' && (
         <div aria-hidden className="h-0.5 w-full bg-line-subtle">
           <div
-            className="h-full bg-foreground-secondary"
+            className="h-full bg-foreground-muted"
             style={{ width: `${Math.max(0, Math.min(1, score)) * 100}%` }}
           />
         </div>
@@ -106,7 +117,7 @@ function PassageRow({ passage, mode }: { passage: Passage; mode: SearchResponse[
           .join(' · ')}
       </p>
       <p className="text-ui leading-[var(--lh-body)] text-foreground-secondary">{passage.excerpt}</p>
-    </li>
+    </Append>
   )
 }
 
@@ -125,6 +136,9 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
   const [query, setQuery] = useState('')
   const [topK, setTopK] = useState<(typeof TOP_K)[number]>('5')
   const [shown, setShown] = useState<RunRecord | null>(() => history[0] ?? null)
+  // True when `shown` is an answer the service has just returned, false when
+  // it was reopened from this session's list: only the first is an arrival.
+  const [fresh, setFresh] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<ReadFailure | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -166,6 +180,7 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
       const response = await search(q, k, controller.signal)
       const record = addRun({ query: q, topK: k, at: Date.now(), response, roundTripMs: performance.now() - t0 })
       setShown(record)
+      setFresh(true)
     } catch (error) {
       if (controller.signal.aborted && !timedOut) return
       setFailure(
@@ -179,6 +194,40 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
 
   const result = shown?.response ?? null
   const isLatest = shown !== null && history[0]?.id === shown.id
+
+  const results =
+    result && shown ? (
+      <section aria-label="Results" className="flex flex-col gap-3">
+        <ReadoutRow className="border-b border-line-default pb-3">
+          <Readout label="Mode" value={result.retrieval_mode} hint={MODE_SCORE[result.retrieval_mode].meaning} />
+          <Readout label="Passages" value={result.results.length} />
+          <Readout label="Service" value={`${result.took_ms} ms`} hint="took_ms, measured by the service around the search, query embedding included" />
+          <Readout label="Round trip" value={`${Math.round(shown.roundTripMs)} ms`} hint="Measured by this browser: request, proxy, service and response" />
+          <Readout label={isLatest ? 'Ran' : 'From'} value={clock(shown.at)} tone={isLatest ? 'default' : 'muted'} />
+        </ReadoutRow>
+        <p className="max-w-[80ch] text-ui text-foreground-muted">{MODE_SCORE[result.retrieval_mode].meaning}</p>
+        {result.results.length === 0 ? (
+          <EmptyState
+            className="rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]"
+            title="No passage cleared the retrieval threshold"
+            body={`Nothing in the index this role can read scored high enough for “${result.query}”. A task asking this would retrieve no evidence, and any citation it made would resolve to nothing.`}
+          />
+        ) : (
+          <ol className="overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]">
+            {result.results.map((passage, rank) => (
+              // Keyed by the run as well, so another run's passages are new
+              // rows even where the service reuses an id like S1.
+              <PassageRow
+                key={`${shown.id}-${passage.id}`}
+                passage={passage}
+                mode={result.retrieval_mode}
+                rank={rank}
+              />
+            ))}
+          </ol>
+        )}
+      </section>
+    ) : null
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -246,31 +295,13 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
 
         {failure && <FailureState failure={failure} what="the search results" retry={() => void run(query, Number(topK))} />}
 
-        {result && shown && (
-          <section aria-label="Results" className="flex flex-col gap-3">
-            <ReadoutRow className="border-b border-line-default pb-3">
-              <Readout label="Mode" value={result.retrieval_mode} hint={MODE_SCORE[result.retrieval_mode].meaning} />
-              <Readout label="Passages" value={result.results.length} />
-              <Readout label="Service" value={`${result.took_ms} ms`} hint="took_ms, measured by the service around the search, query embedding included" />
-              <Readout label="Round trip" value={`${Math.round(shown.roundTripMs)} ms`} hint="Measured by this browser: request, proxy, service and response" />
-              <Readout label={isLatest ? 'Ran' : 'From'} value={clock(shown.at)} tone={isLatest ? 'default' : 'muted'} />
-            </ReadoutRow>
-            <p className="max-w-[80ch] text-ui text-foreground-muted">{MODE_SCORE[result.retrieval_mode].meaning}</p>
-            {result.results.length === 0 ? (
-              <EmptyState
-                className="rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]"
-                title="No passage cleared the retrieval threshold"
-                body={`Nothing in the index this role can read scored high enough for “${result.query}”. A task asking this would retrieve no evidence, and any citation it made would resolve to nothing.`}
-              />
-            ) : (
-              <ol className="overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]">
-                {result.results.map((passage) => (
-                  <PassageRow key={passage.id} passage={passage} mode={result.retrieval_mode} />
-                ))}
-              </ol>
-            )}
-          </section>
-        )}
+        {/* APPEND: the passages the service has just returned, in its rank
+            order. The scope is mounted with the tester, before any answer,
+            so a fresh answer's rows arrive into a list already on screen. A
+            run reopened from this session's list is a read, so it is drawn
+            outside the scope and nothing in it moves. */}
+        <AppendScope>{fresh ? results : null}</AppendScope>
+        {fresh ? null : results}
 
         {!result && !failure && canSearch && (
           <EmptyState
@@ -302,6 +333,7 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
                     type="button"
                     onClick={() => {
                       setShown(entry)
+                      setFresh(false)
                       setQuery(entry.query)
                       setTopK((String(entry.topK) as (typeof TOP_K)[number]) ?? '5')
                       setFailure(null)

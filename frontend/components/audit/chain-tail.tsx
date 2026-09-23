@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { Append, AppendScope } from '@/shared/motion'
 import type { AuditRecord } from './api'
 
 function short(hash: string | null | undefined, n = 8) {
@@ -16,7 +17,11 @@ function clock(iso: string) {
 }
 
 /**
- * The newest blocks, oldest on the left, and what each one commits to.
+ * The newest blocks, oldest at the top, and what each one commits to.
+ *
+ * One grouped ledger rather than six cards: read downward it is the chain
+ * itself, each row committing to the row above it, and a block the backend
+ * writes while the screen is open joins at the bottom, where a chain grows.
  *
  * Hovering or focusing a block lights its prev_hash and the hash of the
  * block before it, and the line underneath says whether the two are equal.
@@ -47,70 +52,98 @@ export function ChainTail({
 
   return (
     <div className="flex flex-col gap-3">
-      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {blocks.map((block, i) => {
-          const previous = blocks[i - 1]
-          const gap = previous ? block.sequence - previous.sequence - 1 : 0
-          const isFocused = active === block.sequence
-          const isPredecessor = focused !== null && predecessor?.sequence === block.sequence
-          // Six stacked blocks are most of a phone screen; three show the
-          // idea, and the rest of the chain is in the list below.
-          const olderThanThree = i < blocks.length - 3
-          return (
-            <li key={block.id} className={cn('min-w-0 flex-col', olderThanThree ? 'hidden sm:flex' : 'flex')}>
-              {gap > 0 && (
-                <p className="mb-1 font-mono text-ledger text-foreground-muted">
-                  {gap} record{gap === 1 ? '' : 's'} not shown
-                </p>
-              )}
-              <button
-                type="button"
-                onMouseEnter={() => setActive(block.sequence)}
-                onMouseLeave={() => setActive((s) => (s === block.sequence ? null : s))}
-                onFocus={() => setActive(block.sequence)}
-                onBlur={() => setActive((s) => (s === block.sequence ? null : s))}
-                onClick={() => onOpen?.(block)}
-                aria-describedby="chain-link-caption"
-                className={cn(
-                  'hover-decay flex min-w-0 flex-1 flex-col gap-1 rounded-[var(--radius)] bg-surface p-3 text-left shadow-[var(--elev-0)]',
-                  'focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none',
-                  isFocused && 'shadow-[0_0_0_1px_var(--foreground)]',
-                  isPredecessor && 'shadow-[0_0_0_1px_var(--line-strong)]',
-                )}
+      {/* Mounted with the first reading, so the blocks read then stay still
+          and only a block that arrives on a later re-read appends. */}
+      <AppendScope>
+        <ol className="grouped overflow-hidden">
+          {blocks.map((block, i) => {
+            const previous = blocks[i - 1]
+            const gap = previous ? block.sequence - previous.sequence - 1 : 0
+            const isFocused = active === block.sequence
+            const isPredecessor = focused !== null && predecessor?.sequence === block.sequence
+            // Six blocks are most of a phone screen; three show the idea,
+            // and the rest of the chain is in the list below.
+            const olderThanThree = i < blocks.length - 3
+            return (
+              // APPEND: an audit record written after the tail was read (the
+              // export a browser check makes, or any action meanwhile), on a
+              // re-read.
+              <Append
+                as="li"
+                key={block.id}
+                className={cn('grouped-row min-w-0 last:border-b-0', olderThanThree && 'hidden sm:block')}
               >
-                <span className="flex items-baseline justify-between gap-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]">
-                  <span className="tabular text-foreground">#{block.sequence}</span>
-                  <span className="truncate text-foreground-muted">{block.category}</span>
-                </span>
-                <span className="truncate text-ui font-medium text-foreground">{block.action}</span>
-                <span className="truncate font-mono text-ledger text-foreground-muted">
-                  {block.actor} · {clock(block.at)}
-                </span>
-                <span className="mt-1 flex flex-col gap-0.5 font-mono text-ledger">
-                  <span
-                    className={cn(
-                      'truncate',
-                      isFocused ? 'text-foreground underline decoration-foreground underline-offset-2' : 'text-foreground-muted',
-                    )}
-                  >
-                    prev {short(block.prev_hash)}
+                {gap > 0 && (
+                  <p className="px-4 pt-2 font-mono text-ledger text-foreground-muted">
+                    {gap} record{gap === 1 ? '' : 's'} not shown
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onMouseEnter={() => setActive(block.sequence)}
+                  onMouseLeave={() => setActive((s) => (s === block.sequence ? null : s))}
+                  onFocus={() => setActive(block.sequence)}
+                  onBlur={() => setActive((s) => (s === block.sequence ? null : s))}
+                  onClick={() => onOpen?.(block)}
+                  aria-describedby="chain-link-caption"
+                  className={cn(
+                    'hover-decay grid w-full min-w-0 grid-cols-1 gap-y-0.5 px-4 py-2 text-left',
+                    'lg:grid-cols-[64px_96px_minmax(0,1fr)_minmax(0,200px)_112px_112px] lg:items-baseline lg:gap-x-3',
+                    'focus-visible:shadow-[inset_0_0_0_2px_var(--foreground)] focus-visible:outline-none',
+                    isFocused ? 'bg-surface-sunken' : 'hover:bg-surface-sunken',
+                  )}
+                >
+                  {/* Stacked below 1024px, where six columns leave the action
+                      a few characters wide. */}
+                  <span className="flex min-w-0 items-baseline gap-2 font-mono text-ledger lg:hidden">
+                    <span className="tabular shrink-0 text-foreground">#{block.sequence}</span>
+                    <span className="shrink-0 uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                      {block.category}
+                    </span>
+                    <span className="tabular ml-auto min-w-0 truncate text-foreground-muted">
+                      {block.actor} · {clock(block.at)}
+                    </span>
                   </span>
-                  <span
-                    className={cn(
-                      'truncate',
-                      isPredecessor
-                        ? 'text-foreground underline decoration-foreground underline-offset-2'
-                        : 'text-foreground-secondary',
-                    )}
-                  >
-                    hash {short(block.hash)}
+                  <span className="truncate text-ui font-medium text-foreground lg:hidden">{block.action}</span>
+
+                  <span className="tabular hidden font-mono text-ui text-foreground lg:block">#{block.sequence}</span>
+                  <span className="hidden truncate font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted lg:block">
+                    {block.category}
                   </span>
-                </span>
-              </button>
-            </li>
-          )
-        })}
-      </ol>
+                  <span className="hidden truncate text-ui font-medium text-foreground lg:block">{block.action}</span>
+                  <span className="hidden truncate font-mono text-ledger text-foreground-muted lg:block">
+                    {block.actor} · {clock(block.at)}
+                  </span>
+
+                  {/* The two hashes, in every layout: they are the point. At
+                      lg they fall into the last two columns, so each row's
+                      prev sits one row below the hash it names. */}
+                  <span className="flex min-w-0 gap-3 font-mono text-ledger lg:contents">
+                    <span
+                      className={cn(
+                        'truncate',
+                        isFocused ? 'text-foreground underline decoration-foreground underline-offset-2' : 'text-foreground-muted',
+                      )}
+                    >
+                      prev {short(block.prev_hash)}
+                    </span>
+                    <span
+                      className={cn(
+                        'truncate',
+                        isPredecessor
+                          ? 'text-foreground underline decoration-foreground underline-offset-2'
+                          : 'text-foreground-secondary',
+                      )}
+                    >
+                      hash {short(block.hash)}
+                    </span>
+                  </span>
+                </button>
+              </Append>
+            )
+          })}
+        </ol>
+      </AppendScope>
 
       <p id="chain-link-caption" aria-live="polite" className="min-h-5 text-ui text-foreground-secondary">
         {!focused ? (

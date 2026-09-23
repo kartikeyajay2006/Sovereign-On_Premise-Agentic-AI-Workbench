@@ -4,6 +4,7 @@ import { useState, type ReactNode, type RefObject } from 'react'
 import { ArrowLeft, Download } from 'lucide-react'
 import type { EvidenceItem, Task, VerificationReport } from '@/lib/types'
 import { ClassificationTag } from '@/components/primitives'
+import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type ReadFailure } from '@/shared/ui/data/reading'
@@ -196,11 +197,24 @@ function Deliverable({
               <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-ui">
                 <span className="min-w-0 max-w-full truncate text-foreground">{d.filename}</span>
                 <span className="tabular text-foreground-muted">{formatSize(d.size_bytes)}</span>
-                <span className="text-foreground-muted" title={d.sha256}>
-                  sha256 {d.sha256.slice(0, 12)}…
-                </span>
-                <span className={d.released ? 'text-sovereign-text' : 'text-approval-text'}>
-                  {d.released ? 'released' : 'withheld'}
+                {/* SEAL: the decision releasing this file. The hash is the
+                    record's own, and it is sealed exactly when the service
+                    says the file was released, so an approval recorded while
+                    this run is open draws the rule once; a run opened already
+                    decided is read, sealed or not, without the ceremony. A
+                    held or returned file keeps the dashed, unsealed rule. */}
+                <Seal sealed={d.released} token={d.sha256} className="text-foreground-muted">
+                  <span title={d.sha256}>sha256 {d.sha256.slice(0, 12)}…</span>
+                </Seal>
+                {/* Held is a person's decision still to come, so amber only
+                    while the run is held. A returned file was never released
+                    and nobody is deciding it any more: that is ink. */}
+                <span
+                  className={
+                    d.released ? 'text-sovereign-text' : held ? 'text-approval-text' : 'text-foreground-muted'
+                  }
+                >
+                  {d.released ? 'released' : held ? 'withheld' : 'not released'}
                 </span>
               </span>
               {/* The service lets an approving role read a withheld file, so

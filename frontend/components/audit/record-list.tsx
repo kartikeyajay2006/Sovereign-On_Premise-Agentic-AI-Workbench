@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Append, Refused } from '@/shared/motion'
 import type { AuditRecord } from './api'
 
 export type RowCheck = 'pending' | 'ok' | 'fail' | undefined
@@ -43,24 +44,43 @@ function LinkLine({ record, predecessor }: { record: AuditRecord; predecessor: A
   )
 }
 
+/**
+ * One record. `index` is its place in the list, which for a newest-first
+ * list is also its place in any batch a re-read appended, since new records
+ * arrive at the top.
+ *
+ * When the browser check finds the chain broken, the first failing record
+ * is REFUSED (a critical rule down its edge, and a light that settles to a
+ * rim) and every record after it in the chain is a dim item: the check
+ * cannot vouch for anything past the break, while everything before it
+ * still verifies.
+ */
 export const RecordRow = memo(function RecordRow({
   record,
   predecessor,
   open,
   check,
+  index,
+  afterBreak,
+  firstBreak,
   onToggle,
 }: {
   record: AuditRecord
   predecessor: AuditRecord | null
   open: boolean
   check: RowCheck
+  index: number
+  /** Later in the chain than the first record that failed to recompute. */
+  afterBreak: boolean
+  /** The first record that failed to recompute. */
+  firstBreak: boolean
   onToggle: (id: string) => void
 }) {
   const detail = record.detail && Object.keys(record.detail).length > 0 ? record.detail : null
   const mark = check ? CHECK[check] : null
 
-  return (
-    <li id={`record-${record.id}`} className="scroll-mt-20 border-b border-line-subtle last:border-b-0">
+  const body = (
+    <>
       <button
         type="button"
         onClick={() => onToggle(record.id)}
@@ -166,6 +186,27 @@ export const RecordRow = memo(function RecordRow({
           )}
         </div>
       )}
-    </li>
+    </>
+  )
+
+  return (
+    // APPEND: an audit record the backend wrote after this list was read
+    // (the export a browser check makes, or any action taken meanwhile),
+    // arriving on a re-read. Rows present at the first read do not move.
+    <Append
+      as="li"
+      index={index}
+      id={`record-${record.id}`}
+      data-dim-item={afterBreak ? '' : undefined}
+      className="scroll-mt-20 border-b border-line-subtle last:border-b-0"
+    >
+      {firstBreak ? (
+        // REFUSE: the browser check reporting this record does not
+        // recompute. The row's own 16px inset clears the 2px rule.
+        <Refused data-dim-keep="">{body}</Refused>
+      ) : (
+        body
+      )}
+    </Append>
   )
 })

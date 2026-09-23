@@ -5,6 +5,7 @@ import { Plus, RotateCw } from 'lucide-react'
 import { PageHeader, type PageHeaderStat } from '@/components/page-header'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
+import { MeasuredNumber } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { Tabs, tabPanelProps } from '@/shared/ui/controls/tabs'
 import { FailureState, ReadingLine, clockTime, useReading } from '@/shared/ui/data/reading'
@@ -63,16 +64,35 @@ export function RegistryView() {
     [docs, user?.department],
   )
 
+  // ROLL: each figure is re-read on Refresh and after an ingest, and a
+  // change rolls between the two readings. Unread is a dash, never a zero.
   const stats: PageHeaderStat[] = [
-    { label: 'Documents', value: docs ? String(docs.length) : '—', hint: 'GET /api/knowledge/documents' },
-    { label: 'Chunks', value: chunks === null ? '—' : String(chunks), hint: 'Sum of each document’s indexed chunks' },
-    { label: 'Uploads', value: uploads.data ? String(uploads.data.length) : '—', hint: 'Files this role can read' },
+    {
+      label: 'Documents',
+      value: <MeasuredNumber value={docs?.length} absent="—" />,
+      hint: 'GET /api/knowledge/documents',
+    },
+    {
+      label: 'Chunks',
+      value: <MeasuredNumber value={chunks} absent="—" />,
+      hint: 'Sum of each document’s indexed chunks',
+    },
+    {
+      label: 'Uploads',
+      value: <MeasuredNumber value={uploads.data?.length} absent="—" />,
+      hint: 'Files this role can read',
+    },
   ]
   if (models.data) {
     const [status] = models.data
     stats.push({
       label: 'Models',
-      value: `${status.available} of ${status.registered}`,
+      value: (
+        <>
+          <MeasuredNumber value={status.available} /> of <MeasuredNumber value={status.registered} />
+        </>
+      ),
+      // None installed means nothing can run: a failure the host reported.
       tone: status.available === 0 ? 'critical' : 'default',
       hint: 'Installed of registered, GET /api/models/status',
     })

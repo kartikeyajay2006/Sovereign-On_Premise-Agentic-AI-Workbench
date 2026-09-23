@@ -5,6 +5,7 @@ import { ArrowLeft, Eye, Play } from 'lucide-react'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useRole } from '@/components/role-context'
+import { Append, AppendScope, MeasuredNumber } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { ErrorState } from '@/shared/ui/data/error-state'
 import { harnessApi } from '../api'
@@ -185,7 +186,10 @@ function PreviewRow({
   onToggle: () => void
 }) {
   return (
-    <li className="grouped-row last:border-b-0">
+    // APPEND: the preview response. These are the exact prompts that would
+    // be submitted, arriving in index order; a prompt already on screen
+    // from an earlier preview of the same inputs stays still.
+    <Append as="li" index={item.index} className="grouped-row last:border-b-0">
       <div className="flex items-start gap-3 px-4 py-2.5">
         <input
           type="checkbox"
@@ -214,7 +218,7 @@ function PreviewRow({
           </details>
         </div>
       </div>
-    </li>
+    </Append>
   )
 }
 
@@ -436,17 +440,21 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
           id="harness-preview"
           aside={
             preview ? (
-              <span
-                className={cn(
-                  'tabular font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
-                  overLimit ? 'text-critical-text' : 'text-foreground-muted',
-                )}
-              >
-                {selectedCount} selected · limit {preview.limit}
+              <span className="tabular font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                {/* ROLL: a new preview response. The selection count beside
+                    it moves with checkboxes, often from the keyboard, so it
+                    changes in place. */}
+                <MeasuredNumber value={preview.items.length} className="text-foreground-secondary" /> prompts ·{' '}
+                <span className={overLimit ? 'text-critical-text' : undefined}>
+                  {selectedCount} selected · limit {preview.limit}
+                </span>
               </span>
             ) : null
           }
         >
+          {/* Live before any preview arrives, so the prompts a preview
+              returns append rather than being read in place. */}
+          <AppendScope>
           {actionError && (
             <div className="border-b border-line-subtle p-4">
               <ErrorState
@@ -500,7 +508,12 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
                   indexed.
                 </p>
                 {preview.warnings.map((warning) => (
-                  <Notice key={warning}>{warning}</Notice>
+                  <p key={warning} className="flex items-start gap-2 text-ui text-foreground">
+                    <span aria-hidden className="font-mono text-foreground-secondary">
+                      ◇
+                    </span>
+                    <span className="min-w-0">{warning}</span>
+                  </p>
                 ))}
               </div>
 
@@ -577,6 +590,7 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
               </div>
             </div>
           )}
+          </AppendScope>
         </Panel>
       </div>
     </div>

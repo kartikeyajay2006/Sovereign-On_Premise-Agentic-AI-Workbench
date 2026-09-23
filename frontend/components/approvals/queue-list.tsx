@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { ClassificationTag } from '@/components/primitives'
+import { Light, type LightTone } from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import { ago, type Decision, type QueueItem } from './model'
 
@@ -9,10 +10,13 @@ import { ago, type Decision, type QueueItem } from './model'
  * Shape carries the state and hue reinforces it, so the queue reads in
  * greyscale and on a projector: ⏸ held, ✓ approved, ✕ rejected.
  */
-export const DECISION_MARK: Record<Decision, { glyph: string; label: string; text: string; rail: string }> = {
-  held: { glyph: '⏸', label: 'Held', text: 'text-approval-text', rail: 'bg-approval' },
-  approved: { glyph: '✓', label: 'Approved', text: 'text-sovereign-text', rail: 'bg-sovereign' },
-  rejected: { glyph: '✕', label: 'Rejected', text: 'text-critical-text', rail: 'bg-critical' },
+export const DECISION_MARK: Record<
+  Decision,
+  { glyph: string; label: string; text: string; rail: string; light: LightTone }
+> = {
+  held: { glyph: '⏸', label: 'Held', text: 'text-approval-text', rail: 'bg-approval', light: 'approval' },
+  approved: { glyph: '✓', label: 'Approved', text: 'text-sovereign-text', rail: 'bg-sovereign', light: 'sovereign' },
+  rejected: { glyph: '✕', label: 'Rejected', text: 'text-critical-text', rail: 'bg-critical', light: 'critical' },
 }
 
 /**
@@ -56,15 +60,24 @@ export const QueueRow = memo(function QueueRow({
         )}
       >
         <span className="flex items-center justify-between gap-2">
-          <span
+          {/* LIGHT: a decision recorded (the row's own decision changing
+              from held, here or in another session). It blooms once in the
+              tone of what was decided and lets go. Keyed on the decision,
+              never the selection, so j/k through the queue lights nothing,
+              and a row that mounts already decided was read, not decided. */}
+          <Light
+            as="span"
+            tone={mark.light}
+            bloomKey={item.decision === 'held' ? null : item.decision}
+            rest="none"
             className={cn(
-              'flex items-center gap-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
+              '-mx-1 inline-flex items-center gap-2 rounded-[var(--radius-xs)] px-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
               mark.text,
             )}
           >
             <span aria-hidden>{mark.glyph}</span>
             {mark.label}
-          </span>
+          </Light>
           <span className="flex min-w-0 items-center gap-2">
             <ClassificationTag level={item.sensitivity ?? 'unclassified'} />
             <time

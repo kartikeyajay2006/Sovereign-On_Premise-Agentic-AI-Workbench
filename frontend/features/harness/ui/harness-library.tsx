@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { ArrowRight, FileWarning, Lock } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { MeasuredNumber } from '@/shared/motion'
 import { ErrorState } from '@/shared/ui/data/error-state'
 import { harnessApi } from '../api'
 import type { HarnessCatalogView, HarnessRunSummary, HarnessTally } from '../model/types'
@@ -26,10 +27,9 @@ export function TallyGlyphs({ tally, className }: { tally: HarnessTally; classNa
           className="inline-flex items-center gap-1.5"
           title={`${OUTCOME[outcome].label}: ${tally.counts[outcome]}`}
         >
-          <OutcomeMarker outcome={outcome} className="size-3.5 text-[9px]" />
-          <span className="tabular font-mono text-meta text-foreground-secondary">
-            {tally.counts[outcome]}
-          </span>
+          <OutcomeMarker outcome={outcome} size={14} />
+          {/* ROLL: the runs list is re-read while a run moves. */}
+          <MeasuredNumber value={tally.counts[outcome]} className="font-mono text-meta text-foreground-secondary" />
           <span className="sr-only">{OUTCOME[outcome].label}</span>
         </span>
       ))}
@@ -181,9 +181,10 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                             'lines'}{' '}
                         · up to {harness.max_items}
                       </Ledger>
+                      {/* Configuration, so ink: nothing is held until a report exists. */}
                       {harness.report_requires_approval && (
                         <Ledger className="inline-flex items-center gap-1">
-                          <Lock className="size-3" aria-hidden /> Report needs sign-off
+                          <span aria-hidden>⏸</span> Report needs approval
                         </Ledger>
                       )}
                       <Ledger>
@@ -200,18 +201,22 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
             ))}
           </ul>
         )}
+        {/* A definition that failed validation: the words are ink, and the
+            failure is carried by the ✕ and the file it names. */}
         {catalog && catalog.errors.length > 0 && (
-          <div className="flex flex-col gap-2 border-t border-line-subtle px-4 py-3">
+          <ul role="list" className="flex list-none flex-col border-t border-line-subtle p-0">
             {catalog.errors.map((error) => (
-              <p key={error.source} className="flex items-start gap-2 text-ui text-critical-text">
-                <FileWarning className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                <span>
-                  <span className="font-mono">{error.source}</span> failed validation and is not
-                  offered: <span className="font-mono text-foreground-secondary">{error.message}</span>
+              <li key={error.source} className="grouped-row flex items-start gap-3 px-4 py-3 last:border-b-0">
+                <span aria-hidden className="w-4 shrink-0 text-center font-mono text-ui text-critical-text">
+                  ✕
                 </span>
-              </p>
+                <span className="min-w-0 text-ui text-foreground-secondary">
+                  <span className="font-mono text-critical-text">{error.source}</span> failed validation and
+                  is not offered: <span className="font-mono text-foreground">{error.message}</span>
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </Panel>
 

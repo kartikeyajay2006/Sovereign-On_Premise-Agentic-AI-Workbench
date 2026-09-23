@@ -28,6 +28,7 @@ import { Button } from '@/shared/ui/controls/button'
 import { EmptyState } from '@/shared/ui/data/empty-state'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, clockTime, describeFailure, useReading } from '@/shared/ui/data/reading'
+import { AppendScope, DimScope, MeasuredNumber, Sweep } from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import { readChain, readExport, readRecords, type AuditRecord } from './api'
 import { ChainTail } from './chain-tail'
@@ -173,6 +174,19 @@ export function AuditView() {
     [records.data],
   )
 
+  // The filter the rows on screen were read for. It moves when that reading
+  // lands, not when the filter control does, so choosing a category is a
+  // read (its rows mount still) while a refresh of the same filter appends
+  // whatever the backend wrote in the meantime.
+  const filterKey = `${category ?? ''}|${applied}`
+  const [listFor, setListFor] = useState({ data: records.data, key: filterKey })
+  if (listFor.data !== records.data) setListFor({ data: records.data, key: filterKey })
+
+  // The first record the browser check could not recompute. Nothing after
+  // it in the chain can be vouched for; everything before it still verifies.
+  const firstFailure = check.state.failureCount > 0 ? (check.state.failures[0] ?? null) : null
+  const breakSequence = firstFailure?.sequence ?? null
+
   // Row glyphs follow the browser check as it sweeps. Before it runs, or
   // for a record appended after the copy it checked, a row carries no glyph
   // at all rather than a borrowed one.
@@ -221,7 +235,9 @@ export function AuditView() {
             tone: !server ? 'muted' : server.valid ? 'sovereign' : 'critical',
             hint: server ? `GET /api/audit/chain · checked ${clockTime(Date.parse(server.checked_at))}` : undefined,
           },
-          { label: 'Records', value: server ? String(server.events) : '—' },
+          // ROLL: the server's count, re-read after a check or an export
+          // (each of which writes a record of its own).
+          { label: 'Records', value: <MeasuredNumber value={server?.events} absent="—" /> },
           { label: 'Head', value: shortHash(server?.head_hash), hint: server?.head_hash ?? undefined },
           checkStat,
         ]}
@@ -374,40 +390,68 @@ export function AuditView() {
           {records.status === 'failed' && !records.data ? (
             <FailureState failure={records.failure!} what="the audit trail" retry={records.reload} />
           ) : (
-          <div
-            className={cn(
-              'overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]',
-              'transition-opacity duration-[var(--standard)] ease-[var(--ease-standard)]',
-              records.refreshing && 'opacity-[var(--opacity-dim)]',
-            )}
-          >
-            {!records.data ? (
-              <ReadingLine what="the audit trail" source="GET /api/audit" startedAt={records.startedAt} className="px-4" />
-            ) : records.data.length === 0 ? (
-              <EmptyState
-                title={applied || category ? 'Nothing matches' : 'No records yet'}
-                body={
-                  applied
-                    ? `No record${category ? ` in ${category}` : ''} contains “${applied}”.`
-                    : category
-                      ? `No ${category} records are visible to this role.`
-                      : 'The first action on this host writes the opening record.'
-                }
+          <div className="relative">
+            {/* VERIFY: the browser check, recomputing the chain. It advances
+                only as records are actually recomputed, and on a failure it
+                stops, critical, at the first record that did not. It hangs in
+                the page gutter so starting a check shifts nothing. Turned to
+                fill from the bottom: this list is newest first and the check
+                walks the chain oldest first, so a fill running down past the
+                newest rows would claim they were checked first. */}
+            <div className="absolute inset-y-0 -left-3 flex w-[2px] rotate-180">
+              <Sweep
+                axis="y"
+                done={firstFailure ? firstFailure.index : check.state.checked}
+                total={check.state.total}
+                state={firstFailure ? 'broken' : check.state.phase === 'done' ? 'passed' : 'running'}
+                label="Audit chain"
+                className="w-[2px] self-stretch"
               />
-            ) : (
-              <ol>
-                {records.data.map((record) => (
-                  <RecordRow
-                    key={record.id}
-                    record={record}
-                    predecessor={bySequence.get(record.sequence - 1) ?? null}
-                    open={expanded === record.id}
-                    check={rowCheck(record.sequence)}
-                    onToggle={toggle}
-                  />
-                ))}
-              </ol>
-            )}
+            </div>
+            <div
+              className={cn(
+                'overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]',
+                'transition-opacity duration-[var(--standard)] ease-[var(--ease-standard)]',
+                records.refreshing && 'opacity-[var(--opacity-dim)]',
+              )}
+            >
+              {!records.data ? (
+                <ReadingLine what="the audit trail" source="GET /api/audit" startedAt={records.startedAt} className="px-4" />
+              ) : records.data.length === 0 ? (
+                <EmptyState
+                  title={applied || category ? 'Nothing matches' : 'No records yet'}
+                  body={
+                    applied
+                      ? `No record${category ? ` in ${category}` : ''} contains “${applied}”.`
+                      : category
+                        ? `No ${category} records are visible to this role.`
+                        : 'The first action on this host writes the opening record.'
+                  }
+                />
+              ) : (
+                <AppendScope key={listFor.key}>
+                  {/* REFUSE, applied to records: a broken chain dims every
+                      record after the first failure and keeps that one lit. */}
+                  <DimScope dimmed={breakSequence !== null}>
+                    <ol>
+                      {records.data.map((record, i) => (
+                        <RecordRow
+                          key={record.id}
+                          record={record}
+                          predecessor={bySequence.get(record.sequence - 1) ?? null}
+                          open={expanded === record.id}
+                          check={rowCheck(record.sequence)}
+                          index={i}
+                          afterBreak={breakSequence !== null && record.sequence > breakSequence}
+                          firstBreak={breakSequence !== null && record.sequence === breakSequence}
+                          onToggle={toggle}
+                        />
+                      ))}
+                    </ol>
+                  </DimScope>
+                </AppendScope>
+              )}
+            </div>
           </div>
           )}
         </section>

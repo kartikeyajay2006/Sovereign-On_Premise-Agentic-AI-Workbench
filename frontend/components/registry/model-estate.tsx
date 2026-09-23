@@ -1,6 +1,7 @@
 'use client'
 
 import { ClassificationTag } from '@/components/primitives'
+import { MeasuredNumber } from '@/shared/motion'
 import { EmptyState } from '@/shared/ui/data/empty-state'
 import { LEDGER_MUTED, Readout, ReadoutRow } from '@/shared/ui/data/ledger'
 import { cn } from '@/lib/utils'
@@ -43,14 +44,40 @@ export function ModelEstate({ status, models }: { status: ModelsStatus; models: 
             hint={status.base_url ?? undefined}
           />
           <Readout label="Endpoint" value={status.base_url ?? 'not configured'} />
-          <Readout label="Available" value={`${status.available} of ${status.registered} registered`} />
+          {/* ROLL, on the readings below: a Refresh re-asks the runtime, and
+              only a value that changed between the two answers moves. */}
+          <Readout
+            label="Available"
+            value={
+              <>
+                <MeasuredNumber value={status.available} /> of <MeasuredNumber value={status.registered} /> registered
+              </>
+            }
+          />
           {/* total_mb is 0 when the host's memory could not be read. */}
           <Readout
             label="Host memory"
-            value={residency.total_mb > 0 ? `${mb(residency.available_mb)} free of ${mb(residency.total_mb)}` : 'not measured'}
+            value={
+              residency.total_mb > 0 ? (
+                <>
+                  <MeasuredNumber value={residency.available_mb} format={mb} /> free of{' '}
+                  <MeasuredNumber value={residency.total_mb} format={mb} />
+                </>
+              ) : (
+                'not measured'
+              )
+            }
             tone={residency.total_mb > 0 ? 'default' : 'muted'}
           />
-          <Readout label="Loads · evictions" value={`${residency.loads} · ${residency.evictions}`} hint="Since the service started" />
+          <Readout
+            label="Loads · evictions"
+            value={
+              <>
+                <MeasuredNumber value={residency.loads} /> · <MeasuredNumber value={residency.evictions} />
+              </>
+            }
+            hint="Since the service started"
+          />
         </ReadoutRow>
         <div className="flex flex-col gap-1">
           <span className={LEDGER_MUTED}>In memory now</span>
@@ -66,7 +93,10 @@ export function ModelEstate({ status, models }: { status: ModelsStatus; models: 
                 <li key={runtimeName(m)} className="font-mono text-ui text-foreground">
                   {runtimeName(m)}
                   {typeof m.size === 'number' && (
-                    <span className="text-foreground-muted"> {formatBytes(m.size)}</span>
+                    <span className="text-foreground-muted">
+                      {' '}
+                      <MeasuredNumber value={m.size} format={formatBytes} />
+                    </span>
                   )}
                 </li>
               ))}
@@ -93,13 +123,22 @@ export function ModelEstate({ status, models }: { status: ModelsStatus; models: 
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-body font-medium text-foreground">{model.display_name}</span>
+                    {/* Installed is a fact about the runtime, not a verdict,
+                        so it takes no hue: a filled ink dot when the provider
+                        has the model, an empty ring when it does not. */}
                     <span
                       className={cn(
                         'flex items-center gap-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
-                        model.available ? 'text-sovereign-text' : 'text-foreground-muted',
+                        model.available ? 'text-foreground-secondary' : 'text-foreground-muted',
                       )}
                     >
-                      <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', model.available ? 'bg-sovereign' : 'bg-control-strong')} />
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          model.available ? 'bg-foreground' : 'shadow-[inset_0_0_0_1px_var(--control-strong)]',
+                        )}
+                      />
                       {model.available ? 'installed' : 'not installed'}
                     </span>
                     {inMemory && (
@@ -136,7 +175,9 @@ export function ModelEstate({ status, models }: { status: ModelsStatus; models: 
                   </span>
                   <span>
                     <span className="text-foreground-muted">on disk </span>
-                    {model.size_bytes ? formatBytes(model.size_bytes) : 'not reported'}
+                    {/* The provider's figure. Zero is how it says "no size",
+                        so it reads as not reported, never as 0 B. */}
+                    <MeasuredNumber value={model.size_bytes || null} format={formatBytes} absent="not reported" />
                   </span>
                 </div>
                 <div className="flex min-w-0 flex-col gap-1">
@@ -162,8 +203,11 @@ export function ModelEstate({ status, models }: { status: ModelsStatus; models: 
             {roles.map(([role, ids]) => (
               <div key={role} className="contents">
                 <dt className="font-mono text-ui text-foreground-secondary">{role}</dt>
-                <dd className={cn('font-mono text-ui', ids.length ? 'text-foreground' : 'text-approval-text')}>
-                  {ids.length ? ids.join(', ') : 'no installed model'}
+                {/* A role with nothing installed is worth noticing, but it is
+                    configuration, not a person's decision, so it is marked
+                    with a glyph in ink rather than in the held amber. */}
+                <dd className="font-mono text-ui text-foreground">
+                  {ids.length ? ids.join(', ') : '◇ no installed model'}
                 </dd>
               </div>
             ))}

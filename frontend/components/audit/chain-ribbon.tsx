@@ -1,7 +1,8 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, type CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
+import type { SpectrumState } from '@/shared/motion'
 import type { CheckResults } from './use-chain-check'
 
 /** Cells per memoised group. Only groups the sweep has touched re-render. */
@@ -9,10 +10,25 @@ const GROUP = 64
 
 type CellState = 'pending' | 'ok' | 'fail'
 
-const CELL: Record<CellState, string> = {
-  pending: 'bg-line-default',
-  ok: 'bg-sovereign',
-  fail: 'bg-critical',
+/*
+ * The spectrum's own cell states, so the ribbon speaks the vocabulary a
+ * harness strip does. A record not yet recomputed is an empty cell with a
+ * control edge, 3.64:1 on the ground; the old bg-line-default fill was
+ * 1.53:1 against the panel, under the 3:1 a non-text mark needs, so
+ * "not yet checked" could barely be seen. A record that does not recompute
+ * is `failed`, a critical edge on a tint: the log was altered, which is a
+ * fault in the record, not a policy refusing something.
+ *
+ * Sized by --cell, not by Tailwind height and width classes: the
+ * .aegis-strip-cell rule is unlayered CSS, so it wins over any size
+ * utility put beside it. The cells
+ * carry no tick. Hundreds settle in a second, and a bloom on each would put
+ * far more than a dozen lights on screen at once.
+ */
+const SPECTRUM_STATE: Record<CellState, SpectrumState> = {
+  pending: 'pending',
+  ok: 'proved',
+  fail: 'failed',
 }
 
 /*
@@ -48,7 +64,8 @@ const RibbonGroup = memo(
           title={`${results.bucket === 1 ? `#${from}` : `#${from}–#${to}`} ${
             state === 'ok' ? 'recomputes' : state === 'fail' ? 'does not recompute' : 'not yet checked'
           }`}
-          className={cn('h-2 w-1 rounded-[1px]', CELL[state])}
+          className="aegis-strip-cell"
+          data-state={SPECTRUM_STATE[state]}
         />,
       )
     }
@@ -106,7 +123,10 @@ export function ChainRibbon({
     <div
       role="img"
       aria-label={`${checked} of ${total} records recomputed`}
-      className={cn('flex flex-wrap gap-0.5', className)}
+      className={cn('aegis-strip', className)}
+      // Denser than a harness strip's 10px: a chain has hundreds of records,
+      // and 6px still leaves an empty cell a visible hollow.
+      style={{ '--cell': '6px' } as CSSProperties}
     >
       {groups}
     </div>

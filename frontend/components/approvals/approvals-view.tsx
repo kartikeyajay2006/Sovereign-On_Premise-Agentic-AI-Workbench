@@ -4,9 +4,11 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { RotateCw } from 'lucide-react'
 import type { StreamEvent, Task, TaskSummary } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
+import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
 import { PageHeader } from '@/components/page-header'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
+import { MeasuredNumber } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { Kbd } from '@/shared/ui/controls/kbd'
 import { Segmented } from '@/shared/ui/controls/segmented'
@@ -62,6 +64,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   const tag = target.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
 }
+
+const NONE_KEPT: ReadonlySet<string> = new Set()
 
 function sensitivityRank(value: string): number {
   const index = (SENSITIVITY_ORDER as readonly string[]).indexOf(value)
@@ -124,6 +128,10 @@ export function ApprovalsView() {
       reloadTimer.current = window.setTimeout(() => {
         reloadTimer.current = null
         reloadQueue()
+        // The header counts the same queue. Without this, a run held or
+        // decided elsewhere moves this screen's Held figure while the tab's
+        // count above it stays where it was until the next navigation.
+        window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
       }, 600)
     },
     [reloadQueue],
@@ -148,6 +156,12 @@ export function ApprovalsView() {
   const [detailAttempt, setDetailAttempt] = useState(0)
   const [switching, setSwitching] = useState(false)
   const [switchError, setSwitchError] = useState<string | null>(null)
+  // Runs decided on this screen since the filter last changed. Each stays in
+  // the list it was decided in, showing its new decision, instead of leaving
+  // the Held filter the moment it stops being held: the row turning from
+  // held to what was decided is the reviewer's confirmation, and it can only
+  // be seen if the row is still there. Changing the filter lets them go.
+  const [decidedHere, setDecidedHere] = useState<ReadonlySet<string>>(NONE_KEPT)
 
   const listRef = useRef<HTMLUListElement | null>(null)
   const detailRef = useRef<HTMLDivElement | null>(null)
@@ -173,13 +187,18 @@ export function ApprovalsView() {
   }, [items])
 
   const filterItems = useCallback(
-    (s: StatusFilter, c: string) =>
+    (s: StatusFilter, c: string, kept: ReadonlySet<string> = NONE_KEPT) =>
       items.filter(
-        (i) => (s === 'all' || i.decision === s) && (c === 'all' || (i.sensitivity ?? 'unclassified') === c),
+        (i) =>
+          (s === 'all' || i.decision === s || kept.has(i.id)) &&
+          (c === 'all' || (i.sensitivity ?? 'unclassified') === c),
       ),
     [items],
   )
-  const filtered = useMemo(() => filterItems(status, sensitivity), [filterItems, status, sensitivity])
+  const filtered = useMemo(
+    () => filterItems(status, sensitivity, decidedHere),
+    [filterItems, status, sensitivity, decidedHere],
+  )
 
   // The selection survives a filter it does not match only until the filter
   // changes, so a just-decided run stays on screen showing its new state.
@@ -317,6 +336,7 @@ export function ApprovalsView() {
   const changeFilter = (nextStatus: StatusFilter, nextSensitivity: string) => {
     setStatus(nextStatus)
     setSensitivity(nextSensitivity)
+    setDecidedHere(NONE_KEPT)
     const next = filterItems(nextStatus, nextSensitivity)
     if (!selected || !next.some((i) => i.id === selected.id)) setSelectedId(next[0]?.id ?? null)
   }
@@ -325,8 +345,8 @@ export function ApprovalsView() {
   const dialogTask = dialogItem ? (records.get(dialogItem.id) ?? dialogItem.task) : null
 
   const confirmDecision = async (kind: DecisionKind, id: string, note: string): Promise<string | null> => {
-    // Where to go next is decided from the queue as it stood, before this
-    // run leaves the held filter.
+    // Where to go next is decided from the queue as it stood before this
+    // decision: the nearest run after it that is still held, else before it.
     const before = filtered
     const index = before.findIndex((i) => i.id === id)
     const nextHeld =
@@ -336,7 +356,11 @@ export function ApprovalsView() {
     try {
       const task = await recordDecision(id, kind, note)
       setRecords((m) => new Map(m).set(task.id, task))
+      setDecidedHere((kept) => new Set(kept).add(task.id))
       setDialog(null)
+      // The service has recorded it, so the header's held count re-reads
+      // now rather than at the next navigation.
+      window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
       const released = task.deliverables.filter((d) => d.released).map((d) => d.filename)
       push(
         kind === 'approve'
@@ -385,18 +409,23 @@ export function ApprovalsView() {
     ? data.runs.filter((r) => String(r.status).toLowerCase() === 'awaiting_approval').length
     : null
 
-  const heldValue = !data ? '—' : forbidden ? (visibleHeld === null ? '—' : String(visibleHeld)) : String(counts.held)
+  // Null is "not read", which the header shows as a dash, never as a zero.
+  const heldCount: number | null = !data ? null : forbidden ? visibleHeld : counts.held
+  const decidedCount: number | null = forbidden || !data?.runs ? null : counts.approved + counts.rejected
 
   return (
-    <div className="flex flex-col lg:h-[calc(100dvh-72px)]">
+    // Sized against the shell's own top inset, not a literal 72px, so the
+    // queue and the pane always end at the bottom of the window.
+    <div className="flex flex-col lg:h-[calc(100dvh-var(--shell-top))]">
       <PageHeader
         title="Approvals"
         description="Runs held for a person's decision before anything they produced is released. Each decision is written to the audit chain against the reviewer who made it."
         meta={[
           {
             label: 'Held',
-            value: heldValue,
-            tone: heldValue !== '—' && heldValue !== '0' ? 'approval' : 'default',
+            // ROLL: the queue re-read, or a decision the service returned.
+            value: <MeasuredNumber value={heldCount} absent="—" />,
+            tone: heldCount ? 'approval' : 'default',
             hint: forbidden
               ? canReadAll
                 ? 'Held runs in the task list'
@@ -405,7 +434,8 @@ export function ApprovalsView() {
           },
           {
             label: 'Decided',
-            value: forbidden || !data?.runs ? '—' : String(counts.approved + counts.rejected),
+            // ROLL: as above.
+            value: <MeasuredNumber value={decidedCount} absent="—" />,
             hint: `Approved or rejected among the last ${RUNS_LIMIT} runs this role can read`,
           },
           { label: 'Signs as', value: reviewer },
@@ -562,6 +592,9 @@ export function ApprovalsView() {
                 ref={detailRef}
                 className={cn(
                   'min-h-0 flex-col bg-background lg:static lg:z-auto lg:flex',
+                  // The reader opened a run at phone width: the detail rises
+                  // 8px over the list at full opacity. A slide with no fade,
+                  // so it is legible from its first frame.
                   mobileView === 'detail'
                     ? 'fixed inset-x-0 bottom-0 top-14 z-[var(--z-drawer)] flex animate-in slide-in-from-bottom-2 duration-[var(--spatial)] ease-[var(--ease-spatial)] motion-reduce:animate-none lg:animate-none'
                     : 'hidden',

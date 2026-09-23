@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowUpRight, ChevronRight, RotateCcw, Square } from 'lucide
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/toast'
+import { Light, MeasuredNumber, Spectrum } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { ErrorState } from '@/shared/ui/data/error-state'
 import { harnessApi } from '../api'
@@ -15,16 +16,29 @@ import { useHarnessRun } from '../hooks/use-harness-run'
 import type { HarnessChildView, HarnessRunView } from '../model/types'
 import { ChildDetail } from './child-detail'
 import { writePrefill } from './harness-configure'
-import { ACTIVE_RUN, OUTCOME, OUTCOME_ORDER, UNSETTLED } from './outcome'
-import { CopyValue, Ledger, Notice, OutcomeLabel, OutcomeMarker, Panel, RunStatusBadge } from './parts'
+import { ACTIVE_RUN, OUTCOME, OUTCOME_ORDER, SETTLED_STATES, STATE_TEXT, STATE_TONE, UNSETTLED } from './outcome'
+import { CopyValue, Ledger, Notice, OutcomeMarker, Panel, RunStatusBadge } from './parts'
 import { ReportPanel } from './report-panel'
-import { RunStrip } from './run-strip'
 import { formatClock, formatDateTime, formatDuration, plural } from './format'
 
 // ------------------------------------------------------------ in flight
-function InFlight({ run }: { run: HarnessRunView }) {
-  if (!ACTIVE_RUN.has(run.status)) return null
-  const current = run.children.find((child) => child.index === run.current_index) ?? null
+function InFlight({ run, fetchedAt }: { run: HarnessRunView; fetchedAt: number | null }) {
+  const active = ACTIVE_RUN.has(run.status)
+  const current = active ? (run.children.find((child) => child.index === run.current_index) ?? null) : null
+  // The current child's dwell, measured on the server's clock (the view's
+  // server_time, advanced by the browser time since it was read), so skew
+  // between the two machines cannot invent elapsed time. Running counts
+  // from when it was first seen running, queued from when it was submitted.
+  const since =
+    current?.outcome === 'running'
+      ? current.started_at
+      : current?.outcome === 'queued'
+        ? current.submitted_at
+        : null
+  const dwell = useElapsed(since, null, run.server_time, fetchedAt)
+  const waited = dwell === null ? null : <span className="tabular font-mono text-foreground">{formatDuration(dwell)}</span>
+
+  if (!active) return null
   if (run.status === 'cancelling') {
     return (
       <p className="text-ui text-foreground-secondary">
@@ -44,7 +58,7 @@ function InFlight({ run }: { run: HarnessRunView }) {
         {current.queue_ahead !== null && current.queue_ahead > 0
           ? `, with ${plural(current.queue_ahead, 'run')} ahead of it`
           : ''}
-        .
+        {waited ? <>: waiting {waited}, by the server&rsquo;s clock</> : null}.
       </p>
     )
   }
@@ -58,7 +72,17 @@ function InFlight({ run }: { run: HarnessRunView }) {
             at stage <span className="font-mono text-foreground">{current.task_status}</span>
           </>
         ) : null}
-        {current.started_at ? `, first seen running at ${formatClock(current.started_at)}` : ''}.
+        {waited ? (
+          <>
+            : {waited} since it was first seen running at {formatClock(current.started_at)}, by the
+            server&rsquo;s clock
+          </>
+        ) : current.started_at ? (
+          `, first seen running at ${formatClock(current.started_at)}`
+        ) : (
+          ''
+        )}
+        .
       </p>
     )
   }
@@ -68,6 +92,35 @@ function InFlight({ run }: { run: HarnessRunView }) {
     <p className="text-ui text-foreground-secondary">
       {lead} has settled ({OUTCOME[current.outcome].label.toLowerCase()}); the next item follows.
     </p>
+  )
+}
+
+// ---------------------------------------------------------------- tally
+/**
+ * One count per outcome that has any, each with its glyph and words. The
+ * backend sends every outcome with zeros included; a zero is left out
+ * rather than drawn, which says nothing false, and an outcome nobody
+ * counted is never drawn as 0.
+ */
+function Tally({ run }: { run: HarnessRunView }) {
+  const present = OUTCOME_ORDER.filter((outcome) => run.tally.counts[outcome] > 0)
+  if (present.length === 0) return null
+  return (
+    <ul aria-label="Outcomes" className="flex list-none flex-wrap gap-x-5 gap-y-2 p-0">
+      {present.map((outcome) => {
+        const spec = OUTCOME[outcome]
+        return (
+          <li key={outcome} className="inline-flex items-center gap-2" title={spec.meaning}>
+            <OutcomeMarker outcome={outcome} />
+            {/* ROLL: the run re-read after a child settled. */}
+            <MeasuredNumber value={run.tally.counts[outcome]} className="font-mono text-meta text-foreground" />
+            <span className={cn('font-mono text-ledger uppercase tracking-[var(--ls-ledger)]', STATE_TEXT[spec.state])}>
+              {spec.label}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -83,6 +136,13 @@ function Board({ run }: { run: HarnessRunView }) {
   const [focused, setFocused] = useState(0)
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([])
   const children = run.children
+  // The children still open when this board first rendered, which are the
+  // only ones it can see settle. A child settled before the run was opened
+  // was read, not reached, and its row does not move. The screen is keyed
+  // by run id, so this is per run.
+  const [openAtStart] = useState(
+    () => new Set(children.filter((child) => UNSETTLED.has(child.outcome)).map((child) => child.key)),
+  )
 
   const move = (to: number) => {
     const next = Math.max(0, Math.min(children.length - 1, to))
@@ -106,18 +166,40 @@ function Board({ run }: { run: HarnessRunView }) {
     <ol onKeyDown={onKey} className="flex list-none flex-col p-0" aria-label="Runs in this harness">
       {children.map((child, position) => {
         const open = expanded === child.index
-        const current = child.index === run.current_index
-        const groupStarts = child.group && child.group !== children[position - 1]?.group
         const spec = OUTCOME[child.outcome]
+        // Running, not merely current: a current child that is still queued
+        // has not started, and lighting it would say it had.
+        const running = child.index === run.current_index && child.outcome === 'running'
+        const settledLive = openAtStart.has(child.key) && SETTLED_STATES.has(spec.state)
+        const tone = STATE_TONE[spec.state]
+        const unreached = spec.state === 'pending' || spec.state === 'skipped'
+        const groupStarts = child.group && child.group !== children[position - 1]?.group
         return (
-          <li key={child.key} className="grouped-row last:border-b-0">
+          // APPEND: harness.child settled. A child this board watched settles
+          // and its row arrives lit in its tone and cools, in the same render
+          // as its cell ticks in the strip. The class is set here rather than
+          // through <Append>, which decides at mount: these rows exist before
+          // they settle, and remounting one mid-run would drop keyboard focus.
+          <li
+            key={child.key}
+            className={cn('grouped-row last:border-b-0', settledLive && 'aegis-append')}
+            data-tone={settledLive && tone !== 'neutral' ? tone : undefined}
+          >
             {groupStarts && (
               <p className="border-b border-line-subtle bg-surface-sunken px-4 py-2 text-ui font-medium text-foreground-secondary">
                 {child.group}
               </p>
             )}
-            <div className={cn('relative flex items-stretch', current && 'bg-active-surface')}>
-              {current && <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-active" />}
+            {/* LIGHT: harness.child running. The child the worker is executing
+                now, lit for exactly as long as it runs. It blooms when it
+                starts; a run opened with it already running shows it lit. */}
+            <Light
+              tone={running ? 'active' : null}
+              rest="full"
+              bloomKey={running ? child.key : null}
+              className="flex items-stretch"
+            >
+              {running && <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-active" />}
               <button
                 ref={(element) => {
                   rowRefs.current[position] = element
@@ -133,7 +215,14 @@ function Board({ run }: { run: HarnessRunView }) {
                 <span className="tabular pt-px font-mono text-meta text-foreground-muted">{child.index}</span>
                 <OutcomeMarker outcome={child.outcome} className="mt-0.5" />
                 <span className="flex min-w-0 flex-col gap-1">
-                  <span className="line-clamp-2 text-body text-foreground">{child.label}</span>
+                  <span
+                    className={cn(
+                      'line-clamp-2 text-body',
+                      unreached ? 'text-foreground-muted' : 'text-foreground',
+                    )}
+                  >
+                    {child.label}
+                  </span>
                   <span className="flex min-w-0 items-center gap-2">
                     <ChevronRight
                       aria-hidden
@@ -142,7 +231,12 @@ function Board({ run }: { run: HarnessRunView }) {
                         open && 'rotate-90',
                       )}
                     />
-                    <span className={cn('shrink-0 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]', spec.text)}>
+                    <span
+                      className={cn(
+                        'shrink-0 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
+                        STATE_TEXT[spec.state],
+                      )}
+                    >
                       {spec.label}
                     </span>
                     <span className="truncate text-ui text-foreground-muted">{child.outcome_detail}</span>
@@ -173,12 +267,11 @@ function Board({ run }: { run: HarnessRunView }) {
               ) : (
                 <span className="w-10 shrink-0" aria-hidden />
               )}
-            </div>
+            </Light>
+            {/* Instant: it opens from Enter as often as from a click, and a
+                change a key causes does not animate. */}
             {open && (
-              <div
-                id={`harness-child-${child.index}`}
-                className="motion-safe:animate-in motion-safe:fade-in motion-safe:duration-[var(--standard)]"
-              >
+              <div id={`harness-child-${child.index}`}>
                 <ChildDetail child={child} />
               </div>
             )}
@@ -205,12 +298,17 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
 
   const elapsed = useElapsed(run?.created_at ?? null, run?.finished_at ?? null, run?.server_time ?? null, fetchedAt)
 
-  const legend = useMemo(() => {
-    if (!run) return []
-    return OUTCOME_ORDER.filter(
-      (outcome) => run.tally.counts[outcome] > 0 || (!UNSETTLED.has(outcome) && outcome !== 'released_unverified'),
-    )
-  }, [run])
+  // One cell per child, in submission order, in the one spectrum state its
+  // outcome maps to. Built once per reading, not per tick of the clock.
+  const cells = useMemo(
+    () =>
+      (run?.children ?? []).map((child) => ({
+        key: child.key,
+        state: OUTCOME[child.outcome].state,
+        label: `#${child.index} · ${child.label}`,
+      })),
+    [run],
+  )
 
   if (!run) {
     if (error) {
@@ -302,8 +400,10 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
                 Run again with these inputs
               </Button>
             )}
+            {/* Secondary, never lime and never red: stopping is an action,
+                not a state anything has reached. */}
             {run.permissions.can_cancel && !confirmCancel && (
-              <Button variant="danger" size="sm" icon={Square} onClick={() => setConfirmCancel(true)} ground="paper">
+              <Button variant="secondary" size="sm" icon={Square} onClick={() => setConfirmCancel(true)} ground="paper">
                 Stop run
               </Button>
             )}
@@ -326,7 +426,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
               Settled runs keep their records, and a partial report is still written.
             </span>
             <span className="flex flex-wrap items-center gap-3">
-              <Button variant="danger" size="sm" onClick={() => void cancel()} busy={cancelling} busyLabel="Stopping…" ground="sunken">
+              <Button variant="secondary" size="sm" onClick={() => void cancel()} busy={cancelling} busyLabel="Stopping…" ground="sunken">
                 Stop run
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(false)} ground="sunken" disabled={cancelling}>
@@ -349,26 +449,20 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       </header>
 
       {/* ---------------------------------------------------- progress */}
-      <section aria-label="Progress" className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-3">
-          <p className="flex items-baseline gap-2">
-            <span className="tabular text-display font-medium tracking-[var(--ls-display)] text-foreground">
-              {run.tally.settled}
-            </span>
-            <span className="tabular text-title text-foreground-muted">/ {run.tally.total}</span>
-            <Ledger className="ml-1">settled</Ledger>
-          </p>
-          <RunStrip items={run.children} current={run.current_index} />
-          <InFlight run={run} />
-        </div>
-        <ul className="grid list-none grid-cols-1 gap-x-6 gap-y-1.5 p-0 sm:grid-cols-2" aria-label="Outcomes">
-          {legend.map((outcome) => (
-            <li key={outcome} className="flex items-center justify-between gap-3" title={OUTCOME[outcome].meaning}>
-              <OutcomeLabel outcome={outcome} className={run.tally.counts[outcome] === 0 ? 'opacity-[var(--opacity-dim)]' : undefined} />
-              <span className="tabular font-mono text-meta text-foreground">{run.tally.counts[outcome]}</span>
-            </li>
-          ))}
-        </ul>
+      <section aria-label="Progress" className="flex flex-col gap-4">
+        <p className="flex items-baseline gap-2">
+          {/* ROLL: the run re-read after a child settled. */}
+          <MeasuredNumber value={run.tally.settled} className="type-figure font-medium text-foreground" />
+          <span className="tabular text-title text-foreground-muted">/ {run.tally.total}</span>
+          <Ledger className="ml-1">settled</Ledger>
+        </p>
+        {/* VERIFY: one cell per child, filled with what it measurably came
+            to, ticking as each settles (harness.child, then the re-read).
+            This is the progress indicator: it says which items are done and
+            how each came out, which a bar could not. */}
+        <Spectrum cells={cells} label="Harness items" size={12} />
+        <Tally run={run} />
+        <InFlight run={run} fetchedAt={fetchedAt} />
       </section>
 
       {/* ------------------------------------------------------- board */}
