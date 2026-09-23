@@ -565,6 +565,192 @@
   --input: var(--control-default);
 }
 
+/* ==================================================================== */
+/* MEASURED LIGHT                                                        */
+/*                                                                       */
+/* The direction, in one rule: the room is dark, and the only light in   */
+/* it is emitted by something the system measured. docs/design/          */
+/* DIRECTION.md is the argument; this block is the mechanism.            */
+/*                                                                       */
+/* Nothing above this line changes meaning. The four status fills and    */
+/* the action lime keep their values and their measured ratios. What is  */
+/* added is a second register for the same five hues: LIGHT. A fill says */
+/* what state an object is in. A light says that the state was just      */
+/* reached, or that it holds. Light is never the only carrier of a       */
+/* state: every lit object also carries its state as a glyph, a word or  */
+/* a fill, so a screenshot in greyscale, a screen reader and a projector */
+/* that crushes the glow all still read it.                              */
+/*                                                                       */
+/* Because a light is decoration layered over a boundary and a label     */
+/* that already pass, WCAG's text and non-text thresholds do not apply   */
+/* to it, and none of these values is quoted with a ratio. Anything in   */
+/* this block that does carry a label or a boundary says so, with its    */
+/* ratio.                                                                */
+/* ==================================================================== */
+:root {
+  /* ------------------------------------------------------------------ */
+  /* Emission. Each state's light is its fill hue, lifted in OKLCH to a  */
+  /* lightness where it reads as light rather than as paint, with more   */
+  /* chroma than the fill. Written as oklch(), not hex, on purpose:      */
+  /* active, approval and critical sit just outside sRGB and inside      */
+  /* Display P3 (computed; sovereign's fits sRGB), so on a P3 laptop     */
+  /* they render more saturated than sRGB can, and on an sRGB projector  */
+  /* the browser maps them down along chroma, which only ever makes a    */
+  /* light quieter. The status fills stay literal hex, because their     */
+  /* ratios are proved and must not be gamut-mapped.                     */
+  /*                                                                     */
+  /*   fill                         emission                             */
+  /*   sovereign #16a34a  L .627 -> oklch(.80 .19 150)  proved, safe     */
+  /*   active    #0284c7  L .588 -> oklch(.76 .15 238)  running          */
+  /*   approval  #d97706  L .666 -> oklch(.82 .16  66)  held for a person*/
+  /*   critical  #dc2626  L .577 -> oklch(.70 .21  26)  refused, failed  */
+  /*   action    #dcf23c  L .915    already luminous   you can act       */
+  /* ------------------------------------------------------------------ */
+  --emit-sovereign: oklch(0.80 0.19 150);
+  --emit-active:    oklch(0.76 0.15 238);
+  --emit-approval:  oklch(0.82 0.16 66);
+  --emit-critical:  oklch(0.70 0.21 26);
+  --emit-action:    var(--action);
+  /* Ink light: a trace, a selection, a landing. Never a state. */
+  --emit-ink:       var(--foreground);
+
+  /* ------------------------------------------------------------------ */
+  /* Glow: a rim and a bloom, in that order. The rim is a crisp 1px edge */
+  /* of light, which is what reads as "lit" at a glance; the bloom is    */
+  /* the soft falloff around it, which is what reads as light rather     */
+  /* than as a border. Alpha rises with blur inside one glow, the same   */
+  /* way the elevation shadows are built.                                */
+  /* ------------------------------------------------------------------ */
+  --glow-sovereign:
+    0 0 0 1px oklch(from var(--emit-sovereign) l c h / 55%),
+    0 0 18px -2px oklch(from var(--emit-sovereign) l c h / 42%);
+  --glow-active:
+    0 0 0 1px oklch(from var(--emit-active) l c h / 55%),
+    0 0 18px -2px oklch(from var(--emit-active) l c h / 42%);
+  --glow-approval:
+    0 0 0 1px oklch(from var(--emit-approval) l c h / 55%),
+    0 0 18px -2px oklch(from var(--emit-approval) l c h / 40%);
+  --glow-critical:
+    0 0 0 1px oklch(from var(--emit-critical) l c h / 60%),
+    0 0 20px -2px oklch(from var(--emit-critical) l c h / 45%);
+  --glow-action:
+    0 0 0 1px oklch(from var(--emit-action) l c h / 45%),
+    0 0 16px -3px oklch(from var(--emit-action) l c h / 55%);
+  --glow-ink:
+    0 0 0 1px var(--foreground),
+    0 0 0 4px oklch(from var(--foreground) l c h / 10%);
+
+  /* ------------------------------------------------------------------ */
+  /* Wash: a state falling across a surface from the edge that owns it.  */
+  /* Stronger at the edge, gone by 70%, so a held deliverable or a       */
+  /* refused request is tinted where the reader starts and plain where   */
+  /* they read.                                                          */
+  /*                                                                     */
+  /* ON A WASH, WORDS ARE INK. The wash and a rule or glyph carry the    */
+  /* state; the label is --foreground or --foreground-secondary. Measured*/
+  /* (WCAG 2.x, sRGB alpha composite) at the wash's strongest edge over  */
+  /* --surface #191714, which is the lightest ground it can sit on:      */
+  /*                         sovereign  active  approval  critical       */
+  /*   --foreground            13.40    13.73    13.28     14.04         */
+  /*   --foreground-secondary   7.68     7.87     7.61      8.05         */
+  /*   its own -text token      4.76     4.08     4.88      4.20         */
+  /*   --foreground-muted       4.39     4.49     4.35      4.60         */
+  /* The -text tokens have almost no margin on --surface (active-text is */
+  /* 4.54:1 there), so two of them fall under 4.5:1 on their own wash,   */
+  /* and muted ink falls under it on three. Hence the rule, with no      */
+  /* third case.                                                         */
+  /* ------------------------------------------------------------------ */
+  --wash-sovereign: linear-gradient(to bottom, oklch(from var(--sovereign) l c h / 11%), transparent 70%);
+  --wash-active:    linear-gradient(to bottom, oklch(from var(--active) l c h / 11%), transparent 70%);
+  --wash-approval:  linear-gradient(to bottom, oklch(from var(--approval) l c h / 11%), transparent 70%);
+  --wash-critical:  linear-gradient(to bottom, oklch(from var(--critical) l c h / 12%), transparent 70%);
+
+  /* ------------------------------------------------------------------ */
+  /* The lamp. One static, hueless falloff at the top of the app frame,  */
+  /* in the ground's own hue: the working surface is lit from above, the */
+  /* way an instrument panel is, and the page has depth instead of being */
+  /* a flat void. It carries no state and it never moves. It is painted */
+  /* once by a fixed layer, so scrolling never repaints it.              */
+  /* ------------------------------------------------------------------ */
+  --lamp: radial-gradient(
+    120% 60% at 50% -12%,
+    oklch(from var(--surface) calc(l + 0.035) c h / 85%),
+    transparent 72%
+  );
+
+  /* The lip of a raised object: 1px of light along its top edge, the    */
+  /* way a machined part catches an overhead lamp. Folded into the three */
+  /* elevation rungs below.                                              */
+  --rim: inset 0 1px 0 0 oklch(1 0 0 / 4.5%);
+
+  /* ------------------------------------------------------------------ */
+  /* Elevation, re-issued with the rim as its first layer. Every other   */
+  /* layer is byte-identical to the dark block above, so a surface that */
+  /* already used a rung keeps its ring, its shadow and its opaque inner */
+  /* ring and gains only the lip.                                        */
+  /* ------------------------------------------------------------------ */
+  --elev-1:
+    var(--rim),
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.10),
+    0 1px 2px oklch(0 0 0 / 0.5),
+    0 0 0 1px var(--background);
+  --elev-2:
+    var(--rim),
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.12),
+    0 2px 4px oklch(0 0 0 / 0.45),
+    0 8px 16px -6px oklch(0 0 0 / 0.55),
+    0 0 0 1px var(--surface);
+  --elev-3:
+    var(--rim),
+    0 0 0 1px oklch(from var(--line-ink) l c h / 0.14),
+    0 12px 28px -12px oklch(0 0 0 / 0.65),
+    0 36px 72px -16px oklch(0 0 0 / 0.55),
+    0 0 0 1px var(--surface);
+
+  /* ------------------------------------------------------------------ */
+  /* Motion, beyond the three tiers.                                     */
+  /*                                                                     */
+  /* afterglow  a light cooling after the event that lit it. Opacity     */
+  /*            only, no travel. 1200ms is long enough that a reader     */
+  /*            glancing back finds the row that is new, and short      */
+  /*            enough that two events a second apart do not stack.     */
+  /*            Zero under reduced motion, with the tiers.              */
+  /* dur-land   a trace arriving: the ring contracts onto its target in  */
+  /*            the first fifth, holds, and lets go.                     */
+  /* ------------------------------------------------------------------ */
+  --afterglow: 1200ms;
+  --dur-land: 900ms;
+
+  /* How far a pressed control gives. Rauno's ceiling is 0.96; this is   */
+  /* an instrument, so it gives less. Scale, never translate: a scale    */
+  /* is composited and moves nothing around it.                          */
+  --press-scale: 0.98;
+
+  /* Light levels a settled state rests at. A rim, not a bloom: a state  */
+  /* that holds is quieter than the moment it was reached.               */
+  --light-rest-none: 0;
+  --light-rest-rim: 0.5;
+  --light-rest-full: 1;
+
+  /* ------------------------------------------------------------------ */
+  /* The shell's top inset: the fixed header plus the gap under it.      */
+  /* A screen that fills the viewport sizes itself against this rather   */
+  /* than a literal 72px, because the header is 56px on most screens and */
+  /* 92px on the three Assurance screens, which carry a second row.      */
+  /* The app frame sets the taller value itself; see .app-frame below.   */
+  /* ------------------------------------------------------------------ */
+  --shell-top: 72px;
+
+  /* ------------------------------------------------------------------ */
+  /* Figure: a measured value at headline size, once per panel. Not a    */
+  /* --text-* token on purpose: cn() in lib/utils.ts only knows the      */
+  /* eight sizes it was taught, and a ninth text-* size would be dropped */
+  /* by tailwind-merge the moment it met a text colour. It is exposed as */
+  /* the type-figure utility instead, which tailwind-merge leaves alone. */
+  /* ------------------------------------------------------------------ */
+  --size-figure: 28px; --lh-figure: 32px; --ls-figure: -0.02em;
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans), 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
@@ -693,6 +879,26 @@
   --shadow-elev-2: var(--elev-2);
   --shadow-elev-3: var(--elev-3);
   --shadow-focus:  var(--focus-ring);
+
+  /* ---------------------------------------------------------------- */
+  /* Measured Light. Emission colours and resting glows, as utilities: */
+  /* bg-emit-*, text-emit-* is deliberately NOT a use (light is never  */
+  /* a text colour), shadow-glow-* for a state that holds its light.   */
+  /* A glow that blooms on an event is the <Light> primitive in        */
+  /* shared/motion, not a class toggled by hand.                       */
+  /* ---------------------------------------------------------------- */
+  --color-emit-sovereign: var(--emit-sovereign);
+  --color-emit-active:    var(--emit-active);
+  --color-emit-approval:  var(--emit-approval);
+  --color-emit-critical:  var(--emit-critical);
+  --color-emit-action:    var(--emit-action);
+
+  --shadow-glow-sovereign: var(--glow-sovereign);
+  --shadow-glow-active:    var(--glow-active);
+  --shadow-glow-approval:  var(--glow-approval);
+  --shadow-glow-critical:  var(--glow-critical);
+  --shadow-glow-action:    var(--glow-action);
+  --shadow-glow-ink:       var(--glow-ink);
 }
 
 @layer base {
@@ -702,14 +908,39 @@
   html {
     /* Anchor jumps glide rather than cut. The reduced-motion block below
        returns this to `auto`, where an instant jump is the correct
-       behaviour rather than a degraded one. */
+       behaviour rather than a degraded one.
+
+       Next 16 no longer suspends this during route changes on its own, so
+       a navigation from a scrolled page would glide to the top of the next
+       one. app/layout.tsx sets data-scroll-behavior="smooth" on <html>,
+       which is Next's opt-in for suspending it during navigation. */
     scroll-behavior: smooth;
+
+    /* The thread grows as a run reports, so its page crosses the height
+       of the window mid-run. On a classic Windows scrollbar that crossing
+       shifted the whole layout 17px sideways at the moment the reader was
+       watching a stage change. Reserving the gutter makes the crossing
+       invisible; on overlay scrollbars it reserves nothing. */
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    /* The thumb is a control -- it is how a reader knows how much of a long
+       ledger they have seen -- so it takes a control edge, 3.64:1 on the
+       ground, not a divider line at 2.04:1. Inherited by every scrolling
+       pane, so all of them match. */
+    scrollbar-color: var(--control-strong) transparent;
+
+    /* The grey flash a touch screen paints over a tapped control is
+       replaced by the control's own pressed state, never left empty. */
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     background-color: var(--background);
     color: var(--foreground);
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+    /* optimizeLegibility is gone. It is a documented source of layout
+       cost on long pages, and the only thing it bought here, kerning, is
+       asked for directly. */
+    font-kerning: normal;
   }
   ::selection {
     /* Selection inverts with the theme, or selected text on a dark ground
@@ -726,6 +957,10 @@
   code, kbd, samp, pre, .font-mono, [class*='font-mono'] {
     font-variation-settings: 'wght' var(--weight-mono);
     font-variant-numeric: tabular-nums;
+    /* A hash, a rule path or a model id is a string of characters, not
+       prose. A ligature that fuses `!=` or `fi` inside one changes what a
+       reader copies against what they see. */
+    font-variant-ligatures: none;
   }
 }
 
@@ -912,6 +1147,28 @@
   background: oklch(from var(--critical) l c h / 14%);
 }
 
+/* Press. The control gives, by 2%, for as long as it is held.
+ *
+ * Still no translate, for the reason given above: a translate moves the
+ * control off its row. A scale is composited, moves nothing around it,
+ * and reads as a key going down rather than a card sliding. It is instant
+ * in both directions, because a pressed state that eases in arrives after
+ * the finger has already lifted. */
+.btn:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+/* The action, lit under the pointer.
+ *
+ * Lime is the one colour that means "you can do this", and this is the
+ * one moment it may emit light: when the pointer is on it. It follows the
+ * hover pair, so the light arrives at once and decays over 150ms. A
+ * keyboard-focused primary keeps its ink focus ring instead, because the
+ * ring is the accessibility affordance and must never be replaced. */
+.btn[data-variant='primary']:hover:not(:focus-visible) {
+  box-shadow: var(--glow-action);
+}
+
 /* Forced truncation for hashes and model ids: never wrap, never let one
    cell change a row's height. */
 @utility truncate-cell {
@@ -970,6 +1227,501 @@
   transform: translateX(4px);
 }
 
+/* ==================================================================== */
+/* SIGNATURE MOTIONS                                                     */
+/*                                                                       */
+/* Seven motions, each tied to one thing the system does, and each named */
+/* for it: APPEND, VERIFY, RELEASE, REFUSE, SEAL, TRACE and TURN, plus   */
+/* ROLL for a number that changed. The React primitives in shared/motion */
+/* are the intended way to use them; these classes are what they set.    */
+/*                                                                       */
+/* Four laws, which every rule below obeys and which are the reason for  */
+/* most of its details:                                                  */
+/*                                                                       */
+/*  1. Ink never fades in; light does. Content arrives by MOVING, at     */
+/*     full opacity, so it is legible from its first frame, in a print,  */
+/*     in a screenshot and for a reader whose animations never ran.      */
+/*     Only light (glows, washes, rims) animates its opacity. This is    */
+/*     the rule components/landing/reveal.tsx and the modal already      */
+/*     follow, made general.                                             */
+/*  2. Every motion names its referent. An APPEND is a record the        */
+/*     backend wrote; a VERIFY is a check that ran. Nothing loops unless */
+/*     the thing it depicts is running, and nothing moves on an idle     */
+/*     page.                                                             */
+/*  3. A number never passes through values it did not have. A counter  */
+/*     that tweens from 3 to 7 shows 4, 5 and 6, none of which was ever */
+/*     measured, so numbers ROLL between their real values instead.      */
+/*  4. Transform and opacity only, plus grid-template-rows for a         */
+/*     disclosure. Everything here is composited, so it keeps its frame  */
+/*     rate while the main thread is parsing an event burst and the CPU  */
+/*     is running a model.                                               */
+/* ==================================================================== */
+
+@keyframes aegis-rise {
+  from { transform: translateY(var(--rise, var(--shift-md))); }
+  to   { transform: none; }
+}
+@keyframes aegis-afterglow {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+/* Light arrives fast and cools to whatever the settled state keeps. */
+@keyframes aegis-bloom {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  100% { opacity: var(--light-rest, 0); }
+}
+@keyframes aegis-draw-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes aegis-draw-y {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+/* Contracts ONTO its target, which reads as landing; expanding away from
+   it would read as something leaving. */
+@keyframes aegis-land {
+  0%   { opacity: 0; transform: scale(1.03); }
+  18%  { opacity: 1; transform: none; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* A small mark settling into its slot at the end of a seal rule. */
+@keyframes aegis-seat {
+  from { opacity: 0; transform: translateX(-6px) scale(0.6); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes aegis-roll-in {
+  from { transform: translateY(var(--roll-from, 100%)); }
+  to   { transform: none; }
+}
+@keyframes aegis-roll-out {
+  from { transform: none; opacity: 1; }
+  to   { transform: translateY(var(--roll-to, -100%)); opacity: 0; }
+}
+@keyframes aegis-turn-in {
+  from { transform: translateY(6px); }
+  to   { transform: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* APPEAR — a block arriving in place, on mount.                        */
+/* Referent: the block's data arrived. Spatial tier: it occupies space. */
+/* Mounts moving, never waiting on an observer, and never transparent. */
+/* ------------------------------------------------------------------ */
+.aegis-appear {
+  animation: aegis-rise var(--spatial) var(--ease-spatial) both;
+  animation-delay: calc(min(var(--appear-i, 0), var(--stagger-cap)) * var(--stagger));
+}
+
+/* ------------------------------------------------------------------ */
+/* APPEND — a record joining the chain.                                 */
+/*                                                                      */
+/* Referent: a row the backend wrote after the list was already on      */
+/* screen (an evidence item, an audit record, a settled harness item).  */
+/* Rows present when a list first renders were read, not appended, and  */
+/* do not animate; <AppendScope> is what tells the two apart.           */
+/*                                                                      */
+/* The row arrives LIT and cools: it settles 4px into place at full     */
+/* opacity (standard tier) while a wash and a 2px rule in its tone sit  */
+/* behind its content and fade over the afterglow. The wash is on a     */
+/* pseudo-element behind the row's content, in the row's own stacking   */
+/* context, so it tints the row and never the words on it.              */
+/* ------------------------------------------------------------------ */
+.aegis-append {
+  --rise: var(--shift-sm);
+  --append-delay: calc(min(var(--append-i, 0), var(--stagger-cap)) * var(--stagger));
+  position: relative;
+  isolation: isolate;
+  animation: aegis-rise var(--standard) var(--ease-spatial) both;
+  animation-delay: var(--append-delay);
+}
+.aegis-append::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--append-wash, oklch(from var(--line-ink) l c h / 7%));
+  box-shadow: inset 2px 0 0 0 var(--append-rule, var(--control-strong));
+  animation: aegis-afterglow var(--afterglow) var(--ease-standard) both;
+  animation-delay: var(--append-delay);
+}
+.aegis-append[data-tone='sovereign'] {
+  --append-wash: oklch(from var(--emit-sovereign) l c h / 10%);
+  --append-rule: var(--sovereign);
+}
+.aegis-append[data-tone='active'] {
+  --append-wash: oklch(from var(--emit-active) l c h / 10%);
+  --append-rule: var(--active);
+}
+.aegis-append[data-tone='approval'] {
+  --append-wash: oklch(from var(--emit-approval) l c h / 10%);
+  --append-rule: var(--approval);
+}
+.aegis-append[data-tone='critical'] {
+  --append-wash: oklch(from var(--emit-critical) l c h / 11%);
+  --append-rule: var(--critical);
+}
+/* A burst too large to animate row by row -- sixty evidence chunks from
+   one retrieval -- lands still. The count that heads the list still
+   changes, so nothing is hidden; the screen declines to move sixty things
+   at once while the CPU is busy. */
+[data-append-bulk] .aegis-append,
+[data-append-bulk] .aegis-append::before {
+  animation: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* LIGHT — a state reached, and a state that holds.                     */
+/*                                                                      */
+/* The halo is a real child, not a pseudo-element, so the <Light>       */
+/* primitive can replay its bloom by re-keying it. It sits behind the   */
+/* lit object (z -1 inside the light's own stacking context), so the    */
+/* object's own background covers the inside of the glow and only the   */
+/* rim and the falloff show around it.                                  */
+/* ------------------------------------------------------------------ */
+.aegis-light {
+  position: relative;
+  isolation: isolate;
+}
+.aegis-light-halo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: var(--light-glow, var(--glow-ink));
+  opacity: var(--light-rest, 0);
+}
+.aegis-light-halo[data-bloom] {
+  animation: aegis-bloom var(--afterglow) var(--ease-standard) both;
+}
+.aegis-light[data-tone='sovereign'] { --light-glow: var(--glow-sovereign); }
+.aegis-light[data-tone='active']    { --light-glow: var(--glow-active); }
+.aegis-light[data-tone='approval']  { --light-glow: var(--glow-approval); }
+.aegis-light[data-tone='critical']  { --light-glow: var(--glow-critical); }
+.aegis-light[data-tone='action']    { --light-glow: var(--glow-action); }
+.aegis-light[data-tone='ink']       { --light-glow: var(--glow-ink); }
+.aegis-light[data-rest='none'] { --light-rest: var(--light-rest-none); }
+.aegis-light[data-rest='rim']  { --light-rest: var(--light-rest-rim); }
+.aegis-light[data-rest='full'] { --light-rest: var(--light-rest-full); }
+
+/* ------------------------------------------------------------------ */
+/* VERIFY — a check moving across a set, as far as it has actually got. */
+/*                                                                      */
+/* --sweep is done/total, written by the <Sweep> primitive from a real  */
+/* count. The checked part is sovereign: those records recomputed. The  */
+/* leading edge is the check in progress, in active; if a record fails  */
+/* the edge turns critical and stops there. The fill is translated, not */
+/* scaled, so its leading edge stays a crisp 2px line at every value,   */
+/* and it moves only between counts the check reported.                 */
+/* ------------------------------------------------------------------ */
+.aegis-sweep {
+  position: relative;
+  overflow: hidden;
+  background: var(--line-default);
+}
+.aegis-sweep-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--sovereign);
+  transition: transform var(--standard) var(--ease-standard);
+}
+.aegis-sweep[data-axis='y'] .aegis-sweep-fill {
+  transform: translateY(calc((var(--sweep, 0) - 1) * 100%));
+  box-shadow: inset 0 -2px 0 0 var(--sweep-edge, transparent);
+}
+.aegis-sweep[data-axis='x'] .aegis-sweep-fill {
+  transform: translateX(calc((var(--sweep, 0) - 1) * 100%));
+  box-shadow: inset -2px 0 0 0 var(--sweep-edge, transparent);
+}
+.aegis-sweep[data-state='running'] { --sweep-edge: var(--emit-active); }
+.aegis-sweep[data-state='broken']  { --sweep-edge: var(--emit-critical); }
+.aegis-sweep[data-state='passed']  { --sweep-edge: transparent; }
+
+/* ------------------------------------------------------------------ */
+/* REFUSE — a policy denial, settling.                                  */
+/*                                                                      */
+/* Loud by subtraction: the rest of the board recedes to --opacity-dim  */
+/* over the hold tier while the refused object draws a critical rule    */
+/* down its leading edge and takes a critical light that settles to a   */
+/* rim. No shake, no flash, no pulse. A refusal is the system working,  */
+/* and it is a settled state, not an alarm that keeps ringing.          */
+/* ------------------------------------------------------------------ */
+.aegis-dim-scope [data-dim-item] {
+  transition: opacity var(--dur-hold) var(--ease-move);
+}
+.aegis-dim-scope[data-dimmed] [data-dim-item]:not([data-dim-keep]) {
+  opacity: var(--opacity-dim);
+}
+.aegis-refuse {
+  position: relative;
+}
+.aegis-refuse-rule {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 2px;
+  background: var(--critical);
+  transform-origin: top;
+  animation: aegis-draw-y var(--dur-hold) var(--ease-spatial) both;
+}
+
+/* ------------------------------------------------------------------ */
+/* SEAL — a hash committing.                                            */
+/*                                                                      */
+/* The hash is on screen, whole and legible, before and during the      */
+/* seal: the motion is a rule drawn beneath it left to right over       */
+/* --dur-seal, the one 640ms motion in the product, because a seal is a */
+/* commitment made across a body of content. A small mark seats at the  */
+/* end of the rule when it completes. No character of the hash is ever  */
+/* scrambled or typed on: every glyph shown is the real one.            */
+/* ------------------------------------------------------------------ */
+.aegis-seal {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: 3px;
+}
+.aegis-seal-rule {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--seal-tone, var(--sovereign));
+  transform-origin: left center;
+}
+.aegis-seal[data-draw] .aegis-seal-rule {
+  animation: aegis-draw-x var(--dur-seal) var(--ease-standard) both;
+}
+.aegis-seal-mark {
+  color: var(--seal-tone, var(--sovereign));
+  font-size: var(--size-ledger);
+  line-height: 1;
+}
+.aegis-seal[data-draw] .aegis-seal-mark {
+  animation: aegis-seat var(--standard) var(--ease-spatial) both;
+  animation-delay: var(--dur-seal);
+}
+/* Unsealed is drawn, not omitted: a dashed rule in line ink says "this
+   has not been committed", which is a different fact from "nothing here". */
+.aegis-seal[data-sealed='false'] .aegis-seal-rule {
+  background: repeating-linear-gradient(
+    to right, var(--control-strong) 0 3px, transparent 3px 6px
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* TRACE — a citation leading to its source.                            */
+/*                                                                      */
+/* The target is scrolled into view and an ink ring contracts onto it,  */
+/* holds, and lets go, leaving the target's own selected style in       */
+/* place. Ink, not a status hue: tracing is the reader navigating, and  */
+/* "selected" must never read as "verified".                            */
+/*                                                                      */
+/* [data-trace-lit] is set by <TraceScope> on every element sharing the */
+/* hovered id, so a citation chip and its evidence row light together.  */
+/* ------------------------------------------------------------------ */
+.aegis-trace {
+  position: relative;
+}
+.aegis-trace-land {
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: var(--glow-ink);
+  animation: aegis-land var(--dur-land) var(--ease-spatial) both;
+}
+[data-trace-lit] {
+  box-shadow: 0 0 0 1px var(--foreground);
+}
+
+/* ------------------------------------------------------------------ */
+/* ROLL — a measured number changing.                                   */
+/*                                                                      */
+/* Only the characters that changed move: the old glyph leaves and the  */
+/* new one arrives from the direction the value moved, like a meter     */
+/* wheel. clip-path rather than overflow:hidden, because an inline-block */
+/* with overflow hidden takes its baseline from its bottom edge and     */
+/* would sit a few pixels above the text around it.                     */
+/* ------------------------------------------------------------------ */
+.aegis-roll {
+  position: relative;
+  display: inline-block;
+  clip-path: inset(0 -0.2em);
+}
+.aegis-roll-in {
+  display: inline-block;
+  animation: aegis-roll-in var(--standard) var(--ease-spatial) both;
+}
+.aegis-roll-out {
+  position: absolute;
+  inset: 0;
+  animation: aegis-roll-out var(--standard) var(--ease-spatial) both;
+}
+.aegis-roll[data-dir='up']   { --roll-from: 100%;  --roll-to: -100%; }
+.aegis-roll[data-dir='down'] { --roll-from: -100%; --roll-to: 100%; }
+
+/* ------------------------------------------------------------------ */
+/* DISCLOSE — content that opens out of the thing that owns it.         */
+/* The one sanctioned layout animation: grid rows from 0fr to 1fr is    */
+/* the only way to reach intrinsic height, and it is cheap.             */
+/* ------------------------------------------------------------------ */
+.aegis-disclose {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--disclose-dur, var(--spatial)) var(--ease-spatial);
+}
+.aegis-disclose[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.aegis-disclose > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.aegis-disclose[data-tempo='hold'] {
+  --disclose-dur: var(--dur-hold);
+}
+
+/* ------------------------------------------------------------------ */
+/* THE SPECTRUM — a set of records, one cell each, coloured by what     */
+/* each one measurably came to.                                         */
+/*                                                                      */
+/* This is where the product is most colourful, and it is also where    */
+/* colour carries the most information: twenty-four harness items are   */
+/* twenty-four facts. Nine cell states, and no two share both a fill    */
+/* style and a hue. As non-text marks every fill clears 3:1 on the      */
+/* ground and on --surface (critical is the lowest, 3.99 and 3.70), and */
+/* the empty states are drawn in --control-strong, not in a line token, */
+/* because line-strong is 2.04:1 and an empty cell must still be seen.  */
+/* The strip is a summary: the list beside it carries glyphs and words, */
+/* and the strip's own label carries the counts.                        */
+/* ------------------------------------------------------------------ */
+.aegis-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  --cell: 10px;
+}
+.aegis-strip-cell {
+  position: relative;
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 1px;
+  flex: none;
+}
+.aegis-strip-cell[data-state='pending'] { box-shadow: inset 0 0 0 1px var(--control-strong); }
+.aegis-strip-cell[data-state='active']  { background: var(--active); box-shadow: var(--glow-active); }
+.aegis-strip-cell[data-state='proved']  { background: var(--sovereign); }
+.aegis-strip-cell[data-state='review']  { background: var(--approval-surface); box-shadow: inset 0 0 0 1px var(--approval); }
+.aegis-strip-cell[data-state='held']    { background: var(--approval); }
+.aegis-strip-cell[data-state='refused'] { background: var(--critical); }
+.aegis-strip-cell[data-state='failed']  { background: var(--critical-surface); box-shadow: inset 0 0 0 1px var(--critical); }
+.aegis-strip-cell[data-state='neutral'] { background: var(--foreground-muted); }
+.aegis-strip-cell[data-state='skipped'] {
+  background: linear-gradient(var(--control-strong), var(--control-strong)) center / 100% 1px no-repeat;
+}
+/* The tick: a cell that just settled blooms in its own tone and cools. */
+.aegis-strip-tick {
+  position: absolute;
+  inset: -2px;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow: var(--strip-glow, var(--glow-ink));
+  animation: aegis-afterglow var(--afterglow) var(--ease-standard) both;
+}
+.aegis-strip-cell[data-state='proved']  { --strip-glow: var(--glow-sovereign); }
+.aegis-strip-cell[data-state='review'],
+.aegis-strip-cell[data-state='held']    { --strip-glow: var(--glow-approval); }
+.aegis-strip-cell[data-state='refused'],
+.aegis-strip-cell[data-state='failed']  { --strip-glow: var(--glow-critical); }
+
+/* ------------------------------------------------------------------ */
+/* Utilities for the light register.                                    */
+/* ------------------------------------------------------------------ */
+@utility wash-sovereign { background-image: var(--wash-sovereign); }
+@utility wash-active    { background-image: var(--wash-active); }
+@utility wash-approval  { background-image: var(--wash-approval); }
+@utility wash-critical  { background-image: var(--wash-critical); }
+
+/* A measured value at headline size. See --size-figure for why this is
+   not a text-* token. */
+@utility type-figure {
+  font-size: var(--size-figure);
+  line-height: var(--lh-figure);
+  letter-spacing: var(--ls-figure);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Press for anything pressable that is not a .btn: a row, a chip, a
+   segment. Same 2%, same instant give. */
+@utility press {
+  &:active:not(:disabled) {
+    transform: scale(var(--press-scale));
+  }
+}
+
+/* ==================================================================== */
+/* THE SHELL                                                             */
+/* ==================================================================== */
+
+/* The three Assurance screens carry a second header row, so the frame
+   that holds them reserves more room at the top. Declared here with :has()
+   rather than set from script, so the value is right on the first frame
+   and there is no jump when the header hydrates. */
+.app-frame:has([data-shell-subnav]) {
+  --shell-top: 108px;
+}
+
+/* The lamp: see --lamp. z-0, not negative: a negative z-index child is
+   painted under the body's opaque background and was never seen, which is
+   what happened to the tech-grid this replaces. */
+.app-atmosphere {
+  background: var(--lamp);
+}
+
+/* ------------------------------------------------------------------ */
+/* TURN — moving between screens.                                       */
+/*                                                                      */
+/* The same instrument, a different reading. The header does not move:  */
+/* it is in the root snapshot and the root is swapped without           */
+/* animation, and because a view transition's new image is live, the    */
+/* navigation's own sliding indicator keeps gliding through it. The     */
+/* page content is cut, not cross-faded -- the old reading is gone at   */
+/* once, so two screens are never on the glass together -- and the new  */
+/* one settles 6px upward at full opacity over the standard tier.       */
+/* Nothing waits: the new screen is readable from its first frame.      */
+/*                                                                      */
+/* Driven by React's <ViewTransition update="aegis-turn">, which wraps  */
+/* <main> in app/(app)/layout.tsx through shared/motion/route-stage.    */
+/* Navigations are transitions, so they animate; the setState calls an */
+/* event stream makes are not, so a live run never triggers one.        */
+/* ------------------------------------------------------------------ */
+::view-transition {
+  /* Clicks during the 200ms go to the live page, not the overlay. */
+  pointer-events: none;
+}
+::view-transition-old(root) {
+  display: none;
+}
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(.aegis-turn) {
+  animation: none;
+}
+::view-transition-old(.aegis-turn) {
+  display: none;
+}
+::view-transition-new(.aegis-turn) {
+  animation: aegis-turn-in var(--standard) var(--ease-spatial) both;
+}
+
 /* ------------------------------------------------------------------ */
 /* Reduced-motion contract.                                            */
 /*                                                                     */
@@ -979,9 +1731,11 @@
 /* did nothing at all about travel distance — a 14px slide at 0.001ms  */
 /* is still a 14px jump.                                               */
 /*                                                                     */
-/* --dur-tick is deliberately kept. A 90ms colour cross-fade involves  */
-/* no movement and is not a vestibular trigger; WCAG 2.3.3 targets     */
-/* motion, not every transition.                                       */
+/* Every duration is zeroed, the tiers included, so nothing written    */
+/* against any of them animates. That includes --dur-tick, which is an */
+/* alias of --micro: colour changes become instant too. A colour fade  */
+/* is not itself a vestibular trigger, but a contract with no          */
+/* exceptions is one that code written later cannot fall through.      */
 /* ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -994,6 +1748,21 @@
     --stagger: 0ms;
     --shift-sm: 0px;
     --shift-md: 0px;
+
+    /* The three tiers themselves, and the light register's two
+       durations. Zeroing only the old --dur-* aliases left everything
+       written against --micro / --standard / --spatial -- the modal, the
+       toast, the menus, every tier-timed transition -- still animating for
+       a reader who asked for no motion. With these at zero, every animation
+       and transition in the product completes on its first frame and holds
+       its end state: a bloom lands at its rest level, an afterglow at
+       nothing, a trace ring is not drawn and the traced row keeps its
+       selected style. */
+    --micro: 0ms;
+    --standard: 0ms;
+    --spatial: 0ms;
+    --afterglow: 0ms;
+    --dur-land: 0ms;
   }
   /* Transforms are gated at the keyframe, not the duration. */
   .reveal {
@@ -1012,6 +1781,40 @@
   }
   html {
     scroll-behavior: auto;
+  }
+
+  /* The signature motions. Their durations are already zero above; travel
+     is also removed here, at the rule, so that no transform is ever applied
+     even for the one frame a zero-length animation takes. Every end state
+     is identical; it simply arrives at once. The facts the motion carried
+     are all still on screen as fills, glyphs, words and counts, and a row
+     that just arrived is simply there. */
+  .aegis-appear,
+  .aegis-append,
+  .aegis-roll-in,
+  .aegis-refuse-rule,
+  .aegis-seal[data-draw] .aegis-seal-rule,
+  .aegis-seal[data-draw] .aegis-seal-mark {
+    animation: none;
+  }
+  .aegis-roll-out {
+    display: none;
+  }
+  /* No contraction. With --dur-land at zero the ring is not drawn at all;
+     the traced row keeps its own selected style, which is the fact. */
+  .aegis-trace-land {
+    animation-name: aegis-afterglow;
+  }
+  .aegis-sweep-fill,
+  .aegis-disclose {
+    transition: none;
+  }
+  .btn:active:not(:disabled),
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+  ::view-transition-new(.aegis-turn) {
+    animation: none;
   }
 }
 

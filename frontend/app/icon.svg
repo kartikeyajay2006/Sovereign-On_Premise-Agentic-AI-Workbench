@@ -1,39 +1,27 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="180" height="180" rx="40" fill="#0A0A0A" />
-  
-  <!-- Outer Radial Dashed Orbit -->
-  <circle
-    cx="90"
-    cy="90"
-    r="72"
-    stroke="#F7F7F5"
-    stroke-width="3"
-    stroke-dasharray="8 12"
-    stroke-opacity="0.2"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="1.25 1.25 21.5 21.5" width="32" height="32">
+  <!--
+    The AEGIS mark at tab size: the shield with the ledger cut through it,
+    one evenodd path, as in components/aegis-logo.tsx.
 
-  <!-- Aegis Shield Contour -->
+    Two deliberate differences from the header mark, both for 16px. There
+    is no tile behind it, so the shield fills the square instead of a third
+    of it. And the slots are 2.4 units tall with 1.6 between, not 2 and 2:
+    at 16px the header geometry blurs into a grey block, and these stay
+    three bars. Compared at 16, 24 and 32px on light and dark tab strips
+    before it was drawn.
+
+    The colour follows the browser's theme, so the mark is ink on a light
+    tab strip and paper on a dark one; the product's own ground and ink.
+  -->
+  <style>
+    path { fill: #100e0b; }
+    @media (prefers-color-scheme: dark) {
+      path { fill: #eeede9; }
+    }
+  </style>
   <path
-    d="M90 26L142 49V87C142 118.5 119.5 145.5 90 154C60.5 145.5 38 118.5 38 87V49L90 26Z"
-    stroke="#F7F7F5"
-    stroke-width="8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M12 1.5 21.5 5.6V12c0 5.2-3.8 9.3-9.5 10.5C6.3 21.3 2.5 17.2 2.5 12V5.6L12 1.5Z M6.6 6.8h10.8v2.4H6.6Z M7.8 10.8h8.4v2.4H7.8Z M9 14.8h6v2.4H9Z"
   />
-
-  <!-- Inner Geometric Alpha Apex (Aegis "A") -->
-  <path
-    d="M90 50L118 108H102L90 82L78 108H62L90 50Z"
-    fill="#F7F7F5"
-  />
-
-  <!-- Sovereign Emerald Defense Diamond Core -->
-  <path
-    d="M90 98L99 113L90 128L81 113L90 98Z"
-    fill="#16A34A"
-  />
-
-  <!-- Top / Bottom Apex Guide Marks -->
-  <line x1="90" y1="14" x2="90" y2="26" stroke="#16A34A" stroke-width="6" stroke-linecap="round" />
-  <line x1="90" y1="154" x2="90" y2="166" stroke="#16A34A" stroke-width="6" stroke-linecap="round" />
 </svg>
