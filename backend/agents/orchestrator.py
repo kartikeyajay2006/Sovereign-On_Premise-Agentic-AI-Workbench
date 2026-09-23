@@ -38,6 +38,7 @@ from backend.core.schemas import (
     PolicyDecision,
     RoutingDecision,
     SandboxResult,
+    Sensitivity,
     StoredFile,
     Task,
     TaskProfile,
@@ -1315,6 +1316,51 @@ class AgentOrchestrator:
                 },
             )
 
+            # ------------------------------------------ classification
+            #
+            # An answer is at least as sensitive as the most sensitive thing
+            # it was built from. The profile's classification was set from the
+            # prompt and the attachments alone, so an engineer's question
+            # answered out of a Restricted design memo stayed "normal": it was
+            # not held, and any deliverable was stamped with a class below the
+            # material inside it. Retrieval already refused evidence above the
+            # user's clearance; this is the other half -- what was admitted
+            # raises the output to its own level before the approval gate
+            # reads it. It only ever rises.
+            raised = self._classification_of_evidence(task.evidence)
+            if raised is not None and self.config.classification_rank(
+                raised.value
+            ) > self.config.classification_rank(profile.sensitivity.value):
+                previous = profile.sensitivity
+                profile = profile.model_copy(update={"sensitivity": raised})
+                task.profile = profile
+                self._checkpoint(task)
+                self.audit.record(
+                    category="policy",
+                    action="classification_raised",
+                    actor=user.username,
+                    actor_role=user.role,
+                    task_id=task.id,
+                    detail={
+                        "from": previous.value,
+                        "to": raised.value,
+                        "because": [
+                            item.id
+                            for item in task.evidence
+                            if item.classification == raised
+                        ],
+                    },
+                )
+                await self._emit(
+                    task,
+                    "task.classified",
+                    {
+                        "sensitivity": raised.value,
+                        "raised_from": previous.value,
+                        "reason": "evidence used in the answer is classified higher",
+                    },
+                )
+
             # ------------------------------------------------- approval
             required, reasons, approvers = self.gateway.approval_requirement(
                 profile,
@@ -1421,6 +1467,19 @@ class AgentOrchestrator:
         return task
 
     # -- stage helpers -----------------------------------------------------
+    def _classification_of_evidence(self, evidence: list[EvidenceItem]) -> Sensitivity | None:
+        """The most sensitive classification among the evidence, if any.
+
+        Ranked by the configured classification levels, not by enum order,
+        so the policy file stays the one place the ordering is defined.
+        """
+        if not evidence:
+            return None
+        return max(
+            (item.classification for item in evidence),
+            key=lambda level: self.config.classification_rank(level.value),
+        )
+
     @staticmethod
     def _mark_step(task: Task, actions: set[str], status: str) -> None:
         if task.plan is None:
