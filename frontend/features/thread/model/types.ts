@@ -1,4 +1,10 @@
-import type { Deliverable, EvidenceItem, PipelineStage, VerificationCheck } from '@/lib/types'
+import type {
+  Deliverable,
+  EvidenceItem,
+  ModelUsage,
+  PipelineStage,
+  VerificationCheck,
+} from '@/lib/types'
 
 /**
  * A thread is an ordered list of turns. One assistant turn is one Task —
@@ -40,10 +46,41 @@ export type TurnOutcome =
   | 'running'
   | 'delivered'
   | 'held'
+  /** A reviewer declined to release what a held run produced. */
+  | 'rejected'
   | 'denied'
   | 'failed'
   | 'blocked'
   | 'cancelled'
+
+/**
+ * Exactly what was dispatched, so "Run again" re-sends the same request
+ * rather than whatever the composer happens to hold now.
+ */
+export interface RunRequest {
+  prompt: string
+  fileIds: string[]
+  attachments: UserTurn['attachments']
+  /** A deliverable format, or null for an answer only. */
+  format: string | null
+  /** A registry id, or null for Automatic. */
+  preferredModel: string | null
+}
+
+/**
+ * Which model a stage was routed to, and what became of a requested one.
+ *
+ * Built from `task.model_selected` while a run is live and from the record's
+ * routing decisions once it is not, so both read the same way.
+ */
+export interface ModelChoice {
+  stage: string | null
+  model: string | null
+  displayName: string | null
+  preferredModel: string | null
+  preferenceHonoured: boolean | null
+  preferenceReason: string | null
+}
 
 export interface AssistantTurn {
   role: 'assistant'
@@ -104,6 +141,30 @@ export interface AssistantTurn {
    * fabricated number.
    */
   stream: 'live' | 'closed'
+  /**
+   * One record per model call, as measured. Appended from
+   * `task.model_completed` while live and replaced by the task record's own
+   * list at settle, so a live turn and the same run reopened read alike.
+   */
+  usage: ModelUsage[]
+  modelChoices: ModelChoice[]
+  /** What was dispatched. Null only for a turn that never reached the API. */
+  request: RunRequest | null
+  /**
+   * The API accepted a stop and the run has not yet reported that it ended.
+   * A request, not an outcome: the run may finish its final write first.
+   */
+  stopRequested: boolean
+  /** From `task.queued`: the runs ahead of this one, or null once it runs. */
+  queue: { position: number | null; ahead: number } | null
+  /** Why a held run is held, who may release it, and what they decided. */
+  approval: {
+    reasons: string[]
+    approverRoles: string[]
+    decision: 'pending' | 'approved' | 'rejected' | null
+    reviewerName: string | null
+    comment: string | null
+  } | null
 }
 
 export type Turn = UserTurn | AssistantTurn

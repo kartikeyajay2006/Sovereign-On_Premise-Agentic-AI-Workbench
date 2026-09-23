@@ -63,6 +63,9 @@ export function EvidenceRail({
         role="complementary"
         aria-label="Evidence"
         aria-hidden={!open}
+        // Off-screen is not gone: without inert, Tab walked into the closed
+        // rail's close button and excerpts, focus vanishing off the edge.
+        inert={!open}
         className={cn(
           'fixed right-0 top-0 z-[var(--z-drawer)] flex h-dvh w-full max-w-[400px] flex-col border-l border-line-default bg-surface',
           'transition-transform ease-[var(--ease-move)]',

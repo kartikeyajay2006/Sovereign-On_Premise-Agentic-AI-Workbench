@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Paperclip } from 'lucide-react'
 import type { UserTurn as UserTurnModel } from '../model/types'
 import { ClassificationTag } from '@/components/primitives'
@@ -11,8 +12,11 @@ import { ClassificationTag } from '@/components/primitives'
  * the same card-less rule the rest of the interface follows, and a chat
  * bubble would waste the right third of the column that the stage board and
  * the evidence rows need.
+ *
+ * Memoised: a question does not change while its answer streams, and the
+ * thread renders twenty times a second while it does.
  */
-export function UserTurn({ turn }: { turn: UserTurnModel }) {
+export const UserTurn = memo(function UserTurn({ turn }: { turn: UserTurnModel }) {
   return (
     <article className="border-l-2 border-line-strong bg-surface-sunken px-4 py-3">
       <p className="whitespace-pre-wrap text-answer leading-[var(--lh-answer)] text-foreground">
@@ -51,4 +55,4 @@ export function UserTurn({ turn }: { turn: UserTurnModel }) {
       </div>
     </article>
   )
-}
+})

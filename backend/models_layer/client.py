@@ -50,6 +50,37 @@ def _assert_loopback(base_url: str) -> None:
         )
 
 
+def _reported_count(value: Any) -> int | None:
+    """A counter or duration exactly as the runtime reported it, else None.
+
+    Ollama omits a zero-valued counter from its JSON rather than sending 0 --
+    a fully cached prompt arrives with no ``prompt_eval_count`` at all -- so
+    absence is common and has to survive as absence. Anything that is not a
+    non-negative integer is treated as not reported: a boolean is an int in
+    Python and must not become a token count of 1.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _reported_text(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def runtime_stats(body: dict[str, Any]) -> dict[str, Any]:
+    """The telemetry fields of a final runtime message, None where absent."""
+    return {
+        "prompt_eval_count": _reported_count(body.get("prompt_eval_count")),
+        "eval_count": _reported_count(body.get("eval_count")),
+        "total_duration": _reported_count(body.get("total_duration")),
+        "load_duration": _reported_count(body.get("load_duration")),
+        "prompt_eval_duration": _reported_count(body.get("prompt_eval_duration")),
+        "eval_duration": _reported_count(body.get("eval_duration")),
+        "done_reason": _reported_text(body.get("done_reason")),
+    }
+
+
 @dataclass
 class GenerationResult:
     text: str
@@ -58,12 +89,52 @@ class GenerationResult:
     prompt_eval_count: int | None = None
     eval_count: int | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    # Nanoseconds, as the runtime reports them.
+    load_duration_ns: int | None = None
+    prompt_eval_duration_ns: int | None = None
+    eval_duration_ns: int | None = None
+    done_reason: str | None = None
+    # Timed by the caller that consumed a stream; a blocking call has none.
+    first_token_ms: int | None = None
 
     @property
     def tokens_per_second(self) -> float | None:
-        if not self.eval_count or not self.latency_ms:
+        """Generation speed over the runtime's own generation time.
+
+        This divided by wall-clock latency, which folds model load and prompt
+        processing into a number that reads as generation speed. On this host
+        prompt processing alone can outlast generation, so the old figure
+        understated the model by whatever the prompt cost, and differently
+        for every stage. `eval_duration` is the runtime's measurement of the
+        generation phase only; without it there is no rate to report.
+        """
+        if not self.eval_count or not self.eval_duration_ns:
             return None
-        return round(self.eval_count / (self.latency_ms / 1000.0), 2)
+        return round(self.eval_count / (self.eval_duration_ns / 1e9), 2)
+
+    @staticmethod
+    def from_runtime(
+        *,
+        text: str,
+        model: str,
+        latency_ms: int,
+        stats: dict[str, Any],
+        raw: dict[str, Any] | None = None,
+        first_token_ms: int | None = None,
+    ) -> GenerationResult:
+        return GenerationResult(
+            text=text,
+            model=model,
+            latency_ms=latency_ms,
+            prompt_eval_count=stats.get("prompt_eval_count"),
+            eval_count=stats.get("eval_count"),
+            raw=raw if raw is not None else dict(stats),
+            load_duration_ns=stats.get("load_duration"),
+            prompt_eval_duration_ns=stats.get("prompt_eval_duration"),
+            eval_duration_ns=stats.get("eval_duration"),
+            done_reason=stats.get("done_reason"),
+            first_token_ms=first_token_ms,
+        )
 
 
 class OllamaClient:
@@ -172,12 +243,11 @@ class OllamaClient:
             raise InferenceError(f"Inference failed for model '{model}': {exc}") from exc
 
         latency_ms = int((time.perf_counter() - started) * 1000)
-        return GenerationResult(
+        return GenerationResult.from_runtime(
             text=str(body.get("response", "")).strip(),
             model=model,
             latency_ms=latency_ms,
-            prompt_eval_count=body.get("prompt_eval_count"),
-            eval_count=body.get("eval_count"),
+            stats=runtime_stats(body),
             raw=body,
         )
 
@@ -191,6 +261,7 @@ class OllamaClient:
         options: dict[str, Any] | None = None,
         format_json: bool = False,
         stats_out: dict[str, Any] | None = None,
+        serving: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         """Yield response fragments as the local model produces them.
 
@@ -199,6 +270,13 @@ class OllamaClient:
         return a value to an `async for`, so when `stats_out` is supplied it
         is filled from that last chunk: streaming an answer must not cost the
         telemetry that the blocking call gets for free.
+
+        `serving` carries the same top-level fields `generate` sends. The
+        streaming path used to drop them, and the one declared today is
+        `think: false` for qwen3:8b: without it the model deliberates before
+        answering, the workbench strips the deliberation, and the reader
+        waits minutes for text nobody sees -- on exactly the two stages that
+        stream.
         """
         payload: dict[str, Any] = {
             "model": model,
@@ -206,6 +284,7 @@ class OllamaClient:
             "stream": True,
             "keep_alive": self.keep_alive,
             "options": options or {},
+            **(serving or {}),
         }
         if system:
             payload["system"] = system
@@ -224,19 +303,20 @@ class OllamaClient:
                             chunk = json.loads(line)
                         except json.JSONDecodeError:
                             continue
+                        if chunk.get("error"):
+                            # The runtime reports a mid-stream failure as a
+                            # line of its own. Skipping it ended the loop at
+                            # the closed connection, and a draft cut off by an
+                            # error was indistinguishable from a short answer.
+                            raise InferenceError(
+                                f"Streaming failed for model '{model}': {chunk['error']}"
+                            )
                         fragment = chunk.get("response")
                         if fragment:
                             yield fragment
                         if chunk.get("done"):
                             if stats_out is not None:
-                                stats_out.update(
-                                    {
-                                        "prompt_eval_count": chunk.get("prompt_eval_count"),
-                                        "eval_count": chunk.get("eval_count"),
-                                        "total_duration": chunk.get("total_duration"),
-                                        "done_reason": chunk.get("done_reason"),
-                                    }
-                                )
+                                stats_out.update(runtime_stats(chunk))
                             return
         except httpx.HTTPError as exc:
             raise InferenceError(f"Streaming failed for model '{model}': {exc}") from exc

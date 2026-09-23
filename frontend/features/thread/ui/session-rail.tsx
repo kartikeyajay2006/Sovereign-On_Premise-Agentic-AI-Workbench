@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { MessageSquarePlus, RotateCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { TaskSummary } from '@/lib/types'
@@ -25,10 +25,21 @@ const OUTCOME_TONE: Record<string, string> = {
   awaiting_approval: 'text-approval-text',
   approved: 'text-sovereign-text',
   delivered: 'text-sovereign-text',
+  rejected: 'text-critical-text',
   failed: 'text-critical-text',
   blocked: 'text-critical-text',
   cancelled: 'text-foreground-muted',
 }
+
+const FINISHED = new Set(['awaiting_approval', 'approved', 'delivered', 'rejected', 'failed', 'blocked', 'cancelled'])
+
+/**
+ * How often the list is read again while a run it shows is unfinished. A
+ * status in this list is a reading taken when the list was fetched; without
+ * a re-read, a run left to finish in the background said "executing" until
+ * something else happened to refresh the rail.
+ */
+const UNFINISHED_REFRESH_MS = 10_000
 
 function relativeTime(iso: string): string {
   const then = Date.parse(iso)
@@ -45,18 +56,27 @@ function relativeTime(iso: string): string {
 export interface SessionRailProps {
   /** The run currently shown in the thread, so it can be marked. */
   activeTaskId: string | null
+  /** The run the thread is attached to and following live, if any. */
+  runningTaskId?: string | null
   /** Load a past run into the thread. */
   onOpen: (taskId: string) => void
   /** Clear the thread for a new question. */
   onNew: () => void
-  /** Bumped by the caller when a run finishes, so the list picks it up. */
+  /** Bumped by the caller when a run starts or finishes, so the list picks it up. */
   refreshKey?: number
 }
 
-export function SessionRail({ activeTaskId, onOpen, onNew, refreshKey = 0 }: SessionRailProps) {
+export const SessionRail = memo(function SessionRail({
+  activeTaskId,
+  runningTaskId = null,
+  onOpen,
+  onNew,
+  refreshKey = 0,
+}: SessionRailProps) {
   const [runs, setRuns] = useState<TaskSummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -75,12 +95,21 @@ export function SessionRail({ activeTaskId, onOpen, onNew, refreshKey = 0 }: Ses
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, tick])
+
+  const unfinished = runs.some((task) => !FINISHED.has(String(task.status).toLowerCase()))
+  useEffect(() => {
+    if (!unfinished) return
+    const id = window.setTimeout(() => setTick((n) => n + 1), UNFINISHED_REFRESH_MS)
+    return () => window.clearTimeout(id)
+  }, [unfinished, runs])
 
   return (
     <aside
       aria-label="Past runs"
-      className="hidden w-[248px] shrink-0 flex-col border-r border-line-subtle lg:flex"
+      // Sticky under the fixed header, so the list stays in reach however
+      // long the thread beside it grows.
+      className="sticky top-[72px] hidden h-[calc(100dvh-72px)] w-[248px] shrink-0 flex-col self-start border-r border-line-subtle lg:flex"
     >
       <div className="flex items-center justify-between gap-2 px-3 py-3">
         <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
@@ -113,6 +142,9 @@ export function SessionRail({ activeTaskId, onOpen, onNew, refreshKey = 0 }: Ses
             {runs.map((task) => {
               const active = task.id === activeTaskId
               const status = String(task.status).toLowerCase()
+              // The one run this tab is watching live says so; any other
+              // unfinished run shows the status it had when last read.
+              const following = task.id === runningTaskId
               return (
                 <li key={task.id}>
                   <button
@@ -133,8 +165,14 @@ export function SessionRail({ activeTaskId, onOpen, onNew, refreshKey = 0 }: Ses
                       {task.prompt}
                     </span>
                     <span className="flex items-center gap-2 font-mono text-ledger text-foreground-muted">
-                      <span className={OUTCOME_TONE[status] ?? 'text-foreground-muted'}>
-                        {status.replace(/_/g, ' ')}
+                      <span
+                        className={
+                          following
+                            ? 'text-active-text'
+                            : OUTCOME_TONE[status] ?? (FINISHED.has(status) ? 'text-foreground-muted' : 'text-active-text')
+                        }
+                      >
+                        {following ? 'in progress' : status.replace(/_/g, ' ')}
                       </span>
                       <span aria-hidden>·</span>
                       <span>{relativeTime(task.created_at)}</span>
@@ -148,4 +186,4 @@ export function SessionRail({ activeTaskId, onOpen, onNew, refreshKey = 0 }: Ses
       </div>
     </aside>
   )
-}
+})

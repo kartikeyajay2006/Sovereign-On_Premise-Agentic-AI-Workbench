@@ -1,0 +1,160 @@
+'use client'
+
+import { memo, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { ArrowUpRight, Check, Copy, Quote, RotateCcw } from 'lucide-react'
+import type { EvidenceItem } from '@/lib/types'
+import { cn } from '@/lib/utils'
+import { expandCitations } from '../model/usage'
+
+/**
+ * What a reader does with an answer once it has landed.
+ *
+ * Two copies, because a bare "[S1]" pasted into an email points at nothing:
+ * the second spells every citation out as source and location, which is what
+ * makes the claim checkable once it has left this screen. Run again re-sends
+ * the exact request -- same files, same format, same model choice -- as a new
+ * run with its own record; it does not overwrite this one.
+ */
+
+/** How long "Copied" stays: a label's read time, not an animation. */
+const CONFIRM_MS = 1600
+
+type CopyState = 'idle' | 'answer' | 'sources' | 'blocked'
+
+/**
+ * The Clipboard API exists only on a secure origin, and this workbench is as
+ * likely to be opened at a LAN address over plain HTTP as at localhost. The
+ * older selection-and-copy path works there, and it reports whether the copy
+ * happened, so a success is still only claimed when there was one.
+ */
+function copyBySelection(text: string): boolean {
+  const field = document.createElement('textarea')
+  field.value = text
+  field.setAttribute('readonly', '')
+  field.style.position = 'fixed'
+  field.style.opacity = '0'
+  document.body.appendChild(field)
+  field.select()
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(field)
+  }
+}
+
+const ACTION = cn(
+  'hover-decay inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-xs)] px-2 text-ui text-foreground-muted',
+  'hover:bg-surface-sunken hover:text-foreground',
+  'focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none',
+  'disabled:pointer-events-none disabled:opacity-[var(--opacity-disabled)]',
+)
+
+export const AnswerActions = memo(function AnswerActions({
+  answer,
+  evidence,
+  onRerun,
+  rerunDisabled,
+  held,
+  approverRoles,
+  canReview,
+}: {
+  /** The verified answer, or null when there is none to copy. */
+  answer: string | null
+  evidence: EvidenceItem[]
+  /** Absent when this turn has no request to repeat. */
+  onRerun?: () => void
+  /** Another run is in flight; one runs at a time. */
+  rerunDisabled: boolean
+  held: boolean
+  approverRoles: string[]
+  /** Whether this person can open the approval queue at all. */
+  canReview: boolean
+}) {
+  const [copied, setCopied] = useState<CopyState>('idle')
+
+  useEffect(() => {
+    if (copied === 'idle') return
+    const timer = window.setTimeout(() => setCopied('idle'), CONFIRM_MS)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+
+  async function copy(kind: 'answer' | 'sources') {
+    if (!answer) return
+    const text = kind === 'sources' ? expandCitations(answer, evidence) : answer
+    // Clipboard access can be denied outright. Saying so beats a
+    // confirmation for a copy that never happened.
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopied(kind)
+        return
+      } catch {
+        // Denied: the selection path below may still be allowed.
+      }
+    }
+    setCopied(copyBySelection(text) ? kind : 'blocked')
+  }
+
+  if (!answer && !onRerun && !held) return null
+
+  return (
+    <div className="flex flex-wrap items-center gap-1" aria-label="Answer actions">
+      {answer && (
+        <button type="button" onClick={() => void copy('answer')} className={ACTION}>
+          {copied === 'answer' ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+          {copied === 'answer' ? 'Copied' : 'Copy'}
+        </button>
+      )}
+      {answer && (
+        <button
+          type="button"
+          onClick={() => void copy('sources')}
+          className={ACTION}
+          title="Copies the answer with every citation written out as its source and location"
+        >
+          {copied === 'sources' ? <Check className="size-3.5" aria-hidden /> : <Quote className="size-3.5" aria-hidden />}
+          {copied === 'sources' ? 'Copied' : 'Copy with sources'}
+        </button>
+      )}
+      {copied === 'blocked' && (
+        <span role="status" className="px-1 text-meta text-critical-text">
+          The browser refused clipboard access.
+        </span>
+      )}
+      {onRerun && (
+        <button
+          type="button"
+          onClick={onRerun}
+          disabled={rerunDisabled}
+          className={ACTION}
+          title={rerunDisabled ? 'One run at a time: this is available when the current run ends.' : 'Sends the same request again as a new run'}
+        >
+          <RotateCcw className="size-3.5" aria-hidden />
+          Run again
+        </button>
+      )}
+
+      {held && (
+        <span className="ml-auto flex items-center gap-2 text-meta">
+          {approverRoles.length > 0 && (
+            <span className="text-approval-text">
+              Held for {approverRoles.map((r) => r.replace(/_/g, ' ')).join(' or ')}
+            </span>
+          )}
+          {canReview && (
+            <Link
+              href="/approvals"
+              className="hover-decay inline-flex items-center gap-1 rounded-[var(--radius-xs)] px-1.5 py-0.5 text-foreground-secondary hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+            >
+              Open approvals
+              <ArrowUpRight className="size-3" aria-hidden />
+            </Link>
+          )}
+        </span>
+      )}
+    </div>
+  )
+})

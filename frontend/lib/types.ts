@@ -251,6 +251,59 @@ export interface RoutingDecision {
   used_fallback: boolean
   candidates: Record<string, any>[]
   decided_at: string
+  /** The pipeline stage this decision served; null on records written before
+   *  the field existed, and for a decision routed without a stage. */
+  stage: string | null
+  /** What the person asked for in the composer. Null when they chose
+   *  Automatic -- and then the two fields below are null as well. */
+  preferred_model: string | null
+  /** True when used, false when declined. Never true for a model that failed
+   *  a gate: the router honours a request only inside the same policy. */
+  preference_honoured: boolean | null
+  /** The one gate that declined the request, as a clause:
+   *  "qwen3:8b lacks the vision capability this stage requires". */
+  preference_reason: string | null
+}
+
+/**
+ * What one model call cost. Transcribed from ModelUsage in
+ * backend/core/schemas.py, field for field.
+ *
+ * Every count is nullable because the runtime does not always report one --
+ * Ollama omits a zero counter, and a stopped call never receives the final
+ * message the counts travel in. Null is "not reported" and must render as
+ * nothing. It is never a zero: a total that read a missing count as 0 would
+ * understate the run, which is the class of figure this interface exists to
+ * refuse.
+ */
+export interface ModelUsage {
+  stage: string
+  /** Registry id, e.g. "qwen2.5:3b". */
+  model: string
+  display_name: string | null
+  prompt_tokens: number | null
+  output_tokens: number | null
+  /** Wall clock around the whole call, timed by the orchestrator. */
+  latency_ms: number
+  /** Output tokens over the runtime's own generation time, so model load and
+   *  prompt processing are not averaged in. */
+  tokens_per_second: number | null
+  /** The num_ctx this call ran with -- the stage budget, which is far below
+   *  the model's declared maximum. Fill is measured against this. */
+  context_window: number | null
+  /** The num_predict this call ran with. */
+  output_limit: number | null
+  /** "stop" for a finished answer; "length" when the output limit ran out. */
+  done_reason: string | null
+  /** Streamed calls only: the wait before the runtime's first token. */
+  first_token_ms: number | null
+  load_ms: number | null
+  prompt_eval_ms: number | null
+  eval_ms: number | null
+  streamed: boolean
+  /** Stopped at the operator's request; carries wall clock and no counts. */
+  cancelled: boolean
+  started_at: string
 }
 
 export interface Task {
@@ -266,7 +319,11 @@ export interface Task {
   files: StoredFile[]
   profile?: TaskProfile | null
   plan?: AgentPlan | null
+  /** The model the person asked for, or null for Automatic. */
+  preferred_model: string | null
   routing: RoutingDecision[]
+  /** One record per model call, in the order they ran. Persisted. */
+  usage: ModelUsage[]
   tool_calls: ToolCall[]
   evidence: EvidenceItem[]
   verification?: VerificationReport | null
@@ -377,6 +434,9 @@ export interface TaskCreateRequest {
   prompt: string
   file_ids?: string[]
   deliverable_format?: string | null
+  /** A registry id to prefer. Advisory: honoured per stage only where policy
+   *  would allow that model anyway. At most 128 characters. */
+  preferred_model?: string | null
 }
 
 export interface DiagnosticStep {

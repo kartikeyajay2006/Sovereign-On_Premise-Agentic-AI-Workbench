@@ -173,8 +173,16 @@ class TaskService:
                 task.id,
                 task.status.value,
                 payload,
+                # Every state a run cannot leave. Cancelled and blocked were
+                # missing, so a stopped run's row never got a completion time.
                 completed=task.status
-                in {TaskStatus.DELIVERED, TaskStatus.REJECTED, TaskStatus.FAILED},
+                in {
+                    TaskStatus.DELIVERED,
+                    TaskStatus.REJECTED,
+                    TaskStatus.FAILED,
+                    TaskStatus.BLOCKED,
+                    TaskStatus.CANCELLED,
+                },
             )
 
     def get_task(self, task_id: str) -> Task | None:
@@ -221,7 +229,13 @@ class TaskService:
         prompt: str,
         file_ids: list[str],
         deliverable_format: str | None = None,
+        preferred_model: str | None = None,
     ) -> Task:
+        # Stored as asked, even when it names nothing installed. Whether it
+        # can be honoured is decided per stage by the router, which records
+        # the answer on each routing decision; refusing the task here would
+        # hide that answer instead of giving it.
+        preferred_model = (preferred_model or "").strip() or None
         files: list[StoredFile] = []
         for file_id in file_ids:
             stored = self.get_file(file_id)
@@ -245,6 +259,7 @@ class TaskService:
             updated_at=now,
             files=files,
             profile=profile,
+            preferred_model=preferred_model,
         )
 
         required, reasons, approvers = self.gateway.approval_requirement(
@@ -268,6 +283,7 @@ class TaskService:
                 "prompt_chars": len(prompt),
                 "input_hashes": [stored.sha256 for stored in files],
                 "filenames": [stored.filename for stored in files],
+                "preferred_model": preferred_model,
             },
         )
         self.audit.record(
@@ -296,6 +312,7 @@ class TaskService:
                 "prompt": prompt,
                 "profile": profile.model_dump(mode="json"),
                 "approval": task.approval.model_dump(mode="json"),
+                "preferred_model": preferred_model,
             },
         )
 
@@ -451,6 +468,10 @@ class TaskService:
                 )
             finally:
                 self._active = None
+                # A stop request is spent once its run has ended, however it
+                # ended. Left in the set, every stopped run's id stayed there
+                # for the life of the process.
+                self._cancelled.discard(task_id)
                 self._queue.task_done()
 
     async def start(self, worker_count: int = 1) -> None:

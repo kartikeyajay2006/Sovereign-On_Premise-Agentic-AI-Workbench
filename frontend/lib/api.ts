@@ -170,16 +170,20 @@ export const api = {
   async createTask(
     prompt: string,
     fileIds: string[] = [],
-    deliverableFormat?: string | null
+    deliverableFormat?: string | null,
+    /** A registry id, or null/undefined for Automatic. */
+    preferredModel?: string | null
   ): Promise<Task> {
+    const body: TaskCreateRequest = {
+      prompt,
+      file_ids: fileIds,
+      deliverable_format: deliverableFormat || null,
+      preferred_model: preferredModel || null,
+    }
     return request<Task>('/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt,
-        file_ids: fileIds,
-        deliverable_format: deliverableFormat || null,
-      }),
+      body: JSON.stringify(body),
     })
   },
 
