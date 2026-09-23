@@ -144,21 +144,29 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Sovereignty status"
+        /*
+          No border. This sat in the header as an outlined chip beside the
+          account menu, so two bordered boxes competed for the same corner
+          and neither read as the control. The dot is the signal and it is
+          already the only coloured thing here; the box added nothing but
+          weight. whitespace-nowrap because "0 External" was wrapping under
+          "MONITORED" and stacking the chip two lines tall.
+        */
         className={cn(
-          'group flex items-center gap-2 border border-border bg-surface px-2.5 py-1.5 transition-colors hover:border-border-strong',
-          compact && 'px-2',
+          'group flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-xs)] px-2 py-1.5 transition-colors hover:bg-surface-sunken',
+          compact && 'px-1.5',
         )}
       >
         <span
-          className="h-2 w-2 shrink-0 rounded-full"
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: pillTone }}
         />
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-secondary">
           {pillLabel}
         </span>
         {externalCalls !== undefined && (
-          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-foreground-muted">
-            {externalCalls} External
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-foreground-muted">
+            {externalCalls} ext
           </span>
         )}
       </button>

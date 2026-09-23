@@ -30,12 +30,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
         <Navigation />
         {/*
-          The header is fixed and 90px tall: a status strip over a nav bar.
-          This was 76px, so the first 14px of every screen sat underneath it
-          and the opening line of a thread was clipped. Measured, plus 16px
-          so the content clears the rule rather than touching it.
+          The header is fixed and 56px tall. It was a 90px floating card and
+          this was 106px to clear it; flattened to a bar on a hairline, the
+          same clearance would leave fifty pixels of gap under the rule.
         */}
-        <main className="relative z-10 flex-1 pt-[106px]">{children}</main>
+        <main className="relative z-10 flex-1 pt-[72px]">{children}</main>
       </div>
     </AuthGuard>
   )

@@ -42,25 +42,28 @@ export function Navigation() {
   const isActive = (href: string) => pathname.startsWith(href)
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-[80] px-3 pt-3 sm:px-5 sm:pt-4">
-      {/*
-        No backdrop-filter. A full-width blur re-samples everything beneath
-        it on every frame anything under it changes — and what scrolls under
-        this bar is a live stage board. Against flat warm paper the result
-        was visually near-indistinguishable from an opaque tint, so the cost
-        bought nothing.
-      */}
-      <nav
-        className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between gap-4 rounded-[12px] border border-border/80 px-4 py-2.5 shadow-[0_4px_30px_rgba(0,0,0,0.05)] sm:px-5"
-        style={{ background: 'color-mix(in srgb, var(--surface) 92%, transparent)' }}
-      >
+    /*
+      A flat bar on a hairline, not a floating pill.
+
+      It was a rounded card inset from every edge, carrying
+      shadow-[0_4px_30px_rgba(0,0,0,0.05)] -- five percent black over a
+      near-black ground, which renders as nothing at all and cost a paint
+      either way. A card floating over the page is the house style of every
+      template; a bar that meets the edges and sits on a rule reads as part
+      of the instrument.
+
+      No backdrop-filter. A full-width blur re-samples everything beneath it
+      on every frame anything under it changes, and what scrolls under this
+      bar is a live stage board.
+    */
+    <header className="fixed inset-x-0 top-0 z-[80] border-b border-line-default bg-surface">
+      <nav className="mx-auto flex h-14 max-w-[1400px] items-center gap-6 px-4 sm:px-6">
         {/* Brand */}
         {/* Inside the app the mark goes to the console, not out to the public
             page. Clicking a logo should not sign you out of the room. */}
-        <Link
-          href="/console"
-          className="group flex items-center transition-transform hover:scale-[1.01]"
-        >
+        {/* No scale on hover. A logo that grows when the pointer nears it
+            is motion with nothing to say. */}
+        <Link href="/console" className="flex shrink-0 items-center">
           <AegisLogo size={30} variant="compact" />
         </Link>
 
@@ -92,7 +95,7 @@ export function Navigation() {
         </div>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="ml-auto flex items-center gap-2 sm:gap-2.5">
           <div className="hidden sm:block">
             <SovereigntyStatus />
           </div>
