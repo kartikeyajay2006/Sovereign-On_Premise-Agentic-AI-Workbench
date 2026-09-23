@@ -25,6 +25,20 @@ interface RoleContextValue {
 
 const RoleContext = createContext<RoleContextValue | null>(null)
 
+/**
+ * The server's role name, mapped to the presentation role.
+ *
+ * policies/access-control.yaml names the role `administrator`; the demo
+ * account is `admin` and ROLES keys it `admin`. Matching on the raw string
+ * left an administrator's session labelled with the default role, so the
+ * approvals screen named a Platform Admin as "Integrity Engineer" beside the
+ * decision they were about to record.
+ */
+function presentationRole(serverRole: string) {
+  const id = serverRole === 'administrator' ? 'admin' : serverRole
+  return ROLES.find((r) => r.id === id)
+}
+
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [roleId, setRoleId] = useState<RoleId>('engineer')
   const [user, setUser] = useState<User | null>(null)
@@ -43,7 +57,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     try {
       const current = await api.me()
       setUser(current)
-      const mappedRole = ROLES.find((r) => r.id === current.role)
+      const mappedRole = presentationRole(current.role)
       if (mappedRole) {
         setRoleId(mappedRole.id)
       }
@@ -65,7 +79,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     try {
       const session = await api.login(username, password)
       setUser(session.user)
-      const mapped = ROLES.find((r) => r.id === session.user.role)
+      const mapped = presentationRole(session.user.role)
       if (mapped) {
         setRoleId(mapped.id)
       }

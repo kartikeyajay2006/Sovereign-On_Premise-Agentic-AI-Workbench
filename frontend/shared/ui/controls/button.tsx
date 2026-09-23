@@ -26,6 +26,13 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
    * page colour, so it has to match or the ring shows a seam.
    */
   ground?: 'surface' | 'paper' | 'sunken'
+  /**
+   * A single key that triggers this button from the keyboard, printed after
+   * the label and announced through aria-keyshortcuts. Printing it is not
+   * binding it: the screen that owns the shortcut listens for it. Hidden at
+   * phone width, where there is usually no keyboard to press it on.
+   */
+  shortcut?: string
   ref?: Ref<HTMLButtonElement>
 }
 
@@ -50,6 +57,7 @@ export function Button({
   icon: Icon,
   iconPosition = 'start',
   ground = 'surface',
+  shortcut,
   className,
   disabled,
   type = 'button',
@@ -70,11 +78,12 @@ export function Button({
       // would say "not available", and those are different facts.
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      aria-keyshortcuts={shortcut}
       className={cn('btn', className)}
       {...rest}
     >
       {busy ? (
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
       ) : (
         Icon && iconPosition === 'start' && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       )}
@@ -88,6 +97,16 @@ export function Button({
       <span className="inline-flex shrink-0 items-center gap-2">{label}</span>
       {!busy && Icon && iconPosition === 'end' && (
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      )}
+      {/* Drawn in currentColor so it reads on every variant, the action
+          fill included, without a colour of its own. */}
+      {!busy && shortcut && (
+        <kbd
+          aria-hidden
+          className="ml-1 hidden h-4 min-w-4 items-center justify-center rounded-[var(--radius-xs)] px-1 font-mono text-ledger uppercase leading-none opacity-70 shadow-[0_0_0_1px_currentColor] sm:inline-flex"
+        >
+          {shortcut}
+        </kbd>
       )}
     </button>
   )

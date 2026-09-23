@@ -2,9 +2,15 @@
 
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
-import { useReveal } from '@/hooks/use-reveal'
 
-/* Small monospace technical eyebrow label */
+/**
+ * The mono label over machine data.
+ *
+ * It was 11px at 0.22em tracking, which is the costume of a technical label
+ * rather than one: at that spacing a word stops reading as a word. It now
+ * uses the ledger role and its own tracking token, the same as every other
+ * mono label in the product.
+ */
 export function TechnicalLabel({
   children,
   className,
@@ -17,7 +23,7 @@ export function TechnicalLabel({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-foreground-muted',
+        'inline-flex items-center gap-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted',
         className,
       )}
     >
@@ -27,7 +33,15 @@ export function TechnicalLabel({
   )
 }
 
-/* Large editorial section heading with a coordinate annotation */
+/**
+ * A section heading inside a screen.
+ *
+ * This set sections at 48px, larger than the screen title above them, so
+ * every section announced itself as a new page. A section inside a screen
+ * takes the heading role: 16px, medium weight. The index, when given, sits
+ * beside it as a ledger mark rather than as a coordinate annotation on a
+ * line of its own.
+ */
 export function SectionHeading({
   eyebrow,
   index,
@@ -42,24 +56,25 @@ export function SectionHeading({
   dark?: boolean
 }) {
   return (
-    <div className={cn('flex flex-col gap-4', className)}>
-      {(eyebrow || index) && (
-        <div className="flex items-center justify-between">
-          {eyebrow && <TechnicalLabel>{eyebrow}</TechnicalLabel>}
-          {index && (
-            <span className={cn('font-mono text-[11px]', dark ? 'text-ink-muted' : 'text-foreground-muted')}>
-              {index}
-            </span>
-          )}
-        </div>
-      )}
+    <div className={cn('flex min-w-0 flex-col gap-1', className)}>
+      {eyebrow && <TechnicalLabel>{eyebrow}</TechnicalLabel>}
       <h2
         className={cn(
-          'text-balance text-3xl font-medium leading-[1.05] tracking-[-0.02em] md:text-5xl',
+          'flex min-w-0 items-baseline gap-3 text-heading font-medium tracking-[var(--ls-heading)]',
           dark ? 'text-ink-foreground' : 'text-foreground',
         )}
       >
-        {title}
+        {index && (
+          <span
+            className={cn(
+              'tabular shrink-0 font-mono text-ledger tracking-[var(--ls-ledger)]',
+              dark ? 'text-ink-muted' : 'text-foreground-muted',
+            )}
+          >
+            {index}
+          </span>
+        )}
+        <span className="min-w-0">{title}</span>
       </h2>
     </div>
   )
@@ -98,6 +113,9 @@ const statusMap = {
 
   'AWAITING APPROVAL': { text: 'text-approval-text', dot: 'bg-approval', glyph: '⏸' },
   PENDING: { text: 'text-approval-text', dot: 'bg-approval', glyph: '⏸' },
+  // What the approval screens call it: the run is finished and a person is
+  // holding the release. Same state as AWAITING APPROVAL, the reviewer's word.
+  HELD: { text: 'text-approval-text', dot: 'bg-approval', glyph: '⏸' },
 
   FAILED: { text: 'text-critical-text', dot: 'bg-critical', glyph: '✕' },
   ERROR: { text: 'text-critical-text', dot: 'bg-critical', glyph: '✕' },
@@ -154,7 +172,7 @@ export function StatusIndicator({
         )}
         <span className={cn('relative inline-flex h-2 w-2 rounded-full', s.dot)} />
       </span>
-      <span aria-hidden className="text-[10px] leading-none">
+      <span aria-hidden className="text-ledger leading-none">
         {s.glyph}
       </span>
       <span>{label}</span>
@@ -175,42 +193,43 @@ const CLASSIFICATION_EDGE: Record<string, string> = {
   sensitive: 'border-control-default text-foreground-secondary',
   confidential: 'border-control-default text-foreground-secondary',
   normal: 'border-line-default text-foreground-muted',
+  // Nothing classified this record. Dashed, so an absent classification is
+  // never mistaken for the lowest one.
+  unclassified: 'border-dashed border-line-strong text-foreground-muted',
 }
 
 export function ClassificationTag({ level, dark }: { level: string; dark?: boolean }) {
-  const edge = CLASSIFICATION_EDGE[String(level).toLowerCase()] ?? CLASSIFICATION_EDGE.normal
+  const key = String(level || 'unclassified').toLowerCase()
+  const edge = CLASSIFICATION_EDGE[key] ?? CLASSIFICATION_EDGE.normal
   return (
     <span
       className={cn(
-        'inline-flex items-center border px-2 py-0.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
+        'inline-flex h-5 shrink-0 items-center rounded-[var(--radius-xs)] border px-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
         dark ? 'border-ink-border text-ink-muted' : edge,
       )}
     >
-      {level}
+      {level || 'unclassified'}
     </span>
   )
 }
 
-/* Scroll reveal wrapper */
+/**
+ * Kept for its callers; it no longer hides anything.
+ *
+ * It started every child at opacity 0 and waited for an IntersectionObserver
+ * to reveal it, so content that was on screen at first paint was not
+ * painted, and if the observer never fired it never appeared at all. Content
+ * is now visible from the first frame. `delay` is accepted and ignored.
+ */
 export function Reveal({
   children,
   className,
-  delay = 0,
 }: {
   children: ReactNode
   className?: string
   delay?: number
 }) {
-  const { ref, inView } = useReveal()
-  return (
-    <div
-      ref={ref}
-      className={cn('reveal', inView && 'in-view', className)}
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      {children}
-    </div>
-  )
+  return <div className={className}>{children}</div>
 }
 
 export function formatBytes(bytes: number): string {

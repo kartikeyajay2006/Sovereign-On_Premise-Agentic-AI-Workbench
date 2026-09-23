@@ -1,555 +1,703 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Check, ShieldAlert, Loader2, Stamp, Sparkles, CheckCircle2, Lock, Inbox } from 'lucide-react'
-import { api } from '@/lib/api'
-import type { ApprovalItem, Task } from '@/lib/types'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { RotateCw } from 'lucide-react'
+import type { StreamEvent, Task, TaskSummary } from '@/lib/types'
+import { useEventStream } from '@/hooks/use-event-stream'
 import { PageHeader } from '@/components/page-header'
-import { ClassificationTag, StatusIndicator, TechnicalLabel } from '@/components/primitives'
-import { SovButton } from '@/components/sov-button'
-import { Modal } from '@/components/modal'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
+import { Button } from '@/shared/ui/controls/button'
+import { Kbd } from '@/shared/ui/controls/kbd'
+import { Segmented } from '@/shared/ui/controls/segmented'
+import { EmptyState } from '@/shared/ui/data/empty-state'
+import {
+  DEFAULT_TIMEOUT_MS,
+  FailureState,
+  ReadingLine,
+  clockTime,
+  describeFailure,
+  useReading,
+} from '@/shared/ui/data/reading'
 import { cn } from '@/lib/utils'
+import { RUNS_LIMIT, readHeld, readRuns, readTask, recordDecision } from './api'
+import { DecisionDialog, type DecisionKind } from './decision-dialog'
+import { SENSITIVITY_ORDER, mergeQueue, type Decision, type QueueItem } from './model'
+import { QueueRow } from './queue-list'
+import { ReviewPane, type DetailRead } from './review-pane'
 
 /**
- * Keyed on the data classification the task actually carries.
+ * The approval queue.
  *
- * This was keyed on a `priority` nothing in the system computes: it was
- * derived as "restricted -> CRITICAL, everything else -> HIGH", so all
- * twenty-one queued items wore an identical HIGH badge. A field that is
- * constant carries no information, and this one implied an urgency that had
- * never been assessed. Sensitivity is real, varies, and is what decides who
- * may release the deliverable.
+ * A reviewer's working surface, built to be run from the keyboard: j and k
+ * (or the arrow keys) move through the queue, Enter opens the selected run,
+ * Escape returns to the list, and a or r open the confirm step for approve or
+ * reject, where the note is written. After a decision the next held run is
+ * selected, so a queue is cleared without reaching for the pointer.
+ *
+ * Kept from the fixes that preceded this layout: every evidence score is the
+ * measured `score`, citations jump to labelled passages, the priority badge
+ * nothing computed is gone in favour of the classification the run carries,
+ * "Approve & release" appears only when there is a document to release, and
+ * there is exactly one approve control.
+ *
+ * Decided runs are read from the task list rather than remembered by this
+ * page, so the Approved and Rejected filters show what the service recorded,
+ * including decisions made in another session.
  */
-const CLASSIFICATION_TONE: Record<string, string> = {
-  restricted: 'var(--critical)',
-  confidential: 'var(--approval)',
-  normal: 'var(--foreground-muted)',
+
+type StatusFilter = Decision | 'all'
+
+interface QueueData {
+  /** The queue endpoint refused this role. */
+  forbidden: boolean
+  held: Task[]
+  /** Null when the task list could not be read: decided runs are unknown, not zero. */
+  runs: TaskSummary[] | null
 }
 
-/**
- * The deliverable preview, with its citations turned into links.
- *
- * A reviewer reading "the approving authority is X [S4]" had no way to learn
- * which of six unlabelled passages S4 was, so checking a claim against its
- * source -- the entire job this screen exists for -- meant guessing. Each
- * citation now jumps to the passage it names.
- *
- * A citation with no matching passage is marked rather than linked: it cites
- * nothing, and that is a finding about the answer the reviewer is about to
- * release, not a broken link.
- */
-function CitedText({ text, known }: { text: string; known: Set<string> }) {
-  return (
-    <>
-      {text.split(/(\[[SFVCE]\d+\])/g).map((part, i) => {
-        const match = part.match(/^\[([SFVCE]\d+)\]$/)
-        if (!match) return <span key={i}>{part}</span>
-        const id = match[1]
-        if (!known.has(id)) {
-          return (
-            <span
-              key={i}
-              title={`No passage with id ${id} was retrieved for this run.`}
-              className="font-mono text-[12px] text-critical-text"
-            >
-              [{id}]
-            </span>
-          )
-        }
-        return (
-          <a
-            key={i}
-            href={`#evidence-${id}`}
-            className="rounded-[3px] bg-surface-sunken px-1 font-mono text-[12px] text-foreground underline-offset-2 hover:underline"
-          >
-            [{id}]
-          </a>
-        )
-      })}
-    </>
-  )
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
+
+function sensitivityRank(value: string): number {
+  const index = (SENSITIVITY_ORDER as readonly string[]).indexOf(value)
+  return index === -1 ? SENSITIVITY_ORDER.length : index
 }
 
 export function ApprovalsView() {
-  const [items, setItems] = useState<ApprovalItem[]>([])
-  const [activeId, setActiveId] = useState<string>('')
-  const [confirm, setConfirm] = useState<null | 'approve' | 'reject'>(null)
-  const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [deciding, setDeciding] = useState(false)
-  const [forbidden, setForbidden] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  // How many are genuinely held, read from the task list. A role that cannot
-  // open the queue can still be told the queue is not empty.
-  const [heldElsewhere, setHeldElsewhere] = useState<number | null>(null)
-  const [isStamped, setIsStamped] = useState(false)
-
+  const { role, can, user, setRole } = useRole()
   const { push } = useToast()
-  const { role, can, user } = useRole()
 
-  const canRead = can('approval.read') || can('Release deliverables') || role.id === 'reviewer' || role.id === 'admin'
-  const canApprove = can('approval.decide') || can('Release deliverables') || role.id === 'reviewer' || role.id === 'admin'
+  const canRead = can('approval.read')
+  const canDecide = can('approval.decide')
+  const canReadAll = can('task.read.all')
+  const reviewer = user?.display_name || role.label
 
-  // Load real pending approvals from backend
+  const queue = useReading<QueueData>(
+    async (signal) => {
+      const [held, runs] = await Promise.allSettled([
+        canRead ? readHeld(signal) : Promise.reject({ status: 403 }),
+        readRuns(signal),
+      ])
+      const runsOrNull = runs.status === 'fulfilled' ? runs.value : null
+      if (held.status === 'rejected') {
+        const failure = describeFailure(held.reason)
+        // Refused by policy is an answer, and the page explains it. Anything
+        // else is a failure and is shown as one.
+        if (failure.kind === 'forbidden') return { forbidden: true, held: [], runs: runsOrNull }
+        throw held.reason
+      }
+      return { forbidden: false, held: held.value, runs: runsOrNull }
+    },
+    [canRead],
+  )
+
+  // Full records, from opening a decided run or from a decision's response.
+  // Cleared on every fresh read of the queue, which supersedes them.
+  const [records, setRecords] = useState<Map<string, Task>>(() => new Map())
   useEffect(() => {
-    let mounted = true
+    setRecords(new Map())
+  }, [queue.readAt])
 
-    // Always find out how many are actually held, whoever is looking. This is
-    // what makes a refusal legible: "13 waiting, not yours to release" rather
-    // than a zero that reads as "nothing to do".
-    api
-      .listTasks(200)
-      .then((rows) => {
-        if (!mounted) return
-        setHeldElsewhere(
-          (rows || []).filter((t) => String(t.status).toLowerCase() === 'awaiting_approval').length,
-        )
-      })
-      .catch(() => mounted && setHeldElsewhere(null))
+  /*
+   * The queue follows the event stream, so a run held while this screen is
+   * open appears without a reload, and a decision made in another session
+   * leaves the held list. The stream replays its last fifty events when it
+   * connects; those predate this screen and are ignored. Bursts are
+   * coalesced into one read, because a finishing run emits several events.
+   */
+  const mountedAt = useRef(Date.now())
+  const reloadTimer = useRef<number | null>(null)
+  const { reload: reloadQueue } = queue
+  const onStreamEvent = useCallback(
+    (event: StreamEvent) => {
+      const at = Date.parse(event.at)
+      if (!Number.isNaN(at) && at < mountedAt.current) return
+      const held =
+        event.event === 'task.stage' && String(event.data?.status ?? '').toLowerCase() === 'awaiting_approval'
+      if (!held && event.event !== 'task.approval_decided') return
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
+      reloadTimer.current = window.setTimeout(() => {
+        reloadTimer.current = null
+        reloadQueue()
+      }, 600)
+    },
+    [reloadQueue],
+  )
+  useEffect(
+    () => () => {
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
+    },
+    [],
+  )
+  const { connected: live } = useEventStream({
+    enabled: Boolean(queue.data && !queue.data.forbidden),
+    onEvent: onStreamEvent,
+  })
 
-    if (!canRead) {
-      setForbidden(true)
-      setLoading(false)
+  const [status, setStatus] = useState<StatusFilter>('held')
+  const [sensitivity, setSensitivity] = useState<string>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
+  const [dialog, setDialog] = useState<{ kind: DecisionKind; id: string } | null>(null)
+  const [detailRead, setDetailRead] = useState<DetailRead | null>(null)
+  const [detailAttempt, setDetailAttempt] = useState(0)
+  const [switching, setSwitching] = useState(false)
+  const [switchError, setSwitchError] = useState<string | null>(null)
+
+  const listRef = useRef<HTMLUListElement | null>(null)
+  const detailRef = useRef<HTMLDivElement | null>(null)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>())
+  const headingId = useId()
+
+  const data = queue.data
+  const items = useMemo(
+    () => (data && !data.forbidden ? mergeQueue(data.held, data.runs, records) : []),
+    [data, records],
+  )
+
+  const counts = useMemo(() => {
+    const c = { held: 0, approved: 0, rejected: 0 }
+    for (const item of items) c[item.decision]++
+    return c
+  }, [items])
+
+  const sensitivities = useMemo(() => {
+    const present = new Set(items.map((i) => i.sensitivity ?? 'unclassified'))
+    return [...present].sort((a, b) => sensitivityRank(a) - sensitivityRank(b))
+  }, [items])
+
+  const filterItems = useCallback(
+    (s: StatusFilter, c: string) =>
+      items.filter(
+        (i) => (s === 'all' || i.decision === s) && (c === 'all' || (i.sensitivity ?? 'unclassified') === c),
+      ),
+    [items],
+  )
+  const filtered = useMemo(() => filterItems(status, sensitivity), [filterItems, status, sensitivity])
+
+  // The selection survives a filter it does not match only until the filter
+  // changes, so a just-decided run stays on screen showing its new state.
+  const selected: QueueItem | null =
+    items.find((i) => i.id === selectedId) ?? filtered[0] ?? null
+  const selectedTask = selected ? (records.get(selected.id) ?? selected.task) : null
+
+  // A decided run arrives as a summary; its record is read when it is opened.
+  const loadId = selected && !selectedTask ? selected.id : null
+  useEffect(() => {
+    if (!loadId) {
+      setDetailRead(null)
       return
     }
-
-    api
-      .pendingApprovals()
-      .then((tasks) => {
-        if (!mounted) return
-        setForbidden(false)
-        setLoadError(null)
-        const mapped: ApprovalItem[] = (tasks || []).map((t) => ({
-          id: t.id,
-          title: t.prompt,
-          submittedBy: t.user_display_name || 'Operator',
-          submittedAt: new Date(t.created_at).toLocaleString(),
-          sensitivity: t.profile?.sensitivity || 'normal',
-          status:
-            t.status === 'awaiting_approval'
-              ? 'PENDING'
-              : t.status === 'approved'
-                ? 'APPROVED'
-                : 'REJECTED',
-          classification: (t.profile?.sensitivity?.toUpperCase() as any) || 'CONFIDENTIAL',
-          // No placeholder filename. A task held before its deliverable was
-          // rendered has none, and inventing one sends the reviewer to a
-          // download that 404s.
-          document: t.deliverables?.[0]?.filename || '',
-          extractedText: t.answer || 'Deliverable held pending human review.',
-          evidence: t.evidence || [],
-          verification: (t.verification?.checks || []).map((c) => ({
-            label: c.name,
-            result: c.detail || (c.passed ? 'Verified' : 'Failed'),
-            ok: c.passed,
-          })),
-          draft: t.answer || '',
-          rawTask: t,
-        }))
-        setItems(mapped)
-        setActiveId(mapped[0]?.id || '')
+    const controller = new AbortController()
+    let timedOut = false
+    const timer = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, DEFAULT_TIMEOUT_MS)
+    setDetailRead({ id: loadId, status: 'reading', startedAt: Date.now() })
+    readTask(loadId, controller.signal)
+      .then((task) => {
+        setRecords((m) => new Map(m).set(task.id, task))
+        setDetailRead(null)
       })
-      .catch((err) => {
-        if (!mounted) return
-        if (err?.status === 403) {
-          setForbidden(true)
-        } else {
-          // Anything else was being swallowed, leaving an empty list that
-          // looked exactly like an empty queue.
-          setLoadError(err?.detail || err?.message || 'The approval queue could not be read.')
-        }
+      .catch((error: unknown) => {
+        if (controller.signal.aborted && !timedOut) return
+        setDetailRead({
+          id: loadId,
+          status: 'failed',
+          startedAt: Date.now(),
+          failure: timedOut
+            ? { kind: 'timeout', status: null, detail: null, waitedS: DEFAULT_TIMEOUT_MS / 1000 }
+            : describeFailure(error),
+        })
       })
-      .finally(() => {
-        if (mounted) setLoading(false)
-      })
-
+      .finally(() => window.clearTimeout(timer))
     return () => {
-      mounted = false
+      window.clearTimeout(timer)
+      controller.abort()
     }
-  }, [canRead])
+  }, [loadId, detailAttempt])
 
-  const active = items.find((i) => i.id === activeId) ?? items[0]
-  const pendingCount = items.filter((i) => i.status === 'PENDING').length
+  const registerRow = useCallback((id: string, el: HTMLButtonElement | null) => {
+    if (el) rowRefs.current.set(id, el)
+    else rowRefs.current.delete(id)
+  }, [])
 
-  const decide = async (decision: 'approve' | 'reject') => {
-    setDeciding(true)
+  const focusDetail = useCallback(() => {
+    setMobileView('detail')
+    // After the detail is visible at phone width.
+    window.requestAnimationFrame(() => bodyRef.current?.focus())
+  }, [])
+
+  const backToList = useCallback(() => {
+    setMobileView('list')
+    const id = selected?.id
+    window.requestAnimationFrame(() => {
+      if (id) rowRefs.current.get(id)?.focus()
+    })
+  }, [selected?.id])
+
+  const onSelect = useCallback(
+    (id: string, viaKeyboard: boolean) => {
+      setSelectedId(id)
+      if (viaKeyboard) focusDetail()
+      else setMobileView('detail')
+    },
+    [focusDetail],
+  )
+
+  const move = (step: 1 | -1) => {
+    if (filtered.length === 0) return
+    const index = selected ? filtered.findIndex((i) => i.id === selected.id) : -1
+    const next =
+      index === -1
+        ? step > 0
+          ? 0
+          : filtered.length - 1
+        : Math.min(filtered.length - 1, Math.max(0, index + step))
+    const id = filtered[next].id
+    const readingDetail = Boolean(detailRef.current?.contains(document.activeElement))
+    setSelectedId(id)
+    const row = rowRefs.current.get(id)
+    if (listRef.current?.contains(document.activeElement)) row?.focus()
+    row?.scrollIntoView({ block: 'nearest' })
+    // The detail remounts for the new run; a reader who was in it stays in it.
+    if (readingDetail) window.requestAnimationFrame(() => bodyRef.current?.focus())
+  }
+
+  const openDialog = (kind: DecisionKind) => {
+    if (!selected || selected.decision !== 'held' || !canDecide) return
+    setDialog({ kind, id: selected.id })
+  }
+
+  // One listener for the screen's keys, reading current state through a ref
+  // so it is bound once rather than on every render.
+  const onKeyRef = useRef<(event: KeyboardEvent) => void>(() => {})
+  onKeyRef.current = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+    if (isTypingTarget(event.target)) return
+    if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
+    if (!data || data.forbidden) return
+
+    const active = document.activeElement
+    const inDetail = Boolean(active && detailRef.current?.contains(active))
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+
+    if (key === 'j' || key === 'k' || ((key === 'ArrowDown' || key === 'ArrowUp') && !inDetail)) {
+      event.preventDefault()
+      move(key === 'j' || key === 'ArrowDown' ? 1 : -1)
+    } else if (key === 'Enter' && (active === document.body || active === listRef.current)) {
+      if (!selected) return
+      event.preventDefault()
+      focusDetail()
+    } else if (key === 'Escape' && (inDetail || mobileView === 'detail')) {
+      event.preventDefault()
+      backToList()
+    } else if (key === 'a' || key === 'r') {
+      if (!selected || selected.decision !== 'held' || !canDecide) return
+      event.preventDefault()
+      openDialog(key === 'a' ? 'approve' : 'reject')
+    }
+  }
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => onKeyRef.current(event)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const changeFilter = (nextStatus: StatusFilter, nextSensitivity: string) => {
+    setStatus(nextStatus)
+    setSensitivity(nextSensitivity)
+    const next = filterItems(nextStatus, nextSensitivity)
+    if (!selected || !next.some((i) => i.id === selected.id)) setSelectedId(next[0]?.id ?? null)
+  }
+
+  const dialogItem = dialog ? (items.find((i) => i.id === dialog.id) ?? null) : null
+  const dialogTask = dialogItem ? (records.get(dialogItem.id) ?? dialogItem.task) : null
+
+  const confirmDecision = async (kind: DecisionKind, id: string, note: string): Promise<string | null> => {
+    // Where to go next is decided from the queue as it stood, before this
+    // run leaves the held filter.
+    const before = filtered
+    const index = before.findIndex((i) => i.id === id)
+    const nextHeld =
+      before.slice(index + 1).find((i) => i.decision === 'held') ??
+      before.slice(0, Math.max(0, index)).reverse().find((i) => i.decision === 'held') ??
+      null
     try {
-      if (active?.id) {
-        await api.decideApproval(active.id, decision, notes)
-      }
-      setItems((prev) =>
-        prev.map((i) => (i.id === activeId ? { ...i, status: decision === 'approve' ? 'APPROVED' : 'REJECTED' } : i)),
+      const task = await recordDecision(id, kind, note)
+      setRecords((m) => new Map(m).set(task.id, task))
+      setDialog(null)
+      const released = task.deliverables.filter((d) => d.released).map((d) => d.filename)
+      push(
+        kind === 'approve'
+          ? {
+              title: released.length > 0 ? 'Approved and released' : 'Approved',
+              detail:
+                released.length > 0
+                  ? `${released.join(', ')} released. Recorded in the audit chain.`
+                  : 'Recorded in the audit chain. There was no file to release.',
+              tone: 'sovereign',
+            }
+          : {
+              title: 'Rejected',
+              detail: 'Nothing was released. Your reason is on the run and in the audit chain.',
+              tone: 'default',
+            },
       )
-      if (decision === 'approve') setIsStamped(true)
-      push({
-        title: decision === 'approve' ? 'Deliverable released' : 'Task rejected',
-        // Not "signed" — nothing signs anything yet.
-        detail: `Task ${active?.id.slice(0, 8)} ${decision === 'approve' ? 'approved and recorded' : 'rejected'}`,
-        tone: decision === 'approve' ? 'sovereign' : 'critical',
-      })
-      setConfirm(null)
-    } catch (err: any) {
-      push({
-        title: 'Decision failed',
-        detail: err.detail || err.message || 'Could not record approval',
-        tone: 'critical',
-      })
-    } finally {
-      setDeciding(false)
+      if (nextHeld) {
+        setSelectedId(nextHeld.id)
+        window.requestAnimationFrame(() => rowRefs.current.get(nextHeld.id)?.scrollIntoView({ block: 'nearest' }))
+      } else {
+        setSelectedId(task.id)
+      }
+      return null
+    } catch (error) {
+      const failure = describeFailure(error)
+      return failure.detail
+        ? `Not recorded. The service said: ${failure.detail}`
+        : 'Not recorded. The service could not be reached.'
     }
   }
 
+  const switchToReviewer = async () => {
+    setSwitching(true)
+    setSwitchError(null)
+    try {
+      await setRole('reviewer')
+    } catch (error: any) {
+      setSwitchError(error?.message ?? 'Could not sign in as the reviewer account.')
+      setSwitching(false)
+    }
+  }
+
+  const forbidden = data?.forbidden === true
+  const visibleHeld = data?.runs
+    ? data.runs.filter((r) => String(r.status).toLowerCase() === 'awaiting_approval').length
+    : null
+
+  const heldValue = !data ? '—' : forbidden ? (visibleHeld === null ? '—' : String(visibleHeld)) : String(counts.held)
+
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-5 py-10 lg:px-10 lg:py-14">
+    <div className="flex flex-col lg:h-[calc(100dvh-72px)]">
       <PageHeader
-        eyebrow="Human-in-the-Loop Gate"
-        title="Approval Queue"
-        description="Deliverables are withheld until a reviewer with the required role approves them. The decision is appended to the local audit chain."
+        title="Approvals"
+        description="Runs held for a person's decision before anything they produced is released. Each decision is written to the audit chain against the reviewer who made it."
         meta={[
           {
-            label: 'Pending Review',
-            value: forbidden ? (heldElsewhere != null ? `${heldElsewhere} held` : '—') : String(pendingCount),
+            label: 'Held',
+            value: heldValue,
+            tone: heldValue !== '—' && heldValue !== '0' ? 'approval' : 'default',
+            hint: forbidden
+              ? canReadAll
+                ? 'Held runs in the task list'
+                : 'Your own runs that are held'
+              : 'GET /api/approvals',
           },
-          { label: 'Reviewer', value: user?.display_name || role.label },
-          { label: 'RBAC Clearance', value: canApprove ? 'AUTHORIZED' : 'READ-ONLY' },
+          {
+            label: 'Decided',
+            value: forbidden || !data?.runs ? '—' : String(counts.approved + counts.rejected),
+            hint: `Approved or rejected among the last ${RUNS_LIMIT} runs this role can read`,
+          },
+          { label: 'Signs as', value: reviewer },
+          {
+            label: 'Permission',
+            value: canDecide ? 'approval.decide' : canRead ? 'read only' : 'none',
+            tone: canDecide ? 'default' : 'muted',
+          },
         ]}
+        actions={
+          <>
+            {queue.readAt !== null && (
+              <span
+                className="flex items-center gap-2 font-mono text-ledger text-foreground-muted"
+                title={
+                  live
+                    ? 'Connected to the event stream: held runs and decisions arrive without a reload'
+                    : 'Not connected to the event stream: use Refresh to read the queue again'
+                }
+              >
+                <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-foreground-secondary' : 'bg-control-strong')} />
+                {live ? 'live' : 'not live'} · read {clockTime(queue.readAt)}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              ground="paper"
+              icon={RotateCw}
+              busy={queue.refreshing}
+              busyLabel="Reading…"
+              onClick={queue.reload}
+            >
+              Refresh
+            </Button>
+          </>
+        }
       />
 
-      {/* A role without approval rights is told what is actually happening,
-          rather than shown an empty queue it will read as "nothing to do". */}
-      {forbidden && (
-        <div className="flex flex-col gap-4 rounded-xl border border-[var(--approval)]/35 bg-[var(--approval)]/[0.05] p-6 shadow-sm sm:flex-row sm:items-start">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--approval)]/40 bg-surface">
-            <Lock className="h-5 w-5 text-[var(--approval)]" />
-          </span>
-          <div className="flex flex-col gap-2">
-            <span className="text-[15px] font-semibold text-foreground">
-              {heldElsewhere && heldElsewhere > 0
-                ? `${heldElsewhere} deliverable${heldElsewhere === 1 ? ' is' : 's are'} held — but not for you to release`
-                : 'This role cannot open the approval queue'}
-            </span>
-            <p className="max-w-2xl text-[13px] leading-relaxed text-foreground-secondary">
-              Approval is separated from execution on purpose: whoever ran the task does not
-              sign it off. Your role,{' '}
-              <span className="font-mono text-[12px] text-foreground">{role.label}</span>, holds{' '}
-              <span className="font-mono text-[12px] text-foreground">task.create</span> but not{' '}
-              <span className="font-mono text-[12px] text-foreground">approval.decide</span>, so
-              the queue is closed to it.
-            </p>
-            <p className="text-[13px] leading-relaxed text-foreground-secondary">
-              To release these, sign in as{' '}
-              <span className="font-medium text-foreground">Approving Reviewer</span> or{' '}
-              <span className="font-medium text-foreground">Platform Admin</span> using the
-              account menu at the top right.
-            </p>
-          </div>
-        </div>
-      )}
+      <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col px-4 pb-6 sm:px-6">
+        {queue.status === 'reading' || queue.status === 'idle' ? (
+          <ReadingLine what="the approval queue" source="GET /api/approvals" startedAt={queue.startedAt} />
+        ) : queue.status === 'failed' && !data ? (
+          <FailureState
+            failure={queue.failure!}
+            what="the approval queue"
+            retry={queue.reload}
+            className="mt-6"
+          />
+        ) : forbidden ? (
+          <ForbiddenNotice
+            roleLabel={role.label}
+            held={visibleHeld}
+            allRuns={canReadAll}
+            switching={switching}
+            switchError={switchError}
+            onSwitch={() => void switchToReviewer()}
+          />
+        ) : (
+          <>
+            {queue.status === 'failed' && queue.failure && (
+              <p role="alert" className="mt-4 text-ui text-critical-text">
+                The last refresh failed, so this is the queue as read at {clockTime(queue.readAt)}.{' '}
+                {queue.failure.detail ?? ''}
+              </p>
+            )}
+            {data?.runs === null && (
+              <p className="mt-4 text-ui text-foreground-muted">
+                The task list could not be read, so decided runs are not shown. Held runs are
+                complete.
+              </p>
+            )}
 
-      {loadError && !forbidden && (
-        <p className="flex items-start gap-2.5 rounded-xl border border-critical/30 bg-critical/[0.04] p-4 text-[13px] leading-relaxed text-critical">
-          <ShieldAlert className="mt-px h-4 w-4 shrink-0" />
-          {loadError}
-        </p>
-      )}
+            <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Segmented<StatusFilter>
+                  label="Decision"
+                  value={status}
+                  onChange={(v) => changeFilter(v, sensitivity)}
+                  options={[
+                    { value: 'held', label: 'Held', count: counts.held },
+                    { value: 'approved', label: 'Approved', count: data?.runs ? counts.approved : null },
+                    { value: 'rejected', label: 'Rejected', count: data?.runs ? counts.rejected : null },
+                    { value: 'all', label: 'All', count: items.length },
+                  ]}
+                />
+                {sensitivities.length > 1 && (
+                  <Segmented<string>
+                    label="Classification"
+                    value={sensitivity}
+                    onChange={(v) => changeFilter(status, v)}
+                    options={[
+                      { value: 'all', label: 'Any class' },
+                      ...sensitivities.map((s) => ({ value: s, label: s })),
+                    ]}
+                  />
+                )}
+              </div>
+              <p className="hidden items-center gap-2 text-ui text-foreground-muted md:flex">
+                <Kbd>j</Kbd>
+                <Kbd>k</Kbd>
+                <span>move</span>
+                <span aria-hidden>·</span>
+                <Kbd>↵</Kbd>
+                <span>open</span>
+                {canDecide && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <Kbd>a</Kbd>
+                    <span>approve</span>
+                    <span aria-hidden>·</span>
+                    <Kbd>r</Kbd>
+                    <span>reject</span>
+                  </>
+                )}
+              </p>
+            </div>
 
-      {!forbidden && !loading && items.length === 0 && !loadError && (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface px-6 py-14 text-center shadow-sm">
-          <Inbox className="h-6 w-6 text-foreground-muted" />
-          <span className="text-[15px] font-medium text-foreground">Nothing is waiting</span>
-          <p className="max-w-md text-[13px] leading-relaxed text-foreground-secondary">
-            Every deliverable produced on this host has been released or returned. Runs that
-            need a signature will appear here the moment they finish.
-          </p>
-        </div>
-      )}
-
-      {!forbidden && items.length > 0 && (
-      <div className="grid grid-cols-1 gap-6 border border-border lg:grid-cols-[360px_1fr]">
-        {/* Item List */}
-        <div className="flex flex-col border-b border-border bg-surface lg:border-b-0 lg:border-r">
-          <div className="border-b border-border p-4 font-mono text-[11px] uppercase tracking-wider text-foreground-muted">
-            Pending Directives ({items.length})
-          </div>
-
-          <div className="divide-y divide-border overflow-y-auto max-h-[600px]">
-            {items.map((i) => (
-              <button
-                key={i.id}
-                type="button"
-                onClick={() => {
-                  setActiveId(i.id)
-                  setIsStamped(i.status === 'APPROVED')
-                }}
+            <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[var(--radius)] shadow-[var(--elev-0)] lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
+              <div
                 className={cn(
-                  'flex w-full flex-col gap-2 p-4 text-left transition-colors',
-                  i.id === activeId ? 'bg-surface-sunken' : 'hover:bg-surface-sunken/60'
+                  'min-h-0 flex-col bg-surface lg:flex lg:border-r lg:border-line-default',
+                  mobileView === 'detail' ? 'hidden' : 'flex',
                 )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] text-foreground-muted truncate">{i.id.slice(0, 8)}…</span>
-                  <span
-                    className="rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase"
-                    style={{
-                      borderColor: CLASSIFICATION_TONE[i.sensitivity] ?? 'var(--foreground-muted)',
-                      color: CLASSIFICATION_TONE[i.sensitivity] ?? 'var(--foreground-muted)',
-                    }}
-                  >
-                    {i.sensitivity}
-                  </span>
-                </div>
-                <div className="line-clamp-2 text-[13px] font-medium text-foreground">{i.title}</div>
-                <div className="flex items-center justify-between text-[11px] text-foreground-muted pt-1">
-                  <span>{i.submittedBy}</span>
-                  {/* No `pulse`. PENDING is waiting on a person, not working,
-                      and a pulsing chip said the opposite. */}
-                  <StatusIndicator status={i.status} />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Review surface */}
-        {active && (
-          <div className="flex flex-col bg-background">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4 bg-surface">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-[12px] text-foreground">{active.id}</span>
-                <ClassificationTag level={active.classification} />
-                <StatusIndicator status={active.status} />
-              </div>
-              <div className="flex items-center gap-2">
-                <SovButton
-                  variant="primary"
-                  disabled={!canApprove || active.status !== 'PENDING'}
-                  onClick={() => setConfirm('approve')}
-                >
-                  {/* A task held before any deliverable was rendered has
-                      nothing to release; the decision still records. Saying
-                      "release" over an answer-only task contradicts the line
-                      below it, which says there is no document. */}
-                  {active.document ? 'Approve & release' : 'Approve'}
-                </SovButton>
-                <SovButton
-                  variant="danger"
-                  disabled={!canApprove || active.status !== 'PENDING'}
-                  onClick={() => setConfirm('reject')}
-                >
-                  Reject
-                </SovButton>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-8 p-6 lg:p-8">
-              {/* Submission info */}
-              <div className="flex flex-col gap-2">
-                <TechnicalLabel>Task Directive</TechnicalLabel>
-                <h3 className="text-xl font-semibold tracking-tight text-foreground">{active.title}</h3>
-                <p className="font-mono text-[11px] text-foreground-muted">
-                  Submitted by {active.submittedBy} at {active.submittedAt}
-                  {/* Answer-only runs write no file, so the label is dropped
-                      rather than left dangling over an empty value. */}
-                  {active.document ? (
-                    <>
-                      {' · Document target: '}
-                      <span className="text-foreground">{active.document}</span>
-                    </>
-                  ) : (
-                    ' · Answer only — no document to release'
-                  )}
-                </p>
-              </div>
-
-              {/*
-                This was an "Interactive Cryptographic Sign-Off Seal", labelled
-                ECDSA SHA-256, which invited the reviewer to "certify this
-                report with your cryptographic reviewer key" and afterwards
-                printed "Fingerprint: 0x8f2c...41ad" beside their real name.
-
-                No signing exists in this product. There is no key, no
-                signature and no fingerprint anywhere in backend/ — the string
-                was a literal, and the named algorithm is not even the Ed25519
-                the roadmap specifies. Displaying an invented fingerprint next
-                to a named human, on the screen whose entire purpose is
-                accountability, is the most damaging thing the interface could
-                assert.
-
-                The decision itself is real: it is recorded against the
-                reviewer, with a timestamp, in the audit chain. That is what
-                this now says. When audit signing is built, a genuine
-                fingerprint can be shown here.
-              */}
-              <div className="relative overflow-hidden rounded-xl border border-border bg-surface p-6 shadow-sm">
-                <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Stamp className="h-4 w-4 text-foreground-muted" />
-                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground">
-                      Reviewer decision
-                    </span>
-                  </div>
-                  <span className="font-mono text-[10px] text-foreground-muted">
-                    Recorded in the audit chain
-                  </span>
-                </div>
-
-                {active.status === 'PENDING' && !isStamped ? (
-                  <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-surface-sunken/40 p-6 text-center">
-                    {/* Explanation only. This carried a second Approve
-                        button identical in effect to the one in the header,
-                        so the screen offered the same irreversible decision
-                        twice, in two different visual weights, a scroll
-                        apart. The pair of controls stays together at the top
-                        where Approve and Reject can be weighed against each
-                        other. */}
-                    <Stamp className="h-4 w-4 text-foreground-muted" aria-hidden />
-                    <p className="max-w-md text-[13px] text-foreground-secondary">
-                      {active.document
-                        ? 'Approving releases this deliverable and records the decision against your account.'
-                        : 'This task produced an answer and no document. Approving records the decision against your account.'}
-                    </p>
-                  </div>
+                {filtered.length === 0 ? (
+                  <QueueEmpty
+                    status={status}
+                    counts={counts}
+                    filteredBySensitivity={sensitivity !== 'all'}
+                    onShow={(s) => changeFilter(s, 'all')}
+                  />
                 ) : (
-                  <div className="flex items-center justify-between rounded-lg border border-[var(--sovereign)] bg-[var(--sovereign)]/15 p-4 text-[var(--sovereign)]">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="h-6 w-6 text-[var(--sovereign)]" />
-                      <div>
-                        <div className="font-mono text-[13px] font-bold uppercase tracking-wider">
-                          Approved and released
-                        </div>
-                        <div className="font-mono text-[10px] text-foreground-muted">
-                          Recorded against {user?.display_name || role.label}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <ul
+                    ref={listRef}
+                    aria-label="Approval queue"
+                    className="min-h-0 flex-1 lg:overflow-y-auto"
+                  >
+                    {filtered.map((item) => (
+                      <QueueRow
+                        key={item.id}
+                        item={item}
+                        selected={selected?.id === item.id}
+                        onSelect={onSelect}
+                        registerRow={registerRow}
+                      />
+                    ))}
+                  </ul>
                 )}
               </div>
 
-              {/* Draft content */}
-              <div className="flex flex-col gap-3">
-                <TechnicalLabel>Generated Deliverable Preview</TechnicalLabel>
-                <div className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-5 text-[14px] leading-relaxed text-foreground-secondary">
-                  <CitedText
-                    text={active.draft || active.extractedText || ''}
-                    known={new Set(active.evidence.map((e) => e.id))}
+              <div
+                ref={detailRef}
+                className={cn(
+                  'min-h-0 flex-col bg-background lg:static lg:z-auto lg:flex',
+                  mobileView === 'detail'
+                    ? 'fixed inset-x-0 bottom-0 top-14 z-[var(--z-drawer)] flex animate-in slide-in-from-bottom-2 duration-[var(--spatial)] ease-[var(--ease-spatial)] motion-reduce:animate-none lg:animate-none'
+                    : 'hidden',
+                )}
+              >
+                {selected ? (
+                  <ReviewPane
+                    key={selected.id}
+                    item={selected}
+                    task={selectedTask}
+                    detailRead={detailRead && detailRead.id === selected.id ? detailRead : null}
+                    canDecide={canDecide}
+                    reviewer={reviewer}
+                    onApprove={() => openDialog('approve')}
+                    onReject={() => openDialog('reject')}
+                    onBack={backToList}
+                    onRetryDetail={() => setDetailAttempt((n) => n + 1)}
+                    headingId={headingId}
+                    bodyRef={bodyRef}
                   />
-                </div>
+                ) : (
+                  <EmptyState
+                    title="Nothing to review"
+                    body="When a run in this view is held for a decision, it opens here with its deliverable, evidence and verification."
+                  />
+                )}
               </div>
-
-              {/* Evidence citations */}
-              {active.evidence.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  <TechnicalLabel>Corroborating Evidence ({active.evidence.length})</TechnicalLabel>
-                  <div className="divide-y divide-border rounded-lg border border-border bg-surface">
-                    {active.evidence.map((e) => {
-                      // `similarity` is a UI alias the backend never sends, so
-                      // every passage printed the 0.96 fallback: six identical
-                      // invented scores on the screen where a human decides
-                      // whether to release a deliverable. The measured values
-                      // for this very run are 0.80, 0.73, 0.73, 0.70, 0.70 and
-                      // 0.69 -- a materially weaker set than 0.96 six times
-                      // implies. `score` is the real field.
-                      const score = typeof e.similarity === 'number' ? e.similarity : e.score
-                      return (
-                        <div
-                          key={e.id}
-                          id={`evidence-${e.id}`}
-                          className="scroll-mt-24 p-4 target:bg-surface-sunken"
-                        >
-                          <div className="flex items-center justify-between gap-3 font-mono text-[11px]">
-                            <span className="flex min-w-0 items-center gap-2">
-                              {/* The citation id, so the reviewer can tell which
-                                  passage the answer's [S4] actually refers to.
-                                  Six unlabelled cards made that unanswerable. */}
-                              <span className="shrink-0 rounded-[3px] bg-surface-sunken px-1.5 py-0.5 text-foreground">
-                                {e.id}
-                              </span>
-                              <span className="truncate text-foreground">
-                                {e.source || e.source_document}
-                              </span>
-                            </span>
-                            {typeof score === 'number' && (
-                              <span className="shrink-0 font-bold text-[var(--sovereign)]">
-                                {score.toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-                          {e.location && (
-                            <p className="mt-1 font-mono text-[11px] text-foreground-muted">
-                              {e.location}
-                            </p>
-                          )}
-                          <p className="mt-1 text-[13px] text-foreground-secondary">{e.excerpt}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Verification checks */}
-              {active.verification.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  <TechnicalLabel>Verification Report</TechnicalLabel>
-                  <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2 rounded-lg overflow-hidden">
-                    {active.verification.map((v) => (
-                      <div key={v.label} className="bg-surface p-4">
-                        <span className="font-mono text-[10px] uppercase text-foreground-muted">{v.label}</span>
-                        <div className="mt-1 flex items-center gap-2">
-                          <Check className="h-3.5 w-3.5 text-[var(--sovereign)]" />
-                          <span className="font-mono text-[12px] text-foreground">{v.result}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          </>
         )}
       </div>
-      )}
 
-      {/* Confirmation Modal */}
-      <Modal
-        open={confirm !== null}
-        onClose={() => setConfirm(null)}
-        title={confirm === 'approve' ? 'Authorize Deliverable Release' : 'Reject Task Execution'}
-      >
-        <div className="flex flex-col gap-4">
-          <p className="text-[13px] text-foreground-secondary">
-            {confirm === 'approve'
-              ? 'Approving releases the deliverable. The decision, your account and the time are appended to the local audit chain.'
-              : 'Rejecting this task returns it to the submitter with your explanatory notes.'}
-          </p>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Authorization justification or rejection notes…"
-            rows={3}
-            className="w-full resize-none border border-border bg-surface px-3 py-2 text-[13px] text-foreground placeholder:text-foreground-muted focus:outline-none"
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setConfirm(null)}
-              className="border border-border px-4 py-2 font-mono text-[12px] text-foreground hover:border-foreground"
-            >
-              Cancel
-            </button>
-            <SovButton
-              variant={confirm === 'approve' ? 'primary' : 'danger'}
-              disabled={deciding}
-              onClick={() => decide(confirm!)}
-            >
-              {deciding ? <Loader2 className="h-4 w-4 animate-spin" /> : confirm === 'approve' ? 'Confirm Release' : 'Confirm Rejection'}
-            </SovButton>
-          </div>
-        </div>
-      </Modal>
+      {dialog && dialogItem && (
+        <DecisionDialog
+          key={`${dialog.kind}-${dialog.id}`}
+          kind={dialog.kind}
+          item={dialogItem}
+          filename={dialogTask?.deliverables[0]?.filename ?? null}
+          reviewer={reviewer}
+          onCancel={() => setDialog(null)}
+          onConfirm={(note) => confirmDecision(dialog.kind, dialog.id, note)}
+        />
+      )}
+    </div>
+  )
+}
+
+function QueueEmpty({
+  status,
+  counts,
+  filteredBySensitivity,
+  onShow,
+}: {
+  status: StatusFilter
+  counts: Record<Decision, number>
+  filteredBySensitivity: boolean
+  onShow: (status: StatusFilter) => void
+}) {
+  if (filteredBySensitivity) {
+    return (
+      <EmptyState
+        title="Nothing at this classification"
+        body="No run in this view carries the classification selected."
+        action={
+          <Button variant="secondary" size="sm" onClick={() => onShow(status)}>
+            Any classification
+          </Button>
+        }
+      />
+    )
+  }
+  if (status === 'held') {
+    const decided = counts.approved + counts.rejected
+    return (
+      <EmptyState
+        title="Nothing is waiting for a decision"
+        body="Every held run has been released or returned. While this screen is connected to the event stream, a run that needs a signature appears here as soon as it is held."
+        action={
+          decided > 0 ? (
+            <Button variant="secondary" size="sm" onClick={() => onShow('all')}>
+              Show {decided} decided
+            </Button>
+          ) : undefined
+        }
+      />
+    )
+  }
+  return (
+    <EmptyState
+      title={status === 'all' ? 'No runs have needed approval' : `No ${status} runs`}
+      body={
+        status === 'all'
+          ? 'None of the runs this role can read was held for a decision.'
+          : `None of the recent runs this role can read was ${status}.`
+      }
+    />
+  )
+}
+
+function ForbiddenNotice({
+  roleLabel,
+  held,
+  allRuns,
+  switching,
+  switchError,
+  onSwitch,
+}: {
+  roleLabel: string
+  held: number | null
+  allRuns: boolean
+  switching: boolean
+  switchError: string | null
+  onSwitch: () => void
+}) {
+  // A role without approval rights is told what is actually happening,
+  // rather than shown an empty queue it will read as "nothing to do".
+  const headline =
+    held && held > 0
+      ? allRuns
+        ? `${held} run${held === 1 ? ' is' : 's are'} held on this host, and releasing them is not this role's decision`
+        : `${held} of your run${held === 1 ? ' is' : 's are'} held for a reviewer`
+      : 'This role cannot open the approval queue'
+  return (
+    <div className="mt-6 max-w-[72ch] border-l-2 border-approval bg-approval-surface px-4 py-4">
+      <p className="text-body font-medium text-foreground">{headline}</p>
+      <p className="mt-2 text-body text-foreground-secondary">
+        Approval is separated from execution on purpose: whoever ran a task does not sign it off. Your
+        role, <span className="font-mono text-ui text-foreground">{roleLabel}</span>, does not hold{' '}
+        <span className="font-mono text-ui text-foreground">approval.read</span>, so the queue is closed
+        to it.
+      </p>
+      <p className="mt-2 text-body text-foreground-secondary">
+        To decide held runs, sign in as the Approving Reviewer or the Platform Admin.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button variant="secondary" size="sm" ground="paper" busy={switching} busyLabel="Signing in…" onClick={onSwitch}>
+          Sign in as reviewer
+        </Button>
+        {switchError && <span className="text-ui text-critical-text">{switchError}</span>}
+      </div>
     </div>
   )
 }

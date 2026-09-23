@@ -2,175 +2,181 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, LogOut, Shield, User as UserIcon, Server, Lock } from 'lucide-react'
+import { Check, ChevronDown, Loader2, LogOut } from 'lucide-react'
 import { ROLES } from '@/lib/presentation'
+import type { RoleId } from '@/lib/types'
 import { useRole } from './role-context'
 import { cn } from '@/lib/utils'
 
+/**
+ * The signed-in account, and the demo role switch.
+ *
+ * Removed from the panel: an "AIR-GAPPED" badge in sovereign green and a
+ * "127.0.0.1" server chip. A browser cannot detect an air gap, and the sign-in
+ * screen had already retired that claim for exactly that reason; the account
+ * menu was still making it on every screen. The green "online" dot on the
+ * avatar went with them. It was drawn unconditionally, so it reported
+ * nothing.
+ *
+ * What stays is what the session actually reports: the display name, the
+ * username, the department and the clearance ceiling the server assigned.
+ */
 export function RoleSwitcher() {
   const { role, setRole, user, logout } = useRole()
   const router = useRouter()
   const [switchError, setSwitchError] = useState<string | null>(null)
+  const [switching, setSwitching] = useState<RoleId | null>(null)
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     if (!open) return
     const onClick = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
-  // Identity is shown only as far as the session actually reports it.
-  //
-  // This chain read `user?.display_name || role.persona || 'S. Ramanathan'`,
-  // so a session without a display name presented an invented human being as
-  // the signed-in operator — the exact thing the docstring in
-  // lib/presentation.ts warns against, on a system that records who approved
-  // what. Clearance was worse: `|| 'CONFIDENTIAL'` asserted a clearance level
-  // for a user the frontend had not successfully loaded.
+  // Identity is shown only as far as the session actually reports it. An
+  // absent clearance reads as absent, not as a plausible default.
   const displayName = user?.display_name || role.label
-  const roleLabel = role.label
   const username = user?.username || role.id
-  const classification = user?.max_data_classification?.toUpperCase() || 'UNKNOWN'
-  const department = user?.department || '—'
+  const clearance = user?.max_data_classification ?? null
+  const department = user?.department ?? null
+
+  const switchTo = async (id: RoleId) => {
+    setSwitchError(null)
+    setSwitching(id)
+    try {
+      await setRole(id)
+      setOpen(false)
+    } catch (err: any) {
+      setSwitchError(err?.message ?? 'Could not switch account.')
+    } finally {
+      setSwitching(null)
+    }
+  }
 
   return (
     <div ref={wrapRef} className="relative">
-      {/* Logged in Account Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Logged in account profile menu"
-        className="group flex items-center gap-2.5 rounded-lg border border-border/80 bg-surface/90 py-1.5 pl-2 pr-2.5 shadow-sm backdrop-blur-md transition-all duration-200 hover:border-foreground hover:shadow"
+        aria-haspopup="menu"
+        aria-label={`Account: ${displayName}, ${role.label}`}
+        className="hover-decay group flex h-9 items-center gap-2 rounded-[var(--radius)] px-2 hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
       >
-        {/* Avatar with Live Online Status Indicator */}
-        <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-foreground font-mono text-[11px] font-bold text-primary-foreground shadow-sm">
+        <span
+          aria-hidden
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-xs)] bg-surface-sunken font-mono text-ui text-foreground shadow-[0_0_0_1px_var(--control-subtle)]"
+        >
           {displayName.slice(0, 1).toUpperCase()}
-          <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-surface bg-[var(--sovereign)]" />
-        </div>
-
-        {/* Account Name & Role Badge */}
-        <div className="flex flex-col items-start text-left leading-tight">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[12px] font-semibold text-foreground max-w-[130px] truncate sm:max-w-[170px]">
-              {displayName}
-            </span>
-          </div>
-          <span className="font-mono text-[9px] font-medium uppercase tracking-wider text-foreground-muted">
-            {roleLabel}
+        </span>
+        <span className="hidden min-w-0 flex-col items-start text-left sm:flex">
+          <span className="max-w-[160px] truncate text-ui font-medium text-foreground">{displayName}</span>
+          <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+            {role.label}
           </span>
-        </div>
-
+        </span>
         <ChevronDown
+          aria-hidden
           className={cn(
-            'h-3.5 w-3.5 text-foreground-muted transition-transform duration-200 group-hover:text-foreground',
-            open && 'rotate-180'
+            'h-3.5 w-3.5 text-foreground-muted transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] motion-reduce:transition-none',
+            open && 'rotate-180',
           )}
         />
       </button>
 
-      {/* Account Profile & Role Switcher Popover */}
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-[90] w-84 rounded-xl border border-border/90 bg-surface p-1 shadow-[0_20px_50px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 sm:w-96">
-          {/* Header: User Profile Card */}
-          <div className="rounded-lg border border-border/60 bg-surface-sunken/60 p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-foreground font-mono text-sm font-bold text-primary-foreground shadow-sm">
-                  {displayName.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-bold text-foreground">{displayName}</span>
-                  <span className="font-mono text-[11px] text-foreground-muted">@{username}</span>
-                  <span className="mt-0.5 text-[11px] text-foreground-secondary">{department}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Security Posture / Clearance Badges */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-              <span className="inline-flex items-center gap-1 rounded border border-border bg-surface px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-foreground">
-                <Lock className="h-2.5 w-2.5 text-[var(--sovereign)]" />
-                {classification}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded border border-border bg-surface px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wider text-foreground-muted">
-                <Server className="h-2.5 w-2.5 text-foreground-muted" />
-                127.0.0.1
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-[var(--sovereign)]/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-[var(--sovereign)]">
-                ● AIR-GAPPED
-              </span>
-            </div>
+        <div
+          role="menu"
+          aria-label="Account"
+          className="absolute right-0 top-[calc(100%+8px)] z-[var(--z-menu)] w-80 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in slide-in-from-top-1 duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none"
+        >
+          <div className="border-b border-line-subtle px-4 py-3">
+            <p className="truncate text-body font-medium text-foreground">{displayName}</p>
+            <p className="mt-0.5 truncate font-mono text-ui text-foreground-muted">
+              @{username}
+              {department ? ` · ${department}` : ''}
+            </p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+              Clearance
+              <span className="text-foreground">{clearance ?? 'not reported'}</span>
+            </p>
           </div>
 
-          {/* Demonstration Role Switcher Section */}
-          <div className="px-3 pt-3 pb-1">
-            <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-foreground-muted">
-              Demonstration Personas & Roles
-            </span>
+          <div className="px-4 pb-1 pt-3">
+            <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+              Switch demo account
+            </p>
           </div>
 
-          <div className="space-y-0.5 p-1">
-            {switchError && (
-              <p className="rounded-md border border-critical/30 bg-critical/10 p-2 text-[11px] leading-snug text-critical">
-                {switchError}
-              </p>
-            )}
+          {switchError && (
+            <p role="alert" className="mx-2 mb-1 rounded-[var(--radius-xs)] bg-critical-surface px-2 py-2 text-ui text-critical-text">
+              {switchError}
+            </p>
+          )}
+
+          <ul className="px-1 pb-1">
             {ROLES.map((r) => {
               const isSelected = r.id === role.id
+              const busy = switching === r.id
               return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => {
-                    setRole(r.id).catch((err: any) => {
-                      setSwitchError(err?.message ?? 'Could not switch account')
-                    })
-                    setOpen(false)
-                  }}
-                  className={cn(
-                    'group flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-150',
-                    isSelected
-                      ? 'bg-surface-sunken border border-border-strong'
-                      : 'hover:bg-surface-sunken/70 hover:border-transparent'
-                  )}
-                >
-                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                    {isSelected ? (
-                      <Check className="h-3.5 w-3.5 text-foreground font-bold" />
-                    ) : (
-                      <span className="h-1.5 w-1.5 rounded-full bg-border-strong group-hover:bg-foreground" />
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isSelected}
+                    disabled={switching !== null}
+                    onClick={() => (isSelected ? setOpen(false) : void switchTo(r.id))}
+                    className={cn(
+                      'hover-decay flex w-full items-start gap-3 rounded-[var(--radius-menu-row)] px-3 py-2 text-left',
+                      'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none disabled:opacity-[var(--opacity-disabled)]',
+                      isSelected ? 'bg-[var(--selected-surface)]' : 'hover:bg-surface-sunken',
                     )}
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-semibold text-foreground">{r.label}</span>
-                    </div>
-                    <span className="text-[11px] leading-snug text-foreground-secondary">
-                      {r.description}
+                  >
+                    <span aria-hidden className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                      {busy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted motion-reduce:animate-none" />
+                      ) : isSelected ? (
+                        <Check className="h-3.5 w-3.5 text-foreground" />
+                      ) : null}
                     </span>
-                  </div>
-                </button>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-ui font-medium text-foreground">{r.label}</span>
+                      <span className="text-ui text-foreground-secondary">{r.description}</span>
+                    </span>
+                  </button>
+                </li>
               )
             })}
-          </div>
+          </ul>
 
-          {/* Footer: Sign Out Action */}
-          <div className="border-t border-border/80 p-1.5 mt-1">
+          <div className="border-t border-line-subtle p-1">
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
-                logout()
                 setOpen(false)
-                router.push('/sign-in')
+                void logout().finally(() => router.push('/sign-in'))
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-foreground-muted transition-colors hover:bg-critical/10 hover:text-critical"
+              className="hover-decay flex w-full items-center gap-2 rounded-[var(--radius-menu-row)] px-3 py-2 text-ui text-foreground-secondary hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
             >
-              <LogOut className="h-3.5 w-3.5" /> Sign out of workbench
+              <LogOut className="h-3.5 w-3.5" aria-hidden /> Sign out
             </button>
           </div>
         </div>
@@ -178,4 +184,3 @@ export function RoleSwitcher() {
     </div>
   )
 }
-

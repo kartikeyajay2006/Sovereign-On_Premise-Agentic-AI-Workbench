@@ -183,7 +183,7 @@ function StageMarker({ state }: { state: StageState }) {
     <span
       aria-hidden
       className={cn(
-        'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] leading-none',
+        'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-ledger leading-none',
         spec.marker,
       )}
     >
