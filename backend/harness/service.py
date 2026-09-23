@@ -1101,6 +1101,14 @@ class HarnessService:
             raise HarnessConflict(
                 f"Report version {report.version} was already {report.approval.decision}."
             )
+        # Whoever started the run does not sign off its report -- the same
+        # separation of duties the task approval gate enforces, for the same
+        # reason: a second signature that is the first person's is not one.
+        if run.user_id == viewer.id:
+            raise HarnessForbidden(
+                "You started this run, so you cannot approve or reject its report. "
+                "A different account holding approval.decide must decide it."
+            )
         approved = decision == "approve"
         report.approval.decision = "approved" if approved else "rejected"
         report.approval.reviewer_id = viewer.id

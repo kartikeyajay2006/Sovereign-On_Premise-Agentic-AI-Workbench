@@ -209,16 +209,44 @@ async def knowledge_search(
     user: Annotated[User, Depends(require_permission("knowledge.search"))],
 ) -> KnowledgeSearchResponse:
     knowledge_base = get_knowledge_base()
+    config = get_config()
+    overrides = config.access_control.get("file_access", {}).get("override_roles", [])
+
+    # Scope exactly as the agent's own retrieval tool does (tools/registry.py),
+    # because this route reaches the same passages and must not be the way
+    # around the rule the tool enforces.
+    #
+    # It was not. `departments` came from the request body and was used as
+    # given, so any role holding knowledge.search could name another
+    # department and read its chunks; only a request that named nothing was
+    # scoped. And nothing here filtered by clearance at all, so the
+    # Knowledge screen's tester returned restricted and sensitive passages
+    # to roles the agent path would never have shown them to. A caller may
+    # now narrow its scope, never widen it.
     departments = payload.departments
-    overrides = get_config().access_control.get("file_access", {}).get("override_roles", [])
-    if departments is None and user.role not in overrides:
-        departments = [user.department, "general"]
+    if user.role not in overrides:
+        allowed = {user.department, "general"}
+        departments = (
+            sorted(allowed)
+            if departments is None
+            else [department for department in departments if department in allowed]
+        )
+        if not departments:
+            return KnowledgeSearchResponse(
+                query=payload.query, retrieval_mode="lexical", results=[], took_ms=0
+            )
 
     results, mode, took_ms = await knowledge_base.search(
         payload.query, top_k=payload.top_k, departments=departments
     )
+    clearance = config.classification_rank(user.max_data_classification.value)
+    permitted = [
+        item
+        for item in results
+        if config.classification_rank(item.classification.value) <= clearance
+    ]
     return KnowledgeSearchResponse(
-        query=payload.query, retrieval_mode=mode, results=results, took_ms=took_ms
+        query=payload.query, retrieval_mode=mode, results=permitted, took_ms=took_ms
     )
 
 

@@ -549,6 +549,20 @@ class TaskService:
                 f"Role '{user.role}' is not an approving authority for this task "
                 f"(requires one of: {', '.join(task.approval.approver_roles)})"
             )
+        # Separation of duties, enforced rather than asserted.
+        #
+        # The Approvals screen tells an engineer "approval is separated from
+        # execution on purpose: whoever ran the task does not sign it off".
+        # Nothing here checked it. A reviewer inherits task.create, so a
+        # reviewer could run a task and release their own deliverable, and
+        # the audit chain would record it as a second pair of eyes that was
+        # never there. Checked by account, not role, and for every role --
+        # an administrator's own work needs someone else's signature too.
+        if task.user_id == user.id:
+            raise TaskError(
+                "You ran this task, so you cannot approve or reject it. "
+                "A different account holding approval.decide must decide it."
+            )
 
         approved = decision == "approve"
         task.approval.decision = "approved" if approved else "rejected"
