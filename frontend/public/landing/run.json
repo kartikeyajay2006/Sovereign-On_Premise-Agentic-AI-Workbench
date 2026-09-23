@@ -1,7 +1,7 @@
 {
-  "_comment": "Written by scripts/capture_landing_fixture.py from one real finished run. Source: storage/workbench.db opened read-only, and the audit log, on the developer host that ran the task. Run chosen with --task 5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9. Never hand-edited. Receipt-row hashes are truncated to 8 hex characters for display, with the full value in hash_full. audit.tail holds the run's final record and the two written immediately before it, and each `line` is the line exactly as stored in the audit log, so its hash can be recomputed. Values the record does not carry are null, never defaulted. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
-  "captured_at": "2026-09-23T06:23:27Z",
-  "captured_from": "storage/workbench.db opened read-only, and the audit log, on the developer host that ran the task",
+  "_comment": "Written by scripts/capture_landing_fixture.py from one real finished run. Source: developer host, ollama loopback, api http://127.0.0.1:8000. Run chosen with --task 5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9. Never hand-edited. Receipt-row hashes are truncated to 8 hex characters for display, with the full value in hash_full. audit.tail holds the run's final record and the two written immediately before it, and each `line` is the line exactly as stored in the audit log, so its hash can be recomputed. Values the record does not carry are null, never defaulted. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
+  "captured_at": "2026-09-23T22:12:22Z",
+  "captured_from": "developer host, ollama loopback, api http://127.0.0.1:8000",
   "task_id": "5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9",
   "status": "awaiting_approval",
   "prompt": "What severity applies when cladding damage exceeds 20% of an insulated section? Cite the clause.",
@@ -286,19 +286,68 @@
     ]
   },
   "sandbox_self_test": {
-    "sequence": 741,
-    "at": "2026-09-23T05:41:56.652167+00:00",
-    "hash": "d6c598fe0316d52288b5edef968c0a496a2c1961f3c249655773b46998dc7240",
+    "sequence": 839,
+    "at": "2026-09-23T22:12:22.128017+00:00",
+    "hash": "862d0f7ee1d6b8e517aa3722416814b50d76e45d82e5a79c28db7cc50a47de23",
     "detail": {
-      "checks": [],
-      "passed": 0,
-      "total": 0,
-      "assessable": false,
-      "overall": "Not assessable on this host. The sandbox refuses to execute, so no payload was submitted and no containment claim is made either way.",
-      "reason": "This host cannot apply resource limits to a child process, so generated code would run unbounded. Execution is refused rather than run outside the limits the sandbox is supposed to impose. Run the backend under WSL2/Linux — see docs/RUNTIME-ENVIRONMENT.md. Every other stage works here.",
-      "all_passed": false,
-      "duration_ms": 0,
-      "ran_at": "2026-09-23T05:41:56.650712+00:00"
+      "checks": [
+        {
+          "name": "Static import review",
+          "target": "import socket; socket.socket()",
+          "passed": true,
+          "detail": "line 1: import of denied module 'socket'"
+        },
+        {
+          "name": "Runtime socket denial",
+          "target": "socket.socket() and _socket.socket() with the static check bypassed",
+          "passed": true,
+          "detail": "BLOCKED: SovereignNetworkBlocked"
+        },
+        {
+          "name": "Process escape review",
+          "target": "os.system('id')",
+          "passed": true,
+          "detail": "line 2: process escape 'os.system()'"
+        },
+        {
+          "name": "Filesystem write confinement",
+          "target": "open('../../escape_probe.txt', 'w') with the static check bypassed",
+          "passed": true,
+          "detail": "BLOCKED: SovereignFilesystemBlocked"
+        },
+        {
+          "name": "Permitted work still runs",
+          "target": "print(sum(range(1000)))",
+          "passed": true,
+          "detail": "exit 0 in 101ms"
+        },
+        {
+          "name": "Memory limit terminates a bomb",
+          "target": "allocate 200 MB under a 128 MB Job Object cap",
+          "passed": true,
+          "detail": "commit refused at the cap; exit 1, peak 8.7 MB"
+        },
+        {
+          "name": "CPU-time limit terminates a spin",
+          "target": "infinite loop under a 1s CPU-time cap",
+          "passed": true,
+          "detail": "terminated after 5.33s CPU"
+        },
+        {
+          "name": "Process spawning is capped",
+          "target": "spawn 10 children under a 3-process Job Object cap",
+          "passed": true,
+          "detail": "SPAWN_CAPPED_AT 1 OSError"
+        }
+      ],
+      "passed": 8,
+      "total": 8,
+      "assessable": true,
+      "backend": "windows_job_object",
+      "overall": "8 of 8 containment checks held on this host",
+      "all_passed": true,
+      "duration_ms": 6617,
+      "ran_at": "2026-09-23T22:12:22.127530+00:00"
     }
   }
 }
