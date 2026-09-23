@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigation } from '@/components/navigation'
 import { AuthGuard } from '@/components/auth-guard'
+import { CommandPalette } from '@/components/command-palette'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -29,6 +30,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div aria-hidden className="tech-grid pointer-events-none fixed inset-0 -z-10 opacity-40" />
 
         <Navigation />
+        {/* Mounted once for the whole app: the shortcut has to work from
+            every screen, including one that has scrolled away from the
+            header. */}
+        <CommandPalette />
         {/*
           The header is fixed and 56px tall. It was a 90px floating card and
           this was 106px to clear it; flattened to a bar on a hairline, the

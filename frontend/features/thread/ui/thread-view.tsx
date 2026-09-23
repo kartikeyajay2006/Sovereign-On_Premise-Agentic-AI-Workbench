@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { DEFAULT_PIPELINE } from '@/lib/presentation'
@@ -438,6 +439,21 @@ export function ThreadView() {
     setDrawerOpen(false)
     setFocusEvidenceId(null)
   }, [busy])
+
+  /**
+   * ?run=<id> opens that run.
+   *
+   * The command palette routes here rather than reaching into this
+   * component's state, so a run is reachable by URL -- which also means a
+   * reviewer can send someone a link to the exact run they are querying.
+   * Guarded on openedTaskId so returning to /console with the parameter
+   * still present does not reload the turn out from under an edit.
+   */
+  const params = useSearchParams()
+  const requestedRun = params.get('run')
+  useEffect(() => {
+    if (requestedRun && requestedRun !== openedTaskId) void openRun(requestedRun)
+  }, [requestedRun, openedTaskId, openRun])
 
   const run = async () => {
     const text = prompt.trim()
