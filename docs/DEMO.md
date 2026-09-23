@@ -95,9 +95,11 @@ carry. The model never sees it.
 
 ### Timing
 
-Inference is local and CPU-only, so a run takes minutes, not seconds. One
-captured run of the Scenario 1 prompt took 246.8 s on the development host,
-against the earlier four-document corpus (`frontend/public/landing/run.json`).
+Inference is local and CPU-only, so a run takes minutes, not seconds. The
+most recent run of the Scenario 1 prompt took 134.3 s on the development host
+(run `dfe0babf`, 23 Sep 2026, against this corpus). The capture the landing
+page tells the story of took 246.8 s against the earlier four-document corpus
+(`frontend/public/landing/run.json`).
 Tasks run one at a time (`backend/api/main.py` starts one worker); a task
 submitted while another runs waits in the queue and shows its position. For a
 fixed demo slot, run a few scenarios live and pre-run the rest; their full
@@ -129,8 +131,27 @@ under "Must not appear" below are what a human checks.
 
 The classification and hold behaviour stated for each scenario come from
 running the workbench's own analyzer (`backend/core/analyzer.py`) and approval
-rules (`PolicyGateway.approval_requirement`) on the exact prompt. They were not
-observed in a live run; check them against the trace.
+rules (`PolicyGateway.approval_requirement`) on the exact prompt, and then
+running the prompt's retrieval as its account through `POST
+/api/knowledge/search`, which is scoped exactly as the agent's retrieval is. A
+run's class rises to its most sensitive evidence before the approval gate
+reads it, so the analyzer alone no longer predicts a hold. Checked on 23 Sep
+2026:
+
+| Scenario | Account | Class from the prompt | Class after retrieval | Held by class |
+|---|---|---|---|---|
+| 1 | engineer | normal | **restricted** (ENG-DBM-2104 §4) | yes |
+| 2 | operator, engineer | normal | confidential | no |
+| 3 | operator | normal | confidential | no |
+| 3 | engineer | normal | **restricted** (ENG-DBM-2104) | yes |
+| 4, 8 (variant), 10, 11 | engineer | normal | confidential | no |
+| 8 | engineer | normal | **restricted** (ENG-DBM-2104) | yes |
+| 9 | operator | sensitive | sensitive | yes |
+
+Scenarios 5, 6 and 7 attach files, and a scan's retrieval query includes what
+the vision model read, so they cannot be predicted this way. Any run is also
+held when a verification check fails. Check every prediction against the
+trace.
 
 ### Scenario 1 — A precise answer, cited to the clause
 
@@ -141,8 +162,21 @@ What severity applies when cladding damage exceeds 20% of an insulated section, 
 ```
 
 **Pipeline.** Classified `question_answering`, normal. No plan (a single
-retrieval question). Stages: retrieve, draft, verify. It is delivered, or
-held only if a verification check fails.
+retrieval question). Stages: retrieve, draft, verify. Then the run is
+**raised to restricted and held**, even when every check passes. Retrieval
+for this prompt is deterministic, and its fifth passage is ENG-DBM-2104 §4,
+"Protection Against Corrosion Under Insulation", from the Restricted design
+memo (score 0.716, level with the Confidential passages around it). An answer
+is at least as sensitive as what the model was shown, so the classification
+rises before the approval gate reads it, and `sensitive_classification`
+holds it for a reviewer. The held line reads *Held for administrator or
+reviewer · evidence S5 (ENG-DBM-2104) is restricted, so the run is restricted
+too*.
+
+**How to say it.** "It asked a routine question. Retrieval admitted a
+Restricted memo into the model's context, so the answer is treated as
+Restricted and a reviewer signs it off. The model's confidence played no
+part; the policy file did." Then sign in as `reviewer` to release it.
 
 **Correct answer.**
 - Severity **Medium**: SOP-MNT-022 §4.1 (cladding damage over 20% of an
@@ -222,14 +256,17 @@ The expenditure bands of SOP-OPS-008 §2.9–2.11 may be quoted.
 **Must not appear (operator).** "₹42 lakh", or any detail of the replacement
 design.
 
-**How to show it.** Open the Registry as the operator. ENG-DBM-2104 is listed
-with its Restricted tag, because the document list is not filtered by
-clearance at the time of writing. The operator's evidence list contains no
-passage from it. The title is visible; the content is withheld.
+**How to show it.** Open the Registry as each account. The operator sees six
+documents and ENG-DBM-2104 is not among them: the catalogue is filtered by
+department and clearance, so an account cannot learn even the title of a
+document it may not read. The engineer sees twelve, the memo with its
+Restricted tag. The operator's evidence list contains no passage from it.
 
-**Honest note.** The engineer's run is labelled *normal* even though it used
-a Restricted passage. The analyzer escalates a task's classification from its
-attachments, not from retrieved passages. Say so if asked.
+**What the engineer's run shows.** It is raised from *normal* to
+*restricted*, because its evidence includes the Restricted memo, and held
+for a reviewer. The held reason names the passage and the document. The audit
+trail records the raise as `classification_raised`, with the evidence ids
+that caused it.
 
 ### Scenario 4 — A calculation from the knowledge base, recomputed independently
 
@@ -401,7 +438,10 @@ What hydrostatic test pressure does our procedure require after a weld repair on
 ```
 
 **Pipeline.** `question_answering`, normal. Retrieval finds passages about
-tests and pressures, none of which addresses hydrostatic testing.
+tests and pressures, none of which addresses hydrostatic testing. Because the
+prompt names V-2104, two of them come from the Restricted design memo for its
+replacement, so the run is raised to restricted and held whatever the answer
+says. The honest answer is still the one to look for.
 
 **Correct answer.** No procedure in the knowledge base sets a hydrostatic
 test requirement. The answer should say so in one sentence and name what
@@ -534,9 +574,12 @@ Pre-run Scenarios 2 (both accounts), 3 (both accounts), 4, 5, 7 and 10. Then
 live:
 
 1. **Scenario 1**: the grounded answer. Open a citation to show that §5.2
-   names only the Head of Inspection.
-2. **Scenario 3**: open the pre-run pair side by side, then show the
-   operator's Registry listing the Restricted memo it could not read.
+   names only the Head of Inspection, then read the held line: retrieval
+   admitted a Restricted memo, so the run is Restricted and waits for a
+   reviewer.
+2. **Scenario 3**: open the pre-run pair side by side, then the two Registry
+   listings: six documents for the operator, twelve for the engineer, and the
+   Restricted memo only in the second.
 3. **Scenario 6**: start it, walk through Scenarios 4 and 7 from Tasks while
    it runs, then approve it as `reviewer`.
 4. **Scenario 8**: the honest "not in the corpus".
