@@ -1,5 +1,3 @@
-'use client'
-
 import { cn } from '@/lib/utils'
 
 interface AegisLogoProps {
@@ -9,6 +7,27 @@ interface AegisLogoProps {
   iconClassName?: string
 }
 
+/**
+ * One shape, one idea.
+ *
+ * The previous mark carried six: a dashed "cybernetic grid" ring, a shield
+ * outline, an "A" vertex, a green "air-gap core pulse diamond", and two
+ * "radar ticks" that protruded past the shield at either end. It is drawn at
+ * 26px in the header, where a 0.75px stroke at 25% opacity is not subtle --
+ * it is absent, and paid for anyway. Six ideas at 26px is one smudge.
+ *
+ * What is left is the only idea the product has: a shield, because that is
+ * what the word means, with the ledger cut out of it. Three slots, knocked
+ * through as negative space rather than drawn on top, so the mark is a single
+ * filled path that inherits currentColor and reads at any size on any ground.
+ * The slots step inward as they descend, which is the one gesture: each
+ * record narrower than the one it rests on, the way each hash commits to the
+ * one before it.
+ *
+ * No box behind it and no hover scale. The mark sat in a filled rounded
+ * square that inverted it against everything around it, and grew when a
+ * pointer neared -- motion with nothing to report.
+ */
 export function AegisLogo({
   className,
   size = 32,
@@ -16,72 +35,41 @@ export function AegisLogo({
   iconClassName,
 }: AegisLogoProps) {
   return (
-    <div className={cn('inline-flex items-center gap-3 select-none', className)}>
-      {/* Bespoke Geometric Aegis Shield Mark */}
-      <div
-        className={cn(
-          'relative flex items-center justify-center shrink-0 rounded-[6px] bg-foreground text-background shadow-xs transition-transform duration-200 group-hover:scale-[1.03]',
-          iconClassName,
-        )}
-        style={{ width: size, height: size }}
+    <div className={cn('inline-flex select-none items-center gap-2.5', className)}>
+      <svg
+        viewBox="0 0 24 24"
+        width={size}
+        height={size}
+        fill="none"
+        aria-hidden
+        className={cn('shrink-0 text-foreground', iconClassName)}
       >
-        <svg
-          viewBox="0 0 36 36"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-[78%] h-[78%]"
-        >
-          {/* Subtle Cybernetic Grid / Background Ring */}
-          <circle
-            cx="18"
-            cy="18"
-            r="14.5"
-            stroke="currentColor"
-            strokeWidth="0.75"
-            strokeDasharray="2 3"
-            strokeOpacity="0.25"
-          />
+        {/*
+          evenodd is what makes the slots holes rather than bars: one path,
+          so there is no second colour to keep in step with the ground it is
+          drawn on.
+        */}
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M12 1.5 21.5 5.6V12c0 5.2-3.8 9.3-9.5 10.5C6.3 21.3 2.5 17.2 2.5 12V5.6L12 1.5Z
+             M6.9 8.4h10.2v2.1H6.9V8.4Z
+             M7.7 12.2h8.6v2.1H7.7v-2.1Z
+             M9 16h6v2.1H9V16Z"
+          fill="currentColor"
+        />
+      </svg>
 
-          {/* Aegis Outer Protective Shield Facets */}
-          <path
-            d="M18 4.5L29 9.5V17.5C29 24.2 24.3 29.8 18 31.5C11.7 29.8 7 24.2 7 17.5V9.5L18 4.5Z"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Inner Geometric Alpha / Aegis Core Vertex */}
-          <path
-            d="M18 9.5L24 22H20.5L18 16.5L15.5 22H12L18 9.5Z"
-            fill="currentColor"
-            fillOpacity="0.95"
-          />
-
-          {/* Central Air-Gap Core Pulse Diamond */}
-          <path
-            d="M18 20L19.8 23L18 26L16.2 23L18 20Z"
-            fill="var(--sovereign)"
-            className="transition-colors group-hover:fill-[var(--sovereign)]"
-          />
-
-          {/* Subtle Top Radar Ticks */}
-          <line x1="18" y1="2" x2="18" y2="4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          <line x1="18" y1="31.5" x2="18" y2="34" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-      </div>
-
-      {/* Typography for 'full' and 'compact' variants */}
       {variant !== 'mark' && (
         <div className="flex flex-col leading-none">
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[13px] font-black uppercase tracking-[0.24em] text-foreground">
-              AEGIS
-            </span>
-            <span className="h-1 w-1 rounded-full bg-[var(--sovereign)]" />
-          </div>
-          <span className="mt-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.34em] text-foreground-muted">
-            {variant === 'compact' ? 'WORKBENCH' : 'AGENTIC WORKBENCH'}
+          {/*
+            0.24em tracking at font-black, over a 0.34em sub, is the setting
+            of a logo that does not trust its own mark. Normal weight, normal
+            tracking; the shield is doing the work.
+          */}
+          <span className="text-[14px] font-medium tracking-[0.02em] text-foreground">AEGIS</span>
+          <span className="mt-[3px] font-mono text-[9px] uppercase tracking-[0.14em] text-foreground-muted">
+            {variant === 'compact' ? 'Workbench' : 'Agentic Workbench'}
           </span>
         </div>
       )}
