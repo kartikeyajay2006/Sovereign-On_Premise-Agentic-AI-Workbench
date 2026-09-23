@@ -44,6 +44,44 @@ LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 # it had in fact used.
 CITATION_PATTERN = re.compile(r"\[(?:[SFVCE])\d+\]")
 NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
+# Where a claim POINTS rather than what it SAYS: clause and section numbers
+# and document codes. They are removed before figures are compared, because
+# a claim reading "Clause 5 requires quarterly lubrication [S3]" shared the
+# "5" with any passage containing "5.2 Medium ..." and was corroborated by it,
+# whatever it asserted. Citing a clause number is not agreeing with it.
+#
+# Citation markers too. "[S4]" carries a digit, and the claim "The approving
+# authority for a Medium finding is the Head of Inspection [S4]" was being
+# corroborated by the 4 in its own citation id matching "below 4 years" in
+# the passage -- a test asserting that claim was supported had been passing
+# on that digit alone.
+REFERENCE_PATTERN = re.compile(
+    r"(?:\b(?:clause|section|sections|para|paragraph|table|rev(?:ision)?)\s*|§\s*)"
+    r"\d+(?:\.\d+)*"
+    r"|\[[A-Z]\d+\]"
+    r"|\b[A-Z]{2,}(?:-[A-Z]{2,})*-\d+\b",
+    re.IGNORECASE,
+)
+
+
+def _figures(text: str) -> set[str]:
+    """The quantities in a sentence, stripped of the references it cites.
+
+    A lone single digit is not a figure worth matching on: "1", "4" and "5"
+    appear in nearly every numbered passage, so a match on one says nothing
+    about whether the passage carries the claim. A decimal, a figure of two
+    or more digits, or a digit written with its unit or a percent sign still
+    counts -- "20%", "0.55 mm/yr", "24 months" all do.
+    """
+    stripped = REFERENCE_PATTERN.sub(" ", text)
+    figures: set[str] = set()
+    for match in re.finditer(r"-?\d+(?:\.\d+)?(\s*(?:%|mm|cm|m\b|kg|bar|psi|kpa|mpa|°c|years?|months?|days?|hours?|hrs?))?", stripped, re.IGNORECASE):
+        number = match.group(0).strip()
+        digits = re.sub(r"[^\d.]", "", number)
+        has_unit = bool(match.group(1))
+        if has_unit or "." in digits or len(digits.replace(".", "")) >= 2:
+            figures.add(re.match(r"-?\d+(?:\.\d+)?", number).group(0))
+    return figures
 
 
 def _coerce_number(value: Any) -> float | None:
@@ -83,11 +121,15 @@ def _corroborates(claim: str, excerpt: str) -> bool:
     which is why a failed check holds the task for a human rather than
     rewriting the answer.
     """
-    numbers = set(NUMBER_PATTERN.findall(claim))
-    if numbers and numbers & set(NUMBER_PATTERN.findall(excerpt)):
+    # Figures only, references stripped first -- see REFERENCE_PATTERN. The
+    # excerpt is stripped too, so its own "5.2" heading cannot match a claim.
+    figures = _figures(claim)
+    if figures and figures & _figures(excerpt):
         return True
 
-    tokens = {word.lower() for word in WORD_PATTERN.findall(claim)}
+    # The words test sees the claim without its references as well, so a
+    # document code or "section" cannot make up one of the matching words.
+    tokens = {word.lower() for word in WORD_PATTERN.findall(REFERENCE_PATTERN.sub(" ", claim))}
     if not tokens:
         return False
     excerpt_tokens = {word.lower() for word in WORD_PATTERN.findall(excerpt)}

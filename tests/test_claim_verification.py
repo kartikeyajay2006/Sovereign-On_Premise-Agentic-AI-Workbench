@@ -24,6 +24,18 @@ S4_FINDINGS_TABLE = (
 )
 
 
+# The same facts as the corpus now carries them: SOP-INS-014 5.2, one
+# decision per clause, restating its own severity, action and authority.
+S4_MEDIUM_CLAUSE = (
+    "### 5.2 Medium Severity\n"
+    "A finding is Medium severity where any of the following applies: remaining "
+    "life below 4 years; active external corrosion; coating breakdown over 20% of "
+    "the surface; insulation damage permitting corrosion under insulation (CUI).\n"
+    "Required action for a Medium finding: repair within the current shutdown window.\n"
+    "Approval authority for a Medium finding: Head of Inspection."
+)
+
+
 class TestWhichSentencesAreClaims:
     def test_a_cited_sentence_is_a_material_claim(self):
         """The gap that produced "1 of 1 ... (100%)" on a three-claim answer.
@@ -72,8 +84,15 @@ class TestCitingIsNotSupport:
         assert ids == []
 
     def test_a_claim_citing_a_passage_that_carries_it_is_supported(self):
+        """Supported on its words -- authority, Medium, finding, Inspection.
+
+        Against the old table fixture this passed only because the 4 in the
+        citation id [S4] matched "below 4 years" in the passage; references
+        and citation markers no longer count as figures. The clause is the
+        one the corpus now carries: SOP-INS-014 5.2, as numbered prose.
+        """
         engine = get_verification_engine()
-        evidence = [_evidence("S4", S4_FINDINGS_TABLE)]
+        evidence = [_evidence("S4", S4_MEDIUM_CLAUSE)]
         ok, ids = engine._claim_supported(
             "The approving authority for a Medium finding is the Head of Inspection [S4].",
             evidence,
@@ -135,3 +154,32 @@ class TestShortClaims:
             "The severity is Critical",
             "Insulation shall be inspected every 24 months by a competent person.",
         ) is False
+
+
+class TestReferencesAreNotAgreement:
+    """Citing a clause number is not agreeing with it.
+
+    Any shared number used to corroborate, and small integers appear in nearly
+    every numbered passage, so "Clause 5 requires ..." matched any passage
+    containing "5.2 ..." whatever it asserted.
+    """
+
+    def test_a_clause_number_alone_does_not_corroborate(self):
+        excerpt = "5.2 Medium. Remaining life below 4 years. Approval authority: Head of Inspection."
+        assert _corroborates("Clause 5 requires quarterly lubrication", excerpt) is False
+
+    def test_a_shared_document_code_does_not_corroborate(self):
+        excerpt = "SOP-INS-014 Clause 3 defines t-min for the shell."
+        assert _corroborates("SOP-INS-014 mandates annual valve replacement", excerpt) is False
+
+    def test_a_lone_single_digit_is_not_a_figure(self):
+        assert _corroborates("There are 4 steps", "Section 4 covers lifting operations.") is False
+
+    def test_real_figures_still_corroborate(self):
+        assert _corroborates("the interval is 24 months", "Inspect every 24 months.") is True
+        assert _corroborates("a rate of 0.55 mm/yr", "measured 0.55 mm/yr at the nozzle") is True
+        assert _corroborates("damage above 20% of the surface", "coating breakdown over 20%") is True
+
+    def test_a_citation_ids_digits_never_corroborate(self):
+        # [S24] must not match "24 months": the id is where the claim points.
+        assert _corroborates("The limit is set out here [S24]", "Inspect every 24 months.") is False
