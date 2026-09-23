@@ -53,6 +53,27 @@
   --muted-foreground: var(--foreground-muted);
   --accent: var(--surface-sunken);
   --accent-foreground: var(--foreground);
+  /* ------------------------------------------------------------------ */
+  /* ACTION                                                              */
+  /*                                                                     */
+  /* The one colour that means "you can do this". Every other hue here   */
+  /* reports a STATE the system found - sovereign proved it, approval    */
+  /* held it, critical refused it - and none of them invite a press, so  */
+  /* nothing on screen said where the action was.                        */
+  /*                                                                     */
+  /* Lime, because it belongs to no status in this palette and reads as  */
+  /* interactive rather than as a verdict. Measured on the dark ground:  */
+  /* 15.43:1 as text, and 15.43:1 for near-black ink on an action fill,  */
+  /* so it carries a label either way. Its hue sits clear of sovereign   */
+  /* green (#16a34a), which is the one confusion that would cost         */
+  /* something.                                                          */
+  /*                                                                     */
+  /* It is rationed. A screen with two action colours has none.          */
+  --action: #dcf23c;
+  --action-ink: var(--background);
+  --action-wash: oklch(from var(--action) l c h / 12%);
+  /* ------------------------------------------------------------------ */
+
   --destructive: var(--critical);
   --destructive-foreground: #ffffff;
   --input: var(--border);
@@ -325,12 +346,36 @@
   /* milliseconds and decays over 150. Transitioning both directions is  */
   /* what makes an interface feel laggy on hover.                        */
   /* ------------------------------------------------------------------ */
-  --dur-tick:   90ms;    /* a glyph or colour flipping in place        */
-  --dur-state: 160ms;    /* a stage changing status                    */
-  --dur-enter: 240ms;    /* a new row arriving in a ledger             */
-  --dur-panel: 320ms;    /* a drawer or rail opening                   */
-  --dur-hold:  480ms;    /* the denial settle                          */
-  --dur-seal:  640ms;    /* the certificate signature, used once       */
+  /* THREE TIERS, by what the motion is FOR.                            */
+  /*                                                                    */
+  /* Six durations and five easings were in use, which is not a scale —  */
+  /* it is the residue of choosing at the call site. 90/160/240 are not  */
+  /* distinguishable to an eye that is reading, so three values that     */
+  /* differ by purpose carry more than six that differ by 70ms.          */
+  /*                                                                    */
+  /*   micro     feedback under the pointer: hover, press, a glyph       */
+  /*   standard  a thing changing state: a stage, a status, a value      */
+  /*   spatial   a thing occupying space: a rail, a drawer, a row        */
+  /*             opening out of the object that owns it                  */
+  /*                                                                    */
+  /* Spatial gets the decelerating curve because an object that moves    */
+  /* into place should arrive, not stop.                                 */
+  --micro:    120ms;
+  --standard: 200ms;
+  --spatial:  300ms;
+
+  --ease-micro:    cubic-bezier(0.2, 0, 0, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spatial:  cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* The old names resolve onto the three, so no existing rule has to be */
+  /* rewritten to obey the scale.                                        */
+  --dur-tick:  var(--micro);
+  --dur-state: var(--standard);
+  --dur-enter: var(--standard);
+  --dur-panel: var(--spatial);
+  --dur-hold:  480ms;    /* the denial settle — deliberately outside    */
+  --dur-seal:  640ms;    /* the certificate signature, used once        */
 
   --hover-in:  0ms;
   --hover-out: 150ms;
@@ -558,6 +603,9 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-action: var(--action);
+  --color-action-ink: var(--action-ink);
+  --color-action-wash: var(--action-wash);
   --color-destructive: var(--destructive);
   --color-border-token: var(--border);
   --color-input: var(--input);
@@ -819,13 +867,19 @@
   line-height: var(--lh-body);
 }
 
-/* Exactly one filled button may be visible in one decision context. */
+/* Exactly one filled button may be visible in one decision context.
+ *
+ * Filled in the action colour, not in ink. A white-on-black button is the
+ * same two values as the page's body text, so the one control the reader is
+ * meant to press looked like a paragraph that had been inverted. This is the
+ * only place the action colour is spent, which is what keeps it meaning
+ * anything. */
 .btn[data-variant='primary'] {
-  background: var(--foreground);
-  color: var(--background);
+  background: var(--action);
+  color: var(--action-ink);
 }
 .btn[data-variant='primary']:hover {
-  background: oklch(from var(--foreground) calc(l + 0.08) c h);
+  background: oklch(from var(--action) calc(l + 0.06) c h);
 }
 
 .btn[data-variant='secondary'] {
