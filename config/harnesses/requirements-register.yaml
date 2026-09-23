@@ -1,0 +1,72 @@
+# Requirements register.
+#
+# Fans out over the sections actually indexed in the knowledge base -- not a
+# list someone typed -- for one department, limited to what the person
+# starting the run may retrieve (backend/harness/corpus.py mirrors the
+# knowledge_search scoping rules). One governed task per section asks what
+# that section requires; the report groups the answers by document into a
+# register with the clauses each requirement was traced to.
+#
+# The register is a compliance artefact, so its report is held until someone
+# holding approval.decide releases it. The children are gated individually as
+# well; this flag adds a signature on the aggregate, it removes nothing.
+#
+# The template avoids classification-changing words for the same reason as
+# sop-question-sweep.yaml. A section whose own title carries one ("Approval
+# Note Requirements" scores as sensitive) is held on its own merits.
+
+id: requirements-register
+version: 1
+name: Requirements register
+summary: Turn every indexed section of a department's procedures into a cited register of what each one requires.
+description: >-
+  Lists the sections of the procedures indexed for a department — only those
+  your role may retrieve — and runs one governed task per section asking what
+  it requires. The report is a register grouped by document: each section's
+  requirements as the model stated them, the clauses they were traced to, and
+  the claims the verifier could not trace. A reviewer signs the register off
+  before it is released.
+
+inputs:
+  - id: department
+    kind: choice
+    label: Department
+    options_from: departments
+    default_from: user_department
+    help: Sections are listed from documents indexed under this department. Your role's retrieval scope still applies.
+
+  - id: document_filter
+    kind: text
+    label: Document filter
+    required: false
+    max_chars: 80
+    placeholder: SOP-INS-014
+    help: Optional. Only documents whose title contains this text.
+
+expansion:
+  source: knowledge_sections
+  department_input: department
+  document_filter_input: document_filter
+  label: "{document_code} · {section}"
+  template: |-
+    List every requirement stated in {document}, section "{section}".
+    Give each requirement as the procedure words it, with its clause number and citation. If the section states no requirement, say so plainly.
+
+aggregation: requirements_register
+
+report:
+  title: Requirements register
+  requires_approval: true
+  limitations:
+    - >-
+      Each section is answered from passages retrieved for that section's
+      question. Retrieval ranks by similarity, so a run can draw on a
+      neighbouring section as well; the sources column shows which passages
+      each answer actually cites.
+    - >-
+      Requirements are listed as the model restated them. The register is not
+      a verbatim extract of the procedure; the cited clause is the authority.
+
+limits:
+  max_items: 25
+  child_timeout_seconds: 1800

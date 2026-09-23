@@ -1,0 +1,81 @@
+# SOP question sweep.
+#
+# One ordinary task per question, run one after another. Each child is
+# classified, checked against policy, grounded in retrieval, verified and --
+# where the approval rules say so -- held for a reviewer, exactly as if it
+# had been typed into the thread. This file decides only what each child is
+# ASKED; it cannot relax any control.
+#
+# Wording of the template matters beyond style:
+#
+# * It names "standard operating procedures (SOPs)" so every child retrieves,
+#   whatever its task type. The analyzer always retrieves for question
+#   answering and analysis, but a question it scores as a calculation only
+#   retrieves on a trigger word, and "sop" is one (config/classification.yaml
+#   retrieval.trigger_patterns).
+# * It avoids every word that would change a child's classification: safety,
+#   hazard, shutdown, incident, statutory, regulatory, confidential. One of
+#   those in the template would mark EVERY child sensitive and hold them all.
+#   When a question needs that treatment the word comes from the question,
+#   and that child alone is held -- which is the gate doing its job.
+#
+# tests/test_harness_expansion.py runs these templates through the real
+# analyzer and approval rules to hold both properties.
+
+id: sop-question-sweep
+version: 1
+name: SOP question sweep
+summary: Ask up to 25 questions of the procedure corpus and get back a verified answer matrix.
+description: >-
+  Each question runs as its own governed task, one after another, and is
+  answered only from the procedures your role may retrieve. The result is a
+  matrix with one row per question: its outcome, how many of its material
+  claims the verifier traced to a retrieved passage, the clauses it cites,
+  and a link to the full run. Held, refused and failed questions are counted
+  and shown as such, never folded into the answers.
+
+inputs:
+  - id: questions
+    kind: lines
+    label: Questions
+    help: One question per line. Each line becomes its own run.
+    placeholder: |-
+      What is the external inspection interval for a vessel in corrosive service?
+      Who approves a Medium severity finding, and within what time must it be repaired?
+      When must a Fitness-For-Service assessment be raised?
+    min_items: 1
+    max_items: 25
+    max_chars: 400
+
+  - id: context
+    kind: text
+    label: Standing context
+    required: false
+    help: Optional. Added to every question — the equipment, service or situation they concern.
+    placeholder: Vessel V-2104, crude overhead knock-out drum, sour hydrocarbon service
+    max_chars: 400
+    render: "Context: {value}"
+
+expansion:
+  source: input_lines
+  input: questions
+  label: "{item}"
+  template: |-
+    {item}
+    {context}
+    Answer from our standard operating procedures (SOPs). Cite the governing clause for each requirement you state.
+
+aggregation: answer_matrix
+
+report:
+  title: SOP question sweep
+  requires_approval: false
+  limitations:
+    - >-
+      Questions are answered independently from whatever retrieval returned for
+      each one. Two rows can cite different clauses for related questions; the
+      harness does not reconcile them.
+
+limits:
+  max_items: 25
+  child_timeout_seconds: 1800

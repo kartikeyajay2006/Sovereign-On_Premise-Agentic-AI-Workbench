@@ -1,0 +1,79 @@
+# Obligation coverage check.
+#
+# A gap analysis: a list of obligations from outside the procedure set -- a
+# client specification, an inspection code, an audit checklist -- each checked
+# against the SOPs by its own governed task. The answer names the clause that
+# covers the obligation or says plainly that none does.
+#
+# The harness does not turn those answers into a covered / not-covered
+# verdict. That judgement would be the model's sentence restated as the
+# system's finding, and the verifier can only say whether a cited clause is
+# ABOUT the obligation, not whether it satisfies it. The report shows each
+# answer with its traced claims and leaves the call to the reviewer, who
+# signs the aggregate off before it is released.
+#
+# "Does our" is deliberate: it is a question-answering pattern in
+# config/classification.yaml, so a child is analysed as a question rather
+# than defaulting with low confidence. The template avoids
+# classification-changing words, as the other two definitions do.
+
+id: obligation-coverage-check
+version: 1
+name: Obligation coverage check
+summary: Check external obligations against the procedure corpus, one governed run per obligation.
+description: >-
+  Paste the obligations from a specification, code or audit checklist. Each
+  is checked against the procedures your role may retrieve, as its own
+  governed run: which SOP clause covers it, cited, or a plain statement that
+  none does. The harness reports each answer with the claims the verifier
+  traced; it does not decide coverage itself. A reviewer signs the result
+  off before it is released.
+
+inputs:
+  - id: obligations
+    kind: lines
+    label: Obligations to check
+    help: One obligation per line, worded as the source document states it.
+    placeholder: |-
+      Thickness measurements shall be recorded and retained for the life of the vessel.
+      Inspection intervals shall not be extended without a documented assessment.
+      Corrosion under insulation shall be inspected where the operating temperature favours it.
+    min_items: 1
+    max_items: 25
+    max_chars: 400
+
+  - id: source_reference
+    kind: text
+    label: Where these come from
+    required: false
+    max_chars: 160
+    placeholder: Client inspection specification CIS-07, rev 2
+    help: Optional. Named in every run so the answer can refer to it.
+    render: "Source of the obligation: {value}"
+
+expansion:
+  source: input_lines
+  input: obligations
+  label: "{item}"
+  template: |-
+    Obligation: {item}
+    {source_reference}
+    Does our SOP set cover this obligation? Name the SOP clause that covers it, with its citation. If no SOP clause covers it, say so plainly and do not stretch a clause to fit.
+
+aggregation: answer_matrix
+
+report:
+  title: Obligation coverage check
+  requires_approval: true
+  limitations:
+    - >-
+      Coverage is the model's reading, not the harness's finding. A traced
+      claim shows the cited clause is about the obligation; it does not show
+      the clause satisfies it. The reviewer decides coverage.
+    - >-
+      "Not covered" means no clause was found in the documents your role could
+      retrieve, which is not the same as no clause existing anywhere.
+
+limits:
+  max_items: 25
+  child_timeout_seconds: 1800
