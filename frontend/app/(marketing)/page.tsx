@@ -3,6 +3,7 @@ import { ChainCard } from '@/components/landing/chain-card'
 import { CommandBlock } from '@/components/landing/command-block'
 import { DisplayHeading } from '@/components/landing/display-heading'
 import { CHAIN, HERO, LIMITS, PREMISE, PROOF, RUN, RUN_IT } from '@/components/landing/copy'
+import { HeroField } from '@/components/landing/hero-field'
 import { LandingButton } from '@/components/landing/landing-button'
 import { LimitList } from '@/components/landing/limit-list'
 import { LiveContainment } from '@/components/landing/live-containment'
@@ -42,16 +43,28 @@ export default function LandingPage() {
           the page has a surface rather than being a white void, which is
           the difference between "restrained" and "unfinished".
         */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 1px 1px, oklch(0.275 0.0255 84.57 / 0.16) 1px, transparent 0)',
-            backgroundSize: '28px 28px',
-            maskImage: 'radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%)',
-            WebkitMaskImage: 'radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%)',
-          }}
+        {/*
+          The chain, building. Replaces a static dot grid: the page argued
+          that every record commits to the one before it while nothing on it
+          moved. Masked hard at the edges so it never competes with the
+          headline sitting on top of it, and it renders nothing at all under
+          prefers-reduced-motion.
+        */}
+        <HeroField
+          // z-0, not -z-10.
+          //
+          // A negative z-index child paints behind the background of its
+          // nearest ancestor that has one, and the app shell sets an opaque
+          // rgb(16,14,11). So everything here at -z-10 -- this field, and the
+          // dot grid and radial pool that preceded it -- was rendering
+          // perfectly and being covered by the page's own background. The
+          // gradients were invisible for as long as they have existed.
+          //
+          // Bounded to the headline band: the hero is 1655px tall because it
+          // carries the product shot and the receipt below the fold, so a
+          // full-height canvas put the chain at y=860, behind the screenshot
+          // and off the first screen.
+          className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[560px] w-full"
         />
         <div
           aria-hidden
@@ -66,7 +79,7 @@ export default function LandingPage() {
           }}
         />
 
-        <div className={SHELL}>
+        <div className={`${SHELL} relative z-10`}>
           {/*
             Centred, not left-aligned.
 
