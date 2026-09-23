@@ -61,7 +61,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+/**
+ * Exported so a feature can own its endpoints in its own folder rather than
+ * every new surface appending to this file. Same auth, same error type, same
+ * base URL -- one transport, many callers.
+ */
+export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken()
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
