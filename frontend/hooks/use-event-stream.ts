@@ -66,9 +66,13 @@ export function useEventStream(options: EventStreamOptions = {}) {
     // wires Task.queue_position end to end, and nothing was listening.
     //
     // Sourced from the publish() and _emit() call sites in
-    // backend/agents/orchestrator.py, backend/api/task_service.py and
-    // backend/security/sovereignty.py. Adding a new event on the backend means
-    // adding it here in the same change.
+    // backend/agents/orchestrator.py, backend/api/task_service.py,
+    // backend/security/sovereignty.py and backend/harness/service.py. Adding a
+    // new event on the backend means adding it here in the same change. The
+    // harness events shipped without that, so a harness run's progress
+    // reached the browser and was dropped here; they carry ids and counts
+    // only, and a run-level one has no task id, so a consumer must switch on
+    // the event name, as every consumer here does.
     const namedEvents = [
       'task.created',
       'task.queued',
@@ -96,6 +100,11 @@ export function useEventStream(options: EventStreamOptions = {}) {
       'task.cancelled',
       'sovereignty.status',
       'sovereignty.error',
+      'harness.started',
+      'harness.child',
+      'harness.cancelling',
+      'harness.finished',
+      'harness.report',
     ]
 
     namedEvents.forEach((eventName) => {
