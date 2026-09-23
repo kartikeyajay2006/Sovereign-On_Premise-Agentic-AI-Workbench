@@ -32,6 +32,14 @@ export interface RevealProps {
  * observer never fires, if JS fails, if the page is captured without
  * scrolling, the reader still sees everything. Motion is decoration here and
  * decoration must never be load-bearing.
+ *
+ * On the spatial tier -- var(--spatial), var(--ease-spatial) -- because a
+ * block entering the page is a thing occupying space, and that is the tier's
+ * definition in globals.css. It used to run on its own 320ms and its own
+ * curve, a fourth duration beside the three the product has. The travel is
+ * --shift-md and the step is --stagger, both of which globals.css already
+ * zeroes under reduced motion, so the contract holds even before the
+ * motion-reduce classes below apply.
  */
 export function Reveal({ children, step = 0, className }: RevealProps) {
   const { ref, inView } = useReveal<HTMLDivElement>()
@@ -40,14 +48,14 @@ export function Reveal({ children, step = 0, className }: RevealProps) {
     <div
       ref={ref}
       data-inview={inView ? 'true' : 'false'}
-      style={{ transitionDelay: `${step * 60}ms` }}
+      style={{ transitionDelay: `calc(var(--stagger) * ${step})` }}
       className={cn(
         // Visible first. The transition only ever runs from here to here.
-        'opacity-100 transition-[opacity,transform] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
-        // The lift is the whole effect, and it is 6px. An element that has not
+        'opacity-100 transition-[opacity,transform] duration-[var(--spatial)] ease-[var(--ease-spatial)]',
+        // The lift is the whole effect, and it is 8px. An element that has not
         // been seen yet sits fractionally low and settles; one that is already
         // on screen at load simply never moves.
-        'translate-y-[6px] data-[inview=true]:translate-y-0',
+        'translate-y-[var(--shift-md)] data-[inview=true]:translate-y-0',
         'motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:[transition-delay:0ms]',
         className,
       )}

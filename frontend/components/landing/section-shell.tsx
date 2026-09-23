@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { DisplayHeading } from './display-heading'
+import { Reveal } from './reveal'
 import { MONO_LABEL, MONO_META, PROSE, SECTION_LEDE, SECTION_TITLE, SHELL } from './tokens'
 
 export interface SectionShellProps {
@@ -80,26 +81,33 @@ export function SectionShell({
       )}
     >
       <div className={SHELL}>
-        <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
-          <span className={MONO_LABEL}>{eyebrow}</span>
-          <span className={MONO_META}>{index}</span>
-        </div>
+        {/*
+          The section's entrance: the heading group settles first, and each
+          block of content under it carries its own Reveal one stagger step
+          behind. Visible from first paint either way -- see reveal.tsx.
+        */}
+        <Reveal>
+          <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
+            <span className={MONO_LABEL}>{eyebrow}</span>
+            <span className={MONO_META}>{index}</span>
+          </div>
 
-        {titleTurn ? (
-          <DisplayHeading
-            id={headingId}
-            as="h2"
-            scale="section"
-            lead={title}
-            turn={titleTurn}
-            className="mt-6"
-          />
-        ) : (
-          <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-6 max-w-[22ch]')}>
-            {title}
-          </h2>
-        )}
-        {lede ? <p className={cn(SECTION_LEDE, PROSE)}>{lede}</p> : null}
+          {titleTurn ? (
+            <DisplayHeading
+              id={headingId}
+              as="h2"
+              scale="section"
+              lead={title}
+              turn={titleTurn}
+              className="mt-6"
+            />
+          ) : (
+            <h2 id={headingId} className={cn(SECTION_TITLE, 'mt-6 max-w-[22ch]')}>
+              {title}
+            </h2>
+          )}
+          {lede ? <p className={cn(SECTION_LEDE, PROSE)}>{lede}</p> : null}
+        </Reveal>
 
         <div className="mt-8 md:mt-10">{children}</div>
       </div>

@@ -23,13 +23,14 @@ export const PROSE = 'max-w-[62ch]'
 /**
  * Uppercase mono micro-label, over machine-readable data only.
  *
- * --text-meta (11px/16px). Tracking is 0.08em, never the 0.22em the old
- * TechnicalLabel used -- that reads as costume. Ink is --foreground-secondary
- * (6.27:1 on paper) and never --foreground-muted, which is 3.33:1 and fails AA
- * at exactly the size it was being used at.
+ * --text-meta (11px/16px). Tracking is the product's own --ls-ledger (0.06em),
+ * the value the console's mono labels use, so a label reads the same on this
+ * page as on the screen it describes -- never the 0.22em the old
+ * TechnicalLabel used, which reads as costume. Ink is --foreground-secondary
+ * (8.75:1 on the dark ground) and never --foreground-muted at this weight.
  */
 export const MONO_LABEL =
-  'font-mono text-meta font-medium uppercase tracking-[0.08em] text-foreground-secondary'
+  'font-mono text-meta font-medium uppercase tracking-[var(--ls-ledger)] text-foreground-secondary'
 
 /** A machine value: id, hash, host, path, sequence number. --text-ui (12px). */
 export const MONO_VALUE = 'font-mono text-ui font-[425] text-foreground-secondary'
@@ -51,9 +52,22 @@ export const SECTION_LEDE = 'mt-4 text-heading font-normal text-foreground-secon
 export const CARD = 'rounded-[4px] border border-border bg-surface'
 
 /**
+ * The action fill: lime, near-black ink, and the same +0.06 OKLCH lightness
+ * lift on hover as .btn[data-variant='primary'] in globals.css, so a landing
+ * control and a product button that mean "you can do this" behave alike.
+ *
+ * At most one per decision context. On this page that is the hero's primary
+ * call to action, and the one control in the proof section that changes what
+ * the reader is looking at.
+ */
+export const ACTION_FILL =
+  'bg-action text-action-ink hover:bg-[oklch(from_var(--action)_calc(l_+_0.06)_c_h)]'
+
+/**
  * Focus ring: 2px of ink with a 2px gap in the ground colour, so it reads on
- * both #f7f7f5 and #ffffff. Ink rather than an accent hue -- --foreground on
- * --background is 19.2:1, and the old --ring #8a8783 was 3.33:1 on paper.
+ * the page ground and on a raised surface alike. Ink rather than an accent
+ * hue: --foreground is 16.45:1 on --background and 15.27:1 on --surface in
+ * the dark palette this page ships.
  */
 export const FOCUS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background'
@@ -74,12 +88,13 @@ export const CONTROL = {
 /**
  * The outline control boundary.
  *
- * --border-strong (#c8c5bf) is 1.42:1 against paper and fails WCAG 2.2 SC
- * 1.4.11, which requires 3:1 for the visual boundary of a user-interface
- * component. Mixing --foreground into --background at 55% lands at roughly
- * 3.2:1 and introduces no hue: it is the ink and the paper the page already
- * has. Hairlines between rows keep --border, because a row rule is decorative
- * grouping rather than a control boundary.
+ * WCAG 2.2 SC 1.4.11 requires 3:1 for the visual boundary of a user-interface
+ * component, which a hairline token is not built to reach. Mixing
+ * --foreground into --background at 55% introduces no hue -- it is the ink
+ * and the ground the page already has -- and on the dark palette lands at
+ * #807e7a: 4.76:1 against --background and 4.42:1 against --surface. Hairlines
+ * between rows keep --border, because a row rule is decorative grouping
+ * rather than a control boundary.
  */
 export const CONTROL_EDGE =
   'border-[color-mix(in_oklab,var(--foreground)_55%,var(--background))]'

@@ -1,23 +1,23 @@
 {
-  "_comment": "Written by scripts/capture_landing_fixture.py from a real completed run. Never hand-edited. Hashes are truncated to 8 hex characters for display; the full value is kept in hash_full. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
-  "captured_at": "2026-09-21T18:29:36Z",
-  "captured_from": "developer host, ollama loopback, CPU-only, api http://127.0.0.1:8000",
-  "task_id": "e8f1e597-5fca-4c76-b741-aaeb1c96b4d2",
+  "_comment": "Written by scripts/capture_landing_fixture.py from one real finished run. Source: storage/workbench.db opened read-only, and the audit log, on the developer host that ran the task. Run chosen with --task 5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9. Never hand-edited. Receipt-row hashes are truncated to 8 hex characters for display, with the full value in hash_full. audit.tail holds the run's final record and the two written immediately before it, and each `line` is the line exactly as stored in the audit log, so its hash can be recomputed. Values the record does not carry are null, never defaulted. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
+  "captured_at": "2026-09-23T06:23:27Z",
+  "captured_from": "storage/workbench.db opened read-only, and the audit log, on the developer host that ran the task",
+  "task_id": "5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9",
   "status": "awaiting_approval",
-  "prompt": "What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve continued operation? Cite the clauses.",
-  "created_at": "2026-09-21T18:06:09.086887Z",
-  "captured_on": "21 Sep 2026",
-  "duration_ms": 246792,
+  "prompt": "What severity applies when cladding damage exceeds 20% of an insulated section? Cite the clause.",
+  "created_at": "2026-09-22T16:32:47.179239Z",
+  "captured_on": "22 Sep 2026",
+  "duration_ms": 195249,
   "models": [
     "qwen2.5:3b"
   ],
   "cited": {
-    "value": "6 passages from 2 documents",
-    "meta": "SOP-MNT-022 §4. Assessment"
+    "value": "6 passages from 2 documents, 2 cited in the answer",
+    "meta": "SOP-MNT-022 §4 · SOP-INS-014 §5"
   },
   "checked": {
-    "value": "3 of 3 material claims traced to evidence",
-    "meta": "3 of 4 checks passed"
+    "value": "Did not pass verification",
+    "meta": "3 of 4 checks passed · calculation failed"
   },
   "computed": {
     "value": "No code was generated for this run",
@@ -30,7 +30,275 @@
   },
   "recorded": {
     "value": "17 records appended to the audit chain",
-    "meta": "seq 375 · 3cffeb7b",
-    "hash_full": "3cffeb7b8a7387050dc0527d504029818bdd3efdeab7166e0f39df898c6c7a7f"
+    "meta": "seq 648 · 0b087291",
+    "hash_full": "0b087291827228dce80b0e32bd5f016bde5a73aba862016e1ec1a21a26c312e2"
+  },
+  "answer": "The severity is Medium [S1].\n\nThresholds for cladding damage exceeding 20% of an insulated section are defined in SOP-MNT-022, section 4.1. The approving authority for this severity classification is the Head of Inspection + Plant Manager [S4].",
+  "evidence": [
+    {
+      "id": "S1",
+      "rank": 1,
+      "cited": true,
+      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
+      "document_id": "28da3745c2247e054e03ac03",
+      "location": "section: 4. Assessment",
+      "score": 0.7978,
+      "classification": "confidential",
+      "version": "1.0",
+      "excerpt": "## 4. Assessment\n\n4.1 Where cladding damage exceeds 20% of the surface area of an insulated\nsection, that section shall be classified as a **Medium** severity finding\nunder SOP-INS-014 Clause 5.\n\n4.2 Localised pitting discovered beneath insulation shall be measured by pit\ngauge and reported with maximum pit depth and pit density per 100 cm².\n\n4.3 Where remaining wall thickness beneath a CUI site falls below t-min as\ndefined in SOP-INS-014 Clause 3, the finding shall be escalated to **High**\nseverity and the equipment withdrawn from service within 24 hours."
+    },
+    {
+      "id": "S2",
+      "rank": 2,
+      "cited": false,
+      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
+      "document_id": "28da3745c2247e054e03ac03",
+      "location": "section: 3. Inspection Triggers",
+      "score": 0.7056,
+      "classification": "confidential",
+      "version": "1.0",
+      "excerpt": "## 3. Inspection Triggers\n\nAn insulation removal inspection shall be raised when any of the following\nis observed:\n\n- Damaged, missing or displaced cladding\n- Staining, rust bleeding or discolouration at cladding joints\n- Water ingress at penetrations, supports, nozzles or valve boxes\n- Insulation that is soft, compressed or waterlogged to the touch\n- Equipment returning from a shutdown where insulation was disturbed"
+    },
+    {
+      "id": "S3",
+      "rank": 3,
+      "cited": false,
+      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
+      "document_id": "28da3745c2247e054e03ac03",
+      "location": "section: 1. Purpose",
+      "score": 0.6894,
+      "classification": "confidential",
+      "version": "1.0",
+      "excerpt": "## 1. Purpose\n\nTo define the identification, assessment and mitigation of corrosion under\ninsulation on insulated piping and equipment operating within the CUI\nsusceptibility temperature range."
+    },
+    {
+      "id": "S4",
+      "rank": 4,
+      "cited": true,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "069843acdfc495fa7c2b8bfc",
+      "location": "section: 5. Findings Classification",
+      "score": 0.6844,
+      "classification": "confidential",
+      "version": "1.0",
+      "excerpt": "## 5. Findings Classification\n\n| Severity | Definition | Required action | Approval authority |\n|---|---|---|---|\n| High | Immediate threat to containment; thickness below t-min; through-wall defect; failed relief device | Withdraw from service within 24 hours | Head of Inspection + Plant Manager |\n| Medium | Remaining life below 4 years; active external corrosion; coating breakdown over 20% of surface; insulation damage permitting CUI | Repair within the current shutdown window | Head of Inspection |\n| Low | Cosmetic corrosion; minor coating defects; labelling and access deficiencies | Rectify within 6 months | Inspection Engineer |"
+    },
+    {
+      "id": "S5",
+      "rank": 5,
+      "cited": false,
+      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
+      "document_id": "28da3745c2247e054e03ac03",
+      "location": "section: 2. Susceptibility Range",
+      "score": 0.6811,
+      "classification": "confidential",
+      "version": "1.0",
+      "excerpt": "## 2. Susceptibility Range\n\n2.1 Carbon steel equipment operating between **-4 °C and 175 °C** shall be\ntreated as susceptible to CUI.\n\n2.2 Equipment subject to cyclic operation, intermittent service, or steam\ntracing shall be treated as susceptible regardless of normal operating\ntemperature.\n\n2.3 Austenitic stainless steel operating between 50 °C and 175 °C shall be\nassessed for external chloride stress corrosion cracking in addition to CUI."
+    },
+    {
+      "id": "S6",
+      "rank": 6,
+      "cited": false,
+      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
+      "document_id": "28da3745c2247e054e03ac03",
+      "location": "section: 5. Mitigation Hierarchy",
+      "score": 0.68,
+      "classification": "confidential",
+      "version": "1.0",
+      "excerpt": "## 5. Mitigation Hierarchy\n\nMitigation shall be selected in the following order of preference:\n\n1. Remove insulation permanently where thermal requirement no longer exists\n2. Replace with closed-cell, water-repellent insulation systems\n3. Apply a qualified thermal spray aluminium or CUI-resistant coating system\n4. Restore cladding integrity and seal all penetrations\n5. Apply accelerated monitoring where none of the above is practicable"
+    }
+  ],
+  "retrieval": {
+    "mode": "embedding",
+    "duration_ms": 4625,
+    "summary": "6 passage(s) retrieved via embedding search in 4621ms",
+    "policy_decision": "allow"
+  },
+  "verification": {
+    "valid": false,
+    "checks": [
+      {
+        "name": "source_verification",
+        "passed": true,
+        "detail": "1 of 1 material claims are supported by local evidence (100%; threshold 60%).",
+        "warnings": []
+      },
+      {
+        "name": "calculation_verification",
+        "passed": false,
+        "detail": "0 of 3 calculation(s) independently recomputed in the sandbox and matched within 1.00% tolerance.",
+        "warnings": [
+          "Severity: not evaluable",
+          "Threshold for cladding damage: not evaluable",
+          "Approved by: not evaluable"
+        ]
+      },
+      {
+        "name": "code_verification",
+        "passed": true,
+        "detail": "No code was generated or executed for this task.",
+        "warnings": []
+      },
+      {
+        "name": "hallucination_check",
+        "passed": true,
+        "detail": "1 of 1 material claim(s) traceable to local evidence or independent computation.",
+        "warnings": []
+      }
+    ],
+    "material_claims_total": 1,
+    "material_claims_supported": 1,
+    "completed_at": "2026-09-22T16:36:02.361712Z"
+  },
+  "approval": {
+    "required": true,
+    "decision": "pending",
+    "approver_roles": [
+      "administrator",
+      "reviewer"
+    ],
+    "reasons": [
+      "verification_failure: Failed verification cannot be auto-delivered; a human decides."
+    ],
+    "reviewer_name": null,
+    "decided_at": null
+  },
+  "policy_events": [
+    {
+      "action": "model.invoke",
+      "subject": "model:qwen2.5:3b",
+      "decision": "allow",
+      "rule": "models.yaml:approved_classifications",
+      "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
+      "at": "2026-09-22T16:32:47.271168Z"
+    },
+    {
+      "action": "model.invoke",
+      "subject": "model:qwen2.5:3b",
+      "decision": "allow",
+      "rule": "models.yaml:approved_classifications",
+      "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
+      "at": "2026-09-22T16:33:55.033799Z"
+    },
+    {
+      "action": "model.invoke",
+      "subject": "model:qwen2.5:3b",
+      "decision": "allow",
+      "rule": "models.yaml:approved_classifications",
+      "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
+      "at": "2026-09-22T16:35:20.195648Z"
+    }
+  ],
+  "timeline": {
+    "total_ms": 195249,
+    "stages": [
+      {
+        "id": "classify",
+        "ran": true,
+        "ms": 2,
+        "model": null,
+        "model_version": null,
+        "note": "question_answering · normal"
+      },
+      {
+        "id": "plan",
+        "ran": true,
+        "ms": 63064,
+        "model": "qwen2.5:3b",
+        "model_version": "Q4_K_M",
+        "note": "3 steps"
+      },
+      {
+        "id": "read",
+        "ran": false,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "no file was attached"
+      },
+      {
+        "id": "retrieve",
+        "ran": true,
+        "ms": 4625,
+        "model": null,
+        "model_version": null,
+        "note": "6 passages, embedding search"
+      },
+      {
+        "id": "sandbox",
+        "ran": false,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "no code was generated"
+      },
+      {
+        "id": "draft",
+        "ran": true,
+        "ms": 83241,
+        "model": "qwen2.5:3b",
+        "model_version": "Q4_K_M",
+        "note": "244 characters"
+      },
+      {
+        "id": "verify",
+        "ran": true,
+        "ms": 42140,
+        "model": "qwen2.5:3b",
+        "model_version": "Q4_K_M",
+        "note": "3 of 4 checks passed"
+      }
+    ]
+  },
+  "audit": {
+    "path": "storage/logs/audit.jsonl",
+    "count": 17,
+    "first_sequence": 626,
+    "last_sequence": 648,
+    "tail": [
+      {
+        "sequence": 646,
+        "at": "2026-09-22T16:36:02.381889+00:00",
+        "category": "verification",
+        "action": "completed",
+        "prev_hash": "a039d4ab35d74fad493bc72f9c83c98c18d46b8404b918b12191e007f7f6d827",
+        "hash": "5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0",
+        "line": "{\"sequence\": 646, \"id\": \"7b45263d-c38a-4005-9543-e1c6e77ac366\", \"at\": \"2026-09-22T16:36:02.381889+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9\", \"category\": \"verification\", \"action\": \"completed\", \"detail\": {\"valid\": false, \"checks\": {\"source_verification\": true, \"calculation_verification\": false, \"code_verification\": true, \"hallucination_check\": true}}, \"prev_hash\": \"a039d4ab35d74fad493bc72f9c83c98c18d46b8404b918b12191e007f7f6d827\", \"hash\": \"5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0\"}"
+      },
+      {
+        "sequence": 647,
+        "at": "2026-09-22T16:36:02.461521+00:00",
+        "category": "approval",
+        "action": "requested",
+        "prev_hash": "5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0",
+        "hash": "283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0",
+        "line": "{\"sequence\": 647, \"id\": \"12e9b8fe-5b55-4e8f-816e-8941095f198e\", \"at\": \"2026-09-22T16:36:02.461521+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9\", \"category\": \"approval\", \"action\": \"requested\", \"detail\": {\"reasons\": [\"verification_failure: Failed verification cannot be auto-delivered; a human decides.\"], \"approver_roles\": [\"administrator\", \"reviewer\"]}, \"prev_hash\": \"5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0\", \"hash\": \"283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0\"}"
+      },
+      {
+        "sequence": 648,
+        "at": "2026-09-22T16:36:02.499189+00:00",
+        "category": "task",
+        "action": "finished:awaiting_approval",
+        "prev_hash": "283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0",
+        "hash": "0b087291827228dce80b0e32bd5f016bde5a73aba862016e1ec1a21a26c312e2",
+        "line": "{\"sequence\": 648, \"id\": \"dcd75036-5be2-45d1-8a38-0bc6fe015975\", \"at\": \"2026-09-22T16:36:02.499189+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9\", \"category\": \"task\", \"action\": \"finished:awaiting_approval\", \"detail\": {\"status\": \"awaiting_approval\", \"duration_ms\": 195249, \"deliverables\": [], \"verification_valid\": false, \"network_activity\": \"none \\u2014 all processing local\"}, \"prev_hash\": \"283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0\", \"hash\": \"0b087291827228dce80b0e32bd5f016bde5a73aba862016e1ec1a21a26c312e2\"}"
+      }
+    ]
+  },
+  "sandbox_self_test": {
+    "sequence": 741,
+    "at": "2026-09-23T05:41:56.652167+00:00",
+    "hash": "d6c598fe0316d52288b5edef968c0a496a2c1961f3c249655773b46998dc7240",
+    "detail": {
+      "checks": [],
+      "passed": 0,
+      "total": 0,
+      "assessable": false,
+      "overall": "Not assessable on this host. The sandbox refuses to execute, so no payload was submitted and no containment claim is made either way.",
+      "reason": "This host cannot apply resource limits to a child process, so generated code would run unbounded. Execution is refused rather than run outside the limits the sandbox is supposed to impose. Run the backend under WSL2/Linux — see docs/RUNTIME-ENVIRONMENT.md. Every other stage works here.",
+      "all_passed": false,
+      "duration_ms": 0,
+      "ran_at": "2026-09-23T05:41:56.650712+00:00"
+    }
   }
 }

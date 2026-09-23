@@ -9,10 +9,15 @@ export interface CommandBlockProps {
   label: string
   /** Each entry is one shell line. `#` comments render at secondary ink. */
   lines: string[]
+  /**
+   * Wrap long lines instead of scrolling them. For prose to be pasted, such
+   * as a question; never for shell, where a wrapped line reads as two.
+   */
+  wrap?: boolean
   className?: string
 }
 
-export function CommandBlock({ label, lines, className }: CommandBlockProps) {
+export function CommandBlock({ label, lines, wrap = false, className }: CommandBlockProps) {
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -54,7 +59,12 @@ export function CommandBlock({ label, lines, className }: CommandBlockProps) {
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="m-0 overflow-x-auto p-3 font-mono text-ui font-[425] leading-[22px] text-foreground">
+      <pre
+        className={cn(
+          'm-0 overflow-x-auto p-3 font-mono text-ui font-[425] leading-[22px] text-foreground',
+          wrap && 'whitespace-pre-wrap break-words',
+        )}
+      >
         {lines.map((line, i) => (
           <div
             key={`${i}-${line}`}

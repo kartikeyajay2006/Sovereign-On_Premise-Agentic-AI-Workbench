@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { CONTROL, CONTROL_EDGE, FOCUS } from './tokens'
+import { ACTION_FILL, CONTROL, CONTROL_EDGE, FOCUS } from './tokens'
 
 type Variant = 'primary' | 'outline' | 'quiet'
 type Size = keyof typeof CONTROL
@@ -15,9 +15,14 @@ export interface LandingButtonProps extends Omit<ComponentProps<typeof Link>, 'c
 }
 
 const VARIANTS: Record<Variant, string> = {
-  // Exactly one filled button is visible on this page, and it is the hero
-  // primary. A second filled button is a second answer to "what do I do here".
-  primary: 'bg-foreground text-primary-foreground hover:bg-[#1f1f1f]',
+  // The action colour, as the product's own primary button uses it. This was
+  // an ink fill -- --foreground with --primary-foreground text -- whose hover
+  // was a hardcoded #1f1f1f from the light theme. On the dark ground that
+  // hover turned a pale button near-black under near-black text -- 1.17:1 --
+  // so the one control the page most wants pressed went unreadable at the
+  // moment it was pointed at. Lime under --action-ink is 15.43:1. One filled
+  // action per decision context; this is the hero's.
+  primary: ACTION_FILL,
   outline: cn(
     'border bg-transparent text-foreground hover:border-foreground hover:bg-surface',
     CONTROL_EDGE,

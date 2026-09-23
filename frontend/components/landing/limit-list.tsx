@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 export interface Limit {
+  /** Set on an item whose body the page fills from the run record. */
+  id?: string
   /** The limitation as a bare statement. Sentence case, no softening. */
   title: string
   /** One or two sentences. No "but". */

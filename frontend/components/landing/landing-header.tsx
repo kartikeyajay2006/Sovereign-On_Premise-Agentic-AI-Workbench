@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { AegisLogo } from '@/components/aegis-logo'
 import { useRole } from '@/components/role-context'
 import { LandingButton } from './landing-button'
 import { SHELL } from './tokens'
+import { Wordmark } from './wordmark'
 
 const NAV = [
-  { href: '#chain', label: 'Product' },
+  { href: '#answer', label: 'Try it' },
+  { href: '#chain', label: 'How it works' },
   { href: '#proof', label: 'Proof' },
   { href: '#limits', label: 'Limits' },
 ] as const
@@ -18,10 +19,8 @@ const NAV = [
  * The bottom border is always present. The "border appears on scroll" trick
  * needs a listener and buys nothing.
  *
- * The wordmark is Geist Sans, not AegisLogo's own `full` variant: that variant
- * sets "AGENTIC WORKBENCH" in 9px mono at 0.34em tracking under the name, which
- * at header size is costume. The mark itself is good, so the mark is what is
- * reused.
+ * The mark and name are the shared Wordmark, so the header and the footer
+ * cannot drift apart again.
  */
 export function LandingHeader() {
   // `authenticated` is false on the server render and during the initial load,
@@ -42,10 +41,9 @@ export function LandingHeader() {
         <Link
           href="/"
           aria-label="AEGIS — home"
-          className="flex items-center gap-2.5 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="flex items-center rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <AegisLogo variant="mark" size={26} />
-          <span className="text-answer font-medium tracking-[-0.01em] text-foreground">AEGIS</span>
+          <Wordmark />
         </Link>
 
         <nav aria-label="Sections" className="hidden items-center gap-6 lg:flex">

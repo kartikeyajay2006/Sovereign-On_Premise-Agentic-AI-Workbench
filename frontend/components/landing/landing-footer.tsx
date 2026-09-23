@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { AegisLogo } from '@/components/aegis-logo'
 import { FOOTER } from './copy'
 import { MONO_LABEL, MONO_VALUE, SHELL } from './tokens'
+import { Wordmark } from './wordmark'
 
 /**
  * Not SiteFooter.
@@ -16,10 +16,7 @@ export function LandingFooter() {
     <footer className="border-t border-border">
       <div className={`${SHELL} grid grid-cols-1 gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4`}>
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2.5">
-            <AegisLogo variant="mark" size={24} />
-            <span className="text-body font-medium tracking-[-0.01em] text-foreground">AEGIS</span>
-          </div>
+          <Wordmark />
           <p className="max-w-[34ch] text-body text-foreground-secondary">{FOOTER.blurb}</p>
         </div>
 

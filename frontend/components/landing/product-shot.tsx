@@ -4,7 +4,13 @@ import { MONO_META } from './tokens'
 export interface ProductShotProps {
   /** What the reader is looking at, stated plainly. */
   caption: string
-  /** The facts of the run in the image, so the picture can be checked. */
+  /**
+   * What the image shows, as the image shows it. Describes the pixels rather
+   * than vouching for them: the work log in the picture reads "4 of 7", and
+   * the audit log says five stages ran, so the alt text says "reading".
+   */
+  alt: string
+  /** The facts of the run in the image, from its record. Empty when the fixture is another run. */
   facts: string[]
 }
 
@@ -27,22 +33,23 @@ export interface ProductShotProps {
  * that are unflattering. The image is cropped at the top so it reads as a
  * window onto the product rather than a rectangle floating on paper.
  */
-export function ProductShot({ caption, facts }: ProductShotProps) {
+export function ProductShot({ caption, alt, facts }: ProductShotProps) {
   return (
     <figure className="mt-12 md:mt-16">
       <div className="overflow-hidden rounded-[var(--radius-lg-token)] bg-surface shadow-[var(--elev-2)]">
         {/*
           Height-capped with the top aligned, so the composer and the first
-          turn are what a reader sees. `priority` because this is the largest
-          element above the fold on a page served from the same host.
+          turn are what a reader sees. `preload` because this is the largest
+          element above the fold on a page served from the same host; it is
+          Next 16's name for what `priority` did, which is deprecated.
         */}
         <div className="relative max-h-[520px] overflow-hidden">
           <Image
             src="/landing/thread-run.png"
-            alt="The AEGIS console after a completed run: a question about cladding damage severity, the verdict HELD with three of four checks passed, a folded work log reporting four of seven stages ran, and the answer with its clauses cited."
+            alt={alt}
             width={1280}
             height={720}
-            priority
+            preload
             className="block h-auto w-full"
           />
           {/* The crop is deliberate, so it fades rather than guillotines. */}
@@ -58,11 +65,13 @@ export function ProductShot({ caption, facts }: ProductShotProps) {
 
       <figcaption className="mt-4 flex flex-col gap-2">
         <p className="max-w-[72ch] text-ui text-foreground-secondary">{caption}</p>
-        <ul className={`${MONO_META} flex flex-wrap gap-x-5 gap-y-1`}>
-          {facts.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
+        {facts.length > 0 ? (
+          <ul className={`${MONO_META} m-0 flex list-none flex-wrap gap-x-5 gap-y-1 p-0`}>
+            {facts.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        ) : null}
       </figcaption>
     </figure>
   )
