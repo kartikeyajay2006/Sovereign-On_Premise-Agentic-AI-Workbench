@@ -101,6 +101,13 @@ export interface AssistantTurn {
    */
   answer: string | null
   /**
+   * The answer was released while the reader watched: settle() wrote it for
+   * the run this thread was following. It is what lets the answer rise into
+   * place and its verdict bloom, once. A run opened from the record is a
+   * read, not a release, so it stays false there and nothing on it moves.
+   */
+  releasedLive: boolean
+  /**
    * The draft as the model is producing it, or null when nothing is in flight.
    *
    * This is deliberately NOT `answer`, and the distinction is the whole point.

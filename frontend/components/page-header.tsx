@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { MeasuredNumber } from '@/shared/motion'
 
 type Tone = 'default' | 'muted' | 'sovereign' | 'active' | 'approval' | 'critical'
 
@@ -14,12 +15,28 @@ const TONE_TEXT: Record<Tone, string> = {
 
 export interface PageHeaderStat {
   label: string
-  /** Rendered as given. Pass an em dash for "no reading", never a default. */
+  /**
+   * A number is a reading: it is drawn through MeasuredNumber, so a new
+   * value rolls rather than jumps, and null or undefined shows an em dash,
+   * never a zero. Anything else is rendered as given; pass an em dash for
+   * "no reading", never a default.
+   */
   value: ReactNode
+  /** How a numeric value is printed. Units belong here: `(v) => `${v} MB``. */
+  format?: (value: number) => string
   /** A state the value reports. Hue is spent only when there is a state. */
   tone?: Tone
   /** How the value was obtained, shown on hover: "GET /api/audit/chain, 11:32:05". */
   hint?: string
+}
+
+/** The value, drawn as a reading when it is one. */
+function statValue(stat: PageHeaderStat): ReactNode {
+  const { value } = stat
+  if (typeof value === 'number' || value === null || value === undefined) {
+    return <MeasuredNumber value={value} format={stat.format} absent="—" />
+  }
+  return value
 }
 
 /**
@@ -41,6 +58,12 @@ export interface PageHeaderStat {
  * `contained` (default true) keeps the header inside the same 1400px column
  * as the global navigation, so titles line up under the logo. A screen that
  * places the header inside its own column passes false.
+ *
+ * `figure` is for a screen whose header exists to show one number, such as
+ * Posture's count of non-loopback connections. It is set at the figure
+ * size under the title, once. A number (or null, for no reading yet) is
+ * drawn through MeasuredNumber, in ink; for a tone or a label beside it,
+ * pass the node yourself.
  */
 export function PageHeader({
   eyebrow,
@@ -48,6 +71,7 @@ export function PageHeader({
   description,
   actions,
   meta,
+  figure,
   dark,
   contained = true,
   children,
@@ -57,6 +81,8 @@ export function PageHeader({
   description?: string
   actions?: ReactNode
   meta?: PageHeaderStat[]
+  /** The one measured value this header exists to show. */
+  figure?: ReactNode
   dark?: boolean
   contained?: boolean
   /** A row under the readings, for a screen-level toolbar. */
@@ -98,6 +124,16 @@ export function PageHeader({
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
 
+      {figure !== undefined && figure !== false && (
+        <div className={cn('mt-3 font-mono type-figure', dark ? 'text-ink-foreground' : 'text-foreground')}>
+          {typeof figure === 'number' || figure === null ? (
+            <MeasuredNumber value={figure} absent="—" />
+          ) : (
+            figure
+          )}
+        </div>
+      )}
+
       {meta && meta.length > 0 && (
         <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
           {meta.map((m) => (
@@ -116,7 +152,7 @@ export function PageHeader({
                   dark ? 'text-ink-foreground' : TONE_TEXT[m.tone ?? 'default'],
                 )}
               >
-                {m.value}
+                {statValue(m)}
               </dd>
             </div>
           ))}

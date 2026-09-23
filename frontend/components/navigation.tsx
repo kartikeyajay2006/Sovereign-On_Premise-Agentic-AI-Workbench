@@ -344,7 +344,7 @@ export function Navigation() {
       on every frame anything under it changes, and what scrolls under this
       bar is a live stage board.
     */
-    <header className="fixed inset-x-0 top-0 z-[80] border-b border-line-default bg-surface">
+    <header className="fixed inset-x-0 top-0 z-[80] border-b border-line-subtle bg-background">
       {/*
         Budgeted for 1024px, the narrowest width the tabs show at: logo,
         five tabs, the posture readout and the account button come to about
@@ -376,7 +376,7 @@ export function Navigation() {
                 element, so the layout it costs is its own box. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-y-3 left-0 rounded-[var(--radius)] bg-surface-sunken"
+              className="pointer-events-none absolute inset-y-3 left-0 rounded-full bg-surface-sunken"
               style={{
                 width: hover?.w ?? 0,
                 transform: `translateX(${hover?.x ?? 0}px)`,
@@ -409,7 +409,7 @@ export function Navigation() {
                     setHoverShown(true)
                   }}
                   className={cn(
-                    'relative flex items-center gap-2 rounded-[var(--radius)] px-2.5 text-body font-medium xl:px-3',
+                    'relative flex items-center gap-2 rounded-full px-3 text-[14px] font-medium',
                     'transition-colors duration-[var(--hover-out)] ease-[var(--ease-move)] hover:duration-0',
                     'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
                     isCurrent ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
@@ -460,14 +460,14 @@ export function Navigation() {
             aria-label="Go to a screen, run or action"
             aria-keyshortcuts="Control+K Meta+K"
             className={cn(
-              'hover-decay hidden h-8 items-center gap-2 rounded-[var(--radius)] px-2.5 text-ui text-foreground-muted md:flex lg:hidden xl:flex xl:w-[188px]',
-              'shadow-[0_0_0_1px_var(--control-subtle)] hover:text-foreground hover:shadow-[0_0_0_1px_var(--control-default)]',
+              'hover-decay hidden h-8 items-center gap-2 rounded-full bg-surface px-3 text-ui text-foreground-muted md:flex lg:hidden xl:flex xl:w-[200px]',
+              'shadow-[0_0_0_1px_var(--line-subtle)] hover:text-foreground hover:shadow-[0_0_0_1px_var(--line-default)]',
               'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
             )}
           >
             <Search className="size-3.5 shrink-0" aria-hidden />
-            <span className="hidden xl:inline">Go to…</span>
-            <kbd className="ml-auto hidden h-4 items-center rounded-[var(--radius-xs)] px-1 font-mono text-ledger leading-none text-foreground-muted shadow-[0_0_0_1px_var(--control-subtle)] xl:inline-flex">
+            <span className="hidden xl:inline">Search</span>
+            <kbd className="ml-auto hidden h-5 items-center rounded-full px-1.5 font-sans text-[11px] leading-none text-foreground-muted shadow-[0_0_0_1px_var(--line-subtle)] xl:inline-flex">
               {mod} K
             </kbd>
           </button>

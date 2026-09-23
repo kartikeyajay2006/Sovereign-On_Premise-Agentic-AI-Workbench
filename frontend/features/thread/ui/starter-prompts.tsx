@@ -21,15 +21,15 @@ export const StarterPrompts = memo(function StarterPrompts({
   onPick: (template: StarterTemplate) => void
 }) {
   return (
-    <ul aria-label="Starter requests" className="flex list-none flex-wrap gap-2 p-0">
+    <ul aria-label="Starter requests" className="flex list-none flex-wrap justify-center gap-2 p-0">
       {CONSOLE_TEMPLATES.map((template) => (
         <li key={template.id}>
           <button
             type="button"
             onClick={() => onPick(template)}
-            className="hover-decay flex items-center gap-1.5 rounded-[var(--radius-sm-token)] px-3 py-1.5 text-ui text-foreground-secondary shadow-[0_0_0_1px_var(--control-subtle)] hover:bg-surface hover:text-foreground hover:shadow-[0_0_0_1px_var(--control-default)] focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+            className="flex h-9 items-center gap-2 rounded-full border border-line-subtle bg-transparent px-4 text-[13.5px] text-foreground-secondary transition-[background-color,border-color,color] duration-150 hover:border-line-default hover:bg-surface hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
           >
-            {template.attach && <Paperclip className="size-3 shrink-0 text-foreground-muted" aria-hidden />}
+            {template.attach && <Paperclip className="size-3.5 shrink-0 text-foreground-muted" aria-hidden />}
             {template.title}
           </button>
         </li>

@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { ModelDescriptor, ModelUsage } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { MeasuredNumber } from '@/shared/motion'
 import type { ModelChoice } from '../model/types'
 import {
   answerCall,
@@ -19,6 +20,7 @@ import {
   peakFill,
   stageName,
   sumKnown,
+  type KnownSum,
 } from '../model/usage'
 
 /**
@@ -42,6 +44,11 @@ const DASH = (
 
 function cell(value: number | null | undefined, format: (v: number) => string) {
   return typeof value === 'number' && Number.isFinite(value) ? format(value) : DASH
+}
+
+/** A total printed as formatKnownSum prints it: marked as a floor when some calls reported no count. */
+function knownSumFormat(total: KnownSum) {
+  return (value: number) => (total.known < total.total ? `≥${formatCount(value)}` : formatCount(value))
 }
 
 /** The small print under one call: where its time went, and why it stopped. */
@@ -79,7 +86,7 @@ function UsageTable({
 }) {
   return (
     <div className="mt-1.5 overflow-x-auto">
-      <table className="w-full min-w-[520px] border-collapse font-mono text-ledger">
+      <table className="w-full min-w-[520px] border-collapse text-[12px] tabular-nums">
         <thead>
           <tr className="text-left uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
             <th scope="col" className="py-1 pr-3 font-normal">Stage</th>
@@ -170,32 +177,44 @@ export const UsageFooter = memo(function UsageFooter({
     <div className="flex flex-col gap-1">
       {usage.length > 0 && (
         <details className="group/usage">
-          <summary className="hover-decay flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-0.5 rounded-[var(--radius-xs)] py-0.5 font-mono text-ledger text-foreground-muted hover:text-foreground-secondary focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+          <summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-0.5 rounded-full py-0.5 pr-2 text-[12px] tabular-nums text-foreground-muted transition-colors hover:text-foreground-secondary focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
             <ChevronRight
               className="size-3 shrink-0 transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] group-open/usage:rotate-90"
               aria-hidden
             />
             <span className="text-foreground-secondary">{names.join(' · ')}</span>
+            {/* ROLL: task.model_completed -- each call that reports moves
+                these totals, and only the digits that changed turn. */}
             {inLabel && (
               <span title={`Prompt tokens across ${tokensIn.total} model calls, as the runtime counted them.${partial(tokensIn)}`}>
-                <span className="tabular text-foreground-secondary">{inLabel}</span> in
+                <MeasuredNumber
+                  value={tokensIn.sum}
+                  format={knownSumFormat(tokensIn)}
+                  className="text-foreground-secondary"
+                />{' '}
+                in
               </span>
             )}
             {outLabel && (
               <span title={`Tokens generated across ${tokensOut.total} model calls, including any reasoning the workbench stripped before display.${partial(tokensOut)}`}>
-                <span className="tabular text-foreground-secondary">{outLabel}</span> out
+                <MeasuredNumber
+                  value={tokensOut.sum}
+                  format={knownSumFormat(tokensOut)}
+                  className="text-foreground-secondary"
+                />{' '}
+                out
               </span>
             )}
             {answer && answer.tokens_per_second !== null && (
               <span title="How fast this answer was generated: its output tokens over the runtime's own generation time, which excludes model load and prompt processing.">
-                <span className="tabular text-foreground-secondary">{formatRate(answer.tokens_per_second)}</span>
+                <MeasuredNumber value={answer.tokens_per_second} format={formatRate} className="text-foreground-secondary" />
               </span>
             )}
             {peak && (
               <span
                 title={`The fullest context window of any call in this run: ${stageName(peak.call.stage).toLowerCase()}, ${formatCount(peak.promptTokens)} prompt tokens of the ${formatCount(peak.window)}-token window it ran with.`}
               >
-                context <span className="tabular text-foreground-secondary">{formatPercent(peak.fill)}</span>
+                context <MeasuredNumber value={peak.fill} format={formatPercent} className="text-foreground-secondary" />
               </span>
             )}
           </summary>

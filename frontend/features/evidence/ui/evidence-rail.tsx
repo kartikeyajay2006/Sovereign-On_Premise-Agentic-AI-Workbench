@@ -1,9 +1,13 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { EvidenceItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { Append, AppendScope, MeasuredNumber, TraceTarget } from '@/shared/motion'
+
+/** A batch larger than this lands still: sixty rows moving at once is noise. */
+const BULK_ROWS = 60
 
 /**
  * The evidence rail.
@@ -25,14 +29,23 @@ export function EvidenceRail({
   onClose,
   items,
   focusId,
+  turnId = null,
+  traceToken,
 }: {
   open: boolean
   onClose: () => void
   items: EvidenceItem[]
   focusId?: string | null
+  /**
+   * The assistant turn these rows belong to. It keys the scope rows append
+   * in, so switching the rail to another run is a read and nothing slides.
+   * It also namespaces the trace ids: every run numbers its evidence from
+   * S1, and hovering one run's [S1] must not light another run's row.
+   */
+  turnId?: string | null
+  /** Bumped by each citation click, so a second click on one source lands again. */
+  traceToken?: number
 }) {
-  const focusRef = useRef<HTMLLIElement | null>(null)
-
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -40,10 +53,18 @@ export function EvidenceRail({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  // Bring the cited item into view rather than making the reader hunt for it.
-  useEffect(() => {
-    if (open && focusId) focusRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [open, focusId])
+  // Where the rows that arrived with this render begin, and whether there
+  // are too many of them to move. Rows are only ever added at the end, so
+  // the previous length is the first new index. Derived during render, the
+  // way the motion primitives derive theirs, so rows mounting now see it.
+  const [batch, setBatch] = useState({ items, firstNew: items.length, bulk: false })
+  if (batch.items !== items) {
+    setBatch({
+      items,
+      firstNew: batch.items.length,
+      bulk: items.length - batch.items.length > BULK_ROWS,
+    })
+  }
 
   return (
     <>
@@ -79,9 +100,17 @@ export function EvidenceRail({
               Evidence
             </span>
             <h2 className="text-heading font-medium text-foreground">
-              {items.length === 0
-                ? 'Nothing retrieved'
-                : `${items.length} source${items.length === 1 ? '' : 's'}`}
+              {items.length === 0 ? (
+                'Nothing retrieved'
+              ) : (
+                <>
+                  {/* ROLL: task.evidence -- the count turns when a batch
+                      lands. Keyed by the run, so opening another run shows
+                      its count rather than rolling to it. */}
+                  <MeasuredNumber key={turnId ?? 'none'} value={items.length} />
+                  {` source${items.length === 1 ? '' : 's'}`}
+                </>
+              )}
             </h2>
           </div>
           <button
@@ -93,74 +122,95 @@ export function EvidenceRail({
           </button>
         </header>
 
-        {items.length === 0 ? (
-          <div className="px-5 py-5">
-            {/*
-              An empty retrieval is a real outcome, not a loading state. The
-              run genuinely found nothing, and saying so is the difference
-              between "no sources" and "sources pending".
-            */}
-            <p className="text-body text-foreground-secondary">
-              This run retrieved no evidence. Any citation in the answer above
-              therefore resolves to nothing and is marked unresolved.
-            </p>
-          </div>
-        ) : (
-          <ol className="flex-1 overflow-y-auto">
-            {items.map((e, i) => {
-              const src = e.source_document || 'Local document'
-              const loc = e.location || ''
-              const score =
-                typeof e.similarity === 'number'
-                  ? e.similarity
-                  : typeof e.score === 'number'
-                    ? e.score
-                    : null
-              const focused = focusId === e.id
+        {/*
+          The scope wraps the empty state too, so it is already on screen
+          when the first batch lands and those rows count as appended. Keyed
+          by the run: opening another run is a read, and its rows are still.
+        */}
+        <AppendScope key={turnId ?? 'none'} bulk={batch.bulk}>
+          {items.length === 0 ? (
+            <div className="px-5 py-5">
+              {/*
+                An empty retrieval is a real outcome, not a loading state. The
+                run genuinely found nothing, and saying so is the difference
+                between "no sources" and "sources pending".
+              */}
+              <p className="text-body text-foreground-secondary">
+                This run retrieved no evidence. Any citation in the answer above
+                therefore resolves to nothing and is marked unresolved.
+              </p>
+            </div>
+          ) : (
+            <ol className="flex-1 overflow-y-auto">
+              {items.map((e, i) => {
+                const src = e.source_document || 'Local document'
+                const loc = e.location || ''
+                const score =
+                  typeof e.similarity === 'number'
+                    ? e.similarity
+                    : typeof e.score === 'number'
+                      ? e.score
+                      : null
+                const focused = focusId === e.id
 
-              return (
-                <li
-                  key={e.id}
-                  ref={focused ? focusRef : undefined}
-                  className={cn(
-                    'border-b border-line-subtle px-5 py-4',
-                    i === items.length - 1 && 'border-b-0',
-                    // Selection is ink, never a status hue: "selected" must
-                    // not read as "verified".
-                    focused && 'bg-[var(--selected-surface)] shadow-[inset_2px_0_0_0_var(--selected-rail)]',
-                  )}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="flex min-w-0 items-baseline gap-2">
-                      <span className="shrink-0 border border-control-default px-1 font-mono text-ledger text-foreground">
-                        {e.id}
-                      </span>
-                      <span className="truncate-cell text-ui text-foreground">{src}</span>
-                    </span>
-                    {loc && (
-                      <span className="shrink-0 font-mono text-ledger text-foreground-muted">{loc}</span>
-                    )}
-                  </div>
+                return (
+                  // APPEND: task.evidence -- a row the run registered while
+                  // the rail was on screen settles in lit and cools.
+                  <Append
+                    as="li"
+                    key={e.id}
+                    index={Math.max(0, i - batch.firstNew)}
+                    tone="neutral"
+                    className={cn('border-b border-line-subtle px-3 py-2', i === items.length - 1 && 'border-b-0')}
+                  >
+                    {/* TRACE: a citation click -- the row is brought into view
+                        and an ink ring contracts onto it. The inset leaves the
+                        ring room inside the scrolling list, which would clip
+                        it at the edges. */}
+                    <TraceTarget
+                      active={focused}
+                      token={traceToken}
+                      data-trace={turnId ? `${turnId}:${e.id}` : undefined}
+                      className={cn(
+                        'rounded-[var(--radius)] px-2 py-2',
+                        // Selection is ink, never a status hue: "selected" must
+                        // not read as "verified".
+                        focused && 'bg-[var(--selected-surface)] shadow-[inset_2px_0_0_0_var(--selected-rail)]',
+                      )}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="flex min-w-0 items-baseline gap-2">
+                          <span className="shrink-0 border border-control-default px-1 font-mono text-ledger text-foreground">
+                            {e.id}
+                          </span>
+                          <span className="truncate-cell text-ui text-foreground">{src}</span>
+                        </span>
+                        {loc && (
+                          <span className="shrink-0 font-mono text-ledger text-foreground-muted">{loc}</span>
+                        )}
+                      </div>
 
-                  <p className="mt-2 text-ui leading-[var(--lh-body)] text-foreground-secondary">
-                    {e.excerpt}
-                  </p>
+                      <p className="mt-2 text-ui leading-[var(--lh-body)] text-foreground-secondary">
+                        {e.excerpt}
+                      </p>
 
-                  {score !== null && (
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-                        score
-                      </span>
-                      <span className="tabular font-mono text-ledger text-foreground">
-                        {score.toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ol>
-        )}
+                      {score !== null && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                            score
+                          </span>
+                          <span className="tabular font-mono text-ledger text-foreground">
+                            {score.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </TraceTarget>
+                  </Append>
+                )
+              })}
+            </ol>
+          )}
+        </AppendScope>
       </aside>
     </>
   )

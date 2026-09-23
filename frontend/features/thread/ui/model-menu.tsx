@@ -14,7 +14,7 @@ export function selectableModels(models: readonly ModelDescriptor[] | null): Mod
 }
 
 const ITEM = cn(
-  'grid cursor-default grid-cols-[14px_minmax(0,1fr)] items-start gap-x-2 rounded-[var(--radius-menu-row)] px-2 py-1.5 outline-none select-none',
+  'grid cursor-default grid-cols-[14px_minmax(0,1fr)] items-start gap-x-2 rounded-[10px] px-2.5 py-2 outline-none select-none',
   'data-[highlighted]:bg-surface-sunken',
 )
 
@@ -51,19 +51,19 @@ export function ModelMenu({
     <Menu.Root>
       <Menu.Trigger
         aria-label={`Model: ${label}`}
-        className="hover-decay flex items-center gap-1.5 rounded-[var(--radius-xs)] px-2 py-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted hover:text-foreground-secondary focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none data-[popup-open]:bg-surface-sunken"
+        className="flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-foreground-secondary transition-colors hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none data-[popup-open]:bg-surface-sunken"
       >
-        <span>Model</span>
-        <span className="max-w-[16ch] truncate text-foreground">{label}</span>
-        <ChevronDown className="size-3 shrink-0" aria-hidden />
+        <span className="max-w-[18ch] truncate">{label}</span>
+        <ChevronDown className="size-3.5 shrink-0 opacity-70" aria-hidden />
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner side="top" align="start" sideOffset={6} className="z-[var(--z-menu)] outline-none">
           <Menu.Popup
             className={cn(
-              'w-[300px] max-w-[calc(100vw-32px)] origin-[var(--transform-origin)] rounded-[var(--radius-md-token)] bg-surface p-[var(--menu-pad)] shadow-[var(--elev-2)] outline-none',
-              'transition-[opacity,scale] duration-[var(--micro)] ease-[var(--ease-micro)]',
-              'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
+              'w-[300px] max-w-[calc(100vw-32px)] origin-[var(--transform-origin)] rounded-[16px] border border-line-subtle bg-surface p-1.5 shadow-[var(--elev-2)] outline-none',
+              // It settles at full opacity, as the palette does: a menu of
+              // model names is content, and content never fades in.
+              'transition-[scale] duration-[var(--micro)] ease-[var(--ease-micro)]',
               'motion-safe:data-[starting-style]:scale-[0.98] motion-safe:data-[ending-style]:scale-[0.98]',
             )}
           >

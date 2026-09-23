@@ -97,6 +97,9 @@ export function Segmented<V extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               'hover-decay inline-flex h-7 items-center gap-2 rounded-[var(--radius-xs)] px-3 text-ui font-medium',
+              // A choice moved with the arrow keys lands at once: while a
+              // segment holds keyboard focus, nothing in the group eases.
+              '[[role=radiogroup]:has(:focus-visible)_&]:transition-none',
               'focus-visible:shadow-[var(--focus-ring-on-sunken)] focus-visible:outline-none',
               'disabled:pointer-events-none disabled:opacity-[var(--opacity-disabled)]',
               checked

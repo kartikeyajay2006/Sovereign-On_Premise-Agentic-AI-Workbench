@@ -95,13 +95,18 @@ export function Append({
   // Decided once, at this row's own mount, and never revisited: a row
   // does not become "new" again because its list re-rendered.
   const [appended] = useState(() => Boolean(scope && scope.live.current && !scope.bulk.current))
+  // The batch position is fixed at mount for the same reason. A caller that
+  // derives it from the list -- the row's index less the first new one --
+  // passes a different number once the next batch lands, and a delay read
+  // from that would jump while the row is still settling.
+  const [step] = useState(index)
 
   return (
     <Tag
       {...rest}
       className={cn(appended && 'aegis-append', className)}
       data-tone={appended && tone !== 'neutral' ? tone : undefined}
-      style={appended ? ({ '--append-i': index, ...style } as CSSProperties) : style}
+      style={appended ? ({ '--append-i': step, ...style } as CSSProperties) : style}
     >
       {children}
     </Tag>

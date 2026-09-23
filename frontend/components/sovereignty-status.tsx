@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { SovereigntyStatus as SovereigntyStatusType, SystemHealth } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { MeasuredNumber } from '@/shared/motion'
 
 /**
  * The posture indicator in the global header.
@@ -137,15 +138,22 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
   // observed on the API's process tree. It is named for what it is.
   const observed = sovereignty?.unapproved_connections
 
-  const pillFill = loading
-    ? 'bg-control-strong'
-    : !reachable
-      ? timedOut
-        ? 'bg-approval'
-        : 'bg-critical'
-      : monitored && sovereignty?.sovereign
-        ? 'bg-sovereign'
-        : 'bg-approval'
+  // The dot says only what the monitor measured, and it never says proved.
+  // Sampling and seeing nothing is ink, not green: the monitor fails open --
+  // it reports an empty list when it cannot read the connection table -- so
+  // a zero it cannot prove must not glow as though it had been. A connection
+  // seen is critical, a monitor that is not sampling is held for someone to
+  // look at, and no reading at all is a bare control edge: a service that
+  // did not answer has said nothing about egress, so nothing here wears a
+  // state. The words beside the dot say which.
+  const pillFill =
+    loading || !reachable || !sovereignty
+      ? 'bg-control-strong'
+      : typeof observed === 'number' && observed > 0
+        ? 'bg-critical'
+        : monitored
+          ? 'bg-foreground'
+          : 'bg-approval'
 
   const pillLabel = loading
     ? 'Reading…'
@@ -159,17 +167,18 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
           ? 'Monitored'
           : 'Not monitored'
 
-  const rows: { label: string; value: string; tone?: Tone }[] = [
+  const rows: { label: string; value: ReactNode; tone?: Tone }[] = [
     { label: 'Served from', value: origin ?? UNKNOWN },
     {
       label: 'Non-loopback connections',
-      value: observed === undefined ? UNKNOWN : String(observed),
-      tone: observed === undefined ? undefined : observed === 0 ? 'sovereign' : 'critical',
+      // Ink at zero, for the reason the dot is ink: the monitor cannot
+      // prove a zero. A count above it is a connection it actually saw.
+      value: <MeasuredNumber value={observed} absent={UNKNOWN} />,
+      tone: observed === undefined || observed === 0 ? undefined : 'critical',
     },
     {
       label: 'Loopback, last sample',
-      value:
-        sovereignty?.local_connections === undefined ? UNKNOWN : String(sovereignty.local_connections),
+      value: <MeasuredNumber value={sovereignty?.local_connections} absent={UNKNOWN} />,
     },
     {
       label: 'Egress monitor',
@@ -205,24 +214,21 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
             : undefined
         }
         className={cn(
-          'hover-decay flex h-8 items-center gap-2 whitespace-nowrap rounded-[var(--radius)] px-2 hover:bg-surface-sunken',
+          'hover-decay flex h-8 items-center gap-2 whitespace-nowrap rounded-full px-3 shadow-[0_0_0_1px_var(--line-subtle)] hover:bg-surface-sunken',
           'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
           compact && 'px-1',
         )}
       >
         <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', pillFill)} />
-        <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-secondary">
-          {pillLabel}
-        </span>
-        {observed !== undefined && (
-          <span
-            className={cn(
-              'tabular font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
-              observed === 0 ? 'text-foreground-muted' : 'text-critical-text',
-            )}
-          >
-            {observed} egress
+        {/* With a reading, the count is the label: "0 egress". Without
+            one, the words say why there is no count. */}
+        {observed !== undefined && monitored ? (
+          <span className={cn('tabular text-[12.5px] font-medium', observed === 0 ? 'text-foreground-secondary' : 'text-critical-text')}>
+            {/* ROLL: the 30s egress sample -- only digits that changed move. */}
+            <MeasuredNumber value={observed} /> egress
           </span>
+        ) : (
+          <span className="text-[12.5px] font-medium text-foreground-secondary">{pillLabel}</span>
         )}
       </button>
 
@@ -279,7 +285,7 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
               onClick={() => setOpen(false)}
               className="hover-decay flex items-center gap-1 rounded-[var(--radius-xs)] px-1 text-ui text-foreground-secondary hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
             >
-              Assurance
+              Posture
               <ArrowRight className="h-3 w-3" aria-hidden />
             </Link>
           </div>

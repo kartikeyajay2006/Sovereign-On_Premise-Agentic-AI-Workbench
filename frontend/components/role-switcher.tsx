@@ -78,20 +78,15 @@ export function RoleSwitcher() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Account: ${displayName}, ${role.label}`}
-        className="hover-decay group flex h-9 items-center gap-2 rounded-[var(--radius)] px-2 hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+        className="hover-decay group flex h-9 items-center gap-2 rounded-full py-1 pl-1 pr-2.5 hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
       >
         <span
           aria-hidden
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-xs)] bg-surface-sunken font-mono text-ui text-foreground shadow-[0_0_0_1px_var(--control-subtle)]"
+          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-[12px] font-semibold text-background"
         >
           {displayName.slice(0, 1).toUpperCase()}
         </span>
-        <span className="hidden min-w-0 flex-col items-start text-left sm:flex">
-          <span className="max-w-[160px] truncate text-ui font-medium text-foreground">{displayName}</span>
-          <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-            {role.label}
-          </span>
-        </span>
+        <span className="hidden max-w-[160px] truncate text-[13.5px] font-medium text-foreground sm:inline">{displayName}</span>
         <ChevronDown
           aria-hidden
           className={cn(

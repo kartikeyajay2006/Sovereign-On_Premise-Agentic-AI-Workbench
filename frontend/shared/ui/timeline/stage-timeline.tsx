@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { Light, MeasuredNumber, type LightTone } from '@/shared/motion'
 import type { Density, StageState } from '@/shared/ui/types'
 
 export type { StageState } from '@/shared/ui/types'
@@ -39,6 +40,13 @@ export interface StageTimelineProps {
   /** Renders a stage's panel inline beneath its row, so opening a stage
    *  never costs the reader the surrounding context. */
   renderPanel?: (stage: Stage) => ReactNode
+  /**
+   * The board is following a run as it happens. Only then does a connector
+   * draw itself into the next stage when one passes; a board read from the
+   * record shows its lines already in place, because nothing happened just
+   * now.
+   */
+  live?: boolean
 }
 
 /**
@@ -46,11 +54,18 @@ export interface StageTimelineProps {
  *
  * Replaces agent-pipeline.tsx, which mapped its states to colours correctly
  * and then undid the work: a `0 0 8px` glow on done and failed, and
- * `animate-pulse` on held. Glow adds a weight channel that competes with
- * shape and fill, and pulsing `held` implies work is happening when the
- * system is in fact idle, waiting for a person. It also carried a
- * `progressPercent` gauge — we do not know what fraction of a run is
- * complete, and no product that ships agent runs claims to.
+ * `animate-pulse` on held. A glow resting on every finished row adds a
+ * weight channel that competes with shape and fill, and pulsing `held`
+ * implies work is happening when the system is in fact idle, waiting for a
+ * person. It also carried a `progressPercent` gauge — we do not know what
+ * fraction of a run is complete, and no product that ships agent runs
+ * claims to.
+ *
+ * Light here is an event, not a finish. The running stage rests on a blue
+ * rim for exactly as long as it runs. A stage that passes, fails or is
+ * refused blooms once at the moment it gets there and cools; only a
+ * refusal keeps a rim, because it is a state that holds. A board read from
+ * the record lights nothing, since nothing on it happened just now.
  *
  * Two distinctions here carry the whole demonstration:
  *
@@ -177,22 +192,89 @@ function StageDwell({ at }: { at: string }) {
   )
 }
 
+/**
+ * The light a marker carries in each state that has one. `bloom` marks the
+ * states whose arrival is the event: reaching one lights the marker once in
+ * that state's tone. Every other state is unlit.
+ */
+const MARKER_LIGHT: Partial<Record<StageState, { tone: LightTone; rest: 'none' | 'rim'; bloom: boolean }>> = {
+  active: { tone: 'active', rest: 'rim', bloom: false },
+  done: { tone: 'sovereign', rest: 'none', bloom: true },
+  denied: { tone: 'critical', rest: 'rim', bloom: true },
+  failed: { tone: 'critical', rest: 'none', bloom: true },
+}
+
 function StageMarker({ state }: { state: StageState }) {
   const spec = MARKER[state]
+  const light = MARKER_LIGHT[state]
   return (
-    <span
+    // LIGHT: task.stage -- the running stage rests on a blue rim while it
+    // runs; reaching done, failed or denied blooms once in that tone. The
+    // bloom is keyed by the state, so a marker that mounts already done (a
+    // board read from the record) never blooms.
+    <Light
+      as="span"
       aria-hidden
+      tone={light?.tone ?? null}
+      rest={light?.rest ?? 'none'}
+      bloomKey={light?.bloom ? state : null}
       className={cn(
         'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-ledger leading-none',
         spec.marker,
       )}
     >
       {state === 'active' ? (
+        // The one loop the board allows: the stage is running.
         <span className="sov-pulse h-1.5 w-1.5 rounded-full bg-active" />
       ) : (
         spec.glyph
       )}
-    </span>
+    </Light>
+  )
+}
+
+/**
+ * The causal link out of a stage. A connector is drawn out of a stage that
+ * completed; out of a denied, failed or blocked stage it is not. The
+ * absence of the line is the statement -- the flow stopped here.
+ *
+ * It draws itself downward only when it becomes drawn while the board is
+ * live. One that is already drawn when it mounts was read, not reached, and
+ * is simply there.
+ */
+function Connector({ kind, live }: { kind: MarkerSpec['connector']; live: boolean }) {
+  const [seen, setSeen] = useState(kind)
+  const [draws, setDraws] = useState(0)
+
+  // Decided in the same render that shows the new state, as Light does, so
+  // the line never shows a frame at full length before it draws.
+  if (seen !== kind) {
+    setSeen(kind)
+    if (kind === 'drawn' && live) setDraws((n) => n + 1)
+  }
+
+  return (
+    <span
+      // Re-keyed per draw, which is what replays a CSS animation.
+      key={draws}
+      data-state={kind}
+      className={cn(
+        'mt-1 w-px flex-1 self-center',
+        kind === 'drawn' && 'bg-sovereign',
+        // DRAW: task.stage -- the stage above passed during a live run.
+        kind === 'drawn' && draws > 0 && 'aegis-draw-down',
+        kind === 'idle' && 'bg-line-default',
+        kind === 'severed' && 'bg-transparent',
+      )}
+      style={
+        kind === 'severed'
+          ? {
+              backgroundImage:
+                'repeating-linear-gradient(to bottom, var(--line-strong) 0 2px, transparent 2px 5px)',
+            }
+          : undefined
+      }
+    />
   )
 }
 
@@ -202,6 +284,7 @@ export function StageTimeline({
   onSelect,
   density = 'compact',
   renderPanel,
+  live = false,
 }: StageTimelineProps) {
   return (
     <ol className="grouped" role="list">
@@ -220,29 +303,7 @@ export function StageTimeline({
           >
             <div className="flex flex-col items-center">
               <StageMarker state={s.state} />
-              {/* The causal link. A connector is drawn out of a stage that
-                  completed; out of a denied, failed or blocked stage it is
-                  not. The absence of the line is the statement — the flow
-                  stopped here. */}
-              {!isLast && (
-                <span
-                  data-state={spec.connector}
-                  className={cn(
-                    'mt-1 w-px flex-1 self-center',
-                    spec.connector === 'drawn' && 'bg-sovereign',
-                    spec.connector === 'idle' && 'bg-line-default',
-                    spec.connector === 'severed' && 'bg-transparent',
-                  )}
-                  style={
-                    spec.connector === 'severed'
-                      ? {
-                          backgroundImage:
-                            'repeating-linear-gradient(to bottom, var(--line-strong) 0 2px, transparent 2px 5px)',
-                        }
-                      : undefined
-                  }
-                />
-              )}
+              {!isLast && <Connector kind={spec.connector} live={live} />}
             </div>
 
             <span className="font-mono text-meta text-foreground-muted">{s.index}</span>
@@ -265,7 +326,8 @@ export function StageTimeline({
                 <div className="mt-1 flex flex-wrap gap-x-3 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
                   {Object.entries(s.counts).map(([k, v]) => (
                     <span key={k}>
-                      {k} <span className="tabular text-foreground">{v}</span>
+                      {/* ROLL: the stage's own count, reported as it runs. */}
+                      {k} <MeasuredNumber value={v} className="text-foreground" />
                     </span>
                   ))}
                 </div>

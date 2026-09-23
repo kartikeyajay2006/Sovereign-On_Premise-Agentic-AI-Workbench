@@ -12,13 +12,14 @@ import type {
   ModelUsage,
   PipelineStage,
   StreamEvent,
-  SystemHealth,
-  SovereigntyStatus,
   Task,
 } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
+import { NEW_RUN_EVENT } from '@/components/command-palette'
+import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
+import { TraceScope } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { Composer, type ComposerAttachment } from './composer'
 import { UserTurn } from './user-turn'
@@ -121,6 +122,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     outcome: 'running',
     stages: DEFAULT_PIPELINE.map((s) => ({ ...s, status: 'pending' })),
     answer: null,
+    releasedLive: false,
     streamingDraft: null,
     streamProgress: null,
     evidence: [],
@@ -160,8 +162,6 @@ export function ThreadView() {
   const [busy, setBusy] = useState(false)
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [stopping, setStopping] = useState(false)
-  const [health, setHealth] = useState<SystemHealth | null>(null)
-  const [sovereignty, setSovereignty] = useState<SovereigntyStatus | null>(null)
   const [models, setModels] = useState<ModelDescriptor[] | null>(null)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [preferredModel, setPreferredModel] = useState<string | null>(null)
@@ -176,6 +176,9 @@ export function ThreadView() {
   const [openedTaskId, setOpenedTaskId] = useState<string | null>(null)
   const [runsVersion, setRunsVersion] = useState(0)
   const [awayFromEnd, setAwayFromEnd] = useState(false)
+  // Bumped by every citation click, so tracing to the same source a second
+  // time lands again instead of doing nothing.
+  const [traceCount, setTraceCount] = useState(0)
 
   const { user, role } = useRole()
   const { push } = useToast()
@@ -214,14 +217,11 @@ export function ThreadView() {
    * the event never took.
    */
   const settleRef = useRef<(taskId: string, failure?: string) => Promise<void>>(async () => {})
+  /** Runs already announced to the header as held, since a run can settle more than once. */
+  const announcedHeldRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled([api.health(), api.sovereigntyStatus()]).then(([h, s]) => {
-      if (cancelled) return
-      if (h.status === 'fulfilled') setHealth(h.value)
-      if (s.status === 'fulfilled') setSovereignty(s.value)
-    })
     api
       .listModels()
       .then((list) => !cancelled && setModels(list))
@@ -518,7 +518,17 @@ export function ThreadView() {
             recorded,
           ),
           stream: 'closed',
+          // This read is the release: every path to it is the run this
+          // thread is following, so the reader is watching the answer land.
+          releasedLive: true,
         }))
+        // A run held for a person has just joined the approval queue, so the
+        // header reads its count again now rather than at the next
+        // navigation. Once per run, however many times it settles.
+        if (status === 'awaiting_approval' && !announcedHeldRef.current.has(taskId)) {
+          announcedHeldRef.current.add(taskId)
+          window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
+        }
       } else if (failure) {
         patchTask(taskId, (t) => ({
           ...t,
@@ -704,17 +714,32 @@ export function ThreadView() {
         setRunsVersion((n) => n + 1)
         return true
       } catch (err: any) {
-        // A failed dispatch is shown as a failed dispatch. Nothing ran, so
-        // nothing is marked as having run.
-        patchTurn(assistantId, (t) => ({
-          ...t,
-          outcome: 'failed',
-          error:
-            err?.status === 0
-              ? 'The local workbench service is unreachable. Nothing was executed.'
-              : err?.message || 'The backend refused the request. Nothing was executed.',
-          stream: 'closed',
-        }))
+        if (err?.status === 403) {
+          // Not a failure. A 403 here is the API's policy gate refusing the
+          // request -- a role without task.create, which is how an auditor
+          // is kept from executing work -- and its detail is the policy's
+          // own reason. A denial is the product working, so it is drawn as
+          // one: nothing ran, and every stage is marked as never reached.
+          patchTurn(assistantId, (t) => ({
+            ...t,
+            outcome: 'denied',
+            denialReason: typeof err.detail === 'string' && err.detail ? err.detail : null,
+            stages: closeStages(t.stages, 'denied', null),
+            stream: 'closed',
+          }))
+        } else {
+          // A failed dispatch is shown as a failed dispatch. Nothing ran, so
+          // nothing is marked as having run.
+          patchTurn(assistantId, (t) => ({
+            ...t,
+            outcome: 'failed',
+            error:
+              err?.status === 0
+                ? 'The local workbench service is unreachable. Nothing was executed.'
+                : err?.message || 'The backend refused the request. Nothing was executed.',
+            stream: 'closed',
+          }))
+        }
         busyRef.current = false
         setBusy(false)
         return false
@@ -851,6 +876,9 @@ export function ThreadView() {
           role: 'assistant',
           id: `a-${task.id}`,
           ...recordFields(task),
+          // Opening a run is a read: its answer was released long ago, and
+          // it is shown in place rather than released again.
+          releasedLive: false,
           // Each stage read from the record, not blanket-marked done. A
           // reopened run must not imply work the snapshot cannot account
           // for: this one retrieved nothing and executed nothing, and
@@ -897,6 +925,14 @@ export function ThreadView() {
     window.requestAnimationFrame(() => textareaRef.current?.focus())
   }, [leaveLiveRun])
 
+  // The palette's "New run" navigates here and then announces itself, and
+  // the thread clears exactly as its own New button does. From another
+  // screen the thread mounts empty, which is already a new run.
+  useEffect(() => {
+    window.addEventListener(NEW_RUN_EVENT, newRun)
+    return () => window.removeEventListener(NEW_RUN_EVENT, newRun)
+  }, [newRun])
+
   /**
    * ?run=<id> opens that run.
    *
@@ -927,6 +963,7 @@ export function ThreadView() {
   const cite = useCallback((turnId: string, evidenceId: string) => {
     setEvidenceTurnId(turnId)
     setFocusEvidenceId(evidenceId)
+    setTraceCount((n) => n + 1)
     setDrawerOpen(true)
   }, [])
 
@@ -954,49 +991,40 @@ export function ThreadView() {
         onNew={newRun}
         refreshKey={runsVersion}
       />
-      <div
+      {/*
+        TRACE: a citation in an answer and its row in the rail light together
+        under the pointer, and a click lands on the row. The rail belongs to
+        this scope because it is rendered here, though it is fixed to the
+        window's edge.
+      */}
+      <TraceScope
         className={cn(
-          'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-6 py-8',
+          'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
+          turns.length === 0 ? 'min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'py-8',
           // Above 1280px the rail docks rather than overlays, so the column
           // steps aside instead of being covered. Checking a citation should
-          // never cost you the sentence that made the claim.
-          'transition-[padding] ease-[var(--ease-move)]',
+          // never cost you the sentence that made the claim. It steps at
+          // once: easing the padding re-wrapped the answer on every frame,
+          // and nothing here animates layout.
           drawerOpen && 'xl:pr-[420px]',
         )}
-        style={{ transitionDuration: 'var(--dur-panel)' }}
       >
-        {/* Measured readings only. Each shows an em dash when unread. */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line-default pb-3 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]">
-          <span className="text-foreground-muted">
-            host <span className="text-foreground">127.0.0.1</span>
-          </span>
-          <span className="text-foreground-muted">
-            egress{' '}
-            <span className="tabular text-foreground">
-              {sovereignty ? sovereignty.unapproved_connections : '—'}
-            </span>
-          </span>
-          <span className="text-foreground-muted">
-            models{' '}
-            <span className="tabular text-foreground">
-              {health ? `${health.models_available}/${health.models_registered}` : '—'}
-            </span>
-          </span>
-          <span className="text-foreground-muted">
-            sandbox{' '}
-            <span className="text-foreground">
-              {health ? (health.sandbox_ready ? 'ready' : 'not ready') : '—'}
-            </span>
-          </span>
-          <span className="text-foreground-muted">
-            audit{' '}
-            <span className={health?.audit_chain_valid === false ? 'text-critical-text' : 'text-foreground'}>
-              {health ? (health.audit_chain_valid ? 'valid' : 'BROKEN') : '—'}
-            </span>
-          </span>
-        </div>
-
-        {turns.length === 0 && <StarterPrompts onPick={pickStarter} />}
+        {/*
+          An empty thread is a greeting and a field, centred, the way every
+          good chat product opens. The readings that used to sit above it
+          live in the header's egress popover, where they come from the API.
+        */}
+        {turns.length === 0 && (
+          <div className="thread-hello text-center">
+            <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
+              What should we check today?
+            </h1>
+            <p className="mx-auto mt-2 max-w-[52ch] text-[0.98rem] leading-[1.55] text-foreground-secondary">
+              Ask about a procedure, a report or a calculation. Every answer is cited, checked against policy and
+              recorded.
+            </p>
+          </div>
+        )}
 
         {turns.map((t) =>
           t.role === 'user' ? (
@@ -1014,14 +1042,14 @@ export function ThreadView() {
           ),
         )}
 
-        <div className="sticky bottom-6 z-[var(--z-rail)]">
+        <div className={cn('z-[var(--z-rail)]', turns.length > 0 && 'sticky bottom-6')}>
           {/* Only while a run is writing below the fold: the one moment a
               reader who scrolled up to check something needs a way back. */}
           {busy && awayFromEnd && (
             <button
               type="button"
               onClick={jumpToLatest}
-              className="hover-decay absolute -top-10 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-[var(--radius-md-token)] bg-surface px-3 py-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-secondary shadow-[var(--elev-2)] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+              className="hover-decay absolute -top-11 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-medium text-foreground-secondary shadow-[var(--elev-2)] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
             >
               <ArrowDown className="size-3" aria-hidden />
               Latest
@@ -1048,13 +1076,17 @@ export function ThreadView() {
           />
         </div>
 
+        {turns.length === 0 && <StarterPrompts onPick={pickStarter} />}
+
         <EvidenceRail
           open={drawerOpen}
           items={railItems}
           focusId={focusEvidenceId}
           onClose={closeDrawer}
+          turnId={railTurn?.id ?? null}
+          traceToken={traceCount}
         />
-      </div>
+      </TraceScope>
     </div>
   )
 }

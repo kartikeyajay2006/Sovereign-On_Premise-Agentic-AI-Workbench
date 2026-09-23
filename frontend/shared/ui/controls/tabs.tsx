@@ -90,7 +90,11 @@ export function Tabs<V extends string>({
             onClick={() => onChange(item.value)}
             className={cn(
               'relative -mb-px flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 text-body font-medium',
-              'transition-colors duration-[var(--micro)] ease-[var(--ease-micro)]',
+              // The hover pair: a highlight arrives at once and decays. A
+              // selection moved with the arrow keys does not animate at all,
+              // so while a tab holds keyboard focus the list drops its
+              // transitions.
+              'hover-decay [[role=tablist]:has(:focus-visible)_&]:transition-none',
               // Inset: the list scrolls sideways, which clips anything drawn
               // outside a tab.
               'rounded-t-[var(--radius-xs)] focus-visible:shadow-[inset_0_0_0_2px_var(--foreground)] focus-visible:outline-none',

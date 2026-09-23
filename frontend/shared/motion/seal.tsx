@@ -25,12 +25,18 @@ import { cn } from '@/lib/utils'
  * hash itself, usually) changes while sealed. A value that was already
  * sealed when the screen opened is shown sealed, without the ceremony:
  * it was read, not committed just now.
+ *
+ * `drawOnMount` is for the one case that rule cannot see: a value whose
+ * first appearance IS the commit, such as a deliverable that arrives with
+ * the very record that releases it. It is Light's `bloomOnMount`, for a
+ * seal, and the caller decides it from the event, never by default.
  */
 export function Seal({
   sealed,
   token,
   tone = 'sovereign',
   mark = true,
+  drawOnMount = false,
   srLabel,
   className,
   children,
@@ -40,13 +46,15 @@ export function Seal({
   /** Critical for a seal that was checked and broke; ink for a neutral one. */
   tone?: 'sovereign' | 'critical' | 'ink'
   mark?: boolean
+  /** Draw once on mount, for a value that mounts at the moment it commits. */
+  drawOnMount?: boolean
   /** What the seal means, for a screen reader: "chain head, verified". */
   srLabel?: string
   className?: string
   children: ReactNode
 }) {
   const [seen, setSeen] = useState({ sealed, token })
-  const [draws, setDraws] = useState(0)
+  const [draws, setDraws] = useState(drawOnMount && sealed ? 1 : 0)
 
   if (seen.sealed !== sealed || seen.token !== token) {
     setSeen({ sealed, token })
