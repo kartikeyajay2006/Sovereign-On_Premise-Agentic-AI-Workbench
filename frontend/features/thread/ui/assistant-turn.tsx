@@ -588,6 +588,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               rerunDisabled={busy}
               held={turn.outcome === 'held'}
               approverRoles={turn.approval?.approverRoles ?? []}
+              reasons={turn.approval?.reasons ?? []}
               canReview={canReview}
             />
           )}

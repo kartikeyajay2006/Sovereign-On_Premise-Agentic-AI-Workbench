@@ -45,6 +45,19 @@ function copyBySelection(text: string): boolean {
   }
 }
 
+/**
+ * The description half of a policy reason, as a clause that can follow
+ * "Held for ... ·". The engine records "rule_name: Sentence." -- the rule
+ * name is for the audit trail, the sentence is for the reader. A reason with
+ * no description falls back to its rule name with underscores spaced out.
+ */
+function heldBecause(reason: string): string {
+  const colon = reason.indexOf(':')
+  const text = (colon === -1 ? reason.replace(/_/g, ' ') : reason.slice(colon + 1)).trim()
+  const clause = text.replace(/\.$/, '')
+  return clause.charAt(0).toLowerCase() + clause.slice(1)
+}
+
 const ACTION = cn(
   'hover-decay inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-xs)] px-2 text-ui text-foreground-muted',
   'hover:bg-surface-sunken hover:text-foreground',
@@ -59,6 +72,7 @@ export const AnswerActions = memo(function AnswerActions({
   rerunDisabled,
   held,
   approverRoles,
+  reasons = [],
   canReview,
 }: {
   /** The verified answer, or null when there is none to copy. */
@@ -70,6 +84,13 @@ export const AnswerActions = memo(function AnswerActions({
   rerunDisabled: boolean
   held: boolean
   approverRoles: string[]
+  /**
+   * Why the gate held it, as the policy engine recorded it:
+   * "rule_name: description". A held answer that said only who must sign it
+   * left a reader looking at "4/4 checks passed" beside HELD with no way to
+   * tell that retrieval had touched a restricted document.
+   */
+  reasons?: string[]
   /** Whether this person can open the approval queue at all. */
   canReview: boolean
 }) {
@@ -140,8 +161,15 @@ export const AnswerActions = memo(function AnswerActions({
       {held && (
         <span className="ml-auto flex items-center gap-2 text-meta">
           {approverRoles.length > 0 && (
-            <span className="text-approval-text">
+            <span className="text-approval-text" title={reasons.join('\n') || undefined}>
               Held for {approverRoles.map((r) => r.replace(/_/g, ' ')).join(' or ')}
+              {reasons.length > 0 && (
+                <span className="text-foreground-muted">
+                  {' · '}
+                  {heldBecause(reasons[0])}
+                  {reasons.length > 1 ? ` (+${reasons.length - 1})` : ''}
+                </span>
+              )}
             </span>
           )}
           {canReview && (
