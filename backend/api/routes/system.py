@@ -255,7 +255,10 @@ async def knowledge_search(
             )
 
     results, mode, took_ms = await knowledge_base.search(
-        payload.query, top_k=payload.top_k, departments=departments
+        payload.query,
+        top_k=payload.top_k,
+        departments=departments,
+        max_classification=user.max_data_classification.value,
     )
     clearance = config.classification_rank(user.max_data_classification.value)
     permitted = [

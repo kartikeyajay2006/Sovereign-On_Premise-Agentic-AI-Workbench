@@ -44,9 +44,13 @@ class _RecordingKnowledgeBase:
 
     def __init__(self) -> None:
         self.calls: list[list[str] | None] = []
+        self.ceilings: list[str | None] = []
 
-    async def search(self, query, *, top_k=None, departments=None, min_score=None):
+    async def search(
+        self, query, *, top_k=None, departments=None, min_score=None, max_classification=None
+    ):
         self.calls.append(departments)
+        self.ceilings.append(max_classification)
         return (
             [
                 _item("S1", "normal", "operations"),
@@ -103,6 +107,13 @@ class TestSearchRespectsClearance:
         returned = {item["id"] for item in response.json()["results"]}
         # confidential clearance: normal and confidential only.
         assert returned == {"S1", "S2"}
+
+    def test_the_index_ranks_only_what_the_caller_is_cleared_for(self, operator_client):
+        # The ceiling goes to the index itself, so passages above it never
+        # occupy a top-k slot; the filter above is the second check.
+        client, kb = operator_client
+        client.post("/api/knowledge/search", json={"query": "interval"})
+        assert kb.ceilings == ["confidential"]
 
 
 def _account(username: str):

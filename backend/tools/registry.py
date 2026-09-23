@@ -229,9 +229,14 @@ class ToolRegistry:
             departments = [context.user.department, "general"]
 
         results, mode, took_ms = await self.knowledge_base.search(
-            query, top_k=arguments.get("top_k"), departments=departments
+            query,
+            top_k=arguments.get("top_k"),
+            departments=departments,
+            max_classification=context.user.max_data_classification.value,
         )
-        # Never hand back evidence above the user's clearance.
+        # Never hand back evidence above the user's clearance. The search has
+        # already ranked only what the user is cleared for; this stays as the
+        # second of two independent checks.
         permitted = [
             item
             for item in results
