@@ -181,7 +181,3 @@ export interface AssistantTurn {
 }
 
 export type Turn = UserTurn | AssistantTurn
-
-export function isAssistantTurn(turn: Turn): turn is AssistantTurn {
-  return turn.role === 'assistant'
-}

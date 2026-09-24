@@ -193,13 +193,6 @@ class OllamaClient:
         except httpx.HTTPError as exc:
             raise InferenceError(f"Local inference server unreachable: {exc}") from exc
 
-    async def is_reachable(self) -> bool:
-        try:
-            await self.list_models()
-            return True
-        except InferenceError:
-            return False
-
     # -- generation --------------------------------------------------------
     async def generate(
         self,

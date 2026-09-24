@@ -24,7 +24,7 @@ import uuid
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 from backend.core.config import get_config
 from backend.core.database import Database, get_database
@@ -206,31 +206,6 @@ class KnowledgeBase:
             media_type=parsed.media_type,
             size_bytes=len(raw),
         )
-
-    async def ingest_directory(
-        self,
-        directory: Path,
-        *,
-        department: str = "general",
-        classification: Sensitivity = Sensitivity.NORMAL,
-    ) -> list[KnowledgeDocument]:
-        supported = {
-            str(suffix).lower()
-            for suffix in self._kb_config.get("supported_ingest_extensions", [])
-        }
-        ingested: list[KnowledgeDocument] = []
-        for path in sorted(directory.rglob("*")):
-            if not path.is_file() or path.suffix.lower() not in supported:
-                continue
-            try:
-                ingested.append(
-                    await self.ingest_file(
-                        path, department=department, classification=classification
-                    )
-                )
-            except Exception:
-                continue
-        return ingested
 
     # -- retrieval ---------------------------------------------------------
     def _to_evidence(

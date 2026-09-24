@@ -29,16 +29,6 @@ export const TONE_TEXT: Record<Tone, string> = {
   critical: 'text-critical-text',
 }
 
-/** The fill form of the same hues, for dots, rails and markers. */
-export const TONE_FILL: Record<Tone, string> = {
-  default: 'bg-foreground',
-  secondary: 'bg-foreground-secondary',
-  muted: 'bg-control-strong',
-  sovereign: 'bg-sovereign',
-  active: 'bg-active',
-  approval: 'bg-approval',
-  critical: 'bg-critical',
-}
 
 /**
  * One reading, inline: `LABEL value`.

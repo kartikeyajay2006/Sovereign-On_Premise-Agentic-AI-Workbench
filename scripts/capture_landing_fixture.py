@@ -150,10 +150,6 @@ def read_audit_raw(path: Path) -> list[tuple[dict[str, Any], str]]:
     return records
 
 
-def read_audit(path: Path) -> list[dict[str, Any]]:
-    return [record for record, _ in read_audit_raw(path)]
-
-
 # --------------------------------------------------------------------------- #
 # Choosing a run
 # --------------------------------------------------------------------------- #

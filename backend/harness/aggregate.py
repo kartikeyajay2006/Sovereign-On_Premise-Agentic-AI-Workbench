@@ -81,10 +81,6 @@ def clip(text: str, limit: int) -> str:
     return flat if len(flat) <= limit else flat[: limit - 1].rstrip() + "…"
 
 
-def is_settled(status: TaskStatus) -> bool:
-    return status in SETTLED_STATUSES
-
-
 def _plural(count: int, word: str) -> str:
     return f"{count} {word}{'' if count == 1 else 's'}"
 

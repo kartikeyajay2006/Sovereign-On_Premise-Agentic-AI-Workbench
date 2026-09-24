@@ -410,10 +410,6 @@ PARSERS = {
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
 
 
-def is_image(path: Path) -> bool:
-    return path.suffix.lower() in IMAGE_SUFFIXES
-
-
 def parse_document(path: Path) -> ParsedDocument:
     """Parse a local document into addressable text segments."""
     if not path.exists():

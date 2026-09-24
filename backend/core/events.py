@@ -64,20 +64,6 @@ class EventBus:
                 continue
         return message
 
-    def publish_soon(
-        self,
-        event: str,
-        *,
-        task_id: str | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> None:
-        """Publish from synchronous code running inside the event loop's thread."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        loop.create_task(self.publish(event, task_id=task_id, data=data))
-
     @contextlib.asynccontextmanager
     async def subscribe(self) -> AsyncIterator[asyncio.Queue[StreamEvent]]:
         queue: asyncio.Queue[StreamEvent] = asyncio.Queue(maxsize=MAX_QUEUE)
@@ -96,10 +82,6 @@ class EventBus:
             if task_id is None or event.task_id == task_id
         ]
         return events[-limit:]
-
-    @property
-    def subscriber_count(self) -> int:
-        return len(self._subscribers)
 
 
 _event_bus: EventBus | None = None

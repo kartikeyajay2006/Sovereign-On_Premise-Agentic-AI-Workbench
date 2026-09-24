@@ -287,20 +287,8 @@ class ConfigBundle:
             raise ConfigError(f"Unknown system prompt: {name}")
         return template.format(base=base).strip()
 
-    def reload(self) -> None:
-        """Re-read every configuration file (used by the admin API)."""
-        with self._lock:
-            fresh = ConfigBundle()
-            self.__dict__.update(
-                {k: v for k, v in fresh.__dict__.items() if k != "_lock"}
-            )
-
 
 @lru_cache(maxsize=1)
 def get_config() -> ConfigBundle:
     """Process-wide configuration singleton."""
     return ConfigBundle()
-
-
-def get_settings() -> Settings:
-    return get_config().settings

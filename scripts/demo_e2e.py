@@ -17,7 +17,6 @@ Run with the API already listening:  python scripts/demo_e2e.py
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
