@@ -2748,3 +2748,609 @@ html[data-theme='dark'],
   @media (prefers-reduced-motion: reduce) { .ae-live .dot::after { animation: none; } }
   @media (max-width: 640px) { .ae-live .k { display: none; } }
 }
+
+/* ==================================================================== */
+/* IDENTITY — Catppuccin: Latte by day, Mocha by night                   */
+/*                                                                       */
+/* The whole product takes one palette. Everything above this block      */
+/* derives from a handful of tokens -- grounds, inks, the action colour, */
+/* four status fills and the donor the hairlines are mixed from -- so    */
+/* redefining those here re-themes every screen at once, and the         */
+/* measured-light, wash and elevation systems carry on working over the */
+/* new values. Mauve is the brand; green, blue, peach and red keep the   */
+/* four states the product has always had: proved, running, held for a  */
+/* person, refused.                                                      */
+/* ==================================================================== */
+:root {
+  color-scheme: light;
+
+  /* Catppuccin Latte */
+  --ctp-rosewater: #dc8a78; --ctp-flamingo: #dd7878; --ctp-pink: #ea76cb; --ctp-mauve: #8839ef;
+  --ctp-red: #d20f39; --ctp-maroon: #e64553; --ctp-peach: #fe640b; --ctp-yellow: #df8e1d;
+  --ctp-green: #40a02b; --ctp-teal: #179299; --ctp-sky: #04a5e5; --ctp-sapphire: #209fb5;
+  --ctp-blue: #1e66f5; --ctp-lavender: #7287fd;
+  --ctp-text: #4c4f69; --ctp-subtext1: #5c5f77; --ctp-subtext0: #6c6f85;
+  --ctp-overlay2: #7c7f93; --ctp-overlay1: #8c8fa1; --ctp-overlay0: #9ca0b0;
+  --ctp-surface2: #acb0be; --ctp-surface1: #bcc0cc; --ctp-surface0: #ccd0da;
+  --ctp-base: #eff1f5; --ctp-mantle: #e6e9ef; --ctp-crust: #dce0e8;
+
+  --background: #eff1f5;
+  --surface: #fafbfd;
+  --surface-sunken: #e6e9ef;
+
+  --foreground: #292c3c;            /* 12.4:1 on base */
+  --foreground-secondary: #4c4f69;  /*  7.1:1 */
+  --foreground-muted: #5c5f77;      /*  5.6:1 */
+
+  /* The mark's five blocks, top to bottom, and the brand gradient. */
+  --brand-1: #8839ef; --brand-2: #ea76cb; --brand-3: #dd7878; --brand-4: #fe640b; --brand-5: #df8e1d;
+  --brand-grad: linear-gradient(95deg, #8839ef 0%, #ea76cb 48%, #fe640b 100%);
+  --brand-glow: oklch(0.55 0.25 300 / 0.18);
+
+  --action: #8839ef;
+  --action-hover: #7629d8;
+  --action-text: #7a2fe0;
+  --action-ink: #ffffff;
+
+  --sovereign: #40a02b;
+  --active: #1e66f5;
+  --approval: #fe640b;
+  --critical: #d20f39;
+  --sovereign-text: #2e7d1f;
+  --active-text: #1a55d4;
+  --approval-text: #b24405;
+  --critical-text: #b20d2f;
+  --on-sovereign: #ffffff;
+  --on-active: #ffffff;
+  --on-approval: #ffffff;
+  --on-critical: #ffffff;
+
+  --line-ink: oklch(0.40 0.05 278);
+
+  --ink: #1e1e2e;
+  --ink-surface: #181825;
+  --ink-foreground: #cdd6f4;
+  --ink-muted: #9399b2;
+  --ink-border: #313244;
+  --ink-grid: #262637;
+
+  --primary: var(--action);
+  --primary-foreground: var(--action-ink);
+
+  --selected-rail: var(--action);
+  --selected-surface: oklch(0.55 0.25 300 / 0.08);
+  --scrim: color-mix(in srgb, #dce0e8 80%, transparent);
+
+  --emit-sovereign: var(--sovereign);
+  --emit-active: var(--active);
+  --emit-approval: var(--approval);
+  --emit-critical: var(--critical);
+
+  --elev-1:
+    0 0 0 1px oklch(0.4 0.05 278 / 0.10),
+    0 1px 2px oklch(0.3 0.05 278 / 0.06),
+    0 0 0 1px var(--background);
+  --elev-2:
+    0 0 0 1px oklch(0.4 0.05 278 / 0.11),
+    0 1px 2px oklch(0.3 0.05 278 / 0.06),
+    0 24px 70px -32px oklch(0.3 0.08 290 / 0.30),
+    0 0 0 1px var(--surface);
+  --elev-3:
+    0 0 0 1px oklch(0.4 0.05 278 / 0.12),
+    0 3px 8px -2px oklch(0.3 0.05 278 / 0.10),
+    0 50px 92px -36px oklch(0.3 0.08 290 / 0.40),
+    0 0 0 1px var(--surface);
+
+  --focus-ring:
+    0 0 0 var(--focus-gap) var(--surface),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--action);
+  --focus-ring-on-paper:
+    0 0 0 var(--focus-gap) var(--background),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--action);
+  --focus-ring-on-sunken:
+    0 0 0 var(--focus-gap) var(--surface-sunken),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--action);
+  --focus-halo:
+    0 0 0 1px var(--action),
+    0 0 0 4px oklch(from var(--action) l c h / 0.16);
+
+  --night: #11111b;
+  --night-2: #181825;
+}
+
+html[data-theme='dark'],
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Catppuccin Mocha */
+  --ctp-rosewater: #f5e0dc; --ctp-flamingo: #f2cdcd; --ctp-pink: #f5c2e7; --ctp-mauve: #cba6f7;
+  --ctp-red: #f38ba8; --ctp-maroon: #eba0ac; --ctp-peach: #fab387; --ctp-yellow: #f9e2af;
+  --ctp-green: #a6e3a1; --ctp-teal: #94e2d5; --ctp-sky: #89dceb; --ctp-sapphire: #74c7ec;
+  --ctp-blue: #89b4fa; --ctp-lavender: #b4befe;
+  --ctp-text: #cdd6f4; --ctp-subtext1: #bac2de; --ctp-subtext0: #a6adc8;
+  --ctp-overlay2: #9399b2; --ctp-overlay1: #7f849c; --ctp-overlay0: #6c7086;
+  --ctp-surface2: #585b70; --ctp-surface1: #45475a; --ctp-surface0: #313244;
+  --ctp-base: #1e1e2e; --ctp-mantle: #181825; --ctp-crust: #11111b;
+
+  --background: #1e1e2e;
+  --surface: #262637;
+  --surface-sunken: #181825;
+
+  --foreground: #cdd6f4;            /* 11.3:1 on base */
+  --foreground-secondary: #bac2de;  /*  9.3:1 */
+  --foreground-muted: #9399b2;      /*  5.8:1 */
+
+  --brand-1: #cba6f7; --brand-2: #f5c2e7; --brand-3: #f2cdcd; --brand-4: #fab387; --brand-5: #f9e2af;
+  --brand-grad: linear-gradient(95deg, #cba6f7 0%, #f5c2e7 48%, #fab387 100%);
+  --brand-glow: oklch(0.78 0.12 305 / 0.22);
+
+  --action: #cba6f7;
+  --action-hover: #dac0fa;
+  --action-text: #cba6f7;
+  --action-ink: #11111b;
+
+  --sovereign: #a6e3a1;
+  --active: #89b4fa;
+  --approval: #fab387;
+  --critical: #f38ba8;
+  --sovereign-text: #a6e3a1;
+  --active-text: #89b4fa;
+  --approval-text: #fab387;
+  --critical-text: #f38ba8;
+  --on-sovereign: #11111b;
+  --on-active: #11111b;
+  --on-approval: #11111b;
+  --on-critical: #11111b;
+
+  --line-ink: oklch(0.87 0.045 278);
+
+  --ink: #eff1f5;
+  --ink-surface: #e6e9ef;
+  --ink-foreground: #1e1e2e;
+  --ink-muted: #5c5f77;
+  --ink-border: #ccd0da;
+  --ink-grid: #dce0e8;
+
+  --primary: var(--action);
+  --primary-foreground: var(--action-ink);
+
+  --selected-rail: var(--action);
+  --selected-surface: oklch(0.78 0.12 305 / 0.10);
+  --scrim: color-mix(in srgb, #11111b 80%, transparent);
+
+  --sovereign-surface: oklch(from var(--sovereign) l c h / 12%);
+  --active-surface:    oklch(from var(--active)    l c h / 12%);
+  --approval-surface:  oklch(from var(--approval)  l c h / 12%);
+  --critical-surface:  oklch(from var(--critical)  l c h / 12%);
+  --sovereign-border:  oklch(from var(--sovereign) l c h / 40%);
+  --active-border:     oklch(from var(--active)    l c h / 40%);
+  --approval-border:   oklch(from var(--approval)  l c h / 40%);
+  --critical-border:   oklch(from var(--critical)  l c h / 40%);
+
+  --emit-sovereign: var(--sovereign);
+  --emit-active: var(--active);
+  --emit-approval: var(--approval);
+  --emit-critical: var(--critical);
+
+  --focus-ring:
+    0 0 0 var(--focus-gap) var(--surface),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--action);
+  --focus-ring-on-paper:
+    0 0 0 var(--focus-gap) var(--background),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--action);
+  --focus-ring-on-sunken:
+    0 0 0 var(--focus-gap) var(--surface-sunken),
+    0 0 0 calc(var(--focus-gap) + 2px) var(--action);
+  --focus-halo:
+    0 0 0 1px var(--action),
+    0 0 0 4px oklch(from var(--action) l c h / 0.2);
+
+  --night: #11111b;
+  --night-2: #181825;
+}
+
+/* ==================================================================== */
+/* IDENTITY — the public pages                                           */
+/*                                                                       */
+/* A drawing office, not a brochure. The statement, the headings, the    */
+/* labels and the actions are set in Geist Mono, like the lettering on   */
+/* an instrument; the reading text stays in Geist Sans. The page is laid */
+/* out on visible construction lines -- two rules down the column, a     */
+/* grid on the night grounds, corner marks on every plate -- because the */
+/* product's whole claim is that its work can be checked, and a page     */
+/* drawn to be checked says so before a word is read. Colour is the      */
+/* Catppuccin palette and the mark's five blocks; the gradient is kept   */
+/* for the one line each band most wants remembered.                     */
+/*                                                                       */
+/* Everything here sits in the components layer, after the rules it      */
+/* restyles, so the utilities on the elements still win.                 */
+/* ==================================================================== */
+@layer components {
+  :root {
+    --ae-maxw: 1200px;
+    --ae-radius: 14px;
+    --ae-grid-line: oklch(from var(--line-ink) l c h / 0.07);
+    --ae-paint:
+      radial-gradient(90% 80% at 0% 0%, oklch(from #8839ef l c h / 0.16), transparent 60%),
+      radial-gradient(80% 70% at 100% 8%, oklch(from #ea76cb l c h / 0.14), transparent 60%),
+      radial-gradient(90% 80% at 60% 112%, oklch(from #fe640b l c h / 0.12), transparent 62%),
+      #e6e9ef;
+  }
+  html[data-theme='dark'],
+  [data-theme='dark'] {
+    --ae-grid-line: oklch(from #cdd6f4 l c h / 0.06);
+    --ae-paint:
+      radial-gradient(90% 80% at 0% 0%, oklch(from #cba6f7 l c h / 0.18), transparent 60%),
+      radial-gradient(80% 70% at 100% 8%, oklch(from #f5c2e7 l c h / 0.12), transparent 60%),
+      radial-gradient(90% 80% at 60% 112%, oklch(from #fab387 l c h / 0.12), transparent 62%),
+      #181825;
+  }
+
+  /* ---- the construction lines ------------------------------------------ */
+  /* Two rules down the page, just outside the text column. They sit under  */
+  /* everything, so a band with a ground of its own covers them.            */
+  .ae-site { isolation: isolate; }
+  .ae-site::before {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 50%; z-index: -1; pointer-events: none;
+    width: calc(min(100%, var(--ae-maxw)) - var(--ae-pad));
+    transform: translateX(-50%);
+    border-inline: 1px solid var(--ae-grid-line);
+  }
+  @media (max-width: 767px) { .ae-site::before { display: none; } }
+
+  /* ---- type ---------------------------------------------------------------- */
+  .ae-kicker {
+    gap: 10px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; line-height: 1.4;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--foreground-muted);
+  }
+  .ae-kicker .ix { display: inline-flex; align-items: center; gap: 10px; color: var(--action-text); }
+  .ae-kicker .ix::after { content: ''; width: 22px; height: 1px; background: currentColor; opacity: 0.55; }
+
+  .ae-h2 {
+    font-family: var(--font-mono); font-weight: 600; font-size: clamp(1.7rem, 3.2vw, 2.6rem);
+    line-height: 1.1; letter-spacing: -0.045em;
+  }
+  /* The continuation takes its own line: a mono line broken mid-phrase reads as a mistake. */
+  .ae-h2 .soft { display: block; color: var(--foreground-muted); }
+  .ae-lead { font-size: clamp(1.02rem, 1.3vw, 1.16rem); line-height: 1.6; }
+
+  /* ---- actions -------------------------------------------------------------- */
+  .ae-btn {
+    height: 44px; padding: 0 18px; border-radius: 10px;
+    font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  }
+  .ae-btn.sm { height: 34px; padding: 0 13px; border-radius: 8px; font-size: 0.7rem; }
+  .ae-btn.primary {
+    background: var(--action); color: var(--action-ink);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 0 -1px 0 oklch(0 0 0 / 0.12), 0 10px 28px -14px var(--brand-glow);
+  }
+  .ae-btn.primary:hover { background: var(--action-hover); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 0 -1px 0 oklch(0 0 0 / 0.12), 0 14px 34px -12px var(--brand-glow); }
+  .ae-btn.secondary { background: transparent; color: var(--foreground); box-shadow: inset 0 0 0 1px var(--line-default); }
+  .ae-btn.secondary:hover { background: oklch(from var(--foreground) l c h / 0.05); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .ae-btn.ghost:hover { background: oklch(from var(--foreground) l c h / 0.05); }
+  .ae-btn:focus-visible,
+  .ae-btn.primary:focus-visible,
+  .ae-btn.secondary:focus-visible { outline: none; box-shadow: var(--focus-ring-on-paper); }
+
+  /* ---- the header: a strip of cells ------------------------------------------ */
+  .ae-header { background: color-mix(in oklab, var(--background) 94%, transparent); border-bottom-color: var(--line-subtle); }
+  .ae-header .row { gap: 24px; }
+  .ae-nav { align-self: stretch; gap: 0; border-left: 1px solid var(--line-subtle); }
+  .ae-nav a {
+    position: relative; display: inline-flex; align-items: center; height: 100%; padding: 0 16px; border-radius: 0;
+    border-right: 1px solid var(--line-subtle);
+    font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--foreground-muted);
+  }
+  .ae-nav a::after {
+    content: ''; position: absolute; left: -1px; right: -1px; bottom: -1px; height: 2px; background: var(--action);
+    transform: scaleX(0); transform-origin: left; transition: transform 0.3s var(--ae-ease);
+  }
+  .ae-nav a:hover { color: var(--foreground); background: oklch(from var(--action) l c h / 0.07); }
+  .ae-nav a:hover::after { transform: scaleX(1); }
+  .ae-nav a:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--action); }
+  @media (max-width: 1060px) { .ae-nav { display: none; } }
+  .ae-header.over-band:not(.scrolled) { background: transparent; border-bottom-color: oklch(from var(--ctp-text) l c h / 0.08); }
+  .ae-header.over-band.scrolled { background: color-mix(in oklab, var(--night) 94%, transparent); border-bottom-color: oklch(from var(--ctp-text) l c h / 0.1); }
+  .ae-header.over-band .ae-nav, .ae-header.over-band .ae-nav a { border-color: oklch(from var(--ctp-text) l c h / 0.08); }
+
+  /* ---- the hero ---------------------------------------------------------------- */
+  .ae-hero { --ae-overlap: clamp(120px, 15vw, 220px); }
+  .ae-hero-band { background: var(--night); }
+  .ae-hero-band::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(to right, var(--ae-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--ae-grid-line) 1px, transparent 1px);
+    background-size: 72px 72px; background-position: center -8px;
+    -webkit-mask-image: radial-gradient(ellipse 90% 75% at 62% 38%, #000 25%, transparent 82%);
+            mask-image: radial-gradient(ellipse 90% 75% at 62% 38%, #000 25%, transparent 82%);
+  }
+  .ae-hero-band::after { opacity: 0.1; }
+  .ae-hero-glow {
+    background:
+      radial-gradient(38% 44% at 76% 40%, oklch(from #cba6f7 l c h / 0.2), transparent 72%),
+      radial-gradient(30% 34% at 18% 12%, oklch(from #f5c2e7 l c h / 0.09), transparent 72%),
+      radial-gradient(34% 30% at 8% 88%, oklch(from #fab387 l c h / 0.1), transparent 72%);
+  }
+  .ae-hero-dots { opacity: 0.8; }
+  .ae-hero-horizon {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 4%, oklch(from #cba6f7 l c h / 0.7) 28%, oklch(from #f5c2e7 l c h / 0.6) 52%, oklch(from #fab387 l c h / 0.55) 74%, transparent 96%);
+  }
+
+  .ae-hero-split {
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 44px;
+    padding-top: clamp(44px, 7vw, 92px); padding-bottom: clamp(28px, 4vw, 48px);
+  }
+  @media (min-width: 1024px) {
+    .ae-hero-split { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); align-items: center; gap: clamp(28px, 3.5vw, 56px); }
+  }
+  .ae-hero-copy { min-width: 0; }
+
+  .ae-tag {
+    display: inline-flex; align-items: center; gap: 10px; height: 30px; margin: 0; padding: 0 12px 0 10px; border-radius: 8px;
+    background: oklch(from var(--foreground) l c h / 0.04); box-shadow: inset 0 0 0 1px var(--line-default);
+    font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--foreground-secondary);
+  }
+  .ae-tag .blk { width: 10px; height: 10px; border-radius: 2.5px; background: var(--brand-grad); }
+
+  .ae-statement {
+    margin: 22px 0 0; font-family: var(--font-mono); font-weight: 650; font-size: clamp(2.3rem, 4.6vw, 3.7rem);
+    line-height: 1.02; letter-spacing: -0.05em; text-transform: uppercase; color: var(--foreground);
+  }
+  .ae-statement .line { display: block; width: fit-content; }
+  .ae-statement .grad { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  /* A block cursor after the last line, the one thing in the statement that moves. */
+  .ae-statement .grad::after {
+    content: ''; display: inline-block; width: 0.52em; height: 0.78em; margin-left: 0.1em; vertical-align: -0.04em;
+    border-radius: 2px; background: var(--brand-5); animation: ae-blink 1.15s steps(1, end) infinite;
+  }
+  @keyframes ae-blink { 50% { opacity: 0; } }
+  .ae-hero-band .ae-lead { color: var(--foreground-secondary); }
+
+  .ae-hero-band .ae-btn.primary { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 0 0 0 1px oklch(from #cba6f7 l c h / 0.5), 0 14px 44px -12px oklch(from #cba6f7 l c h / 0.55); }
+  .ae-hero-band .ae-btn.secondary { background: oklch(from #cdd6f4 l c h / 0.04); color: var(--foreground); box-shadow: inset 0 0 0 1px oklch(from #cdd6f4 l c h / 0.18); }
+  .ae-hero-band .ae-btn.secondary:hover { background: oklch(from #cdd6f4 l c h / 0.08); box-shadow: inset 0 0 0 1px oklch(from #cdd6f4 l c h / 0.28); }
+  .ae-hero-band .ae-btn:focus-visible { box-shadow: var(--focus-ring-on-paper); }
+
+  .ae-live { border-radius: 8px; background: oklch(from #cdd6f4 l c h / 0.035); box-shadow: inset 0 0 0 1px oklch(from #cdd6f4 l c h / 0.1); }
+  /* One line or none: where the copy column is narrow the label steps aside and the reading stays whole. */
+  .ae-live .k, .ae-live .v { white-space: nowrap; }
+  @media (min-width: 1024px) and (max-width: 1199px) { .ae-live .k { display: none; } }
+
+  /* The drawing. */
+  .ae-hero-visual { position: relative; min-width: 0; }
+  @media (max-width: 1023px) { .ae-hero-visual { max-width: 600px; } }
+  @media (max-width: 639px) { .ae-hero-visual { display: none; } }
+  .ae-bd { display: block; width: 100%; height: auto; overflow: visible; }
+  .ae-bd .bd-boundary {
+    fill: oklch(from #cba6f7 l c h / 0.035); stroke: oklch(from #cba6f7 l c h / 0.55); stroke-width: 1.2; stroke-dasharray: 7 5;
+  }
+  .ae-bd .bd-cross { fill: none; stroke: oklch(from #cba6f7 l c h / 0.9); stroke-width: 1.2; }
+  .ae-bd .bd-label { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.16em; fill: #cba6f7; }
+  .ae-bd .bd-label-soft { font-weight: 500; fill: #7f849c; }
+  .ae-bd .bd-edge { fill: none; stroke: oklch(from #9399b2 l c h / 0.4); stroke-width: 1.2; }
+  .ae-bd .bd-edge-out { stroke: oklch(from #f38ba8 l c h / 0.55); stroke-dasharray: 4 4; }
+  .ae-bd .bd-edge-cut { stroke: oklch(from #f38ba8 l c h / 0.3); stroke-dasharray: 2 4; }
+  .ae-bd .bd-hit { fill: none; stroke: #f38ba8; stroke-width: 1.4; }
+  .ae-bd .bd-x circle { fill: #11111b; stroke: #f38ba8; stroke-width: 1.5; }
+  .ae-bd .bd-x path { fill: none; stroke: #f38ba8; stroke-width: 1.8; stroke-linecap: round; }
+  .ae-bd .bd-cloud rect { fill: none; stroke: oklch(from #9399b2 l c h / 0.45); stroke-width: 1.2; stroke-dasharray: 3 4; }
+  .ae-bd .bd-cloud .bd-title { fill: #7f849c; text-decoration: line-through; text-decoration-color: oklch(from #f38ba8 l c h / 0.8); }
+  .ae-bd .bd-cloud .bd-sub { fill: #f38ba8; }
+  .ae-bd .bd-card { fill: #181825; stroke: oklch(from #cdd6f4 l c h / 0.14); stroke-width: 1; }
+  .ae-bd .bd-title { font-family: var(--font-sans); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; fill: #cdd6f4; }
+  .ae-bd .bd-sub { font-family: var(--font-mono); font-size: 11px; fill: #9399b2; }
+  /* The cards come in one after another, by opacity alone: a CSS transform on
+     a group would replace the translate that places it. */
+  .ae-bd .bd-node { animation: ae-bd-in 0.6s var(--ae-ease) both; animation-delay: calc(var(--i, 0) * 90ms + 350ms); }
+  @keyframes ae-bd-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* The replay's caption, on the band. */
+  .ae-fig {
+    display: flex; align-items: center; gap: 12px; margin: 0 0 14px;
+    font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--foreground-muted);
+  }
+  .ae-fig .n { color: var(--action-text); }
+  .ae-fig .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-default), transparent); }
+
+  /* ---- plates: the product in a frame with corner marks ------------------------ */
+  .ae-frame {
+    border-radius: var(--ae-radius); padding: clamp(8px, 1.6vw, 20px); background: var(--ae-paint);
+    box-shadow: inset 0 0 0 1px var(--line-subtle);
+  }
+  .ae-frame::after {
+    inset: 6px; opacity: 1; mix-blend-mode: normal;
+    --c: oklch(from var(--action) l c h / 0.75);
+    background-image:
+      linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
+      linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
+      linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)),
+      linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c));
+    background-repeat: no-repeat;
+    background-size: 14px 1.5px, 1.5px 14px, 14px 1.5px, 1.5px 14px, 14px 1.5px, 1.5px 14px, 14px 1.5px, 1.5px 14px;
+    background-position: left top, left top, right top, right top, left bottom, left bottom, right bottom, right bottom;
+  }
+  [data-theme='dark'] .ae-frame::after { opacity: 1; mix-blend-mode: normal; }
+  .ae-frame .inner, .ae-replay, .ae-stage { border-radius: 10px; }
+  .ae-replay-bar { gap: 10px; }
+  .ae-replay-again { border-radius: 7px; font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* ---- the four numbers ------------------------------------------------------------ */
+  .ae-stats { border-radius: var(--ae-radius); }
+  .ae-stat .v { font-family: var(--font-mono); font-weight: 600; letter-spacing: -0.06em; }
+  .ae-stat .v small { font-family: var(--font-mono); letter-spacing: 0; }
+  .ae-stat .l {
+    display: flex; align-items: center; gap: 8px; order: -1; margin-bottom: 6px;
+    font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--foreground-secondary);
+  }
+  .ae-stat .l::before { content: ''; flex-shrink: 0; width: 8px; height: 8px; border-radius: 2px; background: var(--brand-1); }
+  .ae-stat:nth-child(2) .l::before { background: var(--brand-2); }
+  .ae-stat:nth-child(3) .l::before { background: var(--brand-4); }
+  .ae-stat:nth-child(4) .l::before { background: var(--brand-5); }
+
+  /* ---- use cases ------------------------------------------------------------------ */
+  .ae-uc { height: 52px; padding: 0 18px 0 8px; border-radius: 12px; box-shadow: none; }
+  .ae-uc:hover { border-color: oklch(from var(--action) l c h / 0.45); box-shadow: 0 10px 28px -20px var(--brand-glow); }
+  .ae-uc-icon { width: 34px; height: 34px; border-radius: 8px; background: oklch(from var(--action) l c h / 0.12); color: var(--action-text); }
+  .ae-uc-set > .ae-uc:nth-child(4n + 2) .ae-uc-icon { background: oklch(from var(--ctp-pink) l c h / 0.14); color: color-mix(in oklab, var(--ctp-pink) 70%, var(--foreground)); }
+  .ae-uc-set > .ae-uc:nth-child(4n + 3) .ae-uc-icon { background: oklch(from var(--ctp-peach) l c h / 0.14); color: color-mix(in oklab, var(--ctp-peach) 70%, var(--foreground)); }
+  .ae-uc-set > .ae-uc:nth-child(4n + 4) .ae-uc-icon { background: oklch(from var(--ctp-blue) l c h / 0.13); color: color-mix(in oklab, var(--ctp-blue) 75%, var(--foreground)); }
+  .ae-uc-kind { font-family: var(--font-mono); font-size: 0.64rem; font-weight: 500; letter-spacing: 0.12em; }
+
+  /* ---- how it works ----------------------------------------------------------------- */
+  .ae-pipe-head .n { border-radius: 6px; }
+  .ae-pipe-head .t { font-family: var(--font-mono); font-size: 0.76rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+  .ae-pipe-more .h { font-family: var(--font-mono); font-size: clamp(1.15rem, 1.7vw, 1.4rem); letter-spacing: -0.04em; }
+  .ae-pipe-frame { border-radius: var(--ae-radius); }
+  .ae-pipe-bar .dots i:nth-child(1) { background: var(--ctp-red); }
+  .ae-pipe-bar .dots i:nth-child(2) { background: var(--ctp-yellow); }
+  .ae-pipe-bar .dots i:nth-child(3) { background: var(--ctp-green); }
+  @media (min-width: 1024px) {
+    .ae-pipe-steps::after { background: linear-gradient(180deg, var(--brand-1), var(--brand-2) 50%, var(--brand-4)); }
+    .ae-pipe-step::before { border-radius: 3px; }
+    .ae-pipe-step.done::before, .ae-pipe-step.on::before { background: var(--action); box-shadow: 0 0 0 2px var(--action); }
+    .ae-pipe-step.on::before { box-shadow: 0 0 0 2px var(--action), 0 0 0 7px oklch(from var(--action) l c h / 0.2); }
+    .ae-pipe-step.on .ae-pipe-head .n { background: var(--action); color: var(--action-ink); }
+  }
+  .ae-sc-label { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; }
+  .ae-sc-tags li { border-radius: 8px; }
+  .ae-sc-tags li:first-child { background: var(--action); color: var(--action-ink); }
+  .ae-sc-passages .cited .bar i { background: var(--action); }
+  .ae-sc-answer .cite { color: var(--action-text); background: oklch(from var(--action) l c h / 0.14); }
+  .ae-sc-trace mark, .ae-step-mark { background: oklch(from var(--ctp-yellow) l c h / 0.4); }
+  [data-theme='dark'] .ae-step-mark { background: oklch(from var(--ctp-yellow) l c h / 0.28); }
+  .ae-sc-chain .blk, .ae-sc-trace { border-radius: 10px; }
+  .ae-step-n { border-radius: 6px; color: var(--action-text); background: oklch(from var(--action) l c h / 0.12); }
+
+  /* ---- the gallery ------------------------------------------------------------------- */
+  .ae-tabs { border-radius: 12px; background: oklch(from var(--foreground) l c h / 0.04); box-shadow: inset 0 0 0 1px var(--line-subtle); }
+  .ae-tab { height: 34px; padding: 0 14px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .ae-tab .dwell::after { background: var(--action); }
+
+  /* ---- the night grounds --------------------------------------------------------------- */
+  .ae-night { background: var(--night); }
+  .ae-night::before {
+    background-image:
+      linear-gradient(to right, var(--ae-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--ae-grid-line) 1px, transparent 1px);
+    background-size: 72px 72px; background-position: center top;
+  }
+  .ae-night::after {
+    background:
+      radial-gradient(40% 30% at 10% 6%, oklch(from #cba6f7 l c h / 0.14), transparent 70%),
+      radial-gradient(40% 34% at 94% 34%, oklch(from #fab387 l c h / 0.08), transparent 70%);
+  }
+  .ae-tile {
+    border-radius: 16px; border-color: oklch(from #cdd6f4 l c h / 0.1);
+    background: linear-gradient(180deg, oklch(from #cba6f7 l c h / 0.05), oklch(from #cdd6f4 l c h / 0.015) 60%);
+  }
+  .ae-tile::before { background: radial-gradient(460px circle at var(--mx, 50%) var(--my, 0%), oklch(from #cba6f7 l c h / 0.13), transparent 45%); }
+  .ae-tile .ti { font-family: var(--font-mono); font-size: 1.08rem; letter-spacing: -0.035em; }
+  .ae-tamper-block, .ae-req-list, .ae-airgap { border-radius: 10px; }
+  .ae-hero-band .ae-display .soft,
+  .ae-footer-title .soft,
+  .ae-signin-panel .soft {
+    background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  /* ---- what it runs on ---------------------------------------------------------------- */
+  .ae-strip-item { font-family: var(--font-mono); font-size: 0.95rem; letter-spacing: -0.03em; }
+
+  /* ---- the footer ---------------------------------------------------------------------- */
+  .ae-footer { background: var(--night); }
+  .ae-footer::before {
+    background-image:
+      linear-gradient(to right, var(--ae-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--ae-grid-line) 1px, transparent 1px);
+    background-size: 72px 72px; background-position: center top;
+  }
+  .ae-footer::after {
+    background:
+      radial-gradient(40% 40% at 50% 0%, oklch(from #cba6f7 l c h / 0.18), transparent 70%),
+      radial-gradient(55% 45% at 50% 100%, oklch(from #fab387 l c h / 0.1), transparent 70%);
+  }
+  .ae-footer-rule { background: linear-gradient(90deg, transparent, oklch(from #cdd6f4 l c h / 0.12) 20%, oklch(from #cdd6f4 l c h / 0.12) 80%, transparent); }
+  .ae-footer-mark {
+    margin: 0 auto -0.2em; font-family: var(--font-mono); font-weight: 700; font-size: clamp(5rem, 29vw, 23rem);
+    line-height: 0.9; letter-spacing: -0.04em;
+    background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+    opacity: 0.55;
+    -webkit-mask-image: linear-gradient(180deg, #000 10%, transparent 88%);
+            mask-image: linear-gradient(180deg, #000 10%, transparent 88%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ae-statement .grad::after, .ae-bd .bd-node { animation: none; }
+    .ae-bd .bd-pulses { display: none; }
+    .ae-nav a::after { transition: none; }
+  }
+}
+
+/* ==================================================================== */
+/* IDENTITY — the workbench                                              */
+/* The app takes the public pages' lettering where it names things: the  */
+/* places in the header and each screen's title are set in the mono     */
+/* face, and the place you are in is marked in the brand's colour.      */
+/* Readings, tables and prose stay as they were.                        */
+/* ==================================================================== */
+@layer components {
+  .app-tab { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; }
+  .app-tab.sub { font-size: 11px; }
+  .app-title { font-family: var(--font-mono); font-weight: 600; letter-spacing: -0.045em; }
+}
+
+/* ==================================================================== */
+/* IDENTITY — sections drawn as sheets                                   */
+/* Each section starts on a construction rule that meets the page's two  */
+/* guide lines at a cross, and its head is a title block: the number set */
+/* large in the brand gradient with its label beneath, the heading and   */
+/* one line of lede beside it. The limits are a sheet of numbered cells. */
+/* ==================================================================== */
+@layer components {
+  .ae-sec-rule { position: relative; height: 1px; margin-inline: calc(var(--ae-pad) / -2); background: var(--line-subtle); }
+  .ae-sec-rule::before,
+  .ae-sec-rule::after {
+    content: ''; position: absolute; top: -5px; width: 11px; height: 11px;
+    --c: oklch(from var(--action) l c h / 0.85);
+    background:
+      linear-gradient(var(--c), var(--c)) center / 11px 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) center / 1px 11px no-repeat;
+  }
+  .ae-sec-rule::before { left: -5px; }
+  .ae-sec-rule::after { right: -5px; }
+
+  .ae-sec-head { display: grid; gap: 16px; }
+  .ae-sec-label {
+    display: flex; align-items: center; gap: 10px; margin: 0;
+    font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; line-height: 1.4; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--foreground-muted);
+  }
+  .ae-sec-label .ix { display: inline-flex; align-items: center; gap: 10px; color: var(--action-text); }
+  .ae-sec-label .ix::after { content: ''; width: 22px; height: 1px; background: currentColor; opacity: 0.55; }
+  @media (min-width: 1024px) {
+    .ae-sec-head { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); column-gap: clamp(32px, 4vw, 56px); align-items: start; }
+    .ae-sec-label { flex-direction: column; align-items: flex-start; gap: 14px; padding-top: 2px; }
+    .ae-sec-label .ix {
+      display: block; width: fit-content; font-size: clamp(2.6rem, 4vw, 3.5rem); font-weight: 600; line-height: 0.85; letter-spacing: -0.06em;
+      background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .ae-sec-label .ix::after { display: none; }
+  }
+
+  .ae-limits {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; list-style: none;
+    overflow: hidden; border-radius: var(--ae-radius); border: 1px solid var(--line-subtle); background: var(--line-subtle);
+  }
+  .ae-limits li { display: flex; flex-direction: column; gap: 6px; padding: clamp(18px, 2.2vw, 26px); background: var(--background); }
+  .ae-limits .n { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; color: var(--approval-text); }
+  .ae-limits .t { margin: 6px 0 0; font-family: var(--font-mono); font-size: 0.98rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.035em; color: var(--foreground); }
+  .ae-limits .l { margin: 0; font-size: 0.9rem; line-height: 1.55; color: var(--foreground-secondary); }
+  @media (max-width: 1023px) { .ae-limits { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 639px) { .ae-limits { grid-template-columns: minmax(0, 1fr); } }
+}

@@ -4,48 +4,57 @@ interface AegisLogoProps {
   className?: string
   size?: number
   /**
-   * mark     the badge alone: an ink tile with the glyph knocked out of it
-   * glyph    the glyph alone, in currentColor, for a tile drawn by the caller
-   * compact  the badge and the name
-   * full     the badge, the name and the product line
+   * mark     the shield alone
+   * glyph    the shield in one colour, currentColor, for a surface that sets it
+   * compact  the shield and the name
+   * full     the shield, the name and the product line
    */
   variant?: 'mark' | 'glyph' | 'compact' | 'full'
   iconClassName?: string
 }
 
 /**
- * The AEGIS mark: a Λ with one point beneath its apex.
+ * The AEGIS mark: a shield built from five stacked blocks.
  *
- * The A of the name with its crossbar taken out, and in its place a single
- * point -- one recorded fact, where a bar would have been drawn. It is a
- * stroke, not a shape, so it stays two clean lines and a dot at 16px, and it
- * sits on an ink tile with generous corners so the mark reads as the
- * product's icon wherever it appears: the header, the sign-in, the tab.
+ * A record on the audit chain is a block that carries the hash of the one
+ * before it. Stacked, narrowing to a point, the blocks are the shield: the
+ * protection is the record. Each block takes one hue of the palette, top to
+ * bottom -- mauve, pink, flamingo, peach, yellow -- so the mark is the
+ * brand's colours in the order the chain is written.
  *
- * The glyph is drawn in the page's own ground colour on the tile, not cut
- * out of it, so no mask id has to be unique per instance.
+ * Drawn on a 32-unit grid with every edge on a half unit, so the gaps still
+ * read at 16px. No gradient and no ids: five filled rectangles whose colours
+ * are CSS variables, so any number of marks render on one page and each
+ * takes the theme it sits in.
  */
-function Glyph({ ink }: { ink: string }) {
+const BLOCKS = [
+  { x: 3.5, y: 2.5, w: 25, fill: 'var(--brand-1)' },
+  { x: 3.5, y: 8.5, w: 25, fill: 'var(--brand-2)' },
+  { x: 5.5, y: 14.5, w: 21, fill: 'var(--brand-3)' },
+  { x: 9, y: 20.5, w: 14, fill: 'var(--brand-4)' },
+  { x: 13, y: 26.5, w: 6, fill: 'var(--brand-5)' },
+] as const
+
+export function AegisMark({ size = 32, mono = false, className }: { size?: number; mono?: boolean; className?: string }) {
   return (
-    <>
-      <path d="M6.6 17.4 12 6.6l5.4 10.8" stroke={ink} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="12" cy="15.1" r="1.5" fill={ink} />
-    </>
+    <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden className={cn('shrink-0', className)}>
+      {BLOCKS.map((block) => (
+        <rect
+          key={block.y}
+          x={block.x}
+          y={block.y}
+          width={block.w}
+          height={4.5}
+          rx={1.4}
+          style={{ fill: mono ? 'currentColor' : block.fill }}
+        />
+      ))}
+    </svg>
   )
 }
 
 export function AegisLogo({ className, size = 32, variant = 'full', iconClassName }: AegisLogoProps) {
-  const icon =
-    variant === 'glyph' ? (
-      <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0', iconClassName)}>
-        <Glyph ink="currentColor" />
-      </svg>
-    ) : (
-      <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0 text-foreground', iconClassName)}>
-        <rect x="0.5" y="0.5" width="23" height="23" rx="6.5" fill="currentColor" />
-        <Glyph ink="var(--background)" />
-      </svg>
-    )
+  const icon = <AegisMark size={size} mono={variant === 'glyph'} className={iconClassName} />
 
   if (variant === 'mark' || variant === 'glyph') return <span className={cn('inline-flex', className)}>{icon}</span>
 
@@ -53,8 +62,8 @@ export function AegisLogo({ className, size = 32, variant = 'full', iconClassNam
     <div className={cn('inline-flex select-none items-center gap-2.5', className)}>
       {icon}
       <div className="flex flex-col leading-none">
-        <span className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">AEGIS</span>
-        {variant === 'full' && <span className="mt-[3px] text-[11px] text-foreground-muted">Agentic workbench</span>}
+        <span className="font-mono text-[15px] font-semibold tracking-[0.14em] text-foreground">AEGIS</span>
+        {variant === 'full' && <span className="mt-[4px] font-mono text-[10px] tracking-[0.04em] text-foreground-muted">sovereign workbench</span>}
       </div>
     </div>
   )

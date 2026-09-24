@@ -152,7 +152,7 @@ export function SignInView({ api }: { api: string }) {
         </Link>
         <div>
           <p className="ae-kicker m-0">On your own hardware</p>
-          <h2 className="mt-4 max-w-[16ch] text-[clamp(2rem,3vw,2.7rem)] font-semibold leading-[1.06] tracking-[-0.038em] text-foreground">
+          <h2 className="ae-h2 mt-4 max-w-[22ch]">
             Every answer cited, <span className="soft">checked and recorded.</span>
           </h2>
           <ul className="ae-hero-proof mt-8 flex-col items-start justify-start gap-3">
@@ -182,7 +182,7 @@ export function SignInView({ api }: { api: string }) {
         <div className="w-full max-w-[400px]">
           <div className="ae-load-1 text-center">
             <AegisLogo variant="mark" size={52} className="mx-auto" />
-            <h1 className="mt-6 text-[1.7rem] font-semibold tracking-[-0.03em] text-foreground">Sign in to AEGIS</h1>
+            <h1 className="mt-6 font-mono text-[1.6rem] font-semibold tracking-[-0.05em] text-foreground">Sign in to AEGIS</h1>
             <p className="mt-2 text-[0.95rem] text-foreground-secondary">Use the account provisioned for you on this host.</p>
           </div>
 

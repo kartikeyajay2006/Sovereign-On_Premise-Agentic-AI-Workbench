@@ -104,7 +104,7 @@ export function PageHeader({
           )}
           <h1
             className={cn(
-              'text-balance text-title font-medium tracking-[var(--ls-title)]',
+              'app-title text-balance text-title',
               dark ? 'text-ink-foreground' : 'text-foreground',
             )}
           >

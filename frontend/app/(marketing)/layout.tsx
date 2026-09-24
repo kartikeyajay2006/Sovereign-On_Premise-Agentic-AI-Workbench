@@ -25,7 +25,7 @@ export const metadata: Metadata = {
  */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-x-clip bg-background">
+    <div className="ae-site relative flex min-h-dvh flex-col overflow-x-clip bg-background">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[7px] focus:bg-foreground focus:px-4 focus:py-2 focus:text-body focus:text-primary-foreground"

@@ -59,7 +59,7 @@ export function AirgapField({ className }: { className?: string }) {
     const draw = () => {
       ctx.clearRect(0, 0, w, h)
       // The boundary: this machine.
-      ctx.strokeStyle = 'rgba(255,255,255,0.16)'
+      ctx.strokeStyle = 'rgba(203, 166, 247, 0.4)'
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.roundRect(INSET + 0.5, INSET + 0.5, w - 2 * INSET - 1, h - 2 * INSET - 1, RADIUS)
@@ -67,12 +67,12 @@ export function AirgapField({ className }: { className?: string }) {
       // Where something met the edge and went back.
       for (const ring of rings) {
         const k = ring.t / 0.9
-        ctx.strokeStyle = `rgba(240, 190, 120, ${0.55 * (1 - k)})`
+        ctx.strokeStyle = `rgba(203, 166, 247, ${0.6 * (1 - k)})`
         ctx.beginPath()
         ctx.arc(ring.x, ring.y, 3 + k * 14, 0, Math.PI * 2)
         ctx.stroke()
       }
-      ctx.fillStyle = 'rgba(236, 234, 228, 0.72)'
+      ctx.fillStyle = 'rgba(205, 214, 244, 0.75)'
       for (const d of dots) {
         ctx.beginPath()
         ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2)

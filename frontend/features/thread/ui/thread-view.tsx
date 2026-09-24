@@ -1156,7 +1156,7 @@ export function ThreadView() {
         */}
         {turns.length === 0 && (
           <div className="thread-hello text-center">
-            <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
+            <h1 className="font-mono text-[clamp(1.55rem,2.8vw,2.05rem)] font-semibold tracking-[-0.05em] text-foreground">
               What should we check today?
             </h1>
             <p className="mx-auto mt-2 max-w-[52ch] text-[0.98rem] leading-[1.55] text-foreground-secondary">

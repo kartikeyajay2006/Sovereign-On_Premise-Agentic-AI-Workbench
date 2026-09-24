@@ -85,7 +85,7 @@ export function DotField({ className }: { className?: string }) {
 
     function draw(now: number) {
       ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = '#faf9f6'
+      ctx.fillStyle = '#cdd6f4'
       const t = (now - born) / 1000
       const cycle = t % SWEEP_EVERY
       const sweeping = !reduce && t > 1.2 && cycle < SWEEP_FOR
