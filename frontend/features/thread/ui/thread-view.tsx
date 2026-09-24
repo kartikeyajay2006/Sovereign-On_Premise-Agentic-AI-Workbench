@@ -120,6 +120,28 @@ function requestFromTask(task: Task): RunRequest {
   }
 }
 
+/**
+ * How far the end of the thread is below the bottom of the window, in px.
+ *
+ * Measured to the thread's own last element, not the document's height: a
+ * box anywhere else on the page that overflowed -- the run rail's labels
+ * once did, by the length of its hidden list -- made "the end of the
+ * document" a stretch of blank page below the thread, and following a run
+ * scrolled into it.
+ */
+function gapToEnd(end: HTMLElement | null): number {
+  if (!end) return document.documentElement.scrollHeight - (window.scrollY + window.innerHeight)
+  return end.getBoundingClientRect().bottom - window.innerHeight
+}
+
+/** Scroll so the thread's end sits at the bottom of the window. */
+function scrollToEnd(end: HTMLElement | null) {
+  const top = end
+    ? window.scrollY + end.getBoundingClientRect().bottom - window.innerHeight
+    : document.documentElement.scrollHeight
+  window.scrollTo({ top: Math.max(0, top), behavior: 'instant' })
+}
+
 function freshAssistantTurn(id: string, request: RunRequest, at: string): AssistantTurnModel {
   return {
     role: 'assistant',
@@ -196,6 +218,8 @@ export function ThreadView() {
   const { user, role, can } = useRole()
   const { push } = useToast()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  /** The last thing in the thread's column: where following a run stops. */
+  const endRef = useRef<HTMLDivElement | null>(null)
 
   /*
     Refs for what callbacks need to read without being rebuilt. handleEvent
@@ -574,7 +598,7 @@ export function ThreadView() {
         if (pinnedRef.current) {
           window.requestAnimationFrame(() => {
             programmaticRef.current = true
-            window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
+            scrollToEnd(endRef.current)
           })
         }
         // A run held for a person has just joined the approval queue, so the
@@ -649,8 +673,7 @@ export function ThreadView() {
   // again takes it back. Instant, not smooth: a smooth scroll retargeted by
   // every frame lags behind the text it chases.
   useEffect(() => {
-    const doc = document.documentElement
-    const gap = () => doc.scrollHeight - (window.scrollY + window.innerHeight)
+    const gap = () => gapToEnd(endRef.current)
     let lastY = window.scrollY
     const release = () => {
       pinnedRef.current = false
@@ -699,7 +722,7 @@ export function ThreadView() {
   /** Scroll to the end on the thread's own behalf, so it is not read as the reader's. */
   const followToEnd = useCallback(() => {
     programmaticRef.current = true
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
+    scrollToEnd(endRef.current)
   }, [])
 
   const jumpToLatest = useCallback(() => {
@@ -1193,6 +1216,10 @@ export function ThreadView() {
             onSkillChange={setSkill}
           />
         </div>
+
+        {/* Zero height, and its margin cancels the column's gap, so marking
+            the end adds no space after the composer. */}
+        <div ref={endRef} aria-hidden className="-mt-6" />
 
         {turns.length === 0 && (
           <StarterPrompts

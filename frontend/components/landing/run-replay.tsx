@@ -57,17 +57,11 @@ function tokenize(answer: string): string[] {
   return answer.split(/(\[[SFVCE]\d+\]|\s+)/).filter((part) => part !== '')
 }
 
-const SPINNER = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢']
-
+/** The workbench's own spinner: one glyph, turned on the compositor. */
 function Spinner() {
-  const [frame, setFrame] = useState(0)
-  useEffect(() => {
-    const id = window.setInterval(() => setFrame((f) => (f + 1) % SPINNER.length), 120)
-    return () => window.clearInterval(id)
-  }, [])
   return (
-    <span className="bullet spin" aria-hidden>
-      {SPINNER[frame]}
+    <span className="bullet spin ae-spin" aria-hidden>
+      ✻
     </span>
   )
 }

@@ -1991,9 +1991,15 @@ html[data-theme='dark'],
 .ae-replay-a { margin-top: 22px; opacity: 0; transform: translateY(8px); transition: opacity 0.45s var(--ae-ease), transform 0.45s var(--ae-ease); }
 .ae-replay-q.on, .ae-replay-a.on { opacity: 1; transform: none; }
 
-/* A status that is still happening shimmers; a settled one is a pill. */
-.ae-shimmer { background: linear-gradient(90deg, var(--foreground-muted) 0%, var(--foreground) 45%, var(--foreground-muted) 90%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ae-shimmer 1.6s linear infinite; }
-@keyframes ae-shimmer { from { background-position: 100% 0; } to { background-position: -120% 0; } }
+/* A status that is still happening breathes; a settled one is a pill.
+   Opacity, and a glyph that turns: both run on the compositor. The gradient
+   swept through the text before this animated background-position, which
+   repaints on the main thread every frame -- for the whole of a run, on a
+   CPU the model is already holding. */
+.ae-shimmer { color: var(--foreground); animation: ae-breathe 1.8s ease-in-out infinite; will-change: opacity; }
+@keyframes ae-breathe { 50% { opacity: 0.45; } }
+.ae-spin { line-height: 1; animation: ae-spin 2.4s linear infinite; will-change: transform; }
+@keyframes ae-spin { to { transform: rotate(360deg); } }
 .ae-pill { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px; border-radius: 9999px; font-size: 0.8rem; font-weight: 500; }
 .ae-pill .dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
 .ae-pill.held { color: var(--approval-text); background: var(--approval-surface); }
@@ -2041,8 +2047,7 @@ html[data-theme='dark'],
 
 @media (prefers-reduced-motion: reduce) {
   .ae-replay-q, .ae-replay-a, .ae-replay-worked, .ae-src, .ae-src .bar { transition: none; }
-  .ae-word, .ae-cite, .ae-shimmer, .ae-caret, .ae-replay-log li, .ae-replay-log .checks > span, .ae-pill.run .dot { animation: none; }
-  .ae-shimmer { color: var(--foreground-secondary); background: none; }
+  .ae-word, .ae-cite, .ae-shimmer, .ae-spin, .ae-caret, .ae-replay-log li, .ae-replay-log .checks > span, .ae-pill.run .dot { animation: none; }
 }
 
 /* the announcement pill above the headline */

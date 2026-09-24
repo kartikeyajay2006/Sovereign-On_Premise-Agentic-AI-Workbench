@@ -1,9 +1,9 @@
 'use client'
 
-import { memo, useEffect, useState, type ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
-import { DimScope, Disclose, Light, Refused, Release, Seal } from '@/shared/motion'
+import { DimScope, Disclose, Light, Refused, Release, Seal, useSecondClock } from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import type { EvidenceItem, ModelDescriptor } from '@/lib/types'
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
@@ -35,17 +35,16 @@ import { UsageFooter } from './usage-footer'
  * each model call's cost as the runtime reports it.
  */
 
-/** Runs at 10Hz against the turn's own start time. Real elapsed, nothing else. */
+/**
+ * Real elapsed against the turn's own start, in whole seconds, on the
+ * page's one second clock. The run's measured duration, to the tenth,
+ * replaces it when the run ends.
+ */
 function RunElapsed({ startedAt }: { startedAt: string }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 100)
-    return () => window.clearInterval(id)
-  }, [])
+  const now = useSecondClock()
   const started = Date.parse(startedAt)
   if (Number.isNaN(started)) return null
-  const ms = Math.max(0, now - started)
-  return <span className="tabular">{(ms / 1000).toFixed(1)}s</span>
+  return <span className="tabular">{Math.floor(Math.max(0, now - started) / 1000)}s</span>
 }
 
 const OUTCOME_LABEL: Record<AssistantTurnModel['outcome'], string> = {

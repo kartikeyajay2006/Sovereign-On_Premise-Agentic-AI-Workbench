@@ -1,8 +1,9 @@
 'use client'
 
-import { memo, useEffect, useState } from 'react'
+import { memo } from 'react'
 import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW } from '../model/board'
 import type { AssistantTurn } from '../model/types'
 import { formatCount, formatRate, formatSeconds } from '../model/usage'
@@ -52,33 +53,30 @@ export const CHECK_WORDS: Record<string, string> = {
   hallucination_check: 'Grounding',
 }
 
-const SPINNER = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢']
-
-/** The glyph a working line carries. Still, for a reader who asked for less motion. */
+/**
+ * The glyph a working line carries. It turns on the compositor: the glyph
+ * it replaced was swapped by a timer eight times a second, a render and a
+ * repaint each, while the model held the CPU. Still, for a reader who asked
+ * for less motion.
+ */
 function Spinner() {
-  const [frame, setFrame] = useState(0)
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const id = window.setInterval(() => setFrame((f) => (f + 1) % SPINNER.length), 120)
-    return () => window.clearInterval(id)
-  }, [])
   return (
-    <span aria-hidden className="inline-block w-[1ch] text-center text-[var(--accent-glyph,var(--foreground))]">
-      {SPINNER[frame]}
+    <span aria-hidden className="ae-spin inline-block w-[1ch] text-center text-[var(--accent-glyph,var(--foreground))]">
+      ✻
     </span>
   )
 }
 
-/** Time in the stage under way: the backend's own start, counted on this clock. */
+/**
+ * Time in the stage under way: the backend's own start, counted on this
+ * clock in whole seconds. The stage's measured time replaces it, to the
+ * tenth, once the stage ends.
+ */
 function Dwell({ stage }: { stage: PipelineStage }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 100)
-    return () => window.clearInterval(id)
-  }, [])
+  const now = useSecondClock()
   const start = stage.at ? Date.parse(stage.at) : Number.NaN
   if (Number.isNaN(start)) return null
-  return <>{formatSeconds((stage.elapsedMs ?? 0) + Math.max(0, now - start))}</>
+  return <>{Math.floor(((stage.elapsedMs ?? 0) + Math.max(0, now - start)) / 1000)}s</>
 }
 
 /** "SOP-INS-014 §2.2" from a document title and a "section: 2.2 …" location. */

@@ -170,7 +170,15 @@ export const SessionRail = memo(function SessionRail({
         </label>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+      {/*
+        Relative, so it is the containing block of the rows' screen-reader
+        labels. Those are absolutely positioned, and with the sticky aside as
+        their containing block they escaped this scroll box and stretched the
+        page below the thread by the length of the hidden list -- blank space
+        that "follow the run to its end" then scrolled into, taking the rail
+        with it, the moment an answer landed.
+      */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {/*
           Keyed by the read, so the first list -- and a list shown again
           after a failed read -- mounts with its rows and none of them move.
