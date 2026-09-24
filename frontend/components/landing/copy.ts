@@ -63,6 +63,10 @@ export const HERO = {
   replayNote:
     'A recorded run, replayed. Every value comes from its record; only the pacing is compressed, and each step shows the time it really took on a two-core laptop CPU.',
   sub: 'An air-gapped AI workbench for regulated industrial work. Every answer is cited to a page, checked against your policy, and recorded.',
+  // Properties of the design, each enforced in code rather than promised:
+  // the inference client refuses a non-local endpoint, the verifier runs on
+  // every answer, and the audit log is a hash chain.
+  proof: ['No cloud model calls', 'Every answer cited and checked', 'Every step hash-chained'],
   primary: { label: 'Open the workbench', href: '/sign-in' },
   secondary: { label: 'Read the source', href: REPO_URL },
   repoPath: REPO_PATH,
@@ -574,7 +578,16 @@ export const RUN_IT = {
 // --------------------------------------------------------------------------- //
 
 export const FOOTER = {
+  cta: {
+    eyebrow: 'On your own hardware',
+    title: 'Local is not enough.',
+    turn: 'So prove the rest.',
+    lede: 'Put a workbench on your own hardware whose every answer shows its sources, its checks and its record.',
+  },
   blurb: 'An air-gapped AI workbench for regulated industrial work.',
+  // A property of the design, not a reading: the inference client refuses an
+  // endpoint that is not on this host.
+  status: 'Models, retrieval and audit on your own hardware',
   columns: [
     {
       heading: 'Product',

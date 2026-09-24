@@ -426,7 +426,8 @@
 /*     strongly at 14%; light ink on a dark ground at 14% is mud, which  */
 /*     is the usual reason a dark theme feels indistinct.                */
 /* ==================================================================== */
-html[data-theme='dark'] {
+html[data-theme='dark'],
+[data-theme='dark'] {
   color-scheme: dark;
 
   /* Grounds. Elevation rises toward light, the opposite of the light
@@ -731,7 +732,8 @@ html[data-theme='dark'] {
 
 /* The rim of light on a raised object is a dark-room effect; on paper the
    Recall card shadow above does the work. */
-html[data-theme='dark'] {
+html[data-theme='dark'],
+[data-theme='dark'] {
   /* ------------------------------------------------------------------ */
   /* Elevation, re-issued with the rim as its first layer. Every other   */
   /* layer is byte-identical to the dark block above, so a surface that */
@@ -1947,8 +1949,8 @@ html[data-theme='dark'] {
 .ae-frame { border-radius: 24px; padding: clamp(10px, 2.2vw, 28px); background: linear-gradient(180deg, color-mix(in oklab, var(--foreground) 6%, var(--background)) 0%, color-mix(in oklab, var(--foreground) 2.5%, var(--background)) 100%); }
 .ae-frame .inner { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid var(--line-subtle); background: var(--surface); box-shadow: 0 1px 2px oklch(0 0 0 / 0.05), 0 24px 60px -30px oklch(0 0 0 / 0.28); }
 .ae-shot-dark { display: none; }
-html[data-theme='dark'] .ae-shot-light { display: none; }
-html[data-theme='dark'] .ae-shot-dark { display: block; }
+[data-theme='dark'] .ae-shot-light { display: none; }
+[data-theme='dark'] .ae-shot-dark { display: block; }
 
 /* ---- cards and grids ------------------------------------------------- */
 .ae-card { border: 1px solid var(--line-subtle); border-radius: 18px; background: var(--surface); }
@@ -2097,7 +2099,8 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
       radial-gradient(110% 90% at 55% 105%, oklch(0.89 0.04 160) 0%, transparent 60%),
       oklch(0.94 0.018 70);
   }
-  html[data-theme='dark'] {
+  html[data-theme='dark'],
+  [data-theme='dark'] {
     --ae-paint:
       radial-gradient(120% 90% at 8% 0%, oklch(0.33 0.05 45) 0%, transparent 55%),
       radial-gradient(90% 80% at 100% 12%, oklch(0.3 0.05 295) 0%, transparent 58%),
@@ -2107,13 +2110,13 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
 
   .ae-painted { position: relative; isolation: isolate; overflow: hidden; background: var(--ae-paint); }
   .ae-painted::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; background-image: var(--ae-grain); background-size: 160px 160px; opacity: 0.16; mix-blend-mode: soft-light; }
-  html[data-theme='dark'] .ae-painted::after { opacity: 0.22; mix-blend-mode: overlay; }
+  [data-theme='dark'] .ae-painted::after { opacity: 0.22; mix-blend-mode: overlay; }
   .ae-painted > * { position: relative; z-index: 1; }
 
   /* The hero frame is painted now, not grey. */
   .ae-frame { background: var(--ae-paint); position: relative; isolation: isolate; overflow: hidden; }
   .ae-frame::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; background-image: var(--ae-grain); background-size: 160px 160px; opacity: 0.16; mix-blend-mode: soft-light; }
-  html[data-theme='dark'] .ae-frame::after { opacity: 0.22; mix-blend-mode: overlay; }
+  [data-theme='dark'] .ae-frame::after { opacity: 0.22; mix-blend-mode: overlay; }
   .ae-frame > * { position: relative; z-index: 1; }
 
   /* ---- the gallery ---------------------------------------------------- */
@@ -2166,5 +2169,137 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
     /* The replay's lines keep the step and its time; the note goes. */
     .ae-replay-log .note { display: none; }
     .ae-replay-body > div { padding: 18px 16px; }
+  }
+}
+
+/* ==================================================================== */
+/* Night bands                                                          */
+/*                                                                      */
+/* The hero, the proof section and the footer take the dark palette     */
+/* whatever the page's theme (data-theme="dark" on the element), so the */
+/* page has a rhythm of grounds instead of one long sheet of paper.     */
+/* Their textures are static CSS -- a dot lattice and soft glows -- and */
+/* the one thing that moves is the hero's dot field, drawn on a canvas  */
+/* that only runs while it is on screen.                                */
+/* ==================================================================== */
+@layer components {
+  .ae-hero { position: relative; --ae-overlap: clamp(140px, 19vw, 280px); }
+  .ae-hero-band {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    margin-top: -64px;
+    padding-top: 64px;
+    padding-bottom: var(--ae-overlap);
+    background: #0b0b0a;
+    color: var(--foreground);
+  }
+  .ae-hero-dots {
+    position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 85% 80% at 50% 36%, #000 22%, transparent 80%);
+            mask-image: radial-gradient(ellipse 85% 80% at 50% 36%, #000 22%, transparent 80%);
+  }
+  .ae-hero-glow {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(34% 30% at 50% 14%, oklch(0.68 0.13 58 / 0.30), transparent 72%),
+      radial-gradient(28% 36% at 86% 62%, oklch(0.58 0.15 295 / 0.24), transparent 72%),
+      radial-gradient(28% 36% at 12% 66%, oklch(0.64 0.11 165 / 0.15), transparent 72%);
+  }
+  .ae-hero-band::after {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image: var(--ae-grain); background-size: 160px 160px; opacity: 0.2; mix-blend-mode: overlay;
+  }
+  .ae-hero-band > .ae-shell { position: relative; z-index: 1; }
+  /* Where the band meets the paper: a line of light the card sits across. */
+  .ae-hero-horizon {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; height: 1px; pointer-events: none;
+    background: linear-gradient(90deg, transparent 5%, oklch(0.82 0.09 60 / 0.55) 35%, oklch(0.76 0.12 300 / 0.55) 65%, transparent 95%);
+  }
+  .ae-hero-stage { position: relative; z-index: 2; margin-top: calc(-1 * var(--ae-overlap)); }
+  .ae-hero-band .ae-display .soft,
+  .ae-footer-title .soft {
+    background: linear-gradient(95deg, oklch(0.88 0.08 62) 0%, oklch(0.82 0.1 20) 45%, oklch(0.8 0.1 300) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .ae-hero-band .ae-lead { color: color-mix(in oklab, var(--foreground) 72%, transparent); }
+  /* The primary action glows faintly on the dark ground. */
+  .ae-hero-band .ae-btn.primary { box-shadow: 0 0 0 1px oklch(1 0 0 / 0.08), 0 10px 40px -8px oklch(0.8 0.1 60 / 0.35); }
+  .ae-hero-band .ae-btn.outline, .ae-hero-band .ae-btn.secondary {
+    background: oklch(1 0 0 / 0.06); color: var(--foreground); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.14);
+  }
+  .ae-hero-band .ae-btn.outline:hover, .ae-hero-band .ae-btn.secondary:hover { background: oklch(1 0 0 / 0.1); }
+  .ae-hero-proof {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; margin: 26px 0 0; padding: 0; list-style: none;
+    font-size: 0.82rem; color: color-mix(in oklab, var(--foreground) 62%, transparent);
+  }
+  .ae-hero-proof li { display: inline-flex; align-items: center; gap: 8px; }
+  .ae-hero-proof li::before { content: ''; width: 5px; height: 5px; border-radius: 9999px; background: var(--sovereign); box-shadow: 0 0 10px var(--sovereign); }
+  .ae-hero-proof b { font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
+
+  /* The header over the band: no ground of its own at the top of the page,
+     and the band's own night once anything has scrolled under it. */
+  .ae-header.over-band:not(.scrolled) { background: transparent; border-bottom-color: transparent; }
+  .ae-header.over-band.scrolled { background: color-mix(in oklab, #0b0b0a 94%, transparent); border-bottom-color: oklch(1 0 0 / 0.08); }
+
+  /* A section on the night ground: the dot lattice fades in and out at its edges. */
+  .ae-night { position: relative; isolation: isolate; background: #0b0b0a; color: var(--foreground); }
+  .ae-night::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background-image: radial-gradient(circle, oklch(0.98 0.005 90 / 0.14) 1px, transparent 1.5px);
+    background-size: 24px 24px;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 14%, #000 70%, transparent);
+            mask-image: linear-gradient(180deg, transparent, #000 14%, #000 70%, transparent);
+  }
+  .ae-night::after {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(40% 30% at 12% 8%, oklch(0.62 0.11 165 / 0.14), transparent 70%),
+      radial-gradient(40% 34% at 92% 30%, oklch(0.58 0.14 295 / 0.14), transparent 70%);
+  }
+
+  /* A faint drafting grid behind a light section's showpiece. */
+  .ae-gridded { position: relative; isolation: isolate; }
+  .ae-gridded::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--foreground) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 7%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+    background-position: center top;
+    -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 38%, #000 18%, transparent 78%);
+            mask-image: radial-gradient(ellipse 75% 65% at 50% 38%, #000 18%, transparent 78%);
+  }
+
+  /* The footer: the closing call, the links, and the name set large. */
+  .ae-footer { position: relative; isolation: isolate; overflow: hidden; background: #0b0b0a; color: var(--foreground); }
+  .ae-footer::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background-image: radial-gradient(circle, oklch(0.98 0.005 90 / 0.12) 1px, transparent 1.5px);
+    background-size: 24px 24px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 10%, transparent 70%);
+            mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 10%, transparent 70%);
+  }
+  .ae-footer::after {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(40% 40% at 50% 0%, oklch(0.68 0.13 58 / 0.22), transparent 70%),
+      radial-gradient(50% 45% at 50% 100%, oklch(0.58 0.14 295 / 0.18), transparent 70%);
+  }
+  .ae-footer a.link { color: color-mix(in oklab, var(--foreground) 66%, transparent); transition: color 0.15s ease; }
+  .ae-footer a.link:hover { color: var(--foreground); }
+  .ae-footer-rule { height: 1px; background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.12) 20%, oklch(1 0 0 / 0.12) 80%, transparent); }
+  .ae-footer-mark {
+    display: block; margin: 0 auto -0.14em; font-weight: 700; font-size: clamp(5.5rem, 24vw, 23rem); line-height: 0.8;
+    letter-spacing: -0.075em; text-align: center; white-space: nowrap; user-select: none;
+    background: linear-gradient(180deg, oklch(0.98 0.005 90 / 0.2) 0%, oklch(0.98 0.005 90 / 0.03) 78%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .ae-footer-status { display: inline-flex; align-items: center; gap: 8px; }
+  .ae-footer-status::before { content: ''; width: 6px; height: 6px; border-radius: 9999px; background: var(--sovereign); box-shadow: 0 0 10px var(--sovereign); }
+
+  @media (max-width: 640px) {
+    .ae-hero { --ae-overlap: 110px; }
+    .ae-hero-proof { gap: 6px 16px; font-size: 0.78rem; }
   }
 }
