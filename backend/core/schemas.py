@@ -37,6 +37,10 @@ class TaskType(str, Enum):
     VISION_ANALYSIS = "vision_analysis"
     SUMMARIZATION = "summarization"
     QUESTION_ANSWERING = "question_answering"
+    # A greeting, thanks or an acknowledgement: not a task. Answered in one
+    # short model call, without retrieval, claim checks or approval, because
+    # it makes no claims (backend/agents/orchestrator.py, _converse).
+    CONVERSATION = "conversation"
 
 
 class Complexity(str, Enum):

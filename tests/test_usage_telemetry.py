@@ -539,7 +539,9 @@ class TestAWholeRun:
 
     @pytest.mark.asyncio
     async def test_every_model_call_leaves_a_usage_record_and_every_stage_names_its_phase(self) -> None:
-        answer = ["Inspect V-2104 ", "every 4 years ", "under SOP-INS-014 [S1]."]
+        # Arithmetic, so the verifier has a figure to recompute and makes its
+        # call; a figure merely quoted from a clause is no longer sent.
+        answer = ["Wall loss is 12.0 - 10.2 = 1.8 mm, ", "a rate of 0.3 mm/yr ", "under SOP-INS-014 [S1]."]
         client = FakeClient(
             fragments=answer,
             stats=STREAM_STATS,
@@ -581,7 +583,7 @@ class TestAWholeRun:
             stop["requested"] = True
 
         client = FakeClient(
-            fragments=["Inspect V-2104 every 4 years [S1]."],
+            fragments=["Wall loss is 12.0 - 10.2 = 1.8 mm [S1]."],
             stats=STREAM_STATS,
             results=[blocking_result(text='{"calculations": []}')],
             generate_delay=30,

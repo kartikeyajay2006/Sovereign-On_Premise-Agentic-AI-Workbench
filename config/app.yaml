@@ -53,7 +53,9 @@ inference:
   # How long the runtime keeps a model resident after its last use. Long
   # residency avoids reload cost, but on a host with little headroom it is the
   # difference between running in memory and running in swap.
-  keep_alive: 5m
+  # 30 minutes so a model is not reloaded (7-14 s measured) between the
+  # runs of a demo; drop it on a host that needs the memory back sooner.
+  keep_alive: 30m
   # Ollama defaults to a 4096-token context regardless of what the model
   # supports. We pass the model's declared context window, capped here so a
   # CPU-only host does not allocate an unusable KV cache.

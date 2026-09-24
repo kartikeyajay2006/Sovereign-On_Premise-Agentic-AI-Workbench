@@ -12,6 +12,28 @@
 
 classification_version: 1
 
+# ------------------------------------------------------------ conversation
+# A message that is conversation rather than a task -- a greeting, thanks, an
+# acknowledgement, asking what the workbench is -- matched against the WHOLE
+# message (case-insensitive, trailing punctuation allowed). It is answered in
+# one short model call without retrieval, claim checks or approval: there are
+# no claims to ground. Anything longer, anything with an attachment, and
+# anything that goes on to ask something ("yes, and what about clause 5?")
+# is a task and takes the full pipeline.
+conversation:
+  max_words: 6
+  patterns:
+    - "(hi|hello|hey|hiya|namaste|yo)( there| aegis| again)?"
+    - "good (morning|afternoon|evening)( aegis)?"
+    - "(thanks|thank you|thx|ty)( so much| a lot| aegis)?"
+    - "(ok|okay|cool|great|nice|perfect|got it|understood|sounds good)"
+    - "(yes|yeah|yep|no|nope|sure)"
+    - "(bye|goodbye|see you)"
+    - "(who|what) are you"
+    - "what (can|do) you do"
+    - "how do (i|you) use (this|you|aegis)"
+    - "help"
+
 # ---------------------------------------------------------------- input type
 # Derived primarily from attached file extensions/MIME, with prompt hints as a
 # secondary signal. `extensions` are matched case-insensitively.

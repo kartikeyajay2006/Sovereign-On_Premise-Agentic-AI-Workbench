@@ -47,6 +47,7 @@ from backend.core.schemas import (
     ToolCall,
     User,
     VerificationCheck,
+    VerificationReport,
 )
 from backend.models_layer.client import (
     GenerationResult,
@@ -73,6 +74,18 @@ NUMERIC_ASSERTION = re.compile(
     r"days?|hours?|hrs?)\b"
     # An explicit computed equality.
     r"|=\s*-?\d+(?:\.\d+)?",
+    re.IGNORECASE,
+)
+
+# Arithmetic worth recomputing: an explicit result, an operation between
+# figures, or the words a computed quantity travels with. A figure merely
+# quoted from a clause -- "24 months", "20%" -- carries none of these, and
+# asking a model to extract calculations from it cost 15 to 37 seconds on this
+# host to learn there were none.
+ARITHMETIC_SIGNAL = re.compile(
+    r"=\s*-?\d"
+    r"|\d\s*[-+×x*/÷]\s*\d"
+    r"|\b(?:rate|remaining life|calculated|computed|recomputed|per year|mm/y(?:ea)?r|/yr)\b",
     re.IGNORECASE,
 )
 
@@ -1015,6 +1028,8 @@ class AgentOrchestrator:
         # rather than asking a model to confirm the obvious.
         if not NUMERIC_ASSERTION.search(text or ""):
             return []
+        if not ARITHMETIC_SIGNAL.search(text or ""):
+            return []
         try:
             raw, _ = await self._generate(
                 task,
@@ -1050,6 +1065,9 @@ class AgentOrchestrator:
         started = datetime.now(timezone.utc)
         assert task.profile is not None
         profile = task.profile
+
+        if profile.task_type == TaskType.CONVERSATION:
+            return await self._converse(task, user, started)
 
         workspace = self.config.settings.path("workspaces") / task.id
         workspace.mkdir(parents=True, exist_ok=True)
@@ -1492,6 +1510,67 @@ class AgentOrchestrator:
             "task.finished",
             {"status": task.status.value, "duration_ms": task.duration_ms},
         )
+        return task
+
+    async def _converse(self, task: Task, user: User, started: datetime) -> Task:
+        """Answer a conversational message in one short model call.
+
+        A greeting went through the whole pipeline: retrieval, a 1,236-token
+        drafting prompt, a verification call, and a hold -- 140 seconds on
+        this host to answer "Hi", which ended waiting for a reviewer. It makes
+        no claims, so there is nothing to retrieve for, nothing to verify and
+        nothing to hold. It still goes through model routing and policy like
+        every call, streams like every answer, and is recorded: the verifier's
+        report says plainly that no checks were run and why.
+        """
+        try:
+            await self._stage(task, TaskStatus.EXECUTING, "Replying", phase="drafting")
+            text, _ = await self._generate(
+                task,
+                user,
+                stage="drafting",
+                system_prompt=self.config.system_prompt("conversation"),
+                prompt=task.prompt,
+                stream_to_user=True,
+            )
+            text = text.strip()
+            await self._emit(task, "task.answer", {"answer": text})
+            task.answer = text
+            task.verification = VerificationReport(
+                valid=True,
+                checks=[],
+                limitations=[
+                    "Conversational reply: nothing was retrieved and no claims were checked, "
+                    "because the message asked for none."
+                ],
+                completed_at=datetime.now(timezone.utc),
+            )
+            task.approval = ApprovalRecord(required=False)
+            self.audit.record(
+                category="agent",
+                action="conversational_reply",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={"characters": len(text)},
+            )
+            await self._stage(task, TaskStatus.DELIVERED, "Replied")
+            task.completed_at = datetime.now(timezone.utc)
+        except TaskCancelled:
+            task.status = TaskStatus.CANCELLED
+            task.error = "Stopped at your request."
+            await self._emit(task, "task.cancelled", {"reason": "stopped by request", "stopped_during": "executing"})
+        except NoEligibleModelError as exc:
+            task.status = TaskStatus.BLOCKED
+            task.error = str(exc)
+            await self._emit(task, "task.blocked", {"reason": str(exc)})
+        except InferenceError as exc:
+            task.status = TaskStatus.FAILED
+            task.error = f"Local inference failed: {exc}"
+            await self._emit(task, "task.failed", {"reason": task.error})
+        task.updated_at = datetime.now(timezone.utc)
+        task.duration_ms = int((task.updated_at - started).total_seconds() * 1000)
+        await self._emit(task, "task.finished", {"status": task.status.value, "duration_ms": task.duration_ms})
         return task
 
     # -- stage helpers -----------------------------------------------------
