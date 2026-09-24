@@ -170,9 +170,7 @@ task:
     {extraction_block}
     Question: {prompt}
 
-    Answer from the material above, ending each sentence with its identifier
-    exactly as shown, including page-specific [V...] or [F...] identifiers for
-    uploaded PDFs.
+    Answer from the material above, ending each sentence with its identifier.
 
   generate_code: |
     Task: {prompt}
