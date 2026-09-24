@@ -50,6 +50,6 @@ Copy `frontend/.env.example`. Only `WORKBENCH_API_URL` matters today.
 
 | | | |
 |:--|:--:|--:|
-| [← 10.6 · Policy files](06-policies.md) | [↑ 10 · Configuration reference](README.md) |  |
+| [← 10.6 · Policy files](06-policies.md) | [↑ 10 · Configuration reference](README.md) | [11 · API reference →](../11-api/README.md) |
 
 <!-- nav:end -->

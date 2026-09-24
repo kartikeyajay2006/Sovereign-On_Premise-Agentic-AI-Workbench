@@ -57,6 +57,7 @@ This page states what AEGIS protects, against whom, what holds, and what does no
 | 8 | **Uploads are not screened** by magic bytes, archive structure or macros | By design review | 🟡 Medium |
 | 9 | **Model digests are not pinned** | By design review | 🟡 Medium |
 | 10 | **The audit chain is not signed** (full rewrite possible with file access) | By design review | 🟡 Medium |
+| 11 | **The user directory is public.** `GET /api/auth/directory` lists every account's username, role and department without sign-in | Returned all users unauthenticated | 🟡 Medium |
 
 ## Fix list
 
@@ -65,7 +66,7 @@ In the order to do them, with effort:
 | Order | Fix | Closes | Effort |
 |:--:|---|---|---|
 | 1 | Bind the console to loopback: `next start -H 127.0.0.1` in `scripts/run.sh` and docs; or firewall port 3000 | 3 | Minutes |
-| 2 | Set `security.self_registration_enabled: false` by default; require a changed seed password outside demo mode | 4 | Minutes |
+| 2 | Set `security.self_registration_enabled: false` by default; require a changed seed password outside demo mode; return only the seeded demo accounts from `/api/auth/directory`, or require sign-in | 4, 11 | Minutes |
 | 3 | Store `sha256(token)` in `sessions` and look sessions up by hash | 2 | An hour |
 | 4 | Confine **reads** in the sandbox shim to the workspace and the Python installation | 1 (practically) | Hours |
 | 5 | Add `calculation` to `code_execution.always_for_task_types`; fail calculation verification when a calculation was requested and none computed | 6 | Hours |
