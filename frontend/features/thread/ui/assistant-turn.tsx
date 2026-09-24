@@ -1,7 +1,7 @@
 'use client'
 
-import { memo, type ReactNode } from 'react'
-import { Download, Lock } from 'lucide-react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronRight, Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
 import { DimScope, Disclose, Light, Refused, Release, Seal, useSecondClock } from '@/shared/motion'
 import { cn } from '@/lib/utils'
@@ -9,7 +9,7 @@ import type { EvidenceItem, ModelDescriptor } from '@/lib/types'
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
 import { AegisLogo } from '@/components/aegis-logo'
 import { AnswerActions } from './answer-actions'
-import { RunTranscript } from './run-transcript'
+import { RunTranscript, citeLabel } from './run-transcript'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -139,11 +139,14 @@ function Inline({
   onCite: Cite
   trace?: string | null
 }) {
-  const parts = text.split(/(\[[SFVCE]\d+\])/g)
+  // Anything written as a citation, including a malformed one like [V2.1],
+  // so a marker that points at nothing is marked as such, never passed off
+  // as prose.
+  const parts = text.split(/(\[[A-Z]{1,3}\d+(?:\.\d+)*\])/g)
   return (
     <>
       {parts.map((p, i) => {
-        const m = p.match(/^\[([SFVCE]\d+)\]$/)
+        const m = p.match(/^\[([A-Z]{1,3}\d+(?:\.\d+)*)\]$/)
         if (!m) return <InlineMarkdown key={i} text={p} />
         const id = m[1]
         if (!onCite) {
@@ -310,12 +313,19 @@ function AnswerProse({
   trace: string
 }) {
   const known = new Set(evidence.map((e) => e.id))
+  // The small model sometimes opens an answer with the citation it then
+  // repeats at the end of the sentence: "[S1] A vessel ... 48 months. [S1]".
+  // The opening one is dropped from the display when the same id cites the
+  // text after it, so nothing it supports goes uncited; the record keeps
+  // the text as written.
+  const opening = text.match(/^\s*\[([SFVCE]\d+)\]\s*/)
+  const shown = opening && text.slice(opening[0].length).includes(`[${opening[1]}]`) ? text.slice(opening[0].length) : text
   // Full ink. This is the one thing on the screen the whole pipeline exists
   // to produce; it was set in secondary while the status rows above it were
   // not, which told the eye the machinery mattered more.
   return (
     <Prose
-      text={text}
+      text={shown}
       known={known}
       onCite={onCite}
       trace={trace}
@@ -325,6 +335,75 @@ function AnswerProse({
 }
 
 const NO_EVIDENCE = new Set<string>()
+
+/**
+ * What the answer cites, by the document and section each one is: the row
+ * under an answer that every search product has, kept to what this answer
+ * actually cites. The chips inside the prose say "S5"; this says what S5 is,
+ * without opening anything. Three at most, and the rest by count.
+ */
+function SourcesRow({
+  text,
+  evidence,
+  onCite,
+  trace,
+}: {
+  text: string
+  evidence: EvidenceItem[]
+  onCite: (id: string) => void
+  trace: string
+}) {
+  const ids = Array.from(new Set((text.match(/\[[SFVCE]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
+  const cited = ids
+    .map((id) => evidence.find((e) => e.id === id))
+    .filter((e): e is EvidenceItem => e !== undefined)
+  if (cited.length === 0) return null
+  const shown = cited.slice(0, 3)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="Sources this answer cites">
+      {shown.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => onCite(item.id)}
+          data-trace={`${trace}:${item.id}`}
+          title={item.source_document ?? undefined}
+          className="hover-decay inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 text-[12.5px] text-foreground-secondary hover:bg-[color-mix(in_oklab,var(--foreground)_9%,var(--background))] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+        >
+          <span className="font-semibold text-foreground">{item.id}</span>
+          <span className="truncate">{citeLabel(item)}</span>
+        </button>
+      ))}
+      {cited.length > shown.length && (
+        <button
+          type="button"
+          onClick={() => onCite(cited[shown.length].id)}
+          className="hover-decay inline-flex h-7 items-center rounded-full px-2 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+        >
+          +{cited.length - shown.length} more
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** The folded log's one line: what was checked, against how much, at a glance. */
+function workSummary(turn: AssistantTurnModel): string {
+  const parts: string[] = []
+  const checks = turn.verification
+  if (checks.length > 0) {
+    const passed = checks.filter((c) => c.passed).length
+    parts.push(
+      passed === checks.length
+        ? `${passed} of ${checks.length} checks passed`
+        : `${checks.length - passed} of ${checks.length} checks failed`,
+    )
+  }
+  const sources = turn.evidence.filter((e) => /^S\d+$/.test(e.id)).length
+  if (sources > 0) parts.push(`${sources} source${sources === 1 ? '' : 's'} searched`)
+  if (parts.length === 0) parts.push('How it was answered')
+  return parts.join(' · ')
+}
 
 export const AssistantTurn = memo(function AssistantTurn({
   turn,
@@ -368,6 +447,21 @@ export const AssistantTurn = memo(function AssistantTurn({
       : null
   const heldForReview = held && turn.deliverable !== null && !turn.deliverable.released
 
+  /*
+    The work log is open while the run is live and folds to one line when an
+    answer is released, the way a coding agent's steps collapse once it has
+    replied. A run that ended any other way -- refused, failed, stopped --
+    keeps it open, because then the log is the explanation. A run opened
+    from the record starts folded.
+  */
+  const foldable = !running && (turn.outcome === 'delivered' || held || turn.outcome === 'rejected')
+  const [logOpen, setLogOpen] = useState(!foldable)
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) setLogOpen(!foldable)
+    wasRunning.current = running
+  }, [running, foldable])
+
   return (
     <article className="flex flex-col gap-4">
       {/* ── Zone 1 — run header ───────────────────────────────────────── */}
@@ -405,6 +499,24 @@ export const AssistantTurn = memo(function AssistantTurn({
             </span>
           )}
         </span>
+
+        {foldable && (
+          <button
+            type="button"
+            aria-expanded={logOpen}
+            onClick={() => setLogOpen((open) => !open)}
+            className="hover-decay -mx-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+          >
+            {workSummary(turn)}
+            <ChevronRight
+              aria-hidden
+              className={cn(
+                'size-3.5 transition-transform duration-[var(--micro)] ease-[var(--ease-micro)]',
+                logOpen && 'rotate-90',
+              )}
+            />
+          </button>
+        )}
       </header>
 
       {/*
@@ -413,7 +525,7 @@ export const AssistantTurn = memo(function AssistantTurn({
         The scope is always present, so a refusal dims the log where it
         stands instead of remounting it.
       */}
-      <DimScope dimmed={denied} className="flex flex-col gap-4">
+      <DimScope dimmed={denied} className="flex flex-col">
         {/* ── Zone 2 — the work log ─────────────────────────────────────── */}
         {/*
           Expanded while the run is live, collapsed once it is not.
@@ -426,8 +538,16 @@ export const AssistantTurn = memo(function AssistantTurn({
           that it can be checked. The answer gets to be the biggest thing on
           the screen, which for an answering product it always should have been.
         */}
-        <div data-dim-item>
-          <RunTranscript turn={turn} />
+        <div data-dim-item className={cn('ae-fold', logOpen && 'open')} inert={!logOpen}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex flex-col gap-2 pb-4">
+              <RunTranscript turn={turn} />
+              {/* What it cost, folded with the steps it was spent on. */}
+              {!running && (
+                <UsageFooter usage={turn.usage} choices={[]} models={models} workedMs={turn.elapsedMs} withNotes={false} />
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ── Zone 3 — the answer, or the reason there is none ──────────── */}
@@ -504,6 +624,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               </p>
             )}
             <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
+            <SourcesRow text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
           </Release>
         ) : !running ? (
           <p className="text-body text-foreground-secondary">This run finished without an answer.</p>
@@ -515,9 +636,9 @@ export const AssistantTurn = memo(function AssistantTurn({
             replaced when the checked answer arrives. What it buys is the four
             minutes of a CPU run not being a blank rectangle.
           */
-          <div className="border-l-2 border-line-strong pl-4">
-            <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-              {verifying ? 'Draft — verifying its claims before release' : 'Drafting — not yet verified'}
+          <div className="border-l-2 border-line-default pl-4">
+            <p className="text-[12.5px] text-foreground-muted">
+              {verifying ? 'Draft · checking every claim before it is released' : 'Draft · not checked yet'}
             </p>
             <div className="mt-2">
               <Prose
@@ -546,7 +667,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             <p className="text-body text-foreground-secondary">
               {turn.queue && turn.queue.ahead > 0
                 ? `Waiting to start: ${turn.queue.ahead} run${turn.queue.ahead === 1 ? '' : 's'} ahead of this one on the local worker.`
-                : 'Answer withheld until claim verification completes.'}
+                : 'The answer appears here once every claim in it is checked.'}
             </p>
             {turn.streamProgress && (
               /*
@@ -630,9 +751,7 @@ export const AssistantTurn = memo(function AssistantTurn({
       )}
 
       {/* ── Zone 5 — what to do with it, and what it cost ─────────────── */}
-      {(!running ||
-        turn.usage.length > 0 ||
-        turn.modelChoices.some((c) => c.preferenceHonoured === false)) && (
+      {(!running || turn.modelChoices.some((c) => c.preferenceHonoured === false)) && (
         <footer className="flex flex-col gap-2">
           {!running && (
             <AnswerActions
@@ -646,12 +765,10 @@ export const AssistantTurn = memo(function AssistantTurn({
               canReview={canReview}
             />
           )}
-          <UsageFooter
-            usage={turn.usage}
-            choices={turn.modelChoices}
-            models={models}
-            workedMs={running ? null : turn.elapsedMs}
-          />
+          {/* Only what the reader did not expect -- a model request that was
+              not honoured, an answer cut off at its limit. The figures are in
+              the fold above. */}
+          <UsageFooter usage={turn.usage} choices={turn.modelChoices} models={models} notesOnly />
         </footer>
       )}
     </article>

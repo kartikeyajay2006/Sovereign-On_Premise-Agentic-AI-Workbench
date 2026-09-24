@@ -248,7 +248,14 @@ export function documentTitle(item: Pick<EvidenceUnit, 'source_document'>): stri
  * title line; that is shown as the title, without a section mark it lacks.
  */
 export function sectionLabel(item: Pick<EvidenceUnit, 'location'>): string {
-  if (/^\s*section:/.test(item.location)) return item.location.replace(/^\s*section:\s*/, '§').trim()
+  const section = item.location.match(/^\s*section:\s*(.*)$/)?.[1]?.trim()
+  if (section !== undefined) {
+    // The chunk before a document's first section is located by the
+    // document's own title line, "SOP-INS-014 — Pressure …": that is a
+    // title, and it gets no section mark it does not have.
+    if (/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\s+—\s+/.test(section)) return section.split(' — ').slice(1).join(' — ').trim()
+    return `§${section}`
+  }
   const parts = item.location.split(' — ')
   return (parts.length > 1 ? parts.slice(1).join(' — ') : item.location).trim()
 }

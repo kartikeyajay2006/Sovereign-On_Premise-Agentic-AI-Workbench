@@ -251,6 +251,118 @@ export const RUN = {
 } as const
 
 // --------------------------------------------------------------------------- //
+// Use cases: what people ask it
+// --------------------------------------------------------------------------- //
+
+/**
+ * Requests from the demo script (docs/DEMO.md) and the built-in skills, each
+ * one answerable from the corpus on the demo host. They are examples of what
+ * to ask, not results: nothing here says how a run of them came out.
+ */
+export const USE_CASES = {
+  id: 'use-cases',
+  eyebrow: 'Use cases',
+  title: 'Ask what your plant asks.',
+  titleTurn: 'Get the clause, cited.',
+  lede: 'Inspection intervals, severities, sign-off authority, remaining life, handovers. Typed in plain language or called as a skill with /.',
+  rows: [
+    [
+      { kind: 'Clause', text: 'What is the maximum interval between internal inspections of a vessel in corrosive service?' },
+      { kind: 'Severity', text: 'What severity applies when cladding damage exceeds 20% of an insulated section?' },
+      { kind: 'Sign-off', text: 'Who must approve continued operation with a Medium CUI finding?' },
+      { kind: 'Clause', text: 'When must a Fitness-For-Service assessment be raised?' },
+      { kind: 'Permit', text: 'What gas test results are required before hot work starts near the crude column?' },
+      { kind: 'Interval', text: 'Can a Low RBI ranking alone extend a vessel’s internal inspection interval?' },
+      { kind: 'Test', text: 'A PSV set at 10.5 bar(g) opened at 12.1 bar(g). Did it fail, and who must be told?' },
+    ],
+    [
+      { kind: 'Calculation', text: '/remaining-life  thickness survey for circuit P-2104-OVHD-01' },
+      { kind: 'Approval note', text: '/approval-note  continued operation of V-2104 with a Medium CUI finding' },
+      { kind: 'Skill', text: '/clause  internal inspection of a pressure vessel in corrosive service' },
+      { kind: 'Handover', text: '/handover  confined space entry on the crude column' },
+      { kind: 'Scanned report', text: 'Read the attached inspection report for V-2107. What severity is the worst finding?' },
+      { kind: 'Records', text: 'List every vessel whose next thickness survey was due before 1 October 2026' },
+      { kind: 'Harness', text: 'SOP question sweep: 25 questions, one verified answer matrix, one hashed report' },
+    ],
+  ],
+  note: 'Requests from the demo script and the built-in skills. Each is answered from the procedures on the host it runs on.',
+} as const
+
+// --------------------------------------------------------------------------- //
+// How it works: one run, proved in five steps
+// --------------------------------------------------------------------------- //
+
+export const PIPELINE = {
+  id: 'chain',
+  eyebrow: 'How it works',
+  title: 'One question,',
+  titleTurn: 'proved in five steps.',
+  lede: 'The run at the top of the page, step by step as you scroll. Every value in it is read from that run’s record.',
+  steps: [
+    {
+      key: 'classify',
+      label: 'Classify',
+      title: 'It reads the request first.',
+      line: 'Before anything is retrieved, the request is classified, so policy knows what kind of work this is and how sensitive.',
+    },
+    {
+      key: 'retrieve',
+      label: 'Retrieve',
+      title: 'It finds the clauses that govern it.',
+      line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.',
+    },
+    {
+      key: 'draft',
+      label: 'Draft',
+      title: 'It answers from those passages alone.',
+      line: 'A local model writes the answer and cites every claim to the passage it rests on.',
+    },
+    {
+      key: 'verify',
+      label: 'Verify',
+      title: 'Every claim is checked before release.',
+      line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.',
+    },
+    {
+      key: 'record',
+      label: 'Record',
+      title: 'Every step goes on a hash chain.',
+      line: 'Each record carries the hash of the one before it, so changing any record breaks every hash after it.',
+    },
+  ],
+} as const
+
+// --------------------------------------------------------------------------- //
+// Security: four proofs, each checkable from this page
+// --------------------------------------------------------------------------- //
+
+export const BENTO = {
+  tamper: {
+    title: 'Try to rewrite the record.',
+    line: 'Three records from the run above, re-hashed by your browser. Change one value and watch the chain refuse it.',
+    // The edit offered: who did it. Offered only when the stored record says so.
+    edit: { path: ['actor'], from: '"engineer"', to: '"reviewer"', label: 'Change who did it' },
+    restore: 'Put it back',
+    verified: 'All {n} records re-hash to their stored values here, and each one links to the one before it.',
+    broken: 'Seq {seq} no longer matches the hash stored with it, and seq {next} still points at the original. The edit shows.',
+    brokenLast: 'Seq {seq} no longer matches the hash stored with it. The edit shows.',
+    idle: 'Re-hashing in your browser when this is on screen.',
+  },
+  airgap: {
+    title: 'Nothing leaves the machine.',
+    line: 'The monitor watches the workbench’s own processes for any connection past loopback, and this page reads it live.',
+  },
+  attacks: {
+    title: 'Attacks, contained.',
+    line: 'The sandbox self-test this host recorded: each payload, and what the sandbox did with it.',
+  },
+  requests: {
+    title: 'This page talks to one place.',
+    line: 'Every request this page has made so far, counted by your browser. No CDN, no analytics, no third party.',
+  },
+} as const
+
+// --------------------------------------------------------------------------- //
 // 05 — Check it yourself
 // --------------------------------------------------------------------------- //
 

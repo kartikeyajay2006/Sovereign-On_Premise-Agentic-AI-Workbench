@@ -48,6 +48,7 @@ export const CHECK_WORDS: Record<string, string> = {
   source_verification: 'Sources',
   calculation_verification: 'Calculations',
   code_verification: 'Code',
+  citation_verification: 'Citations',
   page_citation_verification: 'Pages',
   document_verification: 'Document',
   hallucination_check: 'Grounding',
@@ -80,7 +81,7 @@ function Dwell({ stage }: { stage: PipelineStage }) {
 }
 
 /** "SOP-INS-014 §2.2" from a document title and a "section: 2.2 …" location. */
-function citeLabel(item: EvidenceItem): string {
+export function citeLabel(item: EvidenceItem): string {
   const code = (item.source_document ?? '').split(' — ')[0].trim() || item.id
   // "section: 1. Purpose" names section 1, not "1.".
   const section = item.location?.match(/section:\s*(\d+(?:\.\d+)*)/i)?.[1]

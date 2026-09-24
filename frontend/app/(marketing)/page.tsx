@@ -1,15 +1,12 @@
-import { Activity, ArrowUpRight, Link2, Lock, ShieldCheck } from 'lucide-react'
-import { atomAt, parseLexemes } from '@/components/landing/audit-hash'
+import { ArrowUpRight } from 'lucide-react'
 import { CommandBlock } from '@/components/landing/command-block'
-import { CHAIN, HERO, LIMITS, PROOF, RUN_IT } from '@/components/landing/copy'
+import { BENTO, HERO, LIMITS, PIPELINE, PROOF, RUN_IT, USE_CASES } from '@/components/landing/copy'
 import { DisplayHeading } from '@/components/landing/display-heading'
 import { DotField } from '@/components/landing/dot-field'
-import { HashChain } from '@/components/landing/hash-chain'
 import { LandingButton } from '@/components/landing/landing-button'
 import { LiveContainment } from '@/components/landing/live-containment'
-import { MachineBlock } from '@/components/landing/machine-block'
 import { ProductGallery, type GallerySlide } from '@/components/landing/product-gallery'
-import { ProofCards } from '@/components/landing/proof-cards'
+import { ProofPipeline, type PipelineData } from '@/components/landing/proof-pipeline'
 import { Reveal } from '@/components/landing/reveal'
 import { RunReplay, type ReplayCheck, type ReplayStep } from '@/components/landing/run-replay'
 import {
@@ -23,10 +20,32 @@ import {
   type UsageCall,
 } from '@/components/landing/run-fixture'
 import { SectionShell } from '@/components/landing/section-shell'
-import { SelfTest } from '@/components/landing/self-test'
 import { StackStrip } from '@/components/landing/stack-strip'
 import { StatsBand, type Stat } from '@/components/landing/stats-band'
-import { Steps, type StepCheck, type StepCited, type StepRecord } from '@/components/landing/steps'
+import { AirgapField } from '@/components/landing/airgap-field'
+import { AttackList } from '@/components/landing/attack-list'
+import { ChainTamper } from '@/components/landing/chain-tamper'
+import { PageRequests } from '@/components/landing/page-requests'
+import { RevealSection } from '@/components/landing/reveal-section'
+import { Spotlight } from '@/components/landing/spotlight'
+import { UseCases } from '@/components/landing/use-cases'
+
+/** The first cited sentence, and the passage and phrase it rests on. */
+interface StepCited {
+  sentence: string
+  id: string
+  source: string
+  excerpt: string
+  /** A phrase of the excerpt the sentence rests on, marked where it appears. */
+  highlight: string | null
+}
+
+/** One verification check, in the words a reader uses. */
+interface StepCheck {
+  label: string
+  passed: boolean
+  note: string
+}
 
 // --------------------------------------------------------------------------- //
 // The run, read once.
@@ -139,6 +158,7 @@ const CHECK_WORDS: Record<string, string> = {
   source_verification: 'Sources',
   calculation_verification: 'Calculations',
   code_verification: 'Code',
+  citation_verification: 'Citations',
   page_citation_verification: 'Pages',
   document_verification: 'Document',
   hallucination_check: 'Grounding',
@@ -157,7 +177,6 @@ const sealed =
 
 // Four numbers, each read from the record. A figure the record does not
 // carry is dropped, never drawn as a placeholder.
-const selfTest = run.sandbox_self_test?.detail ?? null
 const stats: Stat[] = [
   // The task's own duration, the figure the replay and the answer card
   // print, so the page gives one number for one run.
@@ -183,10 +202,10 @@ const stats: Stat[] = [
         sub: `hash-chained, seq ${run.audit.first_sequence}–${run.audit.last_sequence}`,
       }
     : null,
-  selfTest && selfTest.assessable !== false && selfTest.total > 0
+  run.sandbox_self_test && run.sandbox_self_test.detail.assessable !== false && run.sandbox_self_test.detail.total > 0
     ? {
         label: 'Containment checks held',
-        value: `${selfTest.passed}/${selfTest.total}`,
+        value: `${run.sandbox_self_test.detail.passed}/${run.sandbox_self_test.detail.total}`,
         sub: 'adversarial payloads, this host',
       }
     : null,
@@ -240,27 +259,96 @@ const stepChecks: StepCheck[] = checks.map((check) => ({
 }))
 const verdict = held ? `held for ${run.approval.approver_roles.join(' or ')}` : 'released without a hold'
 const tail = run.audit.tail
-const stepRecords: StepRecord[] = tail.map((record) => ({
-  sequence: record.sequence,
-  what: `${record.category} · ${record.action}`,
-  hash: record.hash,
-}))
 
-// The security section's evidence: the chain your browser re-hashes. The
-// edit is offered only when the first record shown really carries a failed
-// verification to flip.
-const editPath = [...PROOF.chain.edit.path]
-const chainEdit =
-  tail.length > 0 && atomAt(parseLexemes(tail[0].line), editPath) === 'false'
-    ? { sequence: tail[0].sequence, path: editPath, value: PROOF.chain.edit.value }
-    : null
-const chainSource =
-  tail.length > 0
-    ? `${PROOF.chain.labels.source} · seq ${tail[0].sequence}–${tail[tail.length - 1].sequence}`
-    : PROOF.chain.labels.source
-const selfTestHeld =
-  run.sandbox_self_test && run.sandbox_self_test.detail.assessable !== false && run.sandbox_self_test.detail.total > 0
-    ? `${run.sandbox_self_test.detail.passed} of ${run.sandbox_self_test.detail.total} containment checks held`
+// How it works: the run above, as the five steps the pinned section scrolls
+// through. Every value is the record's; where it has none, the step says less.
+const stageOf = (id: string) => run.timeline.stages.find((stage) => stage.id === id) ?? null
+const classifyStage = stageOf('classify')
+const draftStage = stageOf('draft')
+const retrieveStage = stageOf('retrieve')
+const draftCall = calls.filter((call) => call.stage === 'drafting').at(-1) ?? null
+// "[S1] A vessel ... 48 months. [S1]": the opening marker repeats the one at
+// the end of the sentence, and is dropped from the display only then.
+const opening = run.answer.match(/^\s*\[([SFVCE]\d+)\]\s*/)
+const shownAnswer =
+  opening && run.answer.slice(opening[0].length).includes(`[${opening[1]}]`)
+    ? run.answer.slice(opening[0].length)
+    : run.answer
+const excerptParts = (() => {
+  if (!stepCited?.highlight) return null
+  const at = stepCited.excerpt.indexOf(stepCited.highlight)
+  if (at < 0) return null
+  // Enough either side of the figure to read it in its clause.
+  const before = stepCited.excerpt.slice(Math.max(0, at - 110), at)
+  const after = stepCited.excerpt.slice(at + stepCited.highlight.length, at + stepCited.highlight.length + 70)
+  return {
+    before: before.slice(before.indexOf(' ') + 1),
+    mark: stepCited.highlight,
+    after: after.slice(0, after.lastIndexOf(' ')),
+  }
+})()
+const pipeline: PipelineData = {
+  runId,
+  skill: run.skill ? { id: run.skill.id, name: run.skill.name } : null,
+  request: run.skill ? run.skill.input : run.prompt,
+  classify: {
+    tags: (classifyStage?.note ?? '')
+      .split(/\s*·\s*/)
+      .map((part) => part.replace(/_/g, ' ').trim())
+      .filter(Boolean),
+    ms: classifyStage?.ms ?? null,
+  },
+  retrieve: {
+    passages: passages.map((unit) => ({
+      id: unit.id,
+      code: documentCode(unit),
+      section: sectionLabel(unit),
+      score: unit.score,
+      cited: unit.cited,
+    })),
+    ms: retrieveStage?.ms ?? null,
+    mode: run.retrieval?.mode ? `${run.retrieval.mode} search` : null,
+  },
+  draft: {
+    answer: shownAnswer,
+    model: draftCall ? draftCall.display_name || draftCall.model : null,
+    meta: draftCall
+      ? [
+          draftCall.prompt_tokens !== null ? `${draftCall.prompt_tokens.toLocaleString('en-US')} tokens in` : null,
+          draftCall.output_tokens !== null ? `${draftCall.output_tokens.toLocaleString('en-US')} out` : null,
+          draftCall.tokens_per_second !== null ? `${draftCall.tokens_per_second.toFixed(1)} tok/s` : null,
+          seconds(draftStage?.ms) ? `${seconds(draftStage?.ms)} on a laptop CPU` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : null,
+  },
+  verify: {
+    claim: stepCited?.sentence ?? null,
+    passage:
+      stepCited && excerptParts ? { label: `${stepCited.id} · ${stepCited.source}`, ...excerptParts } : null,
+    checks: stepChecks,
+    verdict: `${passedChecks} of ${checks.length} passed · ${verdict}`,
+  },
+  record: {
+    records: tail.map((record) => ({
+      sequence: record.sequence,
+      what: `${record.category} · ${record.action}`,
+      hash: record.hash,
+    })),
+    summary:
+      run.audit.count > 0 && run.audit.first_sequence !== null && run.audit.last_sequence !== null
+        ? `${run.audit.count} records appended for this run, seq ${run.audit.first_sequence}–${run.audit.last_sequence}`
+        : null,
+  },
+}
+
+// Security: the recorded self-test, one payload a line.
+const selfTest = run.sandbox_self_test?.detail ?? null
+const attacks = selfTest?.checks.map((check) => ({ name: check.name, passed: check.passed, detail: check.detail })) ?? []
+const attacksFoot =
+  selfTest && selfTest.assessable !== false && selfTest.total > 0
+    ? `${selfTest.passed} of ${selfTest.total} held · recorded ${run.sandbox_self_test?.at.slice(0, 10)} · seq ${run.sandbox_self_test?.sequence}`
     : null
 
 // The limits, one line each. The latency line is the run's own.
@@ -356,7 +444,8 @@ export default function LandingPage() {
             align="center"
             lead={HERO.headline}
             turn={HERO.headlineTurn}
-            className="ae-load-1 mt-7"
+            reveal
+            className="mt-7"
           />
           <p className="ae-lead ae-load-2 mx-auto mt-6 max-w-[56ch]">{HERO.sub}</p>
           <div className="ae-load-3 mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -412,9 +501,42 @@ export default function LandingPage() {
         <StatsBand stats={stats} label="The run above, in four numbers" />
       </section>
 
-      <section aria-label="What runs on the host" className="ae-shell py-14 md:py-16">
-        <StackStrip label="Runs on your own hardware" />
-      </section>
+      {/* ---------------------------------------------------------------- */}
+      {/* Use cases: what people ask it, running both ways                  */}
+      {/* ---------------------------------------------------------------- */}
+      <RevealSection id={USE_CASES.id} aria-labelledby={`${USE_CASES.id}-title`} className="scroll-mt-16 py-20 md:py-24">
+        <div className="ae-shell">
+          <div className="ae-reveal mx-auto max-w-[760px] text-center">
+            <p className="ae-kicker m-0 justify-center">{USE_CASES.eyebrow}</p>
+            <DisplayHeading
+              id={`${USE_CASES.id}-title`}
+              as="h2"
+              align="center"
+              lead={USE_CASES.title}
+              turn={USE_CASES.titleTurn}
+              className="mt-3"
+            />
+            <p className="ae-lead mx-auto mt-5 max-w-[60ch]">{USE_CASES.lede}</p>
+          </div>
+        </div>
+        <div className="ae-reveal mt-12" style={{ transitionDelay: '0.12s' }}>
+          <UseCases rows={USE_CASES.rows} note={USE_CASES.note} />
+        </div>
+      </RevealSection>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* How it works: the run, proved in five steps, as the page scrolls   */}
+      {/* ---------------------------------------------------------------- */}
+      <SectionShell
+        id={PIPELINE.id}
+        eyebrow={PIPELINE.eyebrow}
+        title={PIPELINE.title}
+        titleTurn={PIPELINE.titleTurn}
+        lede={PIPELINE.lede}
+        density="tight"
+      >
+        <ProofPipeline steps={PIPELINE.steps} data={pipeline} />
+      </SectionShell>
 
       {/* ---------------------------------------------------------------- */}
       {/* The product, screen by screen                                     */}
@@ -433,13 +555,6 @@ export default function LandingPage() {
       </SectionShell>
 
       {/* ---------------------------------------------------------------- */}
-      {/* How it works                                                      */}
-      {/* ---------------------------------------------------------------- */}
-      <SectionShell id={CHAIN.id} eyebrow={CHAIN.eyebrow} title={CHAIN.title} titleTurn={CHAIN.titleTurn} lede={CHAIN.lede}>
-        <Steps cited={stepCited} checks={stepChecks} verdict={verdict} records={stepRecords} />
-      </SectionShell>
-
-      {/* ---------------------------------------------------------------- */}
       {/* Security: four claims, each with its proof one click away         */}
       {/* ---------------------------------------------------------------- */}
       <SectionShell
@@ -450,54 +565,55 @@ export default function LandingPage() {
         titleTurn={PROOF.titleTurn}
         lede={PROOF.lede}
       >
-        <ProofCards
-          cards={[
-            {
-              icon: Link2,
-              title: PROOF.cards.chain.title,
-              line: PROOF.cards.chain.line,
-              evidence:
-                tail.length > 0 ? (
-                  <HashChain
-                    records={tail.map((record) => ({ sequence: record.sequence, line: record.line }))}
-                    edit={chainEdit}
-                    labels={{ ...PROOF.chain.labels, source: chainSource }}
-                  />
-                ) : null,
-            },
-            {
-              icon: ShieldCheck,
-              title: selfTestHeld ?? PROOF.cards.sandbox.fallbackTitle,
-              line: PROOF.cards.sandbox.line,
-              evidence: (
-                <>
-                  {run.sandbox_self_test ? (
-                    <SelfTest test={run.sandbox_self_test} label={PROOF.sandbox.label} caption={PROOF.cards.sandbox.caption} />
-                  ) : null}
-                  <MachineBlock label={PROOF.policy.label} source={PROOF.policy.source}>
-                    {PROOF.policy.lines.join('\n')}
-                  </MachineBlock>
-                </>
-              ),
-            },
-            {
-              icon: Activity,
-              title: PROOF.cards.egress.title,
-              line: PROOF.cards.egress.line,
-              live: <LiveContainment />,
-            },
-            {
-              icon: Lock,
-              title: PROOF.cards.page.title,
-              line: PROOF.cards.page.line,
-              evidence: (
-                <MachineBlock label={PROOF.page.label} source={PROOF.page.source} wrap>
-                  {PROOF.page.lines.join('\n')}
-                </MachineBlock>
-              ),
-            },
-          ]}
-        />
+        <Spotlight className="ae-bento">
+          <article className="ae-tile span-6">
+            <div>
+              <h3 className="ti">{BENTO.tamper.title}</h3>
+              <p className="li">{BENTO.tamper.line}</p>
+            </div>
+            {tail.length > 0 ? (
+              <ChainTamper
+                records={tail.map((record) => ({ sequence: record.sequence, line: record.line }))}
+                edit={{ ...BENTO.tamper.edit, path: [...BENTO.tamper.edit.path] }}
+                labels={{
+                  restore: BENTO.tamper.restore,
+                  verified: BENTO.tamper.verified,
+                  broken: BENTO.tamper.broken,
+                  brokenLast: BENTO.tamper.brokenLast,
+                  idle: BENTO.tamper.idle,
+                }}
+              />
+            ) : null}
+          </article>
+
+          <article className="ae-tile span-2">
+            <div>
+              <h3 className="ti">{BENTO.airgap.title}</h3>
+              <p className="li">{BENTO.airgap.line}</p>
+            </div>
+            <div className="ae-airgap">
+              <AirgapField className="ae-airgap-canvas" />
+              <span className="tag">this machine</span>
+            </div>
+            <LiveContainment />
+          </article>
+
+          <article className="ae-tile span-2">
+            <div>
+              <h3 className="ti">{BENTO.attacks.title}</h3>
+              <p className="li">{BENTO.attacks.line}</p>
+            </div>
+            {attacks.length > 0 ? <AttackList attacks={attacks} foot={attacksFoot} /> : null}
+          </article>
+
+          <article className="ae-tile span-2">
+            <div>
+              <h3 className="ti">{BENTO.requests.title}</h3>
+              <p className="li">{BENTO.requests.line}</p>
+            </div>
+            <PageRequests />
+          </article>
+        </Spotlight>
       </SectionShell>
 
       {/* ---------------------------------------------------------------- */}
@@ -526,6 +642,9 @@ export default function LandingPage() {
       {/* Get started                                                       */}
       {/* ---------------------------------------------------------------- */}
       <SectionShell id={RUN_IT.id} eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} lede={RUN_IT.lede}>
+        <div className="ae-reveal mb-12">
+          <StackStrip label="What it runs on" />
+        </div>
         <div className="ae-reveal grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12">
           <CommandBlock label="Terminal" lines={[...RUN_IT.commands]} wrap />
           {/* No button here: the footer's call to action is the next thing
