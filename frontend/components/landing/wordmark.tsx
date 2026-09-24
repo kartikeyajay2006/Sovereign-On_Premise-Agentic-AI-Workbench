@@ -2,9 +2,9 @@ import { AegisMark } from '@/components/aegis-logo'
 import { cn } from '@/lib/utils'
 
 /**
- * The mark and the name, one way, everywhere on the public pages: the split
- * shield at 24px, on the grid it is drawn on, and AEGIS in Geist, tracked
- * open a little as a name set in capitals wants.
+ * The mark and the name, one way, everywhere on the public pages: the
+ * gradient shield at 24px, on the grid it is drawn on, and AEGIS in Geist,
+ * tracked open a little as a name set in capitals wants.
  */
 export function Wordmark({ className }: { className?: string }) {
   return (

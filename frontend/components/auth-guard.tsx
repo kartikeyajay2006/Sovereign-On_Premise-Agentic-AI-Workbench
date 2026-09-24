@@ -45,7 +45,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <div role="status" className="flex max-w-[360px] flex-col items-start gap-3">
-          <AegisLogo size={20} variant="mark" iconClassName="text-foreground-muted" />
+          <AegisLogo size={20} variant="mark" tone="mono" iconClassName="text-foreground-muted" />
           <p className="text-body text-foreground-secondary">Checking your session…</p>
           {slow && (
             <>
