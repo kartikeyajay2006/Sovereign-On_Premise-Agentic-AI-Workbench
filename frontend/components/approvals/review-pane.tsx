@@ -153,17 +153,16 @@ function HeldBecause({ task }: { task: Task }) {
       title="Held because"
       meta={approval.approver_roles.length > 0 ? `decided by ${approval.approver_roles.join(' or ')}` : undefined}
     >
-      <ul className="flex flex-col gap-2">
+      {/* The reason in words first; the rule's name, which is what the
+          policy file and the audit record call it, under it for whoever
+          needs to find it there. */}
+      <ul className="flex flex-col gap-2.5">
         {approval.reasons.map((reason) => {
           const { rule, text } = splitReason(reason)
           return (
-            <li key={reason} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-              {rule && (
-                <span className="shrink-0 font-mono text-ui text-foreground sm:w-56 sm:truncate" title={rule}>
-                  {rule}
-                </span>
-              )}
-              <span className="text-body text-foreground-secondary">{text}</span>
+            <li key={reason} className="flex flex-col gap-0.5">
+              <span className="text-body text-foreground">{text}</span>
+              {rule && <span className="font-mono text-ledger text-foreground-muted">{rule}</span>}
             </li>
           )
         })}

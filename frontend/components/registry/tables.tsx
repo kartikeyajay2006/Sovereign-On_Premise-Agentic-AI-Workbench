@@ -44,7 +44,7 @@ const TD = 'min-w-0 px-4 py-3'
 const COLUMNS = cn(
   'grid grid-cols-[minmax(0,1fr)_140px_132px_72px]',
   'lg:grid-cols-[minmax(0,1fr)_140px_132px_72px_88px_136px]',
-  'xl:grid-cols-[minmax(0,1fr)_140px_132px_72px_88px_136px_120px]',
+  'xl:grid-cols-[minmax(0,1fr)_140px_132px_72px_88px_136px_96px]',
 )
 
 /**
@@ -151,7 +151,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                       {shownPath(d.source_path)} · v{d.version}
                     </span>
                   </div>
-                  <div role="cell" className={cn(TD, 'truncate font-mono text-ui text-foreground-secondary')}>
+                  <div role="cell" className={cn(TD, 'truncate text-ui capitalize text-foreground-secondary')}>
                     {d.department}
                   </div>
                   <div role="cell" className={TD}>
@@ -174,7 +174,8 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                     className={cn(TD, 'hidden truncate font-mono text-ui text-foreground-muted xl:block')}
                     title={d.sha256}
                   >
-                    {d.sha256.slice(0, 12)}…
+                    {/* Enough to match against the file; the whole hash is on hover. */}
+                    {d.sha256.slice(0, 8)}
                   </div>
                 </Append>
               ))}

@@ -6,6 +6,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { MeasuredNumber } from '@/shared/motion'
 import { ErrorState } from '@/shared/ui/data/error-state'
+import { PageHeader } from '@/components/page-header'
 import { harnessApi } from '../api'
 import type { HarnessCatalogView, HarnessRunSummary, HarnessTally } from '../model/types'
 import { ACTIVE_RUN, OUTCOME, OUTCOME_ORDER, UNSETTLED } from './outcome'
@@ -113,20 +114,12 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-5 py-8 lg:px-10">
-      <header className="flex flex-col gap-2 border-b border-line-default pb-6">
-        <Ledger>Harnesses</Ledger>
-        <h1 className="text-title font-medium tracking-[var(--ls-title)] text-foreground">
-          Whole jobs, every step governed
-        </h1>
-        <p className="max-w-[72ch] text-body text-foreground-secondary">
-          A harness runs many ordinary tasks, one after another. Each is classified, checked
-          against policy, grounded in retrieval, verified and, where the rules say so, held for a
-          reviewer, exactly as a question typed into the thread. The harness adds the sequence and
-          one hashed report of what the runs actually did.
-        </p>
-      </header>
-
+    <>
+    <PageHeader
+      title="Harnesses"
+      description="One job over many items. Each item is an ordinary checked run, and the job ends in one hashed report."
+    />
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-4 pb-16 pt-6 sm:px-6 [&>*]:max-w-[1040px]">
       <Panel
         title="Library"
         id="harness-library"
@@ -187,9 +180,8 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                           <span aria-hidden>⏸</span> Report needs approval
                         </Ledger>
                       )}
-                      <Ledger>
-                        v{harness.version} · sha256 {harness.sha256.slice(0, 12)}
-                      </Ledger>
+                      {/* The hash is on the configure screen, beside what it hashes. */}
+                      <Ledger>v{harness.version}</Ledger>
                     </span>
                   </div>
                   <ArrowRight
@@ -273,5 +265,6 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
         )}
       </Panel>
     </div>
+    </>
   )
 }

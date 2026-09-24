@@ -18,7 +18,7 @@ export function Ago({ iso }: { iso: string }) {
   return <>{s < 90 ? `${s} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`}</>
 }
 
-function stamp(iso: string) {
+export function stamp(iso: string) {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? '—'
@@ -38,16 +38,14 @@ function classify(reading: InterfaceReading) {
 }
 
 /**
- * What the egress monitor has seen, updating as it samples.
+ * How the egress figure is taken, updating as the monitor samples.
  *
- * The large figure is the only counter the monitor keeps: connections from
- * the API's own process tree to anything outside the loopback ranges, since
- * the monitor started. Beside it, what that figure cannot see, in the same
- * type size as what it can.
+ * The figure itself -- the only counter the monitor keeps -- is the verdict
+ * at the top of the screen. This is what sits behind it: the sampling as
+ * observed, what a sample cannot see, any connection it did see, and the
+ * host's own network, which the figure is not a statement about.
  */
 export function EgressPanel({ status, live }: { status: SovereigntyStatus; live: boolean }) {
-  const observed = status.unapproved_connections
-
   // The sampling interval as observed between the last two samples, rather
   // than the configured value restated as though it had been measured.
   const [gap, setGap] = useState<number | null>(null)
@@ -63,54 +61,38 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <div className="flex flex-col gap-2 rounded-[var(--radius)] bg-surface p-5 shadow-[var(--elev-0)]">
-          <span className={LEDGER_MUTED}>Non-loopback connections observed</span>
-          <span
-            className={cn(
-              'tabular font-mono text-display font-medium',
-              observed === 0 ? 'text-foreground' : 'text-critical-text',
-            )}
-          >
-            {observed}
-          </span>
-          <span className="text-ui text-foreground-secondary">
-            since {stamp(status.monitored_since)}, from the workbench&rsquo;s own process tree
-          </span>
-        </div>
-
-        <div className="flex flex-col justify-between gap-4 rounded-[var(--radius)] bg-surface p-5 shadow-[var(--elev-0)]">
-          <ReadoutRow>
-            <Readout
-              label="Monitor"
-              value={status.monitor_active ? 'sampling' : 'not running'}
-              tone={status.monitor_active ? 'default' : 'approval'}
-            />
-            <Readout label="Last sample" value={<Ago iso={status.last_checked} />} hint={status.last_checked} />
-            <Readout
-              label="Apart"
-              value={gap === null ? '—' : `${gap.toFixed(1)} s`}
-              tone={gap === null ? 'muted' : 'default'}
-              hint="Time between the last two samples this page received"
-            />
-            <Readout
-              label="Loopback now"
-              value={status.local_connections}
-              hint="Loopback connections in the most recent sample"
-            />
-            <Readout
-              label="Stream"
-              value={live ? 'live' : 'not connected'}
-              tone={live ? 'default' : 'muted'}
-              hint="New samples arrive over the event stream while it is connected"
-            />
-          </ReadoutRow>
-          <p className="max-w-[66ch] text-ui text-foreground-secondary">
-            Sampled from the API process tree at an interval. A connection that opens and closes between
-            samples is not observed, and a monitor that cannot read the connection table reports an
-            empty list, which looks the same as a clean one.
-          </p>
-        </div>
+      <div className="flex flex-col gap-3 rounded-[var(--radius)] bg-surface p-5 shadow-[var(--elev-0)]">
+        <ReadoutRow>
+          <Readout
+            label="Monitor"
+            value={status.monitor_active ? 'sampling' : 'not running'}
+            tone={status.monitor_active ? 'default' : 'approval'}
+          />
+          <Readout label="Since" value={stamp(status.monitored_since)} hint={status.monitored_since} />
+          <Readout label="Last sample" value={<Ago iso={status.last_checked} />} hint={status.last_checked} />
+          <Readout
+            label="Apart"
+            value={gap === null ? '—' : `${gap.toFixed(1)} s`}
+            tone={gap === null ? 'muted' : 'default'}
+            hint="Time between the last two samples this page received"
+          />
+          <Readout
+            label="Loopback now"
+            value={status.local_connections}
+            hint="Loopback connections in the most recent sample"
+          />
+          <Readout
+            label="Stream"
+            value={live ? 'live' : 'not connected'}
+            tone={live ? 'default' : 'muted'}
+            hint="New samples arrive over the event stream while it is connected"
+          />
+        </ReadoutRow>
+        <p className="max-w-[80ch] text-ui text-foreground-secondary">
+          Sampled from the workbench&rsquo;s own processes at an interval. A connection that opens and closes
+          between samples is not seen, and a monitor that cannot read the connection table reports an empty list,
+          which looks the same as a clean one.
+        </p>
       </div>
 
       {status.violations.length > 0 && (

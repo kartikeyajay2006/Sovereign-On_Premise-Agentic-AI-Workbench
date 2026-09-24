@@ -259,15 +259,30 @@ export function VerificationPanel({
         </ol>
       )}
 
-      {canCheck && (
-        <p className="max-w-[80ch] text-ui text-foreground-muted">
-          The browser recomputes SHA-256 over each record&rsquo;s predecessor hash and its canonical
-          body, exactly as the server writes it, and checks each prev_hash against the record before it.
-          Downloading the log is itself recorded, so every check leaves an{' '}
-          <span className="font-mono">audit / exported</span> record at the head of the chain it
-          verified.
-          {check.skipped > 0 && ` ${check.skipped} line${check.skipped === 1 ? '' : 's'} could not be parsed and were skipped, as the server skips them.`}
+      {canCheck && check.skipped > 0 && (
+        <p className="text-ui text-foreground-muted">
+          {check.skipped} line{check.skipped === 1 ? '' : 's'} could not be parsed and were skipped, as the server
+          skips them.
         </p>
+      )}
+
+      {/* The method, for whoever wants to audit the auditor; folded, because
+          the verdicts above are what a reader came for. */}
+      {canCheck && (
+        <details className="group">
+          <summary className="w-fit cursor-pointer list-none select-none text-ui text-foreground-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
+            How the browser check works{' '}
+            <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+              ›
+            </span>
+          </summary>
+          <p className="mt-2 max-w-[80ch] text-ui text-foreground-muted">
+            The browser recomputes SHA-256 over each record&rsquo;s predecessor hash and its canonical body, exactly as
+            the server writes it, and checks each prev_hash against the record before it. Downloading the log is itself
+            recorded, so every check leaves an <span className="font-mono">audit / exported</span> record at the head
+            of the chain it verified.
+          </p>
+        </details>
       )}
     </section>
   )

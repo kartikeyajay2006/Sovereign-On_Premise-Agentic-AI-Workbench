@@ -377,7 +377,7 @@ export function SkillsView() {
     <div className="pb-16">
       <PageHeader
         title="Skills"
-        description="Saved instructions you call in the thread by typing /. A skill shapes only what a run is asked — every run still meets every check."
+        description="Saved instructions you call in the thread with /. A skill shapes what a run is asked; every run still meets every check."
         actions={
           canCreate && !creating ? (
             <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>
@@ -387,7 +387,9 @@ export function SkillsView() {
         }
       />
 
-      <div className="mx-auto flex w-full max-w-[920px] flex-col gap-8 px-4 pt-6 sm:px-6">
+      {/* The page's own column, so the list starts under the title; the
+          list keeps a reading width inside it. */}
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-4 pt-6 sm:px-6 [&>*]:max-w-[1040px]">
         {creating && (
           <NewSkill
             taken={taken}

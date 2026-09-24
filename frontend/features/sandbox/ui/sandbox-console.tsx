@@ -70,6 +70,13 @@ function PresetRow({ preset, active, onClick }: { preset: SandboxPreset; active:
  * contained and everything the host measured doing it. No figure on the page
  * is written by the page; each is read back from this machine.
  */
+/** The enforcement mechanisms the service reports, in words; anything else is shown as sent. */
+const MECHANISM: Record<string, string> = {
+  windows_job_object: 'Windows job object',
+  posix_rlimit: 'POSIX rlimits',
+  none: 'nothing',
+}
+
 export function SandboxConsole() {
   const [code, setCode] = useState(SANDBOX_PRESETS[1].code)
   const [activePreset, setActivePreset] = useState<string | null>(SANDBOX_PRESETS[1].id)
@@ -116,9 +123,9 @@ export function SandboxConsole() {
     <div className="pb-16">
       <PageHeader
         title="Sandbox"
-        description="Run Python under this host's limits and see what it did: the rule that refused it, or the exit, CPU, memory and output it measured. The same gateway, validator and audit trail as an agent's own code."
+        description="Run Python under this host's limits and see exactly what it did — through the same gateway, checks and audit trail as an agent's own code."
         meta={[
-          { label: 'Mechanism', value: limits ? limits.backend : '—' },
+          { label: 'Limits enforced by', value: limits ? MECHANISM[limits.backend] ?? limits.backend : '—', hint: limits?.backend },
           { label: 'Memory', value: limits ? `≤ ${limits.memory_mb} MB` : '—' },
           { label: 'CPU', value: limits ? `≤ ${limits.cpu_seconds} s` : '—' },
           {

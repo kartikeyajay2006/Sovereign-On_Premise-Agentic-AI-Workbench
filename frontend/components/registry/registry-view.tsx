@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, RotateCw } from 'lucide-react'
-import { PageHeader, type PageHeaderStat } from '@/components/page-header'
+import { PageHeader } from '@/components/page-header'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
-import { MeasuredNumber } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { Tabs, tabPanelProps } from '@/shared/ui/controls/tabs'
 import { FailureState, ReadingLine, clockTime, useReading } from '@/shared/ui/data/reading'
@@ -58,45 +57,10 @@ export function RegistryView() {
   const canSearch = can('knowledge.search')
 
   const docs = documents.data
-  const chunks = docs ? docs.reduce((sum, d) => sum + d.chunk_count, 0) : null
   const departments = useMemo(
     () => [...new Set([...(docs ?? []).map((d) => d.department), user?.department].filter((d): d is string => Boolean(d)))].sort(),
     [docs, user?.department],
   )
-
-  // ROLL: each figure is re-read on Refresh and after an ingest, and a
-  // change rolls between the two readings. Unread is a dash, never a zero.
-  const stats: PageHeaderStat[] = [
-    {
-      label: 'Documents',
-      value: <MeasuredNumber value={docs?.length} absent="—" />,
-      hint: 'GET /api/knowledge/documents',
-    },
-    {
-      label: 'Chunks',
-      value: <MeasuredNumber value={chunks} absent="—" />,
-      hint: 'Sum of each document’s indexed chunks',
-    },
-    {
-      label: 'Uploads',
-      value: <MeasuredNumber value={uploads.data?.length} absent="—" />,
-      hint: 'Files this role can read',
-    },
-  ]
-  if (models.data) {
-    const [status] = models.data
-    stats.push({
-      label: 'Models',
-      value: (
-        <>
-          <MeasuredNumber value={status.available} /> of <MeasuredNumber value={status.registered} />
-        </>
-      ),
-      // None installed means nothing can run: a failure the host reported.
-      tone: status.available === 0 ? 'critical' : 'default',
-      hint: 'Installed of registered, GET /api/models/status',
-    })
-  }
 
   const ingestButton = canIngest ? (
     <Button variant="secondary" size="sm" ground="paper" icon={Plus} onClick={() => setIngestOpen(true)}>
@@ -108,8 +72,7 @@ export function RegistryView() {
     <div className="flex flex-col">
       <PageHeader
         title="Knowledge"
-        description="The documents retrieval can cite, the models that run on this host, and a tester for retrieval itself."
-        meta={stats}
+        description="What retrieval can cite, the models on this host, and a tester for retrieval itself."
         actions={
           <>
             {documents.readAt !== null && (

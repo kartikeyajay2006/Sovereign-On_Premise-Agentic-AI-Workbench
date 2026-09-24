@@ -8,7 +8,6 @@ import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
 import { PageHeader } from '@/components/page-header'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
-import { MeasuredNumber } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { Kbd } from '@/shared/ui/controls/kbd'
 import { Segmented } from '@/shared/ui/controls/segmented'
@@ -22,7 +21,7 @@ import {
   useReading,
 } from '@/shared/ui/data/reading'
 import { cn } from '@/lib/utils'
-import { RUNS_LIMIT, readHeld, readRuns, readTask, recordDecision } from './api'
+import { readHeld, readRuns, readTask, recordDecision } from './api'
 import { DecisionDialog, type DecisionKind } from './decision-dialog'
 import { SENSITIVITY_ORDER, mergeQueue, type Decision, type QueueItem } from './model'
 import { QueueRow } from './queue-list'
@@ -409,42 +408,15 @@ export function ApprovalsView() {
     ? data.runs.filter((r) => String(r.status).toLowerCase() === 'awaiting_approval').length
     : null
 
-  // Null is "not read", which the header shows as a dash, never as a zero.
-  const heldCount: number | null = !data ? null : forbidden ? visibleHeld : counts.held
-  const decidedCount: number | null = forbidden || !data?.runs ? null : counts.approved + counts.rejected
-
   return (
     // Sized against the shell's own top inset, not a literal 72px, so the
     // queue and the pane always end at the bottom of the window.
     <div className="flex flex-col lg:h-[calc(100dvh-var(--shell-top))]">
       <PageHeader
         title="Approvals"
-        description="Runs held for a person's decision before anything they produced is released. Each decision is written to the audit chain against the reviewer who made it."
-        meta={[
-          {
-            label: 'Held',
-            // ROLL: the queue re-read, or a decision the service returned.
-            value: <MeasuredNumber value={heldCount} absent="—" />,
-            tone: heldCount ? 'approval' : 'default',
-            hint: forbidden
-              ? canReadAll
-                ? 'Held runs in the task list'
-                : 'Your own runs that are held'
-              : 'GET /api/approvals',
-          },
-          {
-            label: 'Decided',
-            // ROLL: as above.
-            value: <MeasuredNumber value={decidedCount} absent="—" />,
-            hint: `Approved or rejected among the last ${RUNS_LIMIT} runs this role can read`,
-          },
-          { label: 'Signs as', value: reviewer },
-          {
-            label: 'Permission',
-            value: canDecide ? 'approval.decide' : canRead ? 'read only' : 'none',
-            tone: canDecide ? 'default' : 'muted',
-          },
-        ]}
+        description="Runs held for a person before anything they produced is released. Each decision is recorded against the reviewer who made it."
+        // No row of readings: the counts are on the filter below, and who
+        // signs is said beside the decision itself.
         actions={
           <>
             {queue.readAt !== null && (
