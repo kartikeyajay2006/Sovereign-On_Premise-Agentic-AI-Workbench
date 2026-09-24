@@ -174,6 +174,12 @@ class ModelDescriptor(BaseModel):
     approved_classifications: list[Sensitivity]
     provider: str
     provider_model: str
+    # A pinned runtime digest makes a registered model an approved artifact,
+    # not merely an approved name. None means the declaration predates the
+    # integrity policy and is surfaced as unpinned rather than silently trusted.
+    expected_digest: str | None = None
+    actual_digest: str | None = None
+    integrity: str = "unpinned"
     available: bool = False
     registered: bool = True
     size_bytes: int | None = None

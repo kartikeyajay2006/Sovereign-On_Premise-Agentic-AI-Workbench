@@ -31,6 +31,7 @@ models:
       # latency — often several minutes per call. Set true where deliberation
       # is worth the wait (a GPU host, or a hard reasoning workload).
       thinking: false
+    expected_digest: 500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41
     generation_defaults:
       temperature: 0.3
       top_p: 0.9
@@ -52,6 +53,7 @@ models:
     serving:
       provider: ollama
       model: qwen2.5:3b
+    expected_digest: 357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b
     generation_defaults:
       temperature: 0.3
       top_p: 0.9
@@ -94,6 +96,7 @@ models:
     serving:
       provider: ollama
       model: qwen2.5vl:3b
+    expected_digest: fb90415cde1ef08aa669ae74b082d49b158729b6db1ab183c941417d507e71a1
     generation_defaults:
       temperature: 0.2
       num_predict: 1200
@@ -132,5 +135,6 @@ models:
     serving:
       provider: ollama
       model: nomic-embed-text:latest
+    expected_digest: 0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f
     embedding_dimensions: 768
     notes: Local embedding model for the industrial knowledge base.

@@ -15,6 +15,7 @@ routing decisions do not each pay a round trip.
 
 from __future__ import annotations
 
+import hmac
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -61,6 +62,24 @@ class ModelRegistry:
         serving = declaration.get("serving") or {}
         provider_model = str(serving.get("model") or declaration["id"])
         installed_record = installed.get(provider_model)
+        expected_digest = str(declaration.get("expected_digest") or "").strip() or None
+        actual_digest = (
+            str(installed_record.get("digest") or "").strip() if installed_record else None
+        ) or None
+        if installed_record is None:
+            integrity = "not_installed"
+        elif expected_digest is None:
+            integrity = "unpinned"
+        elif hmac.compare_digest(expected_digest, actual_digest or ""):
+            integrity = "verified"
+        else:
+            integrity = "mismatch"
+        notes = declaration.get("notes")
+        if integrity == "mismatch":
+            notes = (
+                f"{notes or ''}\nIntegrity refusal: the runtime digest does not match "
+                "the approved model manifest."
+            ).strip()
         return ModelDescriptor(
             id=str(declaration["id"]),
             display_name=str(declaration.get("display_name", declaration["id"])),
@@ -75,10 +94,15 @@ class ModelRegistry:
             ],
             provider=str(serving.get("provider", "ollama")),
             provider_model=provider_model,
-            available=installed_record is not None,
+            expected_digest=expected_digest,
+            actual_digest=actual_digest,
+            integrity=integrity,
+            # A replaced model must not be eligible for routing. Availability
+            # means installed *and* approved at this exact digest.
+            available=installed_record is not None and integrity != "mismatch",
             registered=True,
             size_bytes=installed_record.get("size") if installed_record else None,
-            notes=declaration.get("notes"),
+            notes=notes,
         )
 
     async def refresh(self, force: bool = False) -> RegistrySnapshot:

@@ -532,6 +532,9 @@ export interface ModelDescriptor {
   approved_classifications: string[]
   provider: string
   provider_model: string
+  expected_digest?: string | null
+  actual_digest?: string | null
+  integrity?: 'verified' | 'mismatch' | 'unpinned' | 'not_installed' | string
   available: boolean
   registered: boolean
   size_bytes?: number | null
