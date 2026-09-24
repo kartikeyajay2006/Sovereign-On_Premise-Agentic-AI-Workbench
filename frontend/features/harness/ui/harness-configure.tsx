@@ -335,7 +335,7 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-[1200px] px-5 py-8 lg:px-10">
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6">
         <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack} ground="paper">
           Harnesses
         </Button>
@@ -352,14 +352,14 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
 
   if (!definition) {
     return (
-      <p className="mx-auto w-full max-w-[1200px] px-5 py-8 font-mono text-meta text-foreground-muted lg:px-10">
+      <p className="mx-auto w-full max-w-[1400px] px-4 py-8 font-mono text-meta text-foreground-muted sm:px-6">
         Reading the definition…
       </p>
     )
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-5 py-8 lg:px-10" onKeyDown={onFormKey}>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-8 sm:px-6" onKeyDown={onFormKey}>
       <div>
         <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack} ground="paper">
           Harnesses

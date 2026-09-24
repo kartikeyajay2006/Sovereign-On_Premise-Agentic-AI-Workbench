@@ -1141,9 +1141,12 @@ export function ThreadView() {
           // Above 1280px the rail docks rather than overlays, so the column
           // steps aside instead of being covered. Checking a citation should
           // never cost you the sentence that made the claim. It steps at
-          // once: easing the padding re-wrapped the answer on every frame,
+          // once: easing the margin would re-wrap the answer on every frame,
           // and nothing here animates layout.
-          drawerOpen && 'xl:pr-[420px]',
+          // The column keeps its full measure and moves over, clear of the
+          // rail: padding it inside its own 768px had left the answer about
+          // 300px wide and the composer's placeholder wrapping.
+          drawerOpen && 'xl:mr-[400px]',
         )}
       >
         {/*
