@@ -262,7 +262,13 @@ class EvidenceItem(BaseModel):
     source_document: str
     document_id: str | None = None
     location: str | None = None
+    page_number: int | None = None
     excerpt: str
+    extraction_method: str | None = None
+    extraction_model: str | None = None
+    extraction_data: dict[str, Any] | None = None
+    confidence: float | None = None
+    source_sha256: str | None = None
     score: float | None = None
     department: str | None = None
     classification: Sensitivity = Sensitivity.NORMAL

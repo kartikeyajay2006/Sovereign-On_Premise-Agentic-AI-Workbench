@@ -102,7 +102,7 @@ stage_capabilities:
 # Raise them on a GPU host, where the trade does not apply.
 stage_output_tokens:
   planning: 350
-  vision_extraction: 900
+  vision_extraction: 2400
   code_generation: 700
   verification: 250
   drafting: 900
@@ -126,7 +126,7 @@ stage_output_tokens:
 # vision_extraction keeps its own value: it runs on a different model, so it
 # swaps regardless.
 stage_context_tokens:
-  vision_extraction: 6144
+  vision_extraction: 8192
   planning: 5120
   code_generation: 5120
   verification: 5120

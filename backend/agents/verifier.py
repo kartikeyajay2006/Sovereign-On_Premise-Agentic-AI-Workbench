@@ -43,6 +43,8 @@ LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 # from a scanned drawing counted as uncited and failed verification on evidence
 # it had in fact used.
 CITATION_PATTERN = re.compile(r"\[(?:[SFVCE])\d+\]")
+PAGE_CITATION_PATTERN = re.compile(r"\[((?:F|V)\d+)\]")
+PAGE_MENTION_PATTERN = re.compile(r"\bpages?\s+(\d+)\b", re.IGNORECASE)
 NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
 # Where a claim POINTS rather than what it SAYS: clause and section numbers
 # and document codes. They are removed before figures are compared, because
@@ -260,6 +262,38 @@ class VerificationEngine:
             ),
             evidence_ids=sorted(used_ids),
             warnings=unsupported[:5],
+        )
+
+    def check_page_citations(self, text: str, evidence: list[EvidenceItem]) -> VerificationCheck:
+        """Reject page citations whose stated page differs from their source."""
+        by_id = {item.id: item for item in evidence}
+        problems: list[str] = []
+        used: set[str] = set()
+        for sentence in SENTENCE_SPLIT.split(text or ""):
+            cited = PAGE_CITATION_PATTERN.findall(sentence)
+            if not cited:
+                continue
+            mentioned_pages = {int(value) for value in PAGE_MENTION_PATTERN.findall(sentence)}
+            for evidence_id in cited:
+                item = by_id.get(evidence_id)
+                if item is None:
+                    problems.append(f"[{evidence_id}] has no evidence item")
+                    continue
+                used.add(evidence_id)
+                if mentioned_pages and item.page_number not in mentioned_pages:
+                    problems.append(
+                        f"[{evidence_id}] is from page {item.page_number}, not "
+                        f"page {', '.join(str(page) for page in sorted(mentioned_pages))}"
+                    )
+                if item.excerpt == "No legible content extracted from this page." and "no legible content" not in sentence.lower():
+                    problems.append(f"[{evidence_id}] contains no legible content to support a fact")
+        return VerificationCheck(
+            name="page_citation_verification",
+            kind="source",
+            passed=not problems,
+            detail="Page citations match their evidence pages." if not problems else "; ".join(problems[:5]),
+            evidence_ids=sorted(used),
+            warnings=problems[:5],
         )
 
     # -- calculations ------------------------------------------------------

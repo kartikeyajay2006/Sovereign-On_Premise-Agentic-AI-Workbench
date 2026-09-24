@@ -12,6 +12,8 @@ from __future__ import annotations
 import csv
 import io
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +24,21 @@ class ParsedSegment:
 
     text: str
     location: str
+    page_number: int | None = None
+
+
+@dataclass
+class PDFPage:
+    number: int
+    text: str
+    needs_vision: bool
+    warning: str | None = None
+
+
+@dataclass
+class OCRResult:
+    text: str
+    confidence: float | None
 
 
 @dataclass
@@ -91,7 +108,7 @@ def _parse_text(path: Path) -> ParsedDocument:
 
 
 def has_extractable_text(path: Path, *, minimum_chars: int = 120) -> bool:
-    """Whether a PDF carries real text, or is a scan of one.
+    """Whether any PDF page has enough embedded text for the text path.
 
     A born-digital PDF should be parsed as text: it is exact and instant. A
     scan carries no text layer and has to be read by the vision model. The
@@ -100,17 +117,38 @@ def has_extractable_text(path: Path, *, minimum_chars: int = 120) -> bool:
     if path.suffix.lower() != ".pdf":
         return True
     try:
-        parsed = _parse_pdf(path)
+        return any(not page.needs_vision for page in inspect_pdf_pages(path, minimum_chars=minimum_chars))
     except ParsingError:
         return False
-    return len(parsed.full_text.strip()) >= minimum_chars
+
+
+def inspect_pdf_pages(path: Path, *, minimum_chars: int = 120) -> list[PDFPage]:
+    """Classify each page independently so a mixed PDF cannot hide scans."""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(str(path))
+        pages: list[PDFPage] = []
+        for number, page in enumerate(reader.pages, start=1):
+            warning = None
+            try:
+                content = page.extract_text() or ""
+            except Exception as exc:
+                content = ""
+                warning = f"page {number}: extraction failed ({exc})"
+            pages.append(PDFPage(number, content, len(content.strip()) < minimum_chars, warning))
+        return pages
+    except ImportError as exc:  # pragma: no cover
+        raise ParsingError("pypdf is not installed") from exc
+    except Exception as exc:
+        raise ParsingError(f"Could not inspect PDF '{path.name}': {exc}") from exc
 
 
 def rasterize_pdf(
     path: Path,
     destination: Path,
     *,
-    max_pages: int = 4,
+    max_pages: int | None = None,
+    page_numbers: list[int] | None = None,
     target_edge: int = 1100,
 ) -> list[Path]:
     """Render PDF pages to images so a vision model can read them.
@@ -119,8 +157,8 @@ def rasterize_pdf(
     vision, finds no image to look at, and is silently skipped — the exact
     failure this platform exists to handle.
 
-    Page count is capped because each page costs a full vision pass, which is
-    the most expensive stage on a CPU host.
+    The caller can choose pages that need vision. The default renders every
+    page; a document-level cap would silently lose later scanned pages.
     """
     try:
         import fitz  # PyMuPDF
@@ -134,17 +172,65 @@ def rasterize_pdf(
     rendered: list[Path] = []
 
     with fitz.open(str(path)) as document:
-        for index, page in enumerate(document[:max_pages]):
+        numbers = page_numbers if page_numbers is not None else list(range(1, len(document) + 1))
+        if max_pages is not None:
+            numbers = numbers[:max_pages]
+        for number in numbers:
+            if number < 1 or number > len(document):
+                raise ParsingError(f"PDF page {number} is outside 1-{len(document)}")
+            page = document[number - 1]
             rectangle = page.rect
             longest = max(rectangle.width, rectangle.height) or 1
             # Render at the edge the vision model is given, no larger.
             zoom = target_edge / longest
             pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
-            target = destination / f"{path.stem}-p{index + 1}.png"
+            target = destination / f"{path.stem}-p{number}.png"
             pixmap.save(str(target))
             rendered.append(target)
 
     return rendered
+
+
+def ocr_image(path: Path) -> OCRResult | None:
+    """Read a raster page locally when vision extraction misses visible text.
+
+    Tesseract's TSV keeps words in page order and reports word confidence.
+    A missing executable is reported to the caller as an unavailable fallback.
+    """
+    executable = shutil.which("tesseract")
+    if not executable:
+        return None
+    try:
+        completed = subprocess.run(
+            [executable, str(path), "stdout", "-l", "eng", "tsv"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ParsingError(f"Local OCR failed for '{path.name}': {exc}") from exc
+    if completed.returncode:
+        raise ParsingError(
+            f"Local OCR failed for '{path.name}': {completed.stderr.strip()[:300]}"
+        )
+
+    lines: dict[tuple[str, str, str], list[str]] = {}
+    confidences: list[float] = []
+    for row in csv.DictReader(io.StringIO(completed.stdout), delimiter="\t"):
+        if row.get("level") != "5":
+            continue
+        word = (row.get("text") or "").strip()
+        if not word:
+            continue
+        key = (row.get("block_num", ""), row.get("par_num", ""), row.get("line_num", ""))
+        lines.setdefault(key, []).append(word)
+        try:
+            value = float(row.get("conf") or -1)
+            if 0 <= value <= 100:
+                confidences.append(value)
+        except ValueError:
+            pass
+    text = "\n".join(" ".join(words) for words in lines.values())
+    confidence = round(sum(confidences) / len(confidences) / 100, 3) if confidences else None
+    return OCRResult(text=text, confidence=confidence)
 
 
 def extract_title(path: Path) -> str | None:
@@ -165,22 +251,16 @@ def extract_title(path: Path) -> str | None:
 
 
 def _parse_pdf(path: Path) -> ParsedDocument:
-    try:
-        from pypdf import PdfReader
-    except ImportError as exc:  # pragma: no cover
-        raise ParsingError("pypdf is not installed") from exc
-
-    reader = PdfReader(str(path))
+    pages = inspect_pdf_pages(path)
     segments: list[ParsedSegment] = []
     warnings: list[str] = []
-    for index, page in enumerate(reader.pages, start=1):
-        try:
-            text = page.extract_text() or ""
-        except Exception as exc:  # damaged page, keep going
-            text = ""
-            warnings.append(f"page {index}: extraction failed ({exc})")
-        if text.strip():
-            segments.append(ParsedSegment(text=text, location=f"page {index}"))
+    for page in pages:
+        if page.warning:
+            warnings.append(page.warning)
+        if page.needs_vision:
+            warnings.append(f"page {page.number}: needs vision extraction")
+        else:
+            segments.append(ParsedSegment(text=page.text, location=f"page {page.number}", page_number=page.number))
 
     if not segments:
         warnings.append(
@@ -190,7 +270,7 @@ def _parse_pdf(path: Path) -> ParsedDocument:
     return ParsedDocument(
         segments=segments,
         media_type="application/pdf",
-        page_count=len(reader.pages),
+        page_count=len(pages),
         parser="pypdf",
         warnings=warnings,
     )

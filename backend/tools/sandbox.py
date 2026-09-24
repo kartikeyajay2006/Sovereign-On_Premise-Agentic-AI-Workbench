@@ -13,9 +13,11 @@ Two independent layers, in the order the reference architecture specifies:
 The resource limits are enforced by one of two backends, chosen by what the
 host can actually do, never by configuration:
 
-* **POSIX** - ``resource.setrlimit`` in a ``preexec_fn`` (CPU seconds, address
-  space, file size, process count), applied in the child after ``fork`` and
-  before ``exec`` so user code never runs unbounded.
+* **POSIX** - ``resource.setrlimit`` in a ``preexec_fn`` (CPU seconds, file
+  size, process count, and address space where supported), applied in the
+  child after ``fork`` and before ``exec`` so user code never runs unbounded.
+  macOS cannot lower ``RLIMIT_AS`` to a useful value, so there the parent
+  enforces the memory cap with a resident-memory watchdog instead.
 * **Windows** - a kernel Job Object created through ``ctypes``/``kernel32``
   (per-process committed-memory cap, per-process user-time cap, active-process
   cap, kill-on-job-close), assigned to the child before it is allowed to run a
@@ -49,6 +51,7 @@ from __future__ import annotations
 import ast
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -58,8 +61,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
 import uuid
+
+import psutil
 
 from backend.core.config import get_config
 from backend.core.schemas import SandboxResult
@@ -1016,13 +1020,64 @@ class Sandbox:
 
         def apply_limits() -> None:  # pragma: no cover - runs in the child
             resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
-            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+            # macOS maps a very large shared cache into each process. Its
+            # RLIMIT_AS cannot be lowered to a useful value on this host, so
+            # the parent enforces resident memory with a watchdog instead.
+            if sys.platform != "darwin":
+                resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
             resource.setrlimit(resource.RLIMIT_FSIZE, (file_bytes, file_bytes))
             resource.setrlimit(resource.RLIMIT_NPROC, (soft_cap, soft_cap))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             os.setsid()
 
         return apply_limits
+
+    def _run_with_memory_watchdog(
+        self, script: Path, workspace: Path, timeout: float, memory_limit: int
+    ) -> tuple[str, str, int | None, bool]:
+        """Bound resident memory on macOS, where RLIMIT_AS cannot do so."""
+        process = subprocess.Popen(
+            [sys.executable, str(script)],
+            cwd=str(workspace), env=self._environment(workspace),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            preexec_fn=self._preexec(),
+        )
+        observed = psutil.Process(process.pid)
+        deadline = time.monotonic() + timeout
+        memory_bytes = memory_limit * 1024 * 1024
+        timed_out = False
+        memory_exceeded = False
+
+        while True:
+            try:
+                family = [observed, *observed.children(recursive=True)]
+                resident_bytes = sum(member.memory_info().rss for member in family)
+                if resident_bytes > memory_bytes:
+                    memory_exceeded = True
+                    break
+            except psutil.Error:
+                pass  # A process may exit between enumeration and inspection.
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                stdout, stderr = process.communicate(timeout=min(0.05, remaining))
+                return stdout, stderr, process.returncode, False
+            except subprocess.TimeoutExpired:
+                continue
+
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        stdout, stderr = process.communicate()
+        if memory_exceeded:
+            stderr += f"\nExecution exceeded the {memory_limit} MiB sandbox memory limit and was terminated."
+        elif timed_out:
+            stderr += f"\nExecution exceeded the {timeout:g}s sandbox timeout and was terminated."
+        return stdout, stderr, None, timed_out
 
     def _environment(self, workspace: Path) -> dict[str, str]:
         """A scrubbed environment: no host credentials, no proxy, no network hints."""
@@ -1169,23 +1224,33 @@ class Sandbox:
 
         started = time.perf_counter()
         timed_out = False
+        memory_killed = False
         try:
             # No -I/-S: those suppress site.py, which is what loads our
             # sitecustomize runtime guard from the workspace PYTHONPATH.
             # Host environment leakage is prevented by the scrubbed env
             # dict instead, which is stronger than -E for our purposes.
-            completed = subprocess.run(
-                [sys.executable, str(script)],
-                cwd=str(workspace),
-                env=self._environment(workspace),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                preexec_fn=self._preexec(),
-                check=False,
-            )
-            stdout, stderr = completed.stdout, completed.stderr
-            exit_code: int | None = completed.returncode
+            exit_code: int | None
+            if sys.platform == "darwin":
+                stdout, stderr, exit_code, timed_out = self._run_with_memory_watchdog(
+                    script, workspace, timeout, memory_limit,
+                )
+                # The watchdog returns no exit code when it killed the child;
+                # if that was not the timeout, it was the memory cap.
+                memory_killed = exit_code is None and not timed_out
+            else:
+                completed = subprocess.run(
+                    [sys.executable, str(script)],
+                    cwd=str(workspace),
+                    env=self._environment(workspace),
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    preexec_fn=self._preexec(),
+                    check=False,
+                )
+                stdout, stderr = completed.stdout, completed.stderr
+                exit_code = completed.returncode
         except subprocess.TimeoutExpired as exc:
             timed_out = True
             stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
@@ -1200,6 +1265,8 @@ class Sandbox:
         termination_reason: str | None = None
         if timed_out:
             termination_reason = "wall_clock_timeout"
+        elif memory_killed:
+            termination_reason = "memory_limit_exceeded"
         # A negative return code means the kernel killed the child, which
         # is how a resource limit breach surfaces. Say which one.
         if exit_code is not None and exit_code < 0:

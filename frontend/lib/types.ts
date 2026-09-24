@@ -152,7 +152,13 @@ export interface EvidenceItem {
   source_document?: string
   document_id?: string | null
   location?: string | null
+  page_number?: number | null
   excerpt: string
+  extraction_method?: string | null
+  extraction_model?: string | null
+  extraction_data?: Record<string, unknown> | null
+  confidence?: number | null
+  source_sha256?: string | null
   score?: number | null
   department?: string | null
   classification?: string
