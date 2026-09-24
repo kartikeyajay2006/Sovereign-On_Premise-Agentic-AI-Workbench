@@ -43,6 +43,13 @@ export type Rich = ReadonlyArray<string | { v: string }>
 // --------------------------------------------------------------------------- //
 
 export const HERO = {
+  // The claim, with its last word turned in serif italic: what every answer
+  // here can be, said once.
+  title: 'Answers you can',
+  titleEm: 'prove.',
+  lede: 'AEGIS runs the model, the search and the checks on your own hardware, and hands over every answer with its sources, its checks and its record.',
+  // The pill over the headline: the run the page is built from, timed by its record.
+  pill: (total: string) => `A recorded run: one question, cited and checked, in ${total} on a laptop CPU`,
   // Two lines, because the argument is a turn. The claim in sans, the
   // qualification in serif italic — the typography performs the sentence.
   headline: 'Local is not enough.',
@@ -286,6 +293,15 @@ export const USE_CASES = {
     ],
   ],
   note: 'Requests from the demo script and the built-in skills. Each is answered from the procedures on the host it runs on.',
+  // One of each kind of work, for the grid: [row, index] into `rows`.
+  grid: [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [1, 0],
+    [1, 4],
+    [1, 6],
+  ],
 } as const
 
 // --------------------------------------------------------------------------- //
@@ -297,7 +313,7 @@ export const PIPELINE = {
   eyebrow: 'How it works',
   title: 'One question,',
   titleTurn: 'proved in five steps.',
-  lede: 'The run at the top of the page, step by step as you scroll. Every value in it is read from that run’s record.',
+  lede: 'The run at the top of the page, in the five steps it took. The vessel is an illustration; every value pinned to it is read from the run’s record.',
   steps: [
     {
       key: 'classify',
@@ -508,7 +524,8 @@ export const LIMITS = {
 export const RUN_IT = {
   id: 'run-it',
   eyebrow: 'Get started',
-  title: 'Run it on your own hardware.',
+  title: 'Run it on your',
+  titleEm: 'own hardware.',
   lede: 'Python 3.11+, Node 20+ and Ollama on one machine. No account, no key, and once the models are pulled, no network.',
   commands: [
     `git clone ${REPO_URL}`,
@@ -547,7 +564,7 @@ export const FOOTER = {
       heading: 'Product',
       links: [
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'Open a citation', href: '#answer' },
+        { label: 'The cited answer', href: '#exhibit' },
         { label: 'How a run is proved', href: '#chain' },
         { label: 'What this is not', href: '#limits' },
       ],
@@ -566,4 +583,47 @@ export const FOOTER = {
   },
   bottomLeft: 'Smart India Hackathon 2026',
   bottomRight: 'No analytics on this page.',
+} as const
+
+// --------------------------------------------------------------------------- //
+// Exhibit A — the answer beside the clause it rests on
+// --------------------------------------------------------------------------- //
+
+export const EXHIBIT = {
+  id: 'exhibit',
+  eyebrow: 'The answer, and what it rests on',
+  title: 'Every answer,',
+  titleEm: 'cited to the clause.',
+  lede: 'One answer from the recorded run, beside the passage it was drawn from. The phrase it rests on is marked; every word on both is the record’s own.',
+  label: 'Exhibit A — a recorded run, as it was answered',
+  notes: {
+    clause: {
+      title: 'The clause',
+      source: (doc: string, score: string | null) => `${doc} · retrieved on this host${score ? ` · score ${score}` : ''}`,
+    },
+    checks: {
+      title: 'The checks',
+      line: (labels: string, passed: number, total: number, verdict: string) =>
+        `${labels}: ${passed} of ${total} passed, ${verdict}.`,
+    },
+    record: {
+      title: 'The record',
+      line: (count: number, first: number, last: number) =>
+        `${count} audit records, sequence ${first} to ${last}, each carrying the hash of the one before it.`,
+    },
+  },
+} as const
+
+// --------------------------------------------------------------------------- //
+// How it works — the vessel the run was about, and the five steps
+// --------------------------------------------------------------------------- //
+
+export const PLANT = {
+  label: 'Illustration · the run’s record, pinned to what it was about',
+  callouts: {
+    clause: 'Cited',
+    classified: 'Classified',
+    verifier: 'Verifier',
+    audit: 'Audit chain',
+  },
 } as const

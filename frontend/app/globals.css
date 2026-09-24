@@ -6,7 +6,10 @@
 /* ------------------------------------------------------------------ */
 /* Sovereign Workbench design tokens                                   */
 /* ------------------------------------------------------------------ */
-:root {
+/* [data-theme='light'] carries the light tokens too, so a part of a page
+   can keep the light ground inside a dark one -- the public page does. */
+:root,
+[data-theme='light'] {
   color-scheme: light;
 
   /* surfaces */
@@ -590,7 +593,8 @@ html[data-theme='dark'],
 /* this block that does carry a label or a boundary says so, with its    */
 /* ratio.                                                                */
 /* ==================================================================== */
-:root {
+:root,
+[data-theme='light'] {
   /* ------------------------------------------------------------------ */
   /* Emission. Each state's light is its fill hue, lifted in OKLCH to a  */
   /* lightness where it reads as light rather than as paint, with more   */
@@ -2747,4 +2751,35 @@ html[data-theme='dark'],
   @keyframes ae-live-ping { 75%, 100% { transform: scale(2.6); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .ae-live .dot::after { animation: none; } }
   @media (max-width: 640px) { .ae-live .k { display: none; } }
+}
+
+/* ==================================================================== */
+/* IDENTITY — AEGIS                                                      */
+/*                                                                       */
+/* The product is drawn in ink, paper and night, with one signal colour  */
+/* that lives in the mark and on the public page's citations. The app's  */
+/* night is the public page's: a neutral black rather than a warm one,   */
+/* with greys to match, so the hero and the thread it leads to are the   */
+/* same dark. Every ratio below is against the darkest ground it sits on */
+/* and the raised surface above it.                                      */
+/* ==================================================================== */
+html[data-theme='dark'],
+[data-theme='dark'] {
+  --background: #0c0c0e;
+  --surface: #151518;
+  --surface-sunken: #08080a;
+  --foreground: #ededef;            /* 16.7:1 */
+  --foreground-secondary: #a8a8b0;  /*  8.3:1 */
+  --foreground-muted: #8b8b94;      /*  5.8:1, 5.4:1 on the surface */
+  --line-ink: oklch(0.92 0 0);
+  --action: #ededef;
+  --action-hover: #d4d4d8;
+  --action-text: #ededef;
+  --action-ink: #0c0c0e;
+}
+
+/* The sign-in's brand panel: the public page's night, and its light. */
+@layer components {
+  .ae-night { background: #08080a; }
+  .ae-night::after { background: radial-gradient(70% 45% at 50% 110%, rgba(150, 175, 255, 0.12), transparent 70%); }
 }

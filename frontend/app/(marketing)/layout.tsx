@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { LandingHeader } from '@/components/landing/landing-header'
 import { META } from '@/components/landing/copy'
+import './landing.css'
 
 export const metadata: Metadata = {
   title: META.title,
@@ -25,7 +26,9 @@ export const metadata: Metadata = {
  */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-x-clip bg-background">
+    // The public page keeps its own grounds, whatever the app's theme: paper
+    // here, and night on each band that sets it.
+    <div data-theme="light" className="lp relative flex min-h-dvh flex-col overflow-x-clip">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[7px] focus:bg-foreground focus:px-4 focus:py-2 focus:text-body focus:text-primary-foreground"

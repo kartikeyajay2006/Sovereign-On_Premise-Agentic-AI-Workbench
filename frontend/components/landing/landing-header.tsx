@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRole } from '@/components/role-context'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { Wordmark } from './wordmark'
 
 const NAV = [
@@ -15,29 +14,26 @@ const NAV = [
 ] as const
 
 /**
- * The public header: the mark, four anchors, and two ways in.
+ * The public header: the mark, five anchors, and the way in.
  *
- * It sits on a near-opaque ground rather than a backdrop blur -- a blurred
- * sticky bar repaints on every scroll frame -- and grows a hairline only
- * once the page has moved. While it is over the hero's dark band it has no
- * ground at all and takes the dark palette, so the band runs to the top of
- * the window; an observer on the band, not a scroll listener, says when.
+ * It takes the ground it is over. Over a night band -- the hero, how a run
+ * is proved, security, the close -- it is white on night, and clear while
+ * the page is still at its top; over paper it is ink on paper with a
+ * hairline. An observer on the bands says which, not a scroll listener, and
+ * one passive listener marks whether the page has moved at all. No backdrop
+ * blur: a blurred sticky bar repaints on every scroll frame.
  */
 export function LandingHeader() {
-  // `authenticated` is false on the server render and during the initial
-  // load, so the default labels are the ones a cold visitor needs.
+  // `authenticated` is false on the server render and during the first load,
+  // so the labels a cold visitor needs are the default.
   const { authenticated } = useRole()
-  const [scrolled, setScrolled] = useState(false)
-  // True on first paint: the page opens on the band.
-  const [overBand, setOverBand] = useState(true)
+  const [onNight, setOnNight] = useState(true)
+  const [top, setTop] = useState(true)
 
   useEffect(() => {
-    // Every full-bleed night ground -- the hero's band, the night sections,
-    // the footer -- marks itself data-band. The header is dark over any of
-    // them: a pale bar over a night section read as a hole in the page.
     const bands = Array.from(document.querySelectorAll<HTMLElement>('[data-band]'))
     if (bands.length === 0 || typeof IntersectionObserver === 'undefined') {
-      setOverBand(false)
+      setOnNight(false)
       return
     }
     let io: IntersectionObserver | null = null
@@ -53,7 +49,7 @@ export function LandingHeader() {
             if (entry.isIntersecting) under.add(entry.target)
             else under.delete(entry.target)
           }
-          setOverBand(under.size > 0)
+          setOnNight(under.size > 0)
         },
         { rootMargin: `0px 0px -${bottom}px 0px` },
       )
@@ -68,37 +64,23 @@ export function LandingHeader() {
   }, [])
 
   useEffect(() => {
-    let frame = 0
-    const onScroll = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(() => {
-        frame = 0
-        setScrolled(window.scrollY > 4)
-      })
-    }
+    const onScroll = () => setTop(window.scrollY < 8)
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      if (frame) window.cancelAnimationFrame(frame)
-    }
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   return (
     <header
-      data-theme={overBand ? 'dark' : undefined}
-      className={`ae-header${scrolled ? ' scrolled' : ''}${overBand ? ' over-band' : ''}`}
+      data-theme={onNight ? 'dark' : 'light'}
+      className={`lp-header${onNight ? ' on-night' : ''}${onNight && top ? ' top' : ''}`}
     >
-      <div className="ae-shell row">
-        <Link
-          href="/"
-          aria-label="AEGIS — home"
-          className="flex items-center rounded-full focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
-        >
+      <div className="lp-shell row">
+        <Link href="/" aria-label="AEGIS — home" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4">
           <Wordmark />
         </Link>
 
-        <nav aria-label="Sections" className="ae-nav">
+        <nav aria-label="Sections" className="lp-nav">
           {NAV.map((item) => (
             <a key={item.href} href={item.href}>
               {item.label}
@@ -106,15 +88,10 @@ export function LandingHeader() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
-          {authenticated ? null : (
-            <Link href="/sign-in" className="ae-btn ghost sm hidden sm:inline-flex">
-              Sign in
-            </Link>
-          )}
-          <Link href={authenticated ? '/console' : '/sign-in'} className="ae-btn primary sm">
-            {authenticated ? 'Open workbench' : 'Get started'}
+        <div className="end">
+          {authenticated ? null : <Link href="/sign-in">Sign in</Link>}
+          <Link href={authenticated ? '/console' : '/sign-in'} className="lp-btn primary sm">
+            {authenticated ? 'Open the workbench' : 'Get started'}
           </Link>
         </div>
       </div>

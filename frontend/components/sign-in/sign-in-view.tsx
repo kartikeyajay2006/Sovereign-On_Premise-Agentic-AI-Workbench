@@ -152,8 +152,9 @@ export function SignInView({ api }: { api: string }) {
         </Link>
         <div>
           <p className="ae-kicker m-0">On your own hardware</p>
-          <h2 className="mt-4 max-w-[16ch] text-[clamp(2rem,3vw,2.7rem)] font-semibold leading-[1.06] tracking-[-0.038em] text-foreground">
-            Every answer cited, <span className="soft">checked and recorded.</span>
+          <h2 className="mt-5 text-[clamp(2.2rem,3.2vw,3rem)] font-semibold leading-none tracking-[-0.05em] text-foreground">
+            Every answer,
+            <em className="block font-serif text-[1.06em] font-normal italic tracking-[-0.02em]">cited to the clause.</em>
           </h2>
           <ul className="ae-hero-proof mt-8 flex-col items-start justify-start gap-3">
             {HERO.proof.map((line) => (

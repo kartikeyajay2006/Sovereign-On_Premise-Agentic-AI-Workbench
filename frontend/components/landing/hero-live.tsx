@@ -50,7 +50,7 @@ export function HeroLive({ className }: { className?: string }) {
   const since = clock(status.monitored_since)
   const n = status.external_calls
   return (
-    <p className={`ae-live ${n === 0 ? '' : 'breach'} ${className ?? ''}`} aria-live="polite">
+    <p className={`lp-live ${n === 0 ? '' : 'breach'} ${className ?? ''}`} aria-live="polite">
       <span className="dot" aria-hidden />
       <span className="k">Live from this host</span>
       <span className="v">

@@ -1157,7 +1157,7 @@ export function ThreadView() {
         {turns.length === 0 && (
           <div className="thread-hello text-center">
             <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
-              What should we check today?
+              What should we <em className="font-serif text-[1.08em] font-normal italic tracking-[-0.01em]">check</em> today?
             </h1>
             <p className="mx-auto mt-2 max-w-[52ch] text-[0.98rem] leading-[1.55] text-foreground-secondary">
               Ask about a procedure, a report or a calculation. Every answer is cited, checked against policy and
