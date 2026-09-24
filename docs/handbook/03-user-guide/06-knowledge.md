@@ -34,7 +34,10 @@ Requires `knowledge.ingest` (engineer, reviewer, administrator). Click **+ Inges
 | **Classification** | Normal, Confidential, Sensitive, Restricted | Confidential |
 | **Version** | Free text | 1.0 |
 
-The document is parsed, chunked, embedded with the local embedding model and stored. The ingestion is audited as `knowledge / document_ingested`. A document with the same document code as an existing one **replaces** it.
+The document is parsed, chunked, embedded with the local embedding model and stored. The ingestion is audited as `knowledge / document_ingested`.
+
+> [!IMPORTANT]
+> A document's identity is the hash of its file name and content. Ingesting the **same** file again re-indexes it in place. A **changed** file is a new document, and the older copy stays in the index, and can still be cited, until an administrator deletes it. (The seed script is stricter: it removes superseded copies by document code, including ones uploaded here.) Revision-aware retrieval that prefers the current version automatically is on the roadmap.
 
 > [!TIP]
 > Retrieval cites clauses, so write documents with one numbered requirement per clause and keep each clause under about 500 characters. [6.5 Writing a corpus](../06-knowledge-and-retrieval/05-corpus-authoring.md) explains why.

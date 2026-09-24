@@ -1,0 +1,63 @@
+# 6.2 · Parsing, pages and vision
+
+`backend/rag/parsing.py` turns a file into **segments**: pieces of text that each know where in the document they came from.
+
+## Parsers by type
+
+| Type | Parser | One segment per | Location label |
+|---|---|---|---|
+| `.md`, `.txt`, `.log` | Heading-aware text | Markdown heading section (or the whole file if there are none) | `section: <heading>` |
+| `.pdf` | PyMuPDF / pypdf | Page with a text layer | `page <n>` |
+| `.docx` | python-docx | Heading section; each table separately | `section: <heading>`, `table <n>` |
+| `.xlsx` | openpyxl | Sheet, rows as text | `sheet '<name>'` |
+| `.csv` | csv | Whole file | `whole file` |
+| `.pptx` | python-pptx | Slide | `slide <n>` |
+| images | none; read by vision | | |
+
+The location is what a citation shows: **S1** SOP-INS-014 §2.2 comes from a Markdown section, **F3** `page 4` from a PDF.
+
+## PDFs, page by page
+
+A PDF is never treated as one blob. `inspect_pdf_pages` looks at every page:
+
+| Page has | Is treated as | Read by |
+|---|---|---|
+| 120 or more characters of text | A text page | The PDF parser, directly |
+| Fewer than 120 characters | A scanned page | The vision model, after rendering |
+
+So a mixed PDF, with typed pages and a scanned appendix, has both halves read properly: text pages as `F` evidence, scanned pages as `V` evidence.
+
+## Reading scanned pages
+
+<div align="center">
+<img src="../../assets/readme/flow-understand.svg" alt="The understand flow" width="90%">
+</div>
+
+1. **Render.** `rasterize_pdf` renders only the pages that need vision, with PyMuPDF, scaled so the long edge is **1,100 px**. Rendering is checked: if fewer pages render than were asked for, the run fails with that fact rather than silently reading fewer.
+2. **Batch.** Pages are sent to the vision model **three at a time**. A 20-page scan is seven calls (3, 3, 3, 3, 3, 3, 2), not one enormous call or twenty small ones. `tests/test_visual_inputs.py` holds the batching.
+3. **Read.** The vision prompt asks for a transcription and structured findings per page. The images are downscaled again if needed (`inference.max_image_edge_px`).
+4. **Fall back.** If the model returns nothing for a page, **Tesseract** OCR reads it (`ocr_image`, only if the `tesseract` executable is installed). The evidence then records `extraction_method: ocr`, `extraction_model: tesseract` and an OCR confidence.
+5. **Record.** Each page becomes one `V` evidence item: file name, document ID, page number, the transcription, how it was read, by which model, and the source file's SHA-256. A page neither vision nor OCR could read is recorded as *No legible content extracted from this page*, and the run's limitations say which page.
+
+Standalone images (`.png`, `.jpg`, `.webp`, `.bmp`, `.tiff`, `.gif`) are read one per call, and their findings are recorded per location.
+
+## Why vision before planning
+
+Visual inputs are read **before** the plan is made. On a host that holds one model at a time, planning first would load the reasoning model, evict it for vision, then load it again: a multi-gigabyte round trip. And a plan made after reading the report is a better plan.
+
+## Where visual reading is limited
+
+- **Cost scales with pages.** Reading is the most expensive path. On a CPU laptop, a three-page scan takes minutes.
+- **Small vision models misread.** A 3B vision model can transpose digits in a table. That is why figures are recomputed and why deliverables are held.
+- **No regions yet.** Evidence knows the page, not the **bounding box**, so a citation cannot highlight where on the page a value came from. Region-level provenance, and P&ID symbol and line extraction, are on the roadmap.
+- **No file screening yet.** Uploaded files are checked by extension and size, not by magic bytes, archive structure or embedded macros.
+
+<!-- nav:start -->
+
+---
+
+| | | |
+|:--|:--:|--:|
+| [← 6.1 · Ingestion](01-ingestion.md) | [↑ 06 · Knowledge and retrieval](README.md) | [6.3 · Chunking and embedding →](03-chunking-embedding.md) |
+
+<!-- nav:end -->

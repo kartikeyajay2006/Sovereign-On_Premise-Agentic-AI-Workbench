@@ -75,6 +75,6 @@ Animations are short and purposeful: a run's steps appear as they happen, and th
 
 | | | |
 |:--|:--:|--:|
-| [← 3.9 · Audit](09-audit.md) | [↑ 03 · Using the workbench](README.md) |  |
+| [← 3.9 · Audit](09-audit.md) | [↑ 03 · Using the workbench](README.md) | [04 · Architecture →](../04-architecture/README.md) |
 
 <!-- nav:end -->
