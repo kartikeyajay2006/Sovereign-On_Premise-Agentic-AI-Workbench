@@ -19,8 +19,6 @@
 // Machine excerpts below are quoted verbatim from files in this repository,
 // and each carries the path it came from. None of them is illustrative.
 
-import type { PassageMark } from './passage'
-import type { Limit } from './limit-list'
 
 export const REPO_URL =
   'https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench'
@@ -38,18 +36,19 @@ export const META = {
  */
 export type Rich = ReadonlyArray<string | { v: string }>
 
-/**
- * The run the hand-written annotation in ANSWER was written about. The
- * annotation is attached only while run.json is this run; capture another
- * and it is dropped, rather than printed over an answer it does not describe.
- */
-export const SCREENSHOT_TASK_ID = '5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9'
 
 // --------------------------------------------------------------------------- //
 // Hero
 // --------------------------------------------------------------------------- //
 
 export const HERO = {
+  // The claim, with its last word turned in serif italic: what every answer
+  // here can be, said once.
+  title: 'Answers you can',
+  titleEm: 'prove.',
+  lede: 'AEGIS runs the model, the search and the checks on your own hardware, and hands over every answer with its sources, its checks and its record.',
+  // The pill over the headline: the run the page is built from, timed by its record.
+  pill: (total: string) => `A recorded run: one question, cited and checked, in ${total} on a laptop CPU`,
   // Two lines, because the argument is a turn. The claim in sans, the
   // qualification in serif italic — the typography performs the sentence.
   headline: 'Local is not enough.',
@@ -71,112 +70,137 @@ export const HERO = {
   repoPath: REPO_PATH,
 } as const
 
-const COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
-/** 2 -> "two", 12 -> "12". Words below ten, figures above, as prose sets them. */
-const count = (n: number) => COUNT[n] ?? String(n)
-
-// --------------------------------------------------------------------------- //
-// 01 — The answer
-// --------------------------------------------------------------------------- //
-
-export const ANSWER = {
-  id: 'answer',
-  index: '01',
-  eyebrow: 'The answer',
-  title: 'Every citation opens.',
-  titleTurn: 'Press one and read what it rests on.',
-  lede: 'The answer from the run above, rendered from its record. Each marker opens the passage retrieval returned for it, exactly as the run stored it.',
-  // Used only while the fixture is the run the annotation below was written
-  // about, because it names a marker and a row that another run may not have.
-  ledeAnnotated:
-    'The answer from the run above, rendered from its record. Each marker opens the passage retrieval returned for it, exactly as the run stored it. Press S4, and read the Medium row.',
-  caption: (run: string, date: string, model: string) =>
-    `Run ${run}, ${date}, answered by ${model} on this host. The documents are a synthetic demonstration corpus seeded by scripts/seed_demo_data.py, and every passage is shown as this run retrieved it, whatever the files say now.`,
-  labels: {
-    question: 'Question',
-    answer: 'Answer',
-    hint: 'Press a marker to open its passage',
-    cited: 'cited',
-    uncited: 'retrieved, not cited',
-    // Chosen by retrieval mode in the page: "similarity" is only true of an
-    // embedding search, where the score is a cosine similarity.
-    similarity: 'similarity',
-    score: 'score',
-    rank: 'rank',
-    rendered: 'Rendered',
-    stored: 'As stored',
-    sources: 'Passages retrieved for this answer',
-  },
-  outcome: {
-    held: 'Held',
-    released: 'Released',
-    refused: 'Refused',
-  },
-  // The page's own reading of one run, checked by hand against the passages it
-  // cites: "The severity is Medium [S1]" is supported by SOP-MNT-022 §4.1, the
-  // threshold sentence by the same clause, and the approving-authority
-  // sentence is contradicted by the Medium row of SOP-INS-014 §5. Attached
-  // only when run.json is this task.
-  annotation: {
-    taskId: SCREENSHOT_TASK_ID,
-    marks: {
-      S1: { kind: 'text', text: 'Medium' },
-      S4: { kind: 'cell', row: 'Medium', column: 'Approval authority' },
-    } satisfies Record<string, PassageMark>,
-    sentence:
-      'The approving authority for this severity classification is the Head of Inspection + Plant Manager',
-    note: 'This sentence is wrong. The Medium row of the table it cites names the Head of Inspection alone; the pair it gives belongs to the High row. No automatic check caught it, and the run was held for a different reason. A reviewer with this passage open catches it in one read, and that is the job the hold is for.',
-    more: { label: 'Why no check caught it.', href: '#chain' },
-    attribution:
-      'Added by hand for this page, after reading the answer against its passages. Not written by AEGIS.',
-    legend:
-      'Boxed by hand for this page: the words that settle the sentence citing this passage. AEGIS cites the section; it does not mark the words.',
-  },
-} as const
-
 // --------------------------------------------------------------------------- //
 // 03 — The chain
 // --------------------------------------------------------------------------- //
 
 export const CHAIN = {
   id: 'chain',
-  index: '03',
   eyebrow: 'How it works',
   title: 'Cited. Checked. Recorded.',
-  titleTurn: 'Before anything becomes an action.',
-  lede: 'Three things happen to every answer, and each one leaves an artifact you can open. Each artifact below is from the run above.',
-  cards: [
+  titleTurn: 'Before anything leaves.',
+  lede: 'Every answer goes through three steps, and each leaves something you can open. These are from the run above.',
+} as const
+
+// --------------------------------------------------------------------------- //
+// Use cases: what people ask it
+// --------------------------------------------------------------------------- //
+
+/**
+ * Requests from the demo script (docs/DEMO.md) and the built-in skills, each
+ * one answerable from the corpus on the demo host. They are examples of what
+ * to ask, not results: nothing here says how a run of them came out.
+ */
+export const USE_CASES = {
+  id: 'use-cases',
+  eyebrow: 'Use cases',
+  title: 'Ask what your plant asks.',
+  titleTurn: 'Get the clause, cited.',
+  lede: 'Inspection intervals, severities, sign-off authority, remaining life, handovers. Typed in plain language or called as a skill with /.',
+  rows: [
+    [
+      { kind: 'Clause', text: 'What is the maximum interval between internal inspections of a vessel in corrosive service?' },
+      { kind: 'Severity', text: 'What severity applies when cladding damage exceeds 20% of an insulated section?' },
+      { kind: 'Sign-off', text: 'Who must approve continued operation with a Medium CUI finding?' },
+      { kind: 'Clause', text: 'When must a Fitness-For-Service assessment be raised?' },
+      { kind: 'Permit', text: 'What gas test results are required before hot work starts near the crude column?' },
+      { kind: 'Interval', text: 'Can a Low RBI ranking alone extend a vessel’s internal inspection interval?' },
+      { kind: 'Test', text: 'A PSV set at 10.5 bar(g) opened at 12.1 bar(g). Did it fail, and who must be told?' },
+    ],
+    [
+      { kind: 'Calculation', text: '/remaining-life  thickness survey for circuit P-2104-OVHD-01' },
+      { kind: 'Approval note', text: '/approval-note  continued operation of V-2104 with a Medium CUI finding' },
+      { kind: 'Skill', text: '/clause  internal inspection of a pressure vessel in corrosive service' },
+      { kind: 'Handover', text: '/handover  confined space entry on the crude column' },
+      { kind: 'Scanned report', text: 'Read the attached inspection report for V-2107. What severity is the worst finding?' },
+      { kind: 'Records', text: 'List every vessel whose next thickness survey was due before 1 October 2026' },
+      { kind: 'Harness', text: 'SOP question sweep: 25 questions, one verified answer matrix, one hashed report' },
+    ],
+  ],
+  note: 'Requests from the demo script and the built-in skills. Each is answered from the procedures on the host it runs on.',
+  // One of each kind of work, for the grid: [row, index] into `rows`.
+  grid: [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [1, 0],
+    [1, 4],
+    [1, 6],
+  ],
+} as const
+
+// --------------------------------------------------------------------------- //
+// How it works: one run, proved in five steps
+// --------------------------------------------------------------------------- //
+
+export const PIPELINE = {
+  id: 'chain',
+  eyebrow: 'How it works',
+  title: 'One question,',
+  titleTurn: 'proved in five steps.',
+  lede: 'The run at the top of the page, in the five steps it took. The vessel is an illustration; every value pinned to it is read from the run’s record.',
+  steps: [
     {
-      index: '01',
-      verb: 'Cited',
-      mechanism: 'Page-level provenance',
-      body: 'Retrieval returns evidence units that keep their document, section and location. A cited claim points at the section it came from, not at a filename. A scanned report with no text layer is rasterised and read by a local vision model, and the location survives that too.',
-      artifact: { kind: 'evidence', label: 'Evidence unit', source: 'GET /api/tasks/{id}' },
+      key: 'classify',
+      label: 'Classify',
+      title: 'It reads the request first.',
+      line: 'Before anything is retrieved, the request is classified, so policy knows what kind of work this is and how sensitive.',
     },
     {
-      index: '02',
-      verb: 'Checked',
-      mechanism: 'Default-deny policy, recomputed figures',
-      body: 'Tool calls are refused unless a rule in policies/ permits that role, that data classification and that side effect. Every figure that reaches a document is meant to be executed as Python in a sandbox rather than predicted, then recomputed by the verifier — and when the sandbox will not run, the check fails rather than passing quietly.',
-      artifact: { kind: 'verification', label: 'Verification report', source: 'GET /api/tasks/{id}' },
+      key: 'retrieve',
+      label: 'Retrieve',
+      title: 'It finds the clauses that govern it.',
+      line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.',
     },
     {
-      index: '03',
-      verb: 'Recorded',
-      mechanism: 'Append-only hash chain',
-      body: 'Each record hashes the one before it. Editing or deleting a line changes every hash after it, and the verifier names the sequence where the chain first fails. It detects tampering. It does not prevent it.',
-      artifact: { kind: 'audit', label: 'Audit chain', source: 'storage/logs/audit.jsonl' },
+      key: 'draft',
+      label: 'Draft',
+      title: 'It answers from those passages alone.',
+      line: 'A local model writes the answer and cites every claim to the passage it rests on.',
+    },
+    {
+      key: 'verify',
+      label: 'Verify',
+      title: 'Every claim is checked before release.',
+      line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.',
+    },
+    {
+      key: 'record',
+      label: 'Record',
+      title: 'Every step goes on a hash chain.',
+      line: 'Each record carries the hash of the one before it, so changing any record breaks every hash after it.',
     },
   ],
-  evidenceCaption:
-    'S1 from the answer above, as the run recorded it: the document, the section, the stored text.',
-  checkedCaption:
-    'The report exactly as the verifier wrote it for this run. A passing check says each cited sentence is about the passage it cites. The verifier’s own docstring is plain about what that does not show:',
-  verifierQuote:
-    'It establishes that a claim is ABOUT the passage it cites -- it cannot establish that the passage supports it. A claim reading the wrong row of a table quotes that table’s own words and passes here.',
-  verifierQuoteSource: 'backend/agents/verifier.py',
-  recordedCaption:
-    'The run’s last two records. The later one’s prev is the earlier one’s hash, so editing or deleting the earlier record changes a value the later one has already committed to. Section 05 recomputes these hashes in your browser.',
+} as const
+
+// --------------------------------------------------------------------------- //
+// Security: four proofs, each checkable from this page
+// --------------------------------------------------------------------------- //
+
+export const BENTO = {
+  tamper: {
+    title: 'Try to rewrite the record.',
+    line: 'Three records from the run above, re-hashed by your browser. Change one value and watch the chain refuse it.',
+    // The edit offered: who did it. Offered only when the stored record says so.
+    edit: { path: ['actor'], from: '"engineer"', to: '"reviewer"', label: 'Change who did it' },
+    restore: 'Put it back',
+    verified: 'All {n} records re-hash to their stored values here, and each one links to the one before it.',
+    broken: 'Seq {seq} no longer matches the hash stored with it, and seq {next} still points at the original. The edit shows.',
+    brokenLast: 'Seq {seq} no longer matches the hash stored with it. The edit shows.',
+    idle: 'Re-hashing in your browser when this is on screen.',
+  },
+  airgap: {
+    title: 'Nothing leaves the machine.',
+    line: 'The monitor watches the workbench’s own processes for any connection past loopback, and this page reads it live.',
+  },
+  attacks: {
+    title: 'Attacks, contained.',
+    line: 'The sandbox self-test this host recorded: each payload, and what the sandbox did with it.',
+  },
+  requests: {
+    title: 'This page talks to one place.',
+    line: 'Every request this page has made so far, counted by your browser. No CDN, no analytics, no third party.',
+  },
 } as const
 
 // --------------------------------------------------------------------------- //
@@ -185,15 +209,33 @@ export const CHAIN = {
 
 export const PROOF = {
   id: 'proof',
-  index: '05',
   eyebrow: 'Security',
   title: 'Don’t take our word for it.',
   titleTurn: 'Check it yourself.',
-  lede: 'No certifications and no published benchmark yet. What AEGIS has is artifacts, and every one below can be disproved without asking us anything.',
+  lede: 'No certifications and no benchmark yet. What AEGIS has is evidence, and every piece of it can be checked without asking us.',
+
+  cards: {
+    chain: {
+      title: 'An audit chain your browser re-hashes',
+      line: 'Every record hashes the one before it. Open the evidence and your browser recomputes the run’s last records itself.',
+    },
+    sandbox: {
+      fallbackTitle: 'Code runs in a sandbox',
+      line: 'Fixed attacks — network, filesystem, process escape, runaway memory and CPU — submitted to this host’s sandbox.',
+      caption: 'The last self-test this host recorded, read from its audit log: each payload and what the sandbox did with it.',
+    },
+    egress: {
+      title: 'Egress, read live',
+      line: 'What the monitor sees on this workbench’s own processes, read by your browser right now.',
+    },
+    page: {
+      title: 'This page fetches nothing external',
+      line: 'Served under a policy that allows this origin only: no CDN, no analytics, no third-party script. Check the network tab.',
+    },
+  },
 
   chain: {
-    label: 'The audit chain, recomputed in your browser',
-    // The edit the reader can make: the failed verification, made to pass.
+    // The edit the reader can make: a failed verification, made to pass.
     edit: { path: ['detail', 'valid'], value: 'true' },
     labels: {
       heading: 'Audit chain',
@@ -213,18 +255,10 @@ export const PROOF = {
       tamper: 'Make the failed verification pass',
       restore: 'Put the record back',
     },
-    caption:
-      'The run’s last three records, exactly as stored. When the card is on screen your browser hashes each one the way backend/core/audit.py does and compares the result with the hash stored beside it; nothing on this card is computed for you in advance. The button rewrites one value in your copy only. The record then no longer hashes to its stored value, which is where the server’s verifier reports the break; rewrite that hash to match and the break moves to the next record, so hiding an edit means rewriting every hash after it to the end of the log. It detects tampering. It does not prevent it.',
-    // When the first record shown has no failed verification to flip, there
-    // is no button, and the caption does not describe one.
-    captionNoEdit:
-      'The run’s last three records, exactly as stored. When the card is on screen your browser hashes each one the way backend/core/audit.py does and compares the result with the hash stored beside it; nothing on this card is computed for you in advance. Edit any record and it stops hashing to its stored value, which is where the server’s verifier reports the break. It detects tampering. It does not prevent it.',
-    networkNote:
-      'One field in the last record, network_activity, is a fixed string the backend wrote on every run when this one was recorded, not a measurement. Runs since carry what the egress monitor actually observed over the run window instead, or null with the reason when it was not watching.',
   },
 
   policy: {
-    label: 'A policy that refuses',
+    label: 'The policy that refuses',
     source: 'policies/tool-permissions.yaml',
     lines: [
       'python_exec:',
@@ -241,29 +275,12 @@ export const PROOF = {
 
   sandbox: {
     label: 'Sandbox self-test',
-    // Chosen by the page from the recorded result, which is the only thing
-    // that knows whether this host could run the test.
-    captionNotAssessable:
-      'The policy above is a file in the repository. Under it is the last sandbox self-test this host recorded, read from its audit log: not assessable. This machine cannot apply resource limits to a child process, so the sandbox refuses to execute anything, no payload is submitted, and no containment claim is made in either direction. An earlier version of this test scored those refusals as passes. A refusal is not a pass.',
-    captionAssessed:
-      'The policy above is a file in the repository. Under it is the last sandbox self-test this host recorded, read from its audit log, each check as it ran: the payload submitted and what the sandbox did with it.',
-  },
-
-  containment: {
-    label: 'Containment, read live',
-    caption:
-      'Read live from this machine by your browser, from an endpoint that requires no sign-in. It reports what the monitor observed on the process tree owned by this workbench. It is a measurement of one host over one uptime, not a property of the software.',
-    quote:
-      'The sign-in screen states this platform keeps everything on the host. That claim has to be a reading even before anyone authenticates, or it is just a slogan printed on a login page.',
-    quoteSource: 'backend/api/routes/system.py',
   },
 
   page: {
     label: 'This page',
     source: 'response header',
-    // The production header, verbatim from next.config.mjs. A development
-    // server adds 'unsafe-eval' to script-src for Turbopack's hot reload; every
-    // other directive is identical.
+    // The production header, verbatim from next.config.mjs.
     lines: [
       "Content-Security-Policy: default-src 'self';",
       "  img-src 'self' data:; font-src 'self';",
@@ -271,8 +288,6 @@ export const PROOF = {
       "  style-src 'self' 'unsafe-inline'; connect-src 'self';",
       "  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     ],
-    caption:
-      'This page is served under that header — check it in the network tab. There is no font CDN, no analytics, no embedded video and no third-party script, and the directives that guarantee it are default-src, connect-src, font-src and img-src: every origin this document may fetch from or connect to is this one. The two ’unsafe-inline’ tokens are not a hole in that. They permit inline code from this document only, because the framework streams its own styles and its server-rendered payload as inline elements with no nonce; a nonce would need middleware and would cost this page its static render. A product that claims to work air-gapped should have a marketing page that does.',
   },
 } as const
 
@@ -282,61 +297,49 @@ export const PROOF = {
 
 export const LIMITS = {
   id: 'limits',
-  index: '06',
   eyebrow: 'Limits',
   title: 'What this is not.',
   titleTurn: 'Stated plainly.',
-  lede: 'These affect whether AEGIS is right for a deployment. Every item is also in the README, and none of it gets softer there.',
-  items: [
+  lede: 'These decide whether AEGIS is right for a deployment. The README has every item in full.',
+  brief: [
     {
-      title: 'Application-level sandboxing is not VM isolation.',
-      body: 'Execution is a subprocess with static validation, resource limits and a socket shim. It is not a VM, a container, a namespace or a seccomp boundary, and should not be described as one. A deployment handling genuinely hostile input should put this process inside an OS-level boundary as well.',
+      id: 'sandbox',
+      title: 'Not VM isolation',
+      line: 'Code runs in a limited subprocess, not a VM or container. Hostile input needs an OS boundary around it too.',
     },
     {
-      title: 'The sandbox needs a host that can bound a child process.',
-      body: 'Where the platform cannot apply resource limits to a subprocess, the sandbox refuses to execute anything at all — including permitted code. That is the correct direction to fail in. It is also why calculation checks report FAIL rather than PASS on such a host, and why the self-test there reports not assessable rather than a pass or a breach. The host this page was captured on can bound a child; its self-test is in the proof section.',
+      id: 'words',
+      title: 'Checks match words, not meaning',
+      line: 'A sentence can cite the right table and read the wrong row. That is why a person reviews what is held.',
     },
     {
-      title: 'Claim checks match words, not meaning.',
-      body: 'The verifier establishes that a sentence is about the passage it cites, not that the passage supports it. A sentence that reads the wrong row of a table uses the table’s own words and passes. Catching it takes a person with the passage open, which is why a run that fails any check is held for one.',
-    },
-    {
-      title: 'The audit chain detects tampering. It does not prevent it.',
-      body: 'Hash-chained, append-only, locked across processes. An operator with write access can still rewrite the log from any record onward, hashes included, or cut its newest records off, and what remains will verify. GET /api/audit/chain reports the newest hash; nothing stores that hash where the operator cannot write, so keeping a copy elsewhere is part of deploying this.',
+      id: 'chain',
+      title: 'Tamper-evident, not tamper-proof',
+      line: 'The audit chain shows an edit. An operator with write access can still rewrite the whole log.',
     },
     {
       id: 'latency',
-      title: 'Latency is hardware-bound.',
-      // Replaced by the page with LIMITS.latency(...) when the run carries its
-      // durations. This is what prints when it does not.
-      body: 'On a CPU-only host a full question takes minutes, not seconds. A GPU changes this substantially. Nothing in the design hides the cost.',
+      title: 'Latency is hardware-bound',
+      line: 'On a CPU-only host a question takes tens of seconds. A GPU changes this.',
     },
     {
-      title: 'Vision is the expensive path.',
-      body: 'Rasterising and reading a large scanned PDF is far slower than a text query and scales with page count.',
+      id: 'policy',
+      title: 'Policies are a default',
+      line: 'The shipped roles, classifications and approval rules are sensible defaults, not your organisation’s.',
     },
     {
-      title: 'Cold starts matter.',
-      body: 'Single-model residency trades throughput for fitting on a small host. The first call after an eviction pays the load time.',
+      id: 'benchmark',
+      title: 'No certifications or benchmark yet',
+      line: 'Accuracy claims wait for an evaluation set. The audit chain supports an assurance process; it is not one.',
     },
-    {
-      title: 'Policy files are deployment-specific.',
-      body: 'The shipped roles, classifications and approval rules are a sensible default, not your organisation’s.',
-    },
-    {
-      title: 'Compliance is not a software property.',
-      body: 'The audit chain supports an assurance process. It does not constitute one, and AEGIS holds no certifications.',
-    },
-    {
-      title: 'There is no published benchmark yet.',
-      body: 'Accuracy claims are absent from this page because the evaluation set that would justify them has not been built. When it is, the numbers and the method will be here together.',
-    },
-  ] satisfies Limit[],
-  // Host facts from Win32_Processor and Win32_VideoController on the capture
-  // host, 2026-09-23: Intel Core i3-1115G4 (2 cores, 4 threads), Intel UHD
-  // Graphics only. The durations are the run's, from run.json.
-  latency: (total: string, models: string, calls: number) =>
-    `On the host this page was built on — a two-core laptop CPU with integrated graphics and no discrete GPU — the run above took ${total} end to end, ${models} of it in ${calls === 1 ? 'its one model call' : `its ${count(calls)} model calls`}. A GPU changes this substantially. Nothing in the design hides the cost.`,
+  ],
+  // The run's own time, when the page has it.
+  latencyLine: (total: string) =>
+    `The run above took ${total} on a two-core laptop CPU with no GPU. A GPU changes this.`,
+  readme: {
+    label: 'Every limit, in full, in the README',
+    href: `${REPO_URL}#limits`,
+  },
 } as const
 
 // --------------------------------------------------------------------------- //
@@ -345,60 +348,24 @@ export const LIMITS = {
 
 export const RUN_IT = {
   id: 'run-it',
-  index: '07',
   eyebrow: 'Get started',
-  title: 'Run it on your own hardware.',
-  lede: 'Python 3.11+, Node 20+, and Ollama on the same machine. No account and no key, and once the models are pulled, no network.',
+  title: 'Run it on your',
+  titleEm: 'own hardware.',
+  lede: 'Python 3.11+, Node 20+ and Ollama on one machine. No account, no key, and once the models are pulled, no network.',
   commands: [
     `git clone ${REPO_URL}`,
     'cd Sovereign-On_Premise-Agentic-AI-Workbench',
-    '',
     'python3 -m venv .venv && source .venv/bin/activate',
     'pip install -r requirements.txt',
     'cd frontend && npm install && cd ..',
-    '',
-    '# the model the run on this page used, and the embedder',
     'ollama pull qwen2.5:3b && ollama pull nomic-embed-text',
-    '# the README lists the other models the router can use',
-    '',
-    '# optional — seeds the demonstration corpus',
     'python scripts/seed_demo_data.py',
-    '',
     './scripts/run.sh',
   ],
-  question: {
-    label: 'Then ask it this',
-    note: 'The question behind every artifact on this page. When the answer arrives, press its markers.',
-  },
-  policies: {
-    label: 'Then read these four files',
-    note: 'They decide what the workbench may do, and what ships in them is a default, not your organisation’s. Each description is the file’s own first line.',
-    files: [
-      {
-        path: 'policies/access-control.yaml',
-        line: 'Identity, role and file access policy (RBAC + light ABAC). Default deny: anything not explicitly granted here is refused by the gateway.',
-      },
-      {
-        path: 'policies/tool-permissions.yaml',
-        line: 'Tool capability policy. Default deny: a tool not listed here cannot be invoked by the agent, and a role not listed on a tool cannot invoke it.',
-      },
-      {
-        path: 'policies/approval-rules.yaml',
-        line: 'Human-in-the-loop approval rules and verification thresholds.',
-      },
-      {
-        path: 'policies/data-classification.yaml',
-        line: 'Data classification levels and the controls each level demands.',
-      },
-    ],
-  },
-  facts: [
-    { label: 'Interface', line: 'http://127.0.0.1:3000' },
-    { label: 'API', line: 'http://127.0.0.1:8000' },
-    {
-      label: 'Inference',
-      line: 'Ollama on 127.0.0.1:11434, pinned to loopback and refused otherwise',
-    },
+  next: [
+    'Open http://127.0.0.1:3000 and sign in with one of the demo accounts.',
+    'Ask a question, or type / for a skill. Watch each step as it runs.',
+    'Sign in as the reviewer to release what was held.',
   ],
 } as const
 
@@ -422,8 +389,8 @@ export const FOOTER = {
       heading: 'Product',
       links: [
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'Open a citation', href: '#answer' },
-        { label: 'How a run is proved', href: '#chain' },
+        { label: 'How a run is proved', href: '#how' },
+        { label: 'Use cases', href: '#use-cases' },
         { label: 'What this is not', href: '#limits' },
       ],
     },
@@ -442,3 +409,4 @@ export const FOOTER = {
   bottomLeft: 'Smart India Hackathon 2026',
   bottomRight: 'No analytics on this page.',
 } as const
+

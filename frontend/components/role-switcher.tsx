@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
  * What stays is what the session actually reports: the display name, the
  * username, the department and the clearance ceiling the server assigned.
  */
-export function RoleSwitcher() {
+export function RoleSwitcher({ placement = 'below' }: { placement?: 'below' | 'above' }) {
   const { role, setRole, user, logout } = useRole()
   const router = useRouter()
   const [switchError, setSwitchError] = useState<string | null>(null)
@@ -78,7 +78,14 @@ export function RoleSwitcher() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Account: ${displayName}, ${role.label}`}
-        className="hover-decay group flex h-9 items-center gap-2 rounded-full py-1 pl-1 pr-2.5 hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+        className={cn(
+          'hover-decay group flex items-center gap-2 hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
+          // From the sidebar's foot it is the account row: the full width, the
+          // name and the role, opening upward.
+          placement === 'above'
+            ? 'h-11 w-full rounded-[10px] px-1.5 text-left hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]'
+            : 'h-9 rounded-full py-1 pl-1 pr-2.5',
+        )}
       >
         <span
           aria-hidden
@@ -86,21 +93,37 @@ export function RoleSwitcher() {
         >
           {displayName.slice(0, 1).toUpperCase()}
         </span>
-        <span className="hidden max-w-[160px] truncate text-[13.5px] font-medium text-foreground sm:inline">{displayName}</span>
-        <ChevronDown
-          aria-hidden
-          className={cn(
-            'h-3.5 w-3.5 text-foreground-muted transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] motion-reduce:transition-none',
-            open && 'rotate-180',
-          )}
-        />
+        {placement === 'above' ? (
+          <span className="flex min-w-0 flex-1 flex-col leading-tight">
+            <span className="truncate text-[13px] font-medium text-foreground">{displayName}</span>
+            {/* The second line says what the first does not: the role, unless
+                the display name already is it, and then the account. */}
+            <span className="truncate text-[12px] text-foreground-muted">{displayName === role.label ? username : role.label}</span>
+          </span>
+        ) : (
+          <span className="hidden max-w-[160px] truncate text-[13.5px] font-medium text-foreground sm:inline">{displayName}</span>
+        )}
+        {/* The sidebar's account row is a row: the whole of it opens the menu,
+            and the name gets the room a chevron would have taken. */}
+        {placement === 'above' ? null : (
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              'h-3.5 w-3.5 shrink-0 text-foreground-muted transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] motion-reduce:transition-none',
+              open && 'rotate-180',
+            )}
+          />
+        )}
       </button>
 
       {open && (
         <div
           role="menu"
           aria-label="Account"
-          className="absolute right-0 top-[calc(100%+8px)] z-[var(--z-menu)] w-80 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in slide-in-from-top-1 duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none"
+          className={cn(
+            'absolute z-[var(--z-menu)] w-80 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none',
+            placement === 'above' ? 'bottom-[calc(100%+8px)] left-0 slide-in-from-bottom-1' : 'right-0 top-[calc(100%+8px)] slide-in-from-top-1',
+          )}
         >
           <div className="border-b border-line-subtle px-4 py-3">
             <p className="truncate text-body font-medium text-foreground">{displayName}</p>

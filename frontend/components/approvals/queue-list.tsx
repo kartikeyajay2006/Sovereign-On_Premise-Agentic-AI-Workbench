@@ -97,8 +97,8 @@ export const QueueRow = memo(function QueueRow({
         >
           {item.prompt}
         </span>
-        <span className="flex min-w-0 items-center gap-2 font-mono text-ledger text-foreground-muted">
-          <span className="shrink-0">#{item.id.slice(0, 8)}</span>
+        <span className="flex min-w-0 items-center gap-2 text-[12px] text-foreground-muted">
+          <span className="shrink-0 font-mono text-[11.5px]">#{item.id.slice(0, 8)}</span>
           {item.submittedBy && (
             <>
               <span aria-hidden>·</span>

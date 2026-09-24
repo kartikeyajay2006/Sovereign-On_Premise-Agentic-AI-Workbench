@@ -100,6 +100,10 @@ export const CONSOLE_TEMPLATES = [
       'Read the attached scanned inspection report for vessel V-2104 and prepare an approval note based on our approved SOPs. State the governing location, the corrosion rate and remaining life with the inputs used, the severity and the clause it rests on, and who must approve it.',
     format: 'docx',
     attach: 'sample_data/inspection/scanned-inspection-report-V-2104.pdf',
+    skill: null,
+    // Reading a scan takes a vision model; without one installed this run
+    // would end blocked, so the thread offers it only where one is.
+    needs: 'vision',
   },
   {
     id: 'corrosion-calc',
@@ -108,6 +112,8 @@ export const CONSOLE_TEMPLATES = [
       'Using the attached thickness survey for V-2104, calculate the corrosion rate and remaining life for every location against a minimum allowable thickness of 6.0 mm, and identify which location governs.',
     format: 'xlsx',
     attach: 'sample_data/datasets/V-2104-thickness-survey.csv',
+    skill: null,
+    needs: null,
   },
   {
     id: 'procedure-question',
@@ -116,6 +122,19 @@ export const CONSOLE_TEMPLATES = [
       'What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve continued operation? Cite the clauses.',
     format: 'answer',
     attach: null,
+    skill: null,
+    needs: null,
+  },
+  {
+    // One click to a whole run: a built-in skill and its input, no file.
+    // Offered in place of the scanned report on a host with no vision model.
+    id: 'clause-skill',
+    title: 'Find the governing clause',
+    prompt: 'internal inspection of a pressure vessel in corrosive service',
+    format: 'answer',
+    attach: null,
+    skill: 'clause',
+    needs: null,
   },
 ]
 
@@ -126,3 +145,38 @@ export const DELIVERABLE_FORMATS = [
   { id: 'pptx', label: 'PowerPoint', ext: '.pptx' },
   { id: 'md', label: 'Markdown', ext: '.md' },
 ]
+
+/**
+ * The sandbox's limit-enforcement mechanisms, as the service reports them,
+ * in words. Anything not listed is shown as sent rather than guessed at.
+ */
+const SANDBOX_MECHANISMS: Record<string, string> = {
+  windows_job_object: 'Windows job object',
+  posix_rlimit: 'POSIX rlimits',
+  none: 'nothing',
+}
+
+export function sandboxMechanism(backend: string): string {
+  return SANDBOX_MECHANISMS[backend] ?? backend
+}
+
+/**
+ * The verifier's checks, in the words a reader uses. The thread's
+ * transcript, the approval queue and the public page all say them this way,
+ * so a check is called the same thing wherever it is shown.
+ */
+export const CHECK_WORDS: Record<string, string> = {
+  source_verification: 'Sources',
+  calculation_verification: 'Calculations',
+  code_verification: 'Code',
+  citation_verification: 'Citations',
+  page_citation_verification: 'Pages',
+  document_verification: 'Document',
+  hallucination_check: 'Grounding',
+}
+
+/** A check's name as a reader says it; an unknown one, with its underscores spaced. */
+export function checkLabel(name: string | null | undefined): string {
+  if (!name) return 'Unnamed check'
+  return CHECK_WORDS[name] ?? name.replace(/_/g, ' ')
+}

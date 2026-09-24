@@ -3,9 +3,9 @@
 import { memo, useState } from 'react'
 import { ClassificationTag } from '@/components/primitives'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
-import { FailureState, ReadingLine, useReading } from '@/shared/ui/data/reading'
+import { FailureState, ReadingLine, type Reading } from '@/shared/ui/data/reading'
 import { cn } from '@/lib/utils'
-import { readPolicies, type Policies, type ToolPolicy } from './api'
+import type { Policies, ToolPolicy } from './api'
 
 /**
  * ALLOW and DENY with a glyph each, in the -text variants, so the matrix
@@ -153,9 +153,13 @@ function Matrix({ policies, currentRole }: { policies: Policies; currentRole: st
  * service. This is configuration, not measurement, and is labelled as such:
  * it says what the gateway is told to enforce, not what it has enforced.
  */
-export const PolicyPanel = memo(function PolicyPanel({ currentRole }: { currentRole: string | null }) {
-  const policies = useReading((signal) => readPolicies(signal), [])
-
+export const PolicyPanel = memo(function PolicyPanel({
+  policies,
+  currentRole,
+}: {
+  policies: Reading<Policies>
+  currentRole: string | null
+}) {
   if (policies.status === 'failed' && !policies.data) {
     return <FailureState failure={policies.failure!} what="the policy files" retry={policies.reload} />
   }
@@ -171,7 +175,7 @@ export const PolicyPanel = memo(function PolicyPanel({ currentRole }: { currentR
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section aria-label="Denied for every role" className="flex flex-col gap-2">
-          <h3 className={LEDGER_MUTED}>Denied for every role, no override</h3>
+          <h3 className={LEDGER_MUTED}>No role can do these, and nothing overrides it</h3>
           <ul className="flex flex-wrap gap-1">
             {p.hard_denied_actions.map((action) => (
               <li
@@ -207,13 +211,15 @@ export const PolicyPanel = memo(function PolicyPanel({ currentRole }: { currentR
           <ul className="flex flex-col">
             {p.approval_rules.map((rule) => (
               <li key={rule.name} className="flex flex-col gap-0.5 border-b border-line-subtle py-2 last:border-b-0">
-                <span className="font-mono text-ui text-foreground">{rule.name}</span>
-                {rule.description && <span className="text-ui text-foreground-secondary">{rule.description}</span>}
-                {rule.approver_roles && rule.approver_roles.length > 0 && (
-                  <span className="font-mono text-ledger text-foreground-muted">
-                    decided by {rule.approver_roles.join(' or ')}
-                  </span>
-                )}
+                {/* The rule in words, then its name as the policy file and the
+                    audit record give it, and who decides. */}
+                <span className="text-ui text-foreground">{rule.description || rule.name}</span>
+                <span className="font-mono text-ledger text-foreground-muted">
+                  {rule.name}
+                  {rule.approver_roles && rule.approver_roles.length > 0
+                    ? ` · decided by ${rule.approver_roles.join(' or ')}`
+                    : ''}
+                </span>
               </li>
             ))}
           </ul>

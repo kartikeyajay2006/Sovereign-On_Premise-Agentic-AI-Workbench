@@ -1,8 +1,10 @@
 'use client'
 
-import { memo, useEffect, useState } from 'react'
+import { memo } from 'react'
 import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from '@/lib/types'
+import { checkLabel } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
+import { useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW } from '../model/board'
 import type { AssistantTurn } from '../model/types'
 import { formatCount, formatRate, formatSeconds } from '../model/usage'
@@ -42,46 +44,37 @@ const ACTIVE: Record<string, string> = {
   verify: 'Checking every claim',
 }
 
-/** The verifier's checks, in the words a reader uses. */
-export const CHECK_WORDS: Record<string, string> = {
-  source_verification: 'Sources',
-  calculation_verification: 'Calculations',
-  code_verification: 'Code',
-  document_verification: 'Document',
-  hallucination_check: 'Grounding',
-}
+/** The verifier's checks, in the words a reader uses: see lib/presentation. */
+export { CHECK_WORDS } from '@/lib/presentation'
 
-const SPINNER = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢']
-
-/** The glyph a working line carries. Still, for a reader who asked for less motion. */
+/**
+ * The glyph a working line carries. It turns on the compositor: the glyph
+ * it replaced was swapped by a timer eight times a second, a render and a
+ * repaint each, while the model held the CPU. Still, for a reader who asked
+ * for less motion.
+ */
 function Spinner() {
-  const [frame, setFrame] = useState(0)
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const id = window.setInterval(() => setFrame((f) => (f + 1) % SPINNER.length), 120)
-    return () => window.clearInterval(id)
-  }, [])
   return (
-    <span aria-hidden className="inline-block w-[1ch] text-center text-[var(--accent-glyph,var(--foreground))]">
-      {SPINNER[frame]}
+    <span aria-hidden className="ae-spin inline-block w-[1ch] text-center text-[var(--accent-glyph,var(--foreground))]">
+      ✻
     </span>
   )
 }
 
-/** Time in the stage under way: the backend's own start, counted on this clock. */
+/**
+ * Time in the stage under way: the backend's own start, counted on this
+ * clock in whole seconds. The stage's measured time replaces it, to the
+ * tenth, once the stage ends.
+ */
 function Dwell({ stage }: { stage: PipelineStage }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 100)
-    return () => window.clearInterval(id)
-  }, [])
+  const now = useSecondClock()
   const start = stage.at ? Date.parse(stage.at) : Number.NaN
   if (Number.isNaN(start)) return null
-  return <>{formatSeconds((stage.elapsedMs ?? 0) + Math.max(0, now - start))}</>
+  return <>{Math.floor(((stage.elapsedMs ?? 0) + Math.max(0, now - start)) / 1000)}s</>
 }
 
 /** "SOP-INS-014 §2.2" from a document title and a "section: 2.2 …" location. */
-function citeLabel(item: EvidenceItem): string {
+export function citeLabel(item: EvidenceItem): string {
   const code = (item.source_document ?? '').split(' — ')[0].trim() || item.id
   // "section: 1. Purpose" names section 1, not "1.".
   const section = item.location?.match(/section:\s*(\d+(?:\.\d+)*)/i)?.[1]
@@ -126,7 +119,7 @@ function Checks({ checks }: { checks: VerificationCheck[] }) {
             <span aria-hidden className={check.passed ? 'text-sovereign-text' : undefined}>
               {check.passed ? '✓' : '✕'}
             </span>{' '}
-            {CHECK_WORDS[name] ?? name.replace(/_/g, ' ')}
+            {checkLabel(name)}
             <span className="sr-only">{check.passed ? ' passed' : ' failed'}</span>
           </span>
         )
@@ -145,7 +138,10 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
   if (lines.length === 0 && !waiting) return null
 
   return (
-    <ol aria-label="What the run did" className="m-0 flex list-none flex-col gap-1.5 p-0 font-mono text-[12.5px] leading-[1.6]">
+    <ol
+      aria-label="What the run did"
+      className="thread-log m-0 flex list-none flex-col gap-1.5 rounded-[14px] border border-line-subtle px-3.5 py-3 font-mono text-[12.5px] leading-[1.6]"
+    >
       {waiting && turn.queue && (
         <li className="flex items-baseline gap-2 text-foreground-secondary">
           <Spinner />

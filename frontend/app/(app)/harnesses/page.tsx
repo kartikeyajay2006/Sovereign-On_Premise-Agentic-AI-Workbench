@@ -13,7 +13,7 @@ export default function HarnessesPage() {
   return (
     <Suspense
       fallback={
-        <p className="mx-auto w-full max-w-[1200px] px-5 py-8 font-mono text-meta text-foreground-muted lg:px-10">
+        <p className="mx-auto w-full max-w-[1400px] px-4 py-8 font-mono text-meta text-foreground-muted sm:px-6">
           Opening harnesses…
         </p>
       }

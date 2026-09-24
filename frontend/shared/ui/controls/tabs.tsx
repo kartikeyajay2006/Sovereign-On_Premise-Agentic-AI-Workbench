@@ -68,7 +68,10 @@ export function Tabs<V extends string>({
       aria-label={label}
       onKeyDown={onKeyDown}
       className={cn(
-        'flex max-w-full items-end gap-6 overflow-x-auto border-b border-line-default [scrollbar-width:none]',
+        // On a phone the row can outrun the screen: it scrolls, and its
+        // right edge fades so the tab past it reads as more, not as cut off.
+        'flex max-w-full items-end gap-4 overflow-x-auto border-b border-line-default [scrollbar-width:none] sm:gap-6',
+        'max-sm:[-webkit-mask-image:linear-gradient(90deg,#000_82%,transparent)] max-sm:[mask-image:linear-gradient(90deg,#000_82%,transparent)]',
         className,
       )}
     >

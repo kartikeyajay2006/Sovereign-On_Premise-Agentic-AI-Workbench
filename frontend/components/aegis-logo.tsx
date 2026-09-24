@@ -4,48 +4,40 @@ interface AegisLogoProps {
   className?: string
   size?: number
   /**
-   * mark     the badge alone: an ink tile with the glyph knocked out of it
-   * glyph    the glyph alone, in currentColor, for a tile drawn by the caller
-   * compact  the badge and the name
-   * full     the badge, the name and the product line
+   * mark     the shield alone, in the text colour
+   * glyph    the same, for a tile or ground drawn by the caller
+   * compact  the shield and the name
+   * full     the shield, the name and the product line
    */
   variant?: 'mark' | 'glyph' | 'compact' | 'full'
   iconClassName?: string
 }
 
+/** The signal orange: the one colour the brand adds to ink and paper. */
+export const SIGNAL = '#ff5b1a'
+
 /**
- * The AEGIS mark: a Λ with one point beneath its apex.
+ * The AEGIS mark: a shield split down the middle, with a slit of signal
+ * light in the gap.
  *
- * The A of the name with its crossbar taken out, and in its place a single
- * point -- one recorded fact, where a bar would have been drawn. It is a
- * stroke, not a shape, so it stays two clean lines and a dot at 16px, and it
- * sits on an ink tile with generous corners so the mark reads as the
- * product's icon wherever it appears: the header, the sign-in, the tab.
- *
- * The glyph is drawn in the page's own ground colour on the tile, not cut
- * out of it, so no mask id has to be unique per instance.
+ * The shield is the name; the gap is the product -- the model, the search
+ * and the record on one side of a line that nothing crosses unmeasured. Two
+ * solid halves rather than an outline, so it holds its shape at 16px, drawn
+ * in currentColor so it is ink on paper and white on night without a
+ * second asset.
  */
-function Glyph({ ink }: { ink: string }) {
+export function AegisMark({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <>
-      <path d="M6.6 17.4 12 6.6l5.4 10.8" stroke={ink} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="12" cy="15.1" r="1.5" fill={ink} />
-    </>
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0', className)}>
+      <path d="M11 1.9 3.2 4.3v6.9c0 5.1 3.3 9.3 7.8 11V1.9Z" fill="currentColor" />
+      <path d="M13 1.9l7.8 2.4v6.9c0 5.1-3.3 9.3-7.8 11V1.9Z" fill="currentColor" />
+      <rect x="11.45" y="6.2" width="1.1" height="10.6" rx="0.55" fill={SIGNAL} />
+    </svg>
   )
 }
 
 export function AegisLogo({ className, size = 32, variant = 'full', iconClassName }: AegisLogoProps) {
-  const icon =
-    variant === 'glyph' ? (
-      <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0', iconClassName)}>
-        <Glyph ink="currentColor" />
-      </svg>
-    ) : (
-      <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0 text-foreground', iconClassName)}>
-        <rect x="0.5" y="0.5" width="23" height="23" rx="6.5" fill="currentColor" />
-        <Glyph ink="var(--background)" />
-      </svg>
-    )
+  const icon = <AegisMark size={size} className={cn(variant !== 'glyph' && 'text-foreground', iconClassName)} />
 
   if (variant === 'mark' || variant === 'glyph') return <span className={cn('inline-flex', className)}>{icon}</span>
 
@@ -53,7 +45,7 @@ export function AegisLogo({ className, size = 32, variant = 'full', iconClassNam
     <div className={cn('inline-flex select-none items-center gap-2.5', className)}>
       {icon}
       <div className="flex flex-col leading-none">
-        <span className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">AEGIS</span>
+        <span className="text-[15px] font-semibold tracking-[0.02em] text-foreground">AEGIS</span>
         {variant === 'full' && <span className="mt-[3px] text-[11px] text-foreground-muted">Agentic workbench</span>}
       </div>
     </div>
