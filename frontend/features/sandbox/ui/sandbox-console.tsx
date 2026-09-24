@@ -12,6 +12,7 @@ import { SANDBOX_PRESETS, type SandboxPreset } from '../model/presets'
 import type { SandboxExecuteResponse, SandboxLimits } from '../model/types'
 import { ResultPanel } from './result-panel'
 import { SelfTestPanel } from './self-test-panel'
+import { sandboxMechanism } from '@/lib/presentation'
 
 const CLASSIFICATIONS: Sensitivity[] = ['normal', 'confidential', 'sensitive', 'restricted']
 
@@ -70,13 +71,6 @@ function PresetRow({ preset, active, onClick }: { preset: SandboxPreset; active:
  * contained and everything the host measured doing it. No figure on the page
  * is written by the page; each is read back from this machine.
  */
-/** The enforcement mechanisms the service reports, in words; anything else is shown as sent. */
-const MECHANISM: Record<string, string> = {
-  windows_job_object: 'Windows job object',
-  posix_rlimit: 'POSIX rlimits',
-  none: 'nothing',
-}
-
 export function SandboxConsole() {
   const [code, setCode] = useState(SANDBOX_PRESETS[1].code)
   const [activePreset, setActivePreset] = useState<string | null>(SANDBOX_PRESETS[1].id)
@@ -125,7 +119,7 @@ export function SandboxConsole() {
         title="Sandbox"
         description="Run Python under this host's limits and see exactly what it did — through the same gateway, checks and audit trail as an agent's own code."
         meta={[
-          { label: 'Limits enforced by', value: limits ? MECHANISM[limits.backend] ?? limits.backend : '—', hint: limits?.backend },
+          { label: 'Limits enforced by', value: limits ? sandboxMechanism(limits.backend) : '—', hint: limits?.backend },
           { label: 'Memory', value: limits ? `≤ ${limits.memory_mb} MB` : '—' },
           { label: 'CPU', value: limits ? `≤ ${limits.cpu_seconds} s` : '—' },
           {

@@ -5,6 +5,7 @@ import { Play } from 'lucide-react'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import type { ReadFailure } from '@/shared/ui/data/reading'
+import { sandboxMechanism } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 import type { Policies, SovereigntyStatus } from './api'
 import { Ago, stamp } from './egress-panel'
@@ -143,7 +144,9 @@ export function ContainmentVerdict({ run, onRun }: { run: SandboxRun; onRun: () 
         figure={`${passed}/${total}`}
         tone={held ? 'sovereign' : 'critical'}
         caption={held ? 'attacks contained by this host’s sandbox' : `${total - passed} of ${total} attacks were not contained`}
-        foot={`ran ${clock(run.report.ran_at)} · ${run.report.duration_ms} ms · ${run.report.backend ?? 'limits not reported'}`}
+        foot={`ran ${clock(run.report.ran_at)} · took ${(run.report.duration_ms / 1000).toFixed(1)} s · ${
+          run.report.backend ? `limits by ${sandboxMechanism(run.report.backend)}` : 'limits not reported'
+        }`}
         action={button}
       />
     )

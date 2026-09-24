@@ -305,7 +305,7 @@ const GALLERY: GallerySlide[] = [
     body: 'Held work waits for a reviewer, and never for the one who ran it. Built for the keyboard: j, k, a, r.',
     light: '/landing/shots/approvals-light.png',
     dark: '/landing/shots/approvals-dark.png',
-    alt: 'The approval queue: held runs on the left, one open on the right with the reason it was held.',
+    alt: 'The approval queue: held runs on the left, one open on the right with the reasons it was held and the document it would release.',
   },
   {
     id: 'sandbox',
@@ -323,7 +323,7 @@ const GALLERY: GallerySlide[] = [
     body: 'Model calls, tool runs and decisions, hash-chained. Recompute the whole chain in your browser.',
     light: '/landing/shots/audit-light.png',
     dark: '/landing/shots/audit-dark.png',
-    alt: 'The audit screen: the chain verified by the server, and the newest records with their hashes.',
+    alt: 'The audit screen: the chain verified by the server and recomputed in this browser, both ending at the same head, over the newest records, each one checked.',
   },
 ]
 

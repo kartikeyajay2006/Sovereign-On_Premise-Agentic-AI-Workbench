@@ -145,3 +145,17 @@ export const DELIVERABLE_FORMATS = [
   { id: 'pptx', label: 'PowerPoint', ext: '.pptx' },
   { id: 'md', label: 'Markdown', ext: '.md' },
 ]
+
+/**
+ * The sandbox's limit-enforcement mechanisms, as the service reports them,
+ * in words. Anything not listed is shown as sent rather than guessed at.
+ */
+const SANDBOX_MECHANISMS: Record<string, string> = {
+  windows_job_object: 'Windows job object',
+  posix_rlimit: 'POSIX rlimits',
+  none: 'nothing',
+}
+
+export function sandboxMechanism(backend: string): string {
+  return SANDBOX_MECHANISMS[backend] ?? backend
+}
