@@ -123,7 +123,10 @@ class TestTheFastPath:
         call = orchestrator.test_calls[0]
         assert call["stage"] == "drafting"
         assert call["stream_to_user"] is True
-        assert "conversational message" in call["system_prompt"]
+        # The drafting stage's own system prompt, so one cache serves both.
+        assert call["system_prompt"] == orchestrator.config.system_prompt("reasoning")
+        assert "it is conversation" in call["prompt"]
+        assert call["prompt"].rstrip().endswith("Message: Hi")
         assert task.answer and task.answer.startswith("Hello")
 
     async def test_nothing_is_retrieved_checked_or_held(self, orchestrator) -> None:

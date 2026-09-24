@@ -1522,6 +1522,9 @@ class AgentOrchestrator:
         nothing to hold. It still goes through model routing and policy like
         every call, streams like every answer, and is recorded: the verifier's
         report says plainly that no checks were run and why.
+
+        It shares the drafting stage's system prompt, so the runtime's cache
+        of that prompt serves greetings and questions alike.
         """
         try:
             await self._stage(task, TaskStatus.EXECUTING, "Replying", phase="drafting")
@@ -1529,8 +1532,8 @@ class AgentOrchestrator:
                 task,
                 user,
                 stage="drafting",
-                system_prompt=self.config.system_prompt("conversation"),
-                prompt=task.prompt,
+                system_prompt=self.config.system_prompt("reasoning"),
+                prompt=self.config.prompt("task.converse", prompt=task.prompt),
                 stream_to_user=True,
             )
             text = text.strip()
@@ -1730,18 +1733,22 @@ class AgentOrchestrator:
         extraction: dict[str, Any] | None,
         sandbox_result: SandboxResult | None,
     ) -> str:
+        # Empty when there is nothing: a line saying so was tokens read on
+        # every run for no answer's benefit.
         extraction_block = ""
         if extraction:
             # Compact, not pretty-printed: indentation is tokens, and tokens
             # are both wall-clock time and cache on a CPU host.
             extraction_block = (
-                "Content extracted from the visual input by the local vision model:\n"
+                "\nContent extracted from the visual input by the local vision model:\n"
                 + json.dumps(extraction, separators=(",", ":"))[:2500]
+                + "\n"
             )
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
-                "\n\nOutput of code executed in the secure sandbox:\n"
+                "\nOutput of code executed in the secure sandbox:\n"
                 + sandbox_result.stdout[:2000]
+                + "\n"
             )
 
         evidence_block = "\n\n".join(
@@ -1754,7 +1761,7 @@ class AgentOrchestrator:
         prompt = self.config.prompt(
             "task.reason_with_evidence",
             prompt=task.prompt,
-            extraction_block=extraction_block or "No visual or computed input for this task.",
+            extraction_block=extraction_block,
             evidence=evidence_block,
         )
         text, _ = await self._generate(

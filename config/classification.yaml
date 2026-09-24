@@ -111,7 +111,9 @@ task_types:
         - {match: "compute", weight: 4}
         - {match: "how much", weight: 3}
         - {match: "thickness", weight: 3}
-        - {match: "pressure", weight: 2}
+        # Not "pressure": in this corpus it is almost always "pressure
+        # vessel", a noun, and it tipped plain lookups ("the interval between
+        # inspections of a pressure vessel") into calculations on a tie.
         - {match: "corrosion rate", weight: 5}
         - {match: "remaining life", weight: 5}
         - {match: "tonnage", weight: 3}
@@ -170,11 +172,13 @@ complexity:
         - {match: "based on the sop", weight: 4}
         - {match: "cross-check", weight: 4}
         - {match: "verify against", weight: 4}
+      # Not retrieval on its own: looking one thing up and answering it is
+      # two steps, and counting it made every one-line question "agentic"
+      # with a budget of 14.
       signals:
         multiple_files: 3
         deliverable_required: 3
         visual_input: 2
-        retrieval_required: 2
     multi_step:
       patterns:
         - {match: "then", weight: 2}

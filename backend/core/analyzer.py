@@ -282,7 +282,7 @@ class TaskAnalyzer:
         text = prompt.lower().strip()
 
         if not files and self._is_conversation(text):
-            return self._conversation_profile()
+            return self.conversation_profile()
 
         input_type, input_signals = self._classify_input_type(text, files)
         task_type, task_score, task_signals = self._classify_task_type(text)
@@ -382,7 +382,7 @@ class TaskAnalyzer:
             return False
         return any(re.fullmatch(pattern, cleaned) for pattern in rules.get("patterns", []))
 
-    def _conversation_profile(self) -> TaskProfile:
+    def conversation_profile(self) -> TaskProfile:
         """A profile for a message that asks for nothing to be grounded.
 
         Normal classification, no retrieval, no deliverable, no code: the

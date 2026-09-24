@@ -31,6 +31,8 @@ def isolated_storage() -> Path:
     os.environ["SOVEREIGN_STORAGE__WORKSPACES"] = str(root / "workspaces")
     os.environ["SOVEREIGN_STORAGE__DATABASE"] = str(root / "workbench.db")
     os.environ["SOVEREIGN_AUDIT__LOG_FILE"] = str(root / "logs" / "audit.jsonl")
+    # An app started by a test must not load a real model in the background.
+    os.environ["SOVEREIGN_INFERENCE__PREWARM"] = "false"
 
     # Drop any cached configuration and singletons built before this ran.
     from backend.core import audit, config, database
@@ -42,7 +44,10 @@ def isolated_storage() -> Path:
     yield root
 
     for key in list(os.environ):
-        if key.startswith("SOVEREIGN_STORAGE__") or key == "SOVEREIGN_AUDIT__LOG_FILE":
+        if key.startswith("SOVEREIGN_STORAGE__") or key in {
+            "SOVEREIGN_AUDIT__LOG_FILE",
+            "SOVEREIGN_INFERENCE__PREWARM",
+        }:
             del os.environ[key]
 
 

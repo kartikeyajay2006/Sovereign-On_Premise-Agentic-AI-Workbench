@@ -52,10 +52,13 @@ inference:
   connect_timeout_seconds: 10
   # How long the runtime keeps a model resident after its last use. Long
   # residency avoids reload cost, but on a host with little headroom it is the
-  # difference between running in memory and running in swap.
-  # 30 minutes so a model is not reloaded (7-14 s measured) between the
-  # runs of a demo; drop it on a host that needs the memory back sooner.
+  # difference between running in memory and running in swap. Loading the
+  # everyday model measured 7 to 14 seconds here, so 30 minutes keeps a demo
+  # from paying it between runs; shorten it on a host short of memory.
   keep_alive: 30m
+  # Load the model an ordinary question is answered with as the server
+  # starts, rather than on the first question after a restart.
+  prewarm: true
   # Ollama defaults to a 4096-token context regardless of what the model
   # supports. We pass the model's declared context window, capped here so a
   # CPU-only host does not allocate an unusable KV cache.
