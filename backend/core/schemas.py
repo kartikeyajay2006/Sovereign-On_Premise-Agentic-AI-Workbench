@@ -436,6 +436,12 @@ class Task(BaseModel):
     verification: VerificationReport | None = None
     approval: ApprovalRecord | None = None
     deliverables: list[Deliverable] = Field(default_factory=list)
+    # The structured source rendered into the generated deliverable. Keeping it
+    # with the task lets a reader inspect the note in the workbench before
+    # choosing whether to download the file, and lets the same preview survive
+    # a reload. It is not an alternate, unverified answer: the normal answer
+    # and verification report remain the run's authority.
+    deliverable_content: dict[str, Any] | None = None
     policy_events: list[PolicyEvent] = Field(default_factory=list)
     answer: str | None = None
     error: str | None = None

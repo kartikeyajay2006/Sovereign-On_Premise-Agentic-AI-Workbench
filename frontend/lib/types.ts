@@ -197,6 +197,21 @@ export interface Deliverable {
   sizeKb?: number
 }
 
+/**
+ * The verified structured source rendered into a generated file. Values stay
+ * deliberately JSON-shaped because the renderer supports document, sheet and
+ * presentation formats; the thread only reads the human-facing fields.
+ */
+export interface DeliverableContent {
+  title?: string
+  reference?: string
+  summary?: string
+  sections?: Array<{ heading?: string; body?: string; bullets?: string[] }>
+  findings?: Array<{ description?: string; severity?: string; reference?: string }>
+  recommendation?: string
+  approval_statement?: string
+}
+
 export interface ApprovalRecord {
   required: boolean
   reasons: string[]
@@ -328,6 +343,7 @@ export interface Task {
   verification?: VerificationReport | null
   approval?: ApprovalRecord | null
   deliverables: Deliverable[]
+  deliverable_content?: DeliverableContent | null
   policy_events?: any[]
   answer?: string | null
   error?: string | null

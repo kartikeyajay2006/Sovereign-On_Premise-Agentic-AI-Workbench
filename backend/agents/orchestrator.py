@@ -1493,6 +1493,11 @@ class AgentOrchestrator:
                 draft_content = await self._draft(
                     task, user, answer_text, evidence, checked_calculations
                 )
+                # Persist the exact structured source that is handed to the
+                # renderer. The workbench can now offer an in-place reading
+                # view next to the file without reverse-engineering a DOCX or
+                # pretending the shorter chat answer is the document itself.
+                task.deliverable_content = draft_content
                 checks.append(self.verifier.check_document(draft_content, evidence))
                 self._mark_step(task, {"document_generate"}, "done")
 

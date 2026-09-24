@@ -1,5 +1,6 @@
 import type {
   Deliverable,
+  DeliverableContent,
   EvidenceItem,
   ModelUsage,
   PipelineStage,
@@ -140,6 +141,8 @@ export interface AssistantTurn {
   evidence: EvidenceItem[]
   verification: VerificationCheck[]
   deliverable: (Deliverable & { sizeKb: number }) | null
+  /** The structured source rendered into `deliverable`, retained for reading in place. */
+  deliverableContent: DeliverableContent | null
   /** Why the run was refused, when it was. */
   denialReason: string | null
   /** Surfaced rather than swallowed. */
