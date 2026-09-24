@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
+    -- SHA-256 of an opaque bearer token. The token itself must never become a
+    -- reusable credential merely because a local database is read.
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     issued_at TEXT NOT NULL,
@@ -177,24 +179,24 @@ class Database:
             return [dict(row) for row in rows]
 
     # -- sessions ----------------------------------------------------------
-    def create_session(self, token: str, user_id: str, issued_at: str, expires_at: str) -> None:
+    def create_session(self, token_hash: str, user_id: str, issued_at: str, expires_at: str) -> None:
         with self.connect() as connection:
             connection.execute(
                 "INSERT INTO sessions (token, user_id, issued_at, expires_at) "
                 "VALUES (?, ?, ?, ?)",
-                (token, user_id, issued_at, expires_at),
+                (token_hash, user_id, issued_at, expires_at),
             )
 
-    def get_session(self, token: str) -> dict[str, Any] | None:
+    def get_session(self, token_hash: str) -> dict[str, Any] | None:
         with self.connect() as connection:
             row = connection.execute(
-                "SELECT * FROM sessions WHERE token = ?", (token,)
+                "SELECT * FROM sessions WHERE token = ?", (token_hash,)
             ).fetchone()
             return dict(row) if row else None
 
-    def delete_session(self, token: str) -> None:
+    def delete_session(self, token_hash: str) -> None:
         with self.connect() as connection:
-            connection.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            connection.execute("DELETE FROM sessions WHERE token = ?", (token_hash,))
 
     # -- files -------------------------------------------------------------
     def insert_file(self, record: dict[str, Any]) -> None:

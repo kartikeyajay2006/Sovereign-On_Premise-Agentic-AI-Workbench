@@ -62,6 +62,17 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(derived.hex(), digest_hex)
 
 
+def hash_session_token(token: str) -> str:
+    """Return the database lookup value for an opaque bearer token.
+
+    This is intentionally a fast hash rather than password hashing: the token
+    has 256 bits of entropy and must be looked up for every request. A database
+    copy cannot be replayed as an Authorization header, which is the property
+    we need here.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 class IdentityService:
     """User store plus session issuance, backed by config-declared roles."""
 
@@ -216,7 +227,9 @@ class IdentityService:
         issued_at = datetime.now(timezone.utc)
         expires_at = issued_at + timedelta(minutes=ttl_minutes)
         token = secrets.token_urlsafe(32)
-        self.db.create_session(token, record["id"], issued_at.isoformat(), expires_at.isoformat())
+        self.db.create_session(
+            hash_session_token(token), record["id"], issued_at.isoformat(), expires_at.isoformat()
+        )
         user = self._to_user(record)
         self.audit.record(
             category="security",
@@ -228,12 +241,13 @@ class IdentityService:
         return Session(token=token, user=user, issued_at=issued_at, expires_at=expires_at)
 
     def resolve_session(self, token: str) -> User:
-        record = self.db.get_session(token)
+        token_hash = hash_session_token(token)
+        record = self.db.get_session(token_hash)
         if record is None:
             raise AuthenticationError("Session not found")
         expires_at = datetime.fromisoformat(record["expires_at"])
         if expires_at < datetime.now(timezone.utc):
-            self.db.delete_session(token)
+            self.db.delete_session(token_hash)
             raise AuthenticationError("Session expired")
         user_record = self.db.get_user(record["user_id"])
         if user_record is None or not bool(user_record["active"]):
@@ -241,7 +255,7 @@ class IdentityService:
         return self._to_user(user_record)
 
     def logout(self, token: str, user: User | None = None) -> None:
-        self.db.delete_session(token)
+        self.db.delete_session(hash_session_token(token))
         if user is not None:
             self.audit.record(
                 category="security",

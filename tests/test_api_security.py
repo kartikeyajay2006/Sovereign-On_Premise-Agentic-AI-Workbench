@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
+from backend.core.config import get_config
 from backend.core.identity import get_identity_service
 
 
@@ -42,7 +43,8 @@ class TestBrowserSessionBoundary:
             assert "workbench_session=\"\"" in logout.headers.get("set-cookie", "")
             assert client.get("/api/auth/me").status_code == 401
 
-    def test_registration_creates_a_least_privileged_operator_session(self) -> None:
+    def test_registration_creates_a_least_privileged_operator_session(self, monkeypatch) -> None:
+        monkeypatch.setitem(get_config().settings.security, "self_registration_enabled", True)
         with TestClient(create_app()) as client:
             response = client.post(
                 "/api/auth/register",
@@ -67,7 +69,8 @@ class TestBrowserSessionBoundary:
             )
             assert duplicate.status_code == 400
 
-    def test_registration_supports_email_usernames(self) -> None:
+    def test_registration_supports_email_usernames(self, monkeypatch) -> None:
+        monkeypatch.setitem(get_config().settings.security, "self_registration_enabled", True)
         with TestClient(create_app()) as client:
             response = client.post(
                 "/api/auth/register",
@@ -82,6 +85,32 @@ class TestBrowserSessionBoundary:
             assert response.json()["user"]["display_name"] == "Kartikeya Yadav"
             assert response.json()["user"]["role"] == "operator"
             assert client.get("/api/auth/me").status_code == 200
+
+    def test_registration_is_disabled_in_the_default_build(self) -> None:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/api/auth/register",
+                json={
+                    "username": "unprovisioned_user",
+                    "display_name": "Unprovisioned User",
+                    "password": "local-passphrase",
+                },
+            )
+        assert response.status_code == 400
+        assert "disabled" in response.json()["detail"]
+
+    def test_session_database_record_is_not_a_bearer_token(self) -> None:
+        identity = get_identity_service()
+        identity.ensure_seed_users()
+        session = identity.authenticate("operator", "workbench")
+        with identity.db.connect() as connection:
+            row = connection.execute(
+                "SELECT token FROM sessions WHERE user_id = ? ORDER BY issued_at DESC LIMIT 1",
+                (session.user.id,),
+            ).fetchone()
+        assert row is not None
+        assert row["token"] != session.token
+        assert len(row["token"]) == 64
 
 
 class TestDeliverableDownload:
