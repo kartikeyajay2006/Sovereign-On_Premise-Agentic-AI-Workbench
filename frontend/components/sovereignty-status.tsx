@@ -83,7 +83,7 @@ const TONE_TEXT: Record<Exclude<Tone, undefined>, string> = {
   approval: 'text-approval-text',
 }
 
-export function SovereigntyStatus({ compact }: { compact?: boolean }) {
+export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: boolean; placement?: 'below' | 'above' }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<string | null>(null)
   const [posture, setPosture] = useState<Posture>({
@@ -260,7 +260,10 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
         <div
           role="dialog"
           aria-label="Egress posture"
-          className="absolute right-0 top-[calc(100%+8px)] z-[var(--z-menu)] w-72 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in slide-in-from-top-1 duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none"
+          className={cn(
+            'absolute z-[var(--z-menu)] w-72 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none',
+            placement === 'above' ? 'bottom-[calc(100%+8px)] left-0 slide-in-from-bottom-1' : 'right-0 top-[calc(100%+8px)] slide-in-from-top-1',
+          )}
         >
           <div className="flex items-center justify-between gap-3 border-b border-line-subtle px-4 py-3">
             <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">

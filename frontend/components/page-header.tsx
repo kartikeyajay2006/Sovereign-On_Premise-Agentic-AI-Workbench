@@ -166,9 +166,9 @@ export function PageHeader({
   return (
     <header className={cn('border-b', dark ? 'border-ink-border bg-ink' : 'border-line-default')}>
       {contained ? (
-        <div className="mx-auto w-full max-w-[1400px] px-4 pb-4 pt-2 sm:px-6 sm:pt-4">{body}</div>
+        <div className="mx-auto w-full max-w-[1400px] px-4 pb-4 pt-2 sm:px-6 sm:pt-4 lg:pb-5 lg:pt-8">{body}</div>
       ) : (
-        <div className="pb-4 pt-2 sm:pt-4">{body}</div>
+        <div className="pb-4 pt-2 sm:pt-4 lg:pb-5 lg:pt-8">{body}</div>
       )}
     </header>
   )

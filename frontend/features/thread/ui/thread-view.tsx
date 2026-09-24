@@ -19,7 +19,7 @@ import { useEventStream } from '@/hooks/use-event-stream'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
 import { NEW_RUN_EVENT } from '@/components/command-palette'
-import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
+import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT, type RunsChangedDetail } from '@/components/navigation'
 import { TraceScope } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { harnessApi } from '@/features/harness/api'
@@ -27,7 +27,6 @@ import { Composer, type ComposerAttachment } from './composer'
 import type { HarnessEntry } from './slash-menu'
 import { UserTurn } from './user-turn'
 import { AssistantTurn } from './assistant-turn'
-import { SessionRail } from './session-rail'
 import { StarterPrompts, starterAttachment, type StarterTemplate } from './starter-prompts'
 import { selectableModels } from './model-menu'
 import type {
@@ -1066,6 +1065,13 @@ export function ThreadView() {
     return () => window.removeEventListener(NEW_RUN_EVENT, newRun)
   }, [newRun])
 
+  // The sidebar lists the runs. It re-reads them when one starts or settles
+  // here, and marks the one this tab is following live.
+  const followingId = busy ? activeTaskId : null
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<RunsChangedDetail>(RUNS_CHANGED_EVENT, { detail: { running: followingId } }))
+  }, [runsVersion, followingId])
+
   /**
    * ?run=<id> opens that run.
    *
@@ -1121,13 +1127,6 @@ export function ThreadView() {
       neither one narrows the other.
     */
     <div className="flex w-full items-stretch">
-      <SessionRail
-        activeTaskId={openedTaskId}
-        runningTaskId={busy ? activeTaskId : null}
-        onOpen={openRun}
-        onNew={newRun}
-        refreshKey={runsVersion}
-      />
       {/*
         TRACE: a citation in an answer and its row in the rail light together
         under the pointer, and a click lands on the row. The rail belongs to

@@ -2783,3 +2783,20 @@ html[data-theme='dark'],
   .ae-night { background: #08080a; }
   .ae-night::after { background: radial-gradient(70% 45% at 50% 110%, rgba(150, 175, 255, 0.12), transparent 70%); }
 }
+
+/* ==================================================================== */
+/* THE SHELL — a sidebar                                                 */
+/* From 1024px the workbench's places, its runs and the account sit in a */
+/* fixed sidebar and nothing is fixed across the top, so the top inset   */
+/* is 0; below that a 56px bar holds the menu, and the inset is that.    */
+/* ==================================================================== */
+:root { --sidebar-w: 252px; }
+.app-frame { --shell-top: 56px; }
+@media (min-width: 1024px) {
+  .app-frame { --shell-top: 0px; }
+}
+/* The sidebar's lists scroll with a hairline, not the platform's full bar. */
+.app-frame aside ::-webkit-scrollbar, [aria-label='Workbench'] ::-webkit-scrollbar { width: 6px; }
+.app-frame aside ::-webkit-scrollbar-thumb, [aria-label='Workbench'] ::-webkit-scrollbar-thumb { border-radius: 6px; background: color-mix(in oklab, var(--foreground) 14%, transparent); }
+.app-frame aside ::-webkit-scrollbar-track, [aria-label='Workbench'] ::-webkit-scrollbar-track { background: transparent; }
+.app-frame aside ::-webkit-scrollbar-button, [aria-label='Workbench'] ::-webkit-scrollbar-button { display: none; }

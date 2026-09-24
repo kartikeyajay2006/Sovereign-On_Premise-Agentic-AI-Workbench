@@ -6,14 +6,14 @@ import { Wordmark } from './wordmark'
 /**
  * The page's last band: the closing line, the links, and the name set large.
  *
- * Night whatever the page's theme, so the page ends on the ground it opened
- * on. Not SiteFooter, which calls an authenticated health endpoint and would
- * print "service unreachable" for every anonymous visitor: this one states
- * build-time facts only.
+ * On the page's one ground, with a faint light from above. Not SiteFooter,
+ * which calls an authenticated health endpoint and would print "service
+ * unreachable" for every anonymous visitor: this one states build-time facts
+ * only.
  */
 export function LandingFooter() {
   return (
-    <footer data-theme="dark" data-band className="lp-night lp-footer">
+    <footer className="lp-footer">
       <div className="lp-shell">
         <div className="lp-footer-cta">
           <p className="lp-kicker">{FOOTER.cta.eyebrow}</p>

@@ -88,7 +88,7 @@ export function ProductGallery({ slides, variant }: { slides: GallerySlide[]; va
         <p className="b">{current.body}</p>
       </div>
 
-      <div className="lp-stage">
+      <div className="lp-stage-frame">
         {slides.map((slide, i) => (
           <div key={slide.id} id={`gallery-${slide.id}`} role="tabpanel" aria-hidden={i !== index} className={cn('lp-slide', i === index && 'on')}>
             <Image
