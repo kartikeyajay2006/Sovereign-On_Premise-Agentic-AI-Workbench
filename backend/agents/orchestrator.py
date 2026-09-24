@@ -1527,7 +1527,8 @@ class AgentOrchestrator:
         of that prompt serves greetings and questions alike.
         """
         try:
-            await self._stage(task, TaskStatus.EXECUTING, "Replying", phase="drafting")
+            # "reasoning" is the phase every client maps to the answer's row.
+            await self._stage(task, TaskStatus.EXECUTING, "Replying", phase="reasoning")
             text, _ = await self._generate(
                 task,
                 user,

@@ -80,6 +80,7 @@ async def create_task(
             payload.file_ids,
             payload.deliverable_format,
             preferred_model=payload.preferred_model,
+            skill_id=payload.skill_id,
         )
     except TaskError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

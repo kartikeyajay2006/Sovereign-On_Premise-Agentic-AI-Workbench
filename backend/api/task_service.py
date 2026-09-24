@@ -22,6 +22,7 @@ from backend.core.config import get_config
 from backend.core.database import get_database
 from backend.core.events import get_event_bus
 from backend.core.schemas import (
+    SkillInvocation,
     ApprovalRecord,
     InputType,
     PolicyDecision,
@@ -285,7 +286,28 @@ class TaskService:
         file_ids: list[str],
         deliverable_format: str | None = None,
         preferred_model: str | None = None,
+        skill_id: str | None = None,
     ) -> Task:
+        # A skill turns what was typed into the request. Everything below
+        # then sees only that request, so a skill meets every gate a typed
+        # request does and can change nothing but the words.
+        skill: SkillInvocation | None = None
+        if skill_id:
+            from backend.skills.registry import get_skill_registry
+
+            found = get_skill_registry().get(skill_id)
+            if found is None:
+                raise TaskError(f"No skill named /{skill_id}.")
+            skill = SkillInvocation(
+                id=found.id,
+                name=found.name,
+                sha256=found.sha256,
+                source=found.source.value,
+                input=prompt,
+            )
+            prompt = found.render(prompt)
+            if deliverable_format is None:
+                deliverable_format = found.deliverable_format
         # Stored as asked, even when it names nothing installed. Whether it
         # can be honoured is decided per stage by the router, which records
         # the answer on each routing decision; refusing the task here would
@@ -315,6 +337,7 @@ class TaskService:
             files=files,
             profile=profile,
             preferred_model=preferred_model,
+            skill=skill,
         )
 
         required, reasons, approvers = self.gateway.approval_requirement(
@@ -339,6 +362,8 @@ class TaskService:
                 "input_hashes": [stored.sha256 for stored in files],
                 "filenames": [stored.filename for stored in files],
                 "preferred_model": preferred_model,
+                "skill": skill.id if skill else None,
+                "skill_sha256": skill.sha256 if skill else None,
             },
         )
         self.audit.record(

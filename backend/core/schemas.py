@@ -376,6 +376,19 @@ class TaskCreateRequest(BaseModel):
     # it per stage only where the model is eligible under the same policy,
     # and records why wherever it is not.
     preferred_model: str | None = Field(default=None, max_length=128)
+    # A skill to run: `prompt` is then what was typed after it, and the
+    # skill's template turns it into the request (backend/skills/registry.py).
+    skill_id: str | None = Field(default=None, max_length=32)
+
+
+class SkillInvocation(BaseModel):
+    """Which skill produced a task's request, at which hash, from what input."""
+
+    id: str
+    name: str
+    sha256: str
+    source: str
+    input: str
 
 
 class PolicyEvent(BaseModel):
@@ -404,6 +417,9 @@ class Task(BaseModel):
     profile: TaskProfile | None = None
     plan: AgentPlan | None = None
     preferred_model: str | None = None
+    # Set when the request came from a skill: the prompt above is the skill's
+    # rendering, and this is what the person typed and which skill made it.
+    skill: SkillInvocation | None = None
     routing: list[RoutingDecision] = Field(default_factory=list)
     # One record per model call, in the order they ran. Persisted with the
     # task, so a run reopened later reports what it cost rather than only
