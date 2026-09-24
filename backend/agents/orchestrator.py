@@ -1440,6 +1440,7 @@ class AgentOrchestrator:
                         detail=f"This check could not be completed: {exc}",
                     )
                 )
+            checks.append(self.verifier.check_citations(answer_text, evidence))
             checks.append(self.verifier.check_page_citations(answer_text, evidence))
 
             checked_calculations: list[dict[str, Any]] = []

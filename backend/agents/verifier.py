@@ -43,6 +43,13 @@ LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 # from a scanned drawing counted as uncited and failed verification on evidence
 # it had in fact used.
 CITATION_PATTERN = re.compile(r"\[(?:[SFVCE])\d+\]")
+# Anything the answer presents as a citation: a bracketed id of capitals and
+# digits, with dotted parts -- "[S1]", and also "[V2.1]", which the small model
+# writes when it borrows a clause number for an evidence id. Wider than
+# CITATION_PATTERN on purpose. That pattern says what a well-formed citation
+# looks like; this one finds everything a reader would take for one, so a
+# marker that points at nothing cannot pass as a citation by being malformed.
+CITATION_LIKE_PATTERN = re.compile(r"\[([A-Z]{1,3}\d+(?:\.\d+)*)\]")
 PAGE_CITATION_PATTERN = re.compile(r"\[((?:F|V)\d+)\]")
 PAGE_MENTION_PATTERN = re.compile(r"\bpages?\s+(\d+)\b", re.IGNORECASE)
 NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
@@ -262,6 +269,51 @@ class VerificationEngine:
             ),
             evidence_ids=sorted(used_ids),
             warnings=unsupported[:5],
+        )
+
+    def check_citations(self, text: str, evidence: list[EvidenceItem]) -> VerificationCheck:
+        """Every citation the answer shows must name evidence this run recorded.
+
+        Observed on a live run: asked when a Fitness-For-Service assessment is
+        raised, the model cited "[V2.1]" and "[V7.3]" -- clause numbers worn as
+        evidence ids, pointing at nothing the run retrieved. Source
+        verification did not see them as citations at all, found words from
+        each claim in another passage, and the run was delivered with every
+        check passed and two citations a reader could not follow. Whether a
+        claim is corroborated is source verification's question; whether each
+        citation leads anywhere is this one's.
+        """
+        markers = CITATION_LIKE_PATTERN.findall(text or "")
+        if not markers:
+            return VerificationCheck(
+                name="citation_verification",
+                kind="source",
+                passed=True,
+                detail="The answer carries no citations to resolve.",
+            )
+        known = {item.id for item in evidence}
+        # In the order the answer first uses them.
+        seen = list(dict.fromkeys(markers))
+        unresolved = [marker for marker in seen if marker not in known]
+        if unresolved:
+            listed = ", ".join(f"[{marker}]" for marker in unresolved[:5])
+            return VerificationCheck(
+                name="citation_verification",
+                kind="source",
+                passed=False,
+                detail=(
+                    f"{len(unresolved)} of {len(seen)} cited id(s) name no evidence this run "
+                    f"recorded: {listed}. A reader following them finds nothing."
+                ),
+                evidence_ids=[marker for marker in seen if marker in known],
+                warnings=[f"[{marker}] is not an evidence id of this run" for marker in unresolved[:5]],
+            )
+        return VerificationCheck(
+            name="citation_verification",
+            kind="source",
+            passed=True,
+            detail=f"All {len(seen)} cited id(s) name evidence this run recorded.",
+            evidence_ids=seen,
         )
 
     def check_page_citations(self, text: str, evidence: list[EvidenceItem]) -> VerificationCheck:
