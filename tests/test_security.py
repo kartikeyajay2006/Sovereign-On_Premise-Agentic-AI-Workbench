@@ -196,6 +196,15 @@ class TestSandboxContainment:
         assert second.ok
         assert "False" in second.stdout, "a run must not see another run's files"
 
+    def test_host_file_reads_are_refused_at_runtime(self, sandbox: Sandbox) -> None:
+        # This reaches the interpreter guard: `open` is intentionally allowed
+        # for task inputs in the workspace, so static validation alone cannot
+        # be the control that protects host-resident sessions and audit data.
+        result = sandbox.execute("open('/etc/hosts', 'r').read()\nprint('READ')")
+        assert not result.ok
+        assert "READ" not in result.stdout
+        assert "SovereignFilesystemBlocked" in result.stderr
+
 
 # ------------------------------------------------------------- policy gateway
 class TestPolicyGateway:

@@ -584,10 +584,24 @@ import builtins as _builtins
 import io as _io
 import os
 import socket
+import sys
 
 _ATTEMPT_LOG = os.environ.get("SOVEREIGN_NETWORK_ATTEMPT_LOG", "network_attempts.log")
 _WORKSPACE = os.path.realpath(os.getcwd())
 _REAL_OPEN = _builtins.open
+# The interpreter and approved packages need to read their own installation
+# after this guard loads (for example, numpy imports native modules lazily).
+# They are the only host paths a sandboxed program may read. Task inputs are
+# copied into the workspace before the interpreter starts.
+_READABLE_ROOTS = tuple(
+    sorted(
+        {
+            os.path.realpath(value)
+            for value in (sys.base_prefix, sys.prefix, sys.exec_prefix, sys.base_exec_prefix)
+            if value
+        }
+    )
+)
 
 
 def _record(target):
@@ -649,6 +663,16 @@ def _within_workspace(path):
     return resolved == _WORKSPACE or resolved.startswith(_WORKSPACE + os.sep)
 
 
+def _within_read_scope(path):
+    try:
+        resolved = os.path.realpath(path)
+    except Exception:
+        return False
+    if _within_workspace(resolved):
+        return True
+    return any(resolved == root or resolved.startswith(root + os.sep) for root in _READABLE_ROOTS)
+
+
 def _path_text(path):
     try:
         candidate = os.fspath(path)
@@ -659,10 +683,11 @@ def _path_text(path):
     return candidate if isinstance(candidate, str) else None
 
 
-def _refuse_write(path):
-    _record("fs_write:" + str(path))
+def _refuse_filesystem(path, operation):
+    _record("fs_" + operation + ":" + str(path))
     raise SovereignFilesystemBlocked(
-        "Writing outside the sandbox workspace is disabled: " + str(path)
+        ("Writing" if operation == "write" else "Reading")
+        + " outside the sandbox workspace is disabled"
     )
 
 
@@ -671,10 +696,13 @@ def _guarded_open(file, mode="r", *args, **kwargs):
     # audit log lives two directories above the workspace, and os/pathlib are
     # allow-listed, so unguarded `open('../../logs/audit.jsonl', 'w')` would let
     # generated code rewrite the very record that is meant to prove it ran.
-    if not isinstance(file, int) and any(c in mode for c in ("w", "a", "x", "+")):
+    if not isinstance(file, int):
         text = _path_text(file)
-        if text is not None and not _within_workspace(text):
-            _refuse_write(text)
+        if text is not None:
+            if any(c in mode for c in ("w", "a", "x", "+")) and not _within_workspace(text):
+                _refuse_filesystem(text, "write")
+            if not any(c in mode for c in ("w", "a", "x", "+")) and not _within_read_scope(text):
+                _refuse_filesystem(text, "read")
     return _REAL_OPEN(file, mode, *args, **kwargs)
 
 
@@ -685,10 +713,13 @@ _REAL_OS_OPEN = os.open
 
 
 def _guarded_os_open(path, flags, *args, **kwargs):
-    if flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_TRUNC):
-        text = _path_text(path)
-        if text is not None and not _within_workspace(text):
-            _refuse_write(text)
+    text = _path_text(path)
+    if text is not None:
+        writes = flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_TRUNC)
+        if writes and not _within_workspace(text):
+            _refuse_filesystem(text, "write")
+        if not writes and not _within_read_scope(text):
+            _refuse_filesystem(text, "read")
     return _REAL_OS_OPEN(path, flags, *args, **kwargs)
 
 
@@ -703,7 +734,7 @@ def _guard_unary(name):
     def _wrapped(path, *args, **kwargs):
         text = _path_text(path)
         if text is not None and not _within_workspace(text):
-            _refuse_write(text)
+            _refuse_filesystem(text, "write")
         return original(path, *args, **kwargs)
 
     setattr(os, name, _wrapped)
@@ -718,7 +749,7 @@ def _guard_rename(name):
         for candidate in (src, dst):
             text = _path_text(candidate)
             if text is not None and not _within_workspace(text):
-                _refuse_write(text)
+                _refuse_filesystem(text, "write")
         return original(src, dst, *args, **kwargs)
 
     setattr(os, name, _wrapped)
