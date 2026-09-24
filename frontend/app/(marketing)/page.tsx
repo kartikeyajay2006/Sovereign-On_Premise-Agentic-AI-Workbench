@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ArrowUpRight } from 'lucide-react'
 import { atomAt, parseLexemes } from '@/components/landing/audit-hash'
 import { ChainAppend } from '@/components/landing/chain-append'
 import { ChainCard } from '@/components/landing/chain-card'
@@ -6,6 +7,7 @@ import { CitationInspector, type InspectorSource } from '@/components/landing/ci
 import { CommandBlock } from '@/components/landing/command-block'
 import { ANSWER, CHAIN, HERO, LIMITS, PROOF, RUN_IT } from '@/components/landing/copy'
 import { DisplayHeading } from '@/components/landing/display-heading'
+import { DotField } from '@/components/landing/dot-field'
 import { EvidenceUnit } from '@/components/landing/evidence-unit'
 import { HashChain } from '@/components/landing/hash-chain'
 import { LandingButton } from '@/components/landing/landing-button'
@@ -187,10 +189,12 @@ const sealed =
 // carry is dropped, never drawn as a placeholder.
 const selfTest = run.sandbox_self_test?.detail ?? null
 const stats: Stat[] = [
-  run.timeline.total_ms !== null
+  // The task's own duration, the figure the replay and the answer card
+  // print, so the page gives one number for one run.
+  (run.duration_ms ?? run.timeline.total_ms) !== null
     ? {
         label: 'One question, end to end',
-        value: (run.timeline.total_ms / 1000).toFixed(1),
+        value: ((run.duration_ms ?? run.timeline.total_ms ?? 0) / 1000).toFixed(1),
         suffix: 's',
         sub: modelLabel ? `${modelLabel} on a laptop CPU` : 'on a laptop CPU',
       }
@@ -369,8 +373,15 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Hero                                                              */}
       {/* ---------------------------------------------------------------- */}
-      <section aria-labelledby="hero-title" className="relative overflow-hidden">
-        <div className="ae-shell pb-12 pt-14 text-center md:pb-16 md:pt-24">
+      <section aria-labelledby="hero-title" className="ae-hero">
+        {/*
+          The band takes the dark palette whatever the page's theme, and runs
+          up under the header, which goes clear while it sits over it.
+        */}
+        <div id="hero-band" data-theme="dark" data-dot-field-host className="ae-hero-band">
+          <DotField className="ae-hero-dots" />
+          <div aria-hidden className="ae-hero-glow" />
+          <div className="ae-shell pb-12 pt-16 text-center md:pb-16 md:pt-28">
           <a href={HERO.announce.href} className="ae-announce ae-load-1">
             <span className="tag">{HERO.announce.tag}</span>
             {HERO.announce.text}
@@ -397,12 +408,21 @@ export default function LandingPage() {
             </LandingButton>
             <LandingButton href={HERO.secondary.href} variant="outline" rel="noreferrer" target="_blank" blockOnMobile>
               {HERO.secondary.label}
+              <ArrowUpRight className="size-4 opacity-70" aria-hidden />
             </LandingButton>
           </div>
+          <ul className="ae-hero-proof ae-load-3" aria-label="What the design guarantees">
+            {HERO.proof.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          </div>
+          <div aria-hidden className="ae-hero-horizon" />
         </div>
 
-        <div className="ae-shell ae-load-4 pb-10">
-          <div className="ae-frame">
+        <div className="ae-shell ae-hero-stage ae-load-4 pb-10">
+          {/* The replay is drawn in the dark palette too: a terminal on the paper. */}
+          <div data-theme="dark" className="ae-frame">
             <RunReplay
               runId={runId}
               prompt={run.prompt}
@@ -441,6 +461,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id="product"
+        texture="grid"
         eyebrow="Product"
         title="One workbench."
         titleTurn="Every step on the record."
@@ -515,7 +536,14 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Security: check it yourself                                       */}
       {/* ---------------------------------------------------------------- */}
-      <SectionShell id={PROOF.id} eyebrow={PROOF.eyebrow} title={PROOF.title} titleTurn={PROOF.titleTurn} lede={PROOF.lede}>
+      <SectionShell
+        id={PROOF.id}
+        tone="night"
+        eyebrow={PROOF.eyebrow}
+        title={PROOF.title}
+        titleTurn={PROOF.titleTurn}
+        lede={PROOF.lede}
+      >
         {/*
           Every cell is min-w-0: a grid item's default min-width is its
           min-content width, which for the policy block is its longest
@@ -649,30 +677,6 @@ export default function LandingPage() {
         </Reveal>
       </SectionShell>
 
-      {/* ---------------------------------------------------------------- */}
-      {/* Closing                                                           */}
-      {/* ---------------------------------------------------------------- */}
-      <section aria-labelledby="closing-title" className="ae-shell pb-24 pt-4">
-        <div className="ae-painted rounded-[28px] px-6 py-16 text-center sm:px-12 md:py-24">
-          <h2 id="closing-title" className="ae-h2 mx-auto max-w-[18ch]">
-            Local is not enough. <span className="soft">So prove the rest.</span>
-          </h2>
-          <p className="ae-lead mx-auto mt-5 max-w-[52ch]">
-            Put a workbench on your own hardware whose every answer shows its sources, its checks and its record.
-          </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <LandingButton href={HERO.primary.href} variant="primary">
-              {HERO.primary.label}
-              <span className="ar" aria-hidden>
-                →
-              </span>
-            </LandingButton>
-            <LandingButton href={HERO.secondary.href} variant="outline" rel="noreferrer" target="_blank">
-              {HERO.secondary.label}
-            </LandingButton>
-          </div>
-        </div>
-      </section>
     </>
   )
 }

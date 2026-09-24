@@ -19,8 +19,14 @@ export interface SectionShellProps {
   titleTurn?: ReactNode
   /** Optional single paragraph under the heading. */
   lede?: ReactNode
-  /** A faintly tinted band, for a section that holds a working surface. */
-  tone?: 'paper' | 'surface'
+  /**
+   * The ground. `surface` is a faintly tinted band for a working surface;
+   * `night` takes the dark palette whatever the page's theme, on a dot
+   * lattice, for the section the page most wants read closely.
+   */
+  tone?: 'paper' | 'surface' | 'night'
+  /** A faint drafting grid behind the content, fading out at its edges. */
+  texture?: 'grid'
   /** How much air the block gets, chosen by how much it carries. */
   density?: 'tight' | 'default' | 'full'
   children: ReactNode
@@ -46,6 +52,7 @@ export function SectionShell({
   titleTurn,
   lede,
   tone = 'paper',
+  texture,
   density = 'default',
   children,
   className,
@@ -57,9 +64,12 @@ export function SectionShell({
       id={id}
       aria-labelledby={headingId}
       // scroll-mt clears the sticky header when an anchor is followed.
+      data-theme={tone === 'night' ? 'dark' : undefined}
       className={cn(
         'scroll-mt-16',
         tone === 'surface' && 'bg-[color-mix(in_oklab,var(--foreground)_2.5%,var(--background))]',
+        tone === 'night' && 'ae-night',
+        texture === 'grid' && 'ae-gridded',
         className,
       )}
     >

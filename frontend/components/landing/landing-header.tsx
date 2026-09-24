@@ -18,13 +18,41 @@ const NAV = [
  *
  * It sits on a near-opaque ground rather than a backdrop blur -- a blurred
  * sticky bar repaints on every scroll frame -- and grows a hairline only
- * once the page has moved.
+ * once the page has moved. While it is over the hero's dark band it has no
+ * ground at all and takes the dark palette, so the band runs to the top of
+ * the window; an observer on the band, not a scroll listener, says when.
  */
 export function LandingHeader() {
   // `authenticated` is false on the server render and during the initial
   // load, so the default labels are the ones a cold visitor needs.
   const { authenticated } = useRole()
   const [scrolled, setScrolled] = useState(false)
+  // True on first paint: the page opens on the band.
+  const [overBand, setOverBand] = useState(true)
+
+  useEffect(() => {
+    const band = document.getElementById('hero-band')
+    if (!band || typeof IntersectionObserver === 'undefined') {
+      setOverBand(false)
+      return
+    }
+    let io: IntersectionObserver | null = null
+    const watch = () => {
+      io?.disconnect()
+      // The observed strip is the header's own 64px at the top of the window.
+      const bottom = Math.max(0, window.innerHeight - 64)
+      io = new IntersectionObserver(([entry]) => setOverBand(entry.isIntersecting), {
+        rootMargin: `0px 0px -${bottom}px 0px`,
+      })
+      io.observe(band)
+    }
+    watch()
+    window.addEventListener('resize', watch)
+    return () => {
+      io?.disconnect()
+      window.removeEventListener('resize', watch)
+    }
+  }, [])
 
   useEffect(() => {
     let frame = 0
@@ -44,7 +72,10 @@ export function LandingHeader() {
   }, [])
 
   return (
-    <header className={`ae-header${scrolled ? ' scrolled' : ''}`}>
+    <header
+      data-theme={overBand ? 'dark' : undefined}
+      className={`ae-header${scrolled ? ' scrolled' : ''}${overBand ? ' over-band' : ''}`}
+    >
       <div className="ae-shell row">
         <Link
           href="/"
