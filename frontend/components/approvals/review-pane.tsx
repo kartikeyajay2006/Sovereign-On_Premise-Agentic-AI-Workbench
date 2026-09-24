@@ -25,7 +25,7 @@ function Section({ title, meta, children }: { title: string; meta?: ReactNode; c
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3 border-b border-line-subtle pb-2">
         <h3 className={LEDGER_MUTED}>{title}</h3>
-        {meta && <span className="tabular font-mono text-ledger text-foreground-muted">{meta}</span>}
+        {meta && <span className="tabular text-[12px] text-foreground-muted">{meta}</span>}
       </div>
       {children}
     </section>
@@ -154,16 +154,16 @@ function HeldBecause({ task }: { task: Task }) {
       title="Held because"
       meta={approval.approver_roles.length > 0 ? `decided by ${approval.approver_roles.join(' or ')}` : undefined}
     >
-      {/* The reason in words first; the rule's name, which is what the
-          policy file and the audit record call it, under it for whoever
-          needs to find it there. */}
+      {/* The reason in words. The rule's name -- what the policy file and
+          the audit record call it -- is in its title, for whoever needs to
+          find it there, rather than a second line under every reason. */}
       <ul className="flex flex-col gap-2.5">
         {approval.reasons.map((reason) => {
           const { rule, text } = splitReason(reason)
           return (
-            <li key={reason} className="flex flex-col gap-0.5">
-              <span className="text-body text-foreground">{text}</span>
-              {rule && <span className="font-mono text-ledger text-foreground-muted">{rule}</span>}
+            <li key={reason} className="flex gap-2.5 text-body text-foreground">
+              <span aria-hidden className="mt-[9px] size-1 shrink-0 rounded-full bg-approval" />
+              <span title={rule ? `Policy rule: ${rule}` : undefined}>{text}</span>
             </li>
           )
         })}
@@ -445,7 +445,7 @@ export function ReviewPane({
             </span>
             <ClassificationTag level={item.sensitivity ?? 'unclassified'} />
             <span className="min-w-0 max-w-full truncate font-mono text-ledger text-foreground-muted" title={item.id}>
-              {item.id}
+              #{item.id.slice(0, 8)}
             </span>
           </div>
 
@@ -483,8 +483,8 @@ export function ReviewPane({
         <h2 id={headingId} className="mt-2 line-clamp-3 text-heading font-medium tracking-[var(--ls-heading)] text-foreground">
           {item.prompt}
         </h2>
-        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-ledger text-foreground-muted">
-          <span>{item.submittedBy ? `submitted by ${item.submittedBy}` : 'submitter not recorded'}</span>
+        <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-foreground-muted">
+          <span>{item.submittedBy ? `Submitted by ${item.submittedBy}` : 'Submitter not recorded'}</span>
           <span>{stamp(item.createdAt)}</span>
           {task?.duration_ms != null && <span>ran {(task.duration_ms / 1000).toFixed(1)} s</span>}
           {task?.profile?.task_type && <span>{task.profile.task_type.replace(/_/g, ' ')}</span>}

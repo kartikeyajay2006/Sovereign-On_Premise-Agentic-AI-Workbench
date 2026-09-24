@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 
 export interface SceneStep {
   key: string
@@ -39,8 +39,12 @@ export interface SceneData {
 const seg = (p: number, a: number, b: number) => Math.min(1, Math.max(0, (p - a) / (b - a)))
 const ease = (t: number) => 1 - Math.pow(1 - t, 3)
 
-/** How far the scene runs: the hero, then the five steps, then a beat to rest on. */
-const LENGTH = 6.4
+/**
+ * How far the scene runs, in steps: the hero, the five steps, and a short
+ * beat on the sealed run. Each step's motion finishes in the first two
+ * thirds of its stretch, so the rest of it is for reading.
+ */
+const LENGTH = 6
 
 /**
  * The page's one scene: the recorded run, played in the workbench as the
@@ -82,28 +86,35 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
         hero: seg(p, 0.05, 0.55),
         dock: ease(seg(p, 0.08, 1)),
         stepsIn: seg(p, 0.85, 1.05),
-        type: seg(p, 1.05, 1.55),
-        sent: seg(p, 1.62, 1.72),
-        l1: seg(p, 1.8, 1.95),
-        l2: seg(p, 2.05, 2.2),
-        fan: seg(p, 2.2, 2.85),
-        l3: seg(p, 3.05, 3.2),
-        stream: seg(p, 3.2, 3.8),
-        cull: seg(p, 3.8, 3.95),
-        l4: seg(p, 4.05, 4.2),
-        checks: seg(p, 4.2, 4.5),
-        sheet: ease(seg(p, 4.45, 4.75)),
-        mark: seg(p, 4.72, 4.88),
-        pen: seg(p, 4.86, 5.02),
-        chain: seg(p, 5.08, 5.6),
-        seal: seg(p, 5.62, 5.82),
-        prog: seg(p, 1, 6),
+        type: seg(p, 1.05, 1.42),
+        sent: seg(p, 1.46, 1.54),
+        l1: seg(p, 1.58, 1.7),
+        l2: seg(p, 2.05, 2.16),
+        fan: seg(p, 2.12, 2.6),
+        // The passages it will not cite step back before the answer is written.
+        cull: seg(p, 3.02, 3.12),
+        l3: seg(p, 3.05, 3.14),
+        stream: seg(p, 3.14, 3.6),
+        l4: seg(p, 4.05, 4.14),
+        checks: seg(p, 4.12, 4.34),
+        sheet: ease(seg(p, 4.3, 4.52)),
+        mark: seg(p, 4.5, 4.62),
+        pen: seg(p, 4.6, 4.74),
+        chain: seg(p, 5.05, 5.42),
+        seal: seg(p, 5.44, 5.6),
+        // The rail fills to each step's dot as that step begins.
+        prog: seg(p, 1, 5),
       }
       for (const [k, value] of Object.entries(v)) el.style.setProperty(`--${k}`, value.toFixed(4))
       const step = p < 1 ? 0 : Math.min(5, Math.floor(p))
       if (step !== lastStep) {
         lastStep = step
         el.dataset.step = String(step)
+        el.querySelectorAll<HTMLElement>('.rail .dot').forEach((dot, i) => {
+          dot.dataset.state = i + 1 < step ? 'done' : i + 1 === step ? 'on' : 'todo'
+          if (i + 1 === step) dot.setAttribute('aria-current', 'step')
+          else dot.removeAttribute('aria-current')
+        })
       }
     }
     const onScroll = () => {
@@ -145,6 +156,15 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
       window.removeEventListener('resize', onResize)
       wide.removeEventListener('change', onMode)
     }
+  }, [])
+
+  // A dot on the rail takes the reader to the start of its step.
+  const go = useCallback((n: number) => {
+    const section = root.current
+    if (!section) return
+    const top = section.getBoundingClientRect().top + window.scrollY
+    const travel = section.offsetHeight - window.innerHeight
+    window.scrollTo({ top: top + (travel * (n + 0.06)) / LENGTH, behavior: 'smooth' })
   }, [])
 
   const question = `${data.skill ? `/${data.skill.id} ` : ''}${data.input}`
@@ -239,19 +259,19 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
                     </div>
                     <div className="log">
                       {data.classify ? (
-                        <p className="ln" style={{ ['--k' as string]: 'var(--l1)' }}>
+                        <p className="ln c1" style={{ ['--k' as string]: 'var(--l1)' }}>
                           <b /> Classified the request <span>· {data.classify}</span>
                         </p>
                       ) : null}
-                      <p className="ln" style={{ ['--k' as string]: 'var(--l2)' }}>
+                      <p className="ln c2" style={{ ['--k' as string]: 'var(--l2)' }}>
                         <b /> Searched the knowledge base <span>· {data.passages.length} passages</span>
                         {data.retrieveTime ? <time>{data.retrieveTime}</time> : null}
                       </p>
-                      <p className="ln" style={{ ['--k' as string]: 'var(--l3)' }}>
+                      <p className="ln c3" style={{ ['--k' as string]: 'var(--l3)' }}>
                         <b /> Drafted the answer {data.draftLine ? <span>· {data.draftLine}</span> : null}
                         {data.draftTime ? <time>{data.draftTime}</time> : null}
                       </p>
-                      <p className="ln" style={{ ['--k' as string]: 'var(--l4)' }}>
+                      <p className="ln c4" style={{ ['--k' as string]: 'var(--l4)' }}>
                         <b /> Checked every claim{' '}
                         <span>
                           · {data.checks.filter((c) => c.passed).length} of {data.checks.length} passed
@@ -292,6 +312,8 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
               </div>
             </div>
           </div>
+
+          <div className="lp-ring" />
 
           {/* The passages retrieval found, fanned out beside the window. */}
           <div className="lp-cards">
@@ -355,6 +377,18 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
         <div className="lp-scene-steps">
           <div className="rail">
             <i />
+            {data.steps.map((step, i) => (
+              <button
+                key={step.key}
+                type="button"
+                className="dot"
+                data-state="todo"
+                style={{ ['--y' as string]: data.steps.length > 1 ? i / (data.steps.length - 1) : 0 } as CSSProperties}
+                aria-label={`Step ${i + 1}: ${step.label}`}
+                title={`${String(i + 1).padStart(2, '0')} ${step.label}`}
+                onClick={() => go(i + 1)}
+              />
+            ))}
           </div>
           {data.steps.map((step, i) => (
             <div key={step.key} className="step" data-n={i + 1}>

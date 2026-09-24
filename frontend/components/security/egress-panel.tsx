@@ -88,11 +88,16 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
             hint="New samples arrive over the event stream while it is connected"
           />
         </ReadoutRow>
-        <p className="max-w-[80ch] text-ui text-foreground-secondary">
-          Sampled from the workbench&rsquo;s own processes at an interval. A connection that opens and closes
-          between samples is not seen, and a monitor that cannot read the connection table reports an empty list,
-          which looks the same as a clean one.
-        </p>
+        <details className="group">
+          <summary className={cn(LEDGER_MUTED, 'w-fit cursor-pointer list-none select-none hover:text-foreground [&::-webkit-details-marker]:hidden')}>
+            What this reading cannot see <span aria-hidden className="inline-block transition-transform group-open:rotate-90">›</span>
+          </summary>
+          <p className="mt-2 max-w-[80ch] text-ui text-foreground-secondary">
+            Sampled from the workbench&rsquo;s own processes at an interval. A connection that opens and closes
+            between samples is not seen, and a monitor that cannot read the connection table reports an empty list,
+            which looks the same as a clean one.
+          </p>
+        </details>
       </div>
 
       {status.violations.length > 0 && (

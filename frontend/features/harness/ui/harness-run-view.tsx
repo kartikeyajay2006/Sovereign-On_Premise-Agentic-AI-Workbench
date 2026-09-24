@@ -469,7 +469,6 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       <Panel
         title={run.harness.aggregation === 'requirements_register' ? 'Register' : 'Answer matrix'}
         id="harness-board"
-        aside={<Ledger className="hidden md:inline">↑↓ move · ↵ details · o open in thread · esc close</Ledger>}
       >
         <Board run={run} />
       </Panel>

@@ -75,9 +75,6 @@ export function RegistryView() {
         description="What retrieval can cite, the models on this host, and a tester for retrieval itself."
         actions={
           <>
-            {documents.readAt !== null && (
-              <span className="font-mono text-ledger text-foreground-muted">read {clockTime(documents.readAt)}</span>
-            )}
             <Button
               variant="ghost"
               size="sm"
@@ -85,6 +82,7 @@ export function RegistryView() {
               icon={RotateCw}
               busy={documents.refreshing || uploads.refreshing || models.refreshing}
               busyLabel="Reading…"
+              title={documents.readAt !== null ? `Read ${clockTime(documents.readAt)}` : undefined}
               onClick={() => {
                 documents.reload()
                 uploads.reload()

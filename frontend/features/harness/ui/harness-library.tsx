@@ -123,11 +123,6 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
       <Panel
         title="Library"
         id="harness-library"
-        aside={
-          harnesses.length > 0 ? (
-            <Ledger className="hidden sm:inline">↑↓ move · ↵ configure</Ledger>
-          ) : null
-        }
       >
         {catalogError ? (
           <div className="p-4">

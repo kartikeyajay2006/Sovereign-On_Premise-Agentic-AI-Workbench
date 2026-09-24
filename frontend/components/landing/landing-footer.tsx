@@ -4,18 +4,24 @@ import { FOOTER, HERO } from './copy'
 import { Wordmark } from './wordmark'
 
 /**
- * The page's last band: the closing line, the links, and the name set large.
+ * The page's close: the last call in a panel lit the way the hero is -- an
+ * ember horizon and a floor receding to it -- so the page ends where it
+ * began, and under it the links, in one quiet row.
  *
- * On the page's one ground, with a faint light from above. Not SiteFooter,
- * which calls an authenticated health endpoint and would print "service
- * unreachable" for every anonymous visitor: this one states build-time facts
- * only.
+ * Not SiteFooter, which calls an authenticated health endpoint and would
+ * print "service unreachable" for every anonymous visitor: this one states
+ * build-time facts only.
  */
 export function LandingFooter() {
   return (
     <footer className="lp-footer">
       <div className="lp-shell">
-        <div className="lp-footer-cta">
+        <div className="lp-close">
+          <div aria-hidden className="lp-close-light">
+            <i className="floor" />
+            <i className="glow" />
+            <i className="line" />
+          </div>
           <p className="lp-kicker">{FOOTER.cta.eyebrow}</p>
           <h2 className="lp-footer-title">
             {FOOTER.cta.title} <em>{FOOTER.cta.turn}</em>
@@ -71,9 +77,6 @@ export function LandingFooter() {
           <span>{FOOTER.bottomRight}</span>
         </div>
       </div>
-      <span aria-hidden className="lp-footer-mark">
-        AEGIS
-      </span>
     </footer>
   )
 }
