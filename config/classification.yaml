@@ -261,7 +261,11 @@ retrieval:
 # So a script is written when the user asked for one, or when there is a data
 # file to work over.
 code_execution:
-  always_for_task_types: [coding]
+  # A calculation must produce an independently executable expression even
+  # when its inputs came from a scan rather than a spreadsheet. Otherwise a
+  # model can state arithmetic as prose and the verifier has nothing to
+  # recompute, which is not a safe pass for an engineering workflow.
+  always_for_task_types: [coding, calculation]
   # Data analysis genuinely needs a program; these attachments trigger one.
   for_task_types_with_data: [calculation, data_analysis, analysis]
   data_file_extensions: [".csv", ".xlsx", ".xls"]

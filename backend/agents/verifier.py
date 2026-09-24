@@ -350,16 +350,26 @@ class VerificationEngine:
 
     # -- calculations ------------------------------------------------------
     def check_calculations(
-        self, calculations: list[dict[str, Any]]
+        self, calculations: list[dict[str, Any]], *, required: bool = False
     ) -> tuple[VerificationCheck, list[dict[str, Any]]]:
-        """Recompute each asserted calculation independently in the sandbox."""
+        """Recompute each asserted calculation independently in the sandbox.
+
+        ``required`` is reserved for a task explicitly classified as a
+        calculation. An absence of arithmetic is harmless in a procedural
+        question, but it is a failed control for "calculate remaining life".
+        """
         if not calculations:
             return (
                 VerificationCheck(
                     name="calculation_verification",
                     kind="calculation",
-                    passed=True,
-                    detail="No numeric calculations were asserted.",
+                    passed=not required,
+                    detail=(
+                        "A calculation was requested but no independently "
+                        "recomputable expression was produced."
+                        if required
+                        else "No numeric calculations were asserted."
+                    ),
                 ),
                 [],
             )
@@ -392,8 +402,15 @@ class VerificationEngine:
                 VerificationCheck(
                     name="calculation_verification",
                     kind="calculation",
-                    passed=True,
+                    passed=not required,
                     detail=(
+                        (
+                            "A calculation was requested but no independently recomputable "
+                            "expression was produced. "
+                        )
+                        if required
+                        else ""
+                    ) + (
                         f"No calculations were made: {len(quoted)} figure(s) were quoted "
                         "from the sources rather than computed, so there was nothing to "
                         "recompute."

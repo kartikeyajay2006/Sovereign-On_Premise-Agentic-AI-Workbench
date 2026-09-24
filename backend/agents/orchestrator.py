@@ -1445,7 +1445,8 @@ class AgentOrchestrator:
             try:
                 calculations = await self._extract_calculations(task, user, answer_text)
                 calculation_check, checked_calculations = self.verifier.check_calculations(
-                    calculations
+                    calculations,
+                    required=profile.task_type == TaskType.CALCULATION,
                 )
                 checks.append(calculation_check)
             except TaskCancelled:

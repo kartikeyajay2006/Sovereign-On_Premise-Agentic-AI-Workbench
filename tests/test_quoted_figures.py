@@ -32,6 +32,21 @@ class TestIsQuotedFigure:
 
 
 class TestCalculationCheck:
+    def test_required_calculation_without_an_expression_fails_closed(self):
+        check, entries = get_verification_engine().check_calculations([], required=True)
+        assert check.passed is False
+        assert "calculation was requested" in check.detail
+        assert entries == []
+
+    def test_required_calculation_does_not_accept_quoted_source_figures(self):
+        check, entries = get_verification_engine().check_calculations(
+            [{"label": "Minimum thickness", "expression": "6.0", "expected": 6.0}],
+            required=True,
+        )
+        assert check.passed is False
+        assert "calculation was requested" in check.detail
+        assert entries[0]["recomputed"] is None
+
     def test_only_quoted_figures_is_no_calculation_not_three_passes(self):
         check, entries = get_verification_engine().check_calculations(
             [
