@@ -50,7 +50,7 @@ export function LandingFooter() {
 
           {FOOTER.columns.map((column) => (
             <nav key={column.heading} aria-label={column.heading} className="flex flex-col gap-3">
-              <span className="ae-kicker">{column.heading}</span>
+              <span className="text-[0.8rem] font-medium text-foreground">{column.heading}</span>
               {column.links.map((link) => (
                 <Link
                   key={link.href}
@@ -65,7 +65,7 @@ export function LandingFooter() {
           ))}
 
           <div className="flex flex-col gap-3">
-            <span className="ae-kicker">{FOOTER.build.heading}</span>
+            <span className="text-[0.8rem] font-medium text-foreground">{FOOTER.build.heading}</span>
             {FOOTER.build.lines.map((line) => (
               <span key={line} className="font-mono text-[0.8rem] text-foreground-secondary">
                 {line}

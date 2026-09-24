@@ -410,7 +410,7 @@ export function Navigation() {
                     setHoverShown(true)
                   }}
                   className={cn(
-                    'app-tab relative flex items-center gap-2 rounded-full px-3',
+                    'relative flex items-center gap-2 rounded-full px-3 text-[14px] font-medium',
                     'transition-colors duration-[var(--hover-out)] ease-[var(--ease-move)] hover:duration-0',
                     'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
                     isCurrent ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
@@ -441,7 +441,7 @@ export function Navigation() {
             <span
               aria-hidden
               className={cn(
-                'pointer-events-none absolute -bottom-px left-0 h-[2px] w-px origin-left bg-[var(--action)]',
+                'pointer-events-none absolute -bottom-px left-0 h-[2px] w-px origin-left bg-foreground',
                 active.ready &&
                   'transition-transform duration-[var(--spatial)] ease-[var(--ease-spatial)] motion-reduce:transition-none',
               )}
@@ -511,7 +511,7 @@ export function Navigation() {
                     aria-current={isCurrent ? 'page' : undefined}
                     title={`${child.label} · G then ${child.key.toUpperCase()}`}
                     className={cn(
-                      'app-tab sub hover-decay flex items-center rounded-[var(--radius-xs)] px-3',
+                      'hover-decay flex items-center rounded-[var(--radius-xs)] px-3 text-ui font-medium',
                       'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
                       isCurrent ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
                     )}
@@ -523,7 +523,7 @@ export function Navigation() {
               <span
                 aria-hidden
                 className={cn(
-                  'pointer-events-none absolute -bottom-px left-0 h-[2px] w-px origin-left bg-[var(--action)]',
+                  'pointer-events-none absolute -bottom-px left-0 h-[2px] w-px origin-left bg-foreground',
                   activeSub.ready &&
                     'transition-transform duration-[var(--spatial)] ease-[var(--ease-spatial)] motion-reduce:transition-none',
                 )}

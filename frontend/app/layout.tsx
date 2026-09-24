@@ -34,14 +34,14 @@ const instrument = localFont({
 })
 
 /*
-  The theme is applied before first paint, so a reader never sees a flash of
-  the other one. A saved choice wins; otherwise Mocha, the night theme the
-  brand is drawn in; Latte is one click away in the header. data-js marks the page
+  The theme is applied before first paint, so a reader who chose ink night
+  never sees a flash of paper. A saved choice wins; otherwise the operating
+  system's preference; paper when neither can be read. data-js marks the page
   as scripted, which is what lets the public page's reveal start hidden: with
   no JavaScript, nothing is ever hidden.
 */
 const THEME_BOOT =
-  "(function(){document.documentElement.dataset.js='1';try{var t=localStorage.getItem('aegis-theme');if(t!=='dark'&&t!=='light')t='dark';document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}})();"
+  "(function(){document.documentElement.dataset.js='1';try{var t=localStorage.getItem('aegis-theme');if(t!=='dark'&&t!=='light')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();"
 
 // The description states the mechanism, not an absolute. "Never leave the
 // host" was a guarantee this page could not show; what the product does show
@@ -59,8 +59,8 @@ export const viewport: Viewport = {
   // chrome with, so it tracks the theme the operating system asks for.
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#1e1e2e' },
-    { media: '(prefers-color-scheme: dark)', color: '#1e1e2e' },
+    { media: '(prefers-color-scheme: light)', color: '#fbfbfa' },
+    { media: '(prefers-color-scheme: dark)', color: '#131210' },
   ],
   width: 'device-width',
   initialScale: 1,

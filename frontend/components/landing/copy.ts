@@ -43,11 +43,6 @@ export type Rich = ReadonlyArray<string | { v: string }>
 // --------------------------------------------------------------------------- //
 
 export const HERO = {
-  // The statement, a line each: what it is, what every answer carries, and
-  // where every step ends up. Set in the mono face, the last line in the
-  // brand gradient.
-  lines: ['Air-gapped.', 'Cited.', 'On the record.'],
-  tag: 'Sovereign AI workbench',
   // Two lines, because the argument is a turn. The claim in sans, the
   // qualification in serif italic — the typography performs the sentence.
   headline: 'Local is not enough.',
@@ -59,7 +54,7 @@ export const HERO = {
   announce: { tag: 'New', text: 'Skills: save an instruction, call it with /', href: '#product' },
   replayNote:
     'A recorded run, replayed. Every value comes from its record; only the pacing is compressed, and each step shows the time it really took on a two-core laptop CPU.',
-  sub: 'An AI workbench for regulated industrial work that runs entirely on your own hardware, and proves every answer, clause by clause, before anyone acts on it.',
+  sub: 'An air-gapped AI workbench for regulated industrial work. Every answer is cited to a page, checked against your policy, and recorded.',
   // Properties of the design, each enforced in code rather than promised:
   // the inference client refuses a non-local endpoint, the verifier runs on
   // every answer, and the audit log is a hash chain.
@@ -552,7 +547,7 @@ export const FOOTER = {
       heading: 'Product',
       links: [
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'Use cases', href: '#use-cases' },
+        { label: 'Open a citation', href: '#answer' },
         { label: 'How a run is proved', href: '#chain' },
         { label: 'What this is not', href: '#limits' },
       ],

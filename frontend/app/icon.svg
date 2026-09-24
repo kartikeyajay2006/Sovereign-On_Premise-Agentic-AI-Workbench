@@ -1,13 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
   <!--
-    The AEGIS mark at tab size, on a night tile so it reads on any tab
-    strip: five stacked blocks, the audit chain as a shield, in the
-    Catppuccin Mocha hues of components/aegis-logo.tsx.
+    The AEGIS mark at tab size: the ink tile with the glyph, as in
+    components/aegis-logo.tsx. The colours follow the browser's theme, so
+    the tile is ink on a light tab strip and ivory on a dark one.
   -->
-  <rect x="0" y="0" width="32" height="32" rx="8" fill="#11111b" />
-  <rect x="5.5" y="4.5" width="21" height="4" rx="1.2" fill="#cba6f7" />
-  <rect x="5.5" y="9.5" width="21" height="4" rx="1.2" fill="#f5c2e7" />
-  <rect x="7.3" y="14.5" width="17.4" height="4" rx="1.2" fill="#f2cdcd" />
-  <rect x="10.2" y="19.5" width="11.6" height="4" rx="1.2" fill="#fab387" />
-  <rect x="13.5" y="24.5" width="5" height="4" rx="1.2" fill="#f9e2af" />
+  <style>
+    .tile { fill: #141413; }
+    .ink { stroke: #faf9f6; fill: none; }
+    .dot { fill: #faf9f6; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #f2f1ec; }
+      .ink { stroke: #141413; }
+      .dot { fill: #141413; }
+    }
+  </style>
+  <rect class="tile" x="0.5" y="0.5" width="23" height="23" rx="6.5" />
+  <path class="ink" d="M6.6 17.4 12 6.6l5.4 10.8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle class="dot" cx="12" cy="15.1" r="1.55" />
 </svg>

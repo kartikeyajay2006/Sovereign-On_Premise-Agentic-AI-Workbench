@@ -1,9 +1,9 @@
 import { ArrowUpRight } from 'lucide-react'
 import { CommandBlock } from '@/components/landing/command-block'
 import { BENTO, HERO, LIMITS, PIPELINE, PROOF, RUN_IT, USE_CASES } from '@/components/landing/copy'
+import { DisplayHeading } from '@/components/landing/display-heading'
 import { DotField } from '@/components/landing/dot-field'
 import { HeroLive } from '@/components/landing/hero-live'
-import { BoundaryDiagram } from '@/components/landing/boundary-diagram'
 import { LandingButton } from '@/components/landing/landing-button'
 import { LiveContainment } from '@/components/landing/live-containment'
 import { ProductGallery, type GallerySlide } from '@/components/landing/product-gallery'
@@ -20,7 +20,7 @@ import {
   type EvidenceUnit as Unit,
   type UsageCall,
 } from '@/components/landing/run-fixture'
-import { SectionHead, SectionRule, SectionShell } from '@/components/landing/section-shell'
+import { SectionShell } from '@/components/landing/section-shell'
 import { StackStrip } from '@/components/landing/stack-strip'
 import { StatsBand, type Stat } from '@/components/landing/stats-band'
 import { AirgapField } from '@/components/landing/airgap-field'
@@ -376,7 +376,7 @@ const GALLERY: GallerySlide[] = [
     body: 'Type / for every skill and harness. A skill changes only what a run is asked, so every run it starts still meets every check.',
     light: '/landing/shots/skills-light.png',
     dark: '/landing/shots/skills-dark.png',
-    alt: 'The composer with its / menu open on a new thread: the five skills, each with its command and what it does.',
+    alt: 'The composer with its / menu open: five skills, then the harnesses, each with its command and what it does.',
   },
   {
     id: 'harness',
@@ -430,51 +430,48 @@ export default function LandingPage() {
         <div id="hero-band" data-theme="dark" data-band data-dot-field-host className="ae-hero-band">
           <DotField className="ae-hero-dots" />
           <div aria-hidden className="ae-hero-glow" />
-          <div className="ae-shell ae-hero-split">
-            <div className="ae-hero-copy">
-              <p className="ae-tag ae-load-1">
-                <span aria-hidden className="blk" />
-                {HERO.tag}
-              </p>
-              <h1 id="hero-title" className="ae-statement">
-                {HERO.lines.map((line, n) => (
-                  <span
-                    key={line}
-                    className={n === HERO.lines.length - 1 ? 'ae-w line grad' : 'ae-w line'}
-                    style={{ ['--i' as string]: n }}
-                  >
-                    {line}
-                  </span>
-                ))}
-              </h1>
-              <p className="ae-lead ae-load-2 mt-6 max-w-[46ch]">{HERO.sub}</p>
-              <div className="ae-load-3 mt-8 flex flex-col gap-3 sm:flex-row">
-                <LandingButton href={HERO.primary.href} variant="primary" blockOnMobile>
-                  {HERO.primary.label}
-                  <span className="ar" aria-hidden>
-                    →
-                  </span>
-                </LandingButton>
-                <LandingButton href={HERO.secondary.href} variant="outline" rel="noreferrer" target="_blank" blockOnMobile>
-                  {HERO.secondary.label}
-                  <ArrowUpRight className="size-4 opacity-70" aria-hidden />
-                </LandingButton>
-              </div>
-              <HeroLive className="ae-load-4 mt-7" />
-            </div>
-            <div className="ae-hero-visual ae-load-2">
-              <BoundaryDiagram className="ae-bd" />
-            </div>
+          <div className="ae-shell pb-12 pt-16 text-center md:pb-16 md:pt-28">
+          <a href={HERO.announce.href} className="ae-announce ae-load-1">
+            <span className="tag">{HERO.announce.tag}</span>
+            {HERO.announce.text}
+            <span aria-hidden className="text-foreground-muted">
+              →
+            </span>
+          </a>
+          <DisplayHeading
+            id="hero-title"
+            as="h1"
+            scale="hero"
+            align="center"
+            lead={HERO.headline}
+            turn={HERO.headlineTurn}
+            reveal
+            className="mt-7"
+          />
+          <p className="ae-lead ae-load-2 mx-auto mt-6 max-w-[56ch]">{HERO.sub}</p>
+          <div className="ae-load-3 mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <LandingButton href={HERO.primary.href} variant="primary" blockOnMobile>
+              {HERO.primary.label}
+              <span className="ar" aria-hidden>
+                →
+              </span>
+            </LandingButton>
+            <LandingButton href={HERO.secondary.href} variant="outline" rel="noreferrer" target="_blank" blockOnMobile>
+              {HERO.secondary.label}
+              <ArrowUpRight className="size-4 opacity-70" aria-hidden />
+            </LandingButton>
+          </div>
+          <ul className="ae-hero-proof ae-load-3" aria-label="What the design guarantees">
+            {HERO.proof.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <HeroLive className="ae-load-4 mx-auto mt-5" />
           </div>
           <div aria-hidden className="ae-hero-horizon" />
         </div>
 
         <div className="ae-shell ae-hero-stage ae-load-4 pb-10">
-          <p data-theme="dark" className="ae-fig">
-            <span className="n">fig. 01</span>
-            <span className="rule" aria-hidden />
-            <span>a recorded run, replayed</span>
-          </p>
           {/* The replay is drawn in the dark palette too: a terminal on the paper. */}
           <div data-theme="dark" className="ae-frame">
             <RunReplay
@@ -509,17 +506,20 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Use cases: what people ask it, running both ways                  */}
       {/* ---------------------------------------------------------------- */}
-      <RevealSection id={USE_CASES.id} aria-labelledby={`${USE_CASES.id}-title`} className="scroll-mt-16 pb-20 md:pb-24">
-        <SectionRule />
-        <div className="ae-shell pt-14 md:pt-20">
-          <SectionHead
-            id={`${USE_CASES.id}-title`}
-            index="01"
-            eyebrow={USE_CASES.eyebrow}
-            title={USE_CASES.title}
-            titleTurn={USE_CASES.titleTurn}
-            lede={USE_CASES.lede}
-          />
+      <RevealSection id={USE_CASES.id} aria-labelledby={`${USE_CASES.id}-title`} className="scroll-mt-16 py-20 md:py-24">
+        <div className="ae-shell">
+          <div className="ae-reveal mx-auto max-w-[760px] text-center">
+            <p className="ae-kicker m-0 justify-center">{USE_CASES.eyebrow}</p>
+            <DisplayHeading
+              id={`${USE_CASES.id}-title`}
+              as="h2"
+              align="center"
+              lead={USE_CASES.title}
+              turn={USE_CASES.titleTurn}
+              className="mt-3"
+            />
+            <p className="ae-lead mx-auto mt-5 max-w-[60ch]">{USE_CASES.lede}</p>
+          </div>
         </div>
         <div className="ae-reveal mt-12" style={{ transitionDelay: '0.12s' }}>
           <UseCases rows={USE_CASES.rows} note={USE_CASES.note} />
@@ -531,7 +531,6 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id={PIPELINE.id}
-        index="02"
         eyebrow={PIPELINE.eyebrow}
         title={PIPELINE.title}
         titleTurn={PIPELINE.titleTurn}
@@ -546,7 +545,6 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id="product"
-        index="03"
         texture="grid"
         eyebrow="Product"
         title="One workbench."
@@ -563,7 +561,6 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <SectionShell
         id={PROOF.id}
-        index="04"
         tone="night"
         eyebrow={PROOF.eyebrow}
         title={PROOF.title}
@@ -624,13 +621,12 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Limits, one line each                                             */}
       {/* ---------------------------------------------------------------- */}
-      <SectionShell id={LIMITS.id} index="05" eyebrow={LIMITS.eyebrow} title={LIMITS.title} titleTurn={LIMITS.titleTurn} lede={LIMITS.lede}>
-        <ul className="ae-limits ae-reveal">
-          {limits.map((item, n) => (
-            <li key={item.title}>
-              <span className="n">L{String(n + 1).padStart(2, '0')}</span>
-              <p className="t">{item.title}</p>
-              <p className="l">{item.line}</p>
+      <SectionShell id={LIMITS.id} tone="surface" eyebrow={LIMITS.eyebrow} title={LIMITS.title} titleTurn={LIMITS.titleTurn} lede={LIMITS.lede}>
+        <ul className="m-0 grid list-none grid-cols-1 gap-x-10 gap-y-2 p-0 sm:grid-cols-2 lg:grid-cols-3">
+          {limits.map((item) => (
+            <li key={item.title} className="ae-reveal border-t border-line-subtle py-5">
+              <p className="m-0 text-[0.98rem] font-medium tracking-[-0.01em] text-foreground">{item.title}</p>
+              <p className="m-0 mt-1.5 text-[0.9rem] leading-[1.55] text-foreground-secondary">{item.line}</p>
             </li>
           ))}
         </ul>
@@ -647,7 +643,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Get started                                                       */}
       {/* ---------------------------------------------------------------- */}
-      <SectionShell id={RUN_IT.id} index="06" eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} lede={RUN_IT.lede}>
+      <SectionShell id={RUN_IT.id} eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} lede={RUN_IT.lede}>
         <div className="ae-reveal mb-12">
           <StackStrip label="What it runs on" />
         </div>

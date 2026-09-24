@@ -87,7 +87,7 @@ export function ProductGallery({ slides }: { slides: GallerySlide[] }) {
         <p className="ae-body mx-auto mt-1 text-[0.95rem]">{current.body}</p>
       </div>
 
-      <div className="ae-frame ae-tilt-in mt-8 w-full">
+      <div className="ae-frame ae-tilt-in mt-8 w-full rounded-[24px] p-[clamp(10px,2.2vw,28px)]">
         <div className="ae-stage">
           {slides.map((slide, i) => (
             <div key={slide.id} id={`gallery-${slide.id}`} role="tabpanel" aria-hidden={i !== index} className={cn('ae-slide', i === index && 'on')}>
