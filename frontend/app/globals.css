@@ -2728,3 +2728,23 @@ html[data-theme='dark'],
     :where(html[data-js]) .ae-atk-list li { opacity: 1; }
   }
 }
+
+@layer components {
+  /* The hero's one live reading, taken by the visitor's browser. */
+  .ae-live {
+    display: flex; width: fit-content; align-items: center; gap: 10px; margin-bottom: 0; padding: 7px 14px 7px 12px;
+    border-radius: 9999px; background: oklch(1 0 0 / 0.05); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.1);
+    font-size: 0.8rem; color: color-mix(in oklab, var(--foreground) 70%, transparent);
+  }
+  .ae-live .dot { position: relative; width: 7px; height: 7px; border-radius: 9999px; background: var(--sovereign); }
+  .ae-live .dot::after {
+    content: ''; position: absolute; inset: 0; border-radius: 9999px; background: var(--sovereign);
+    animation: ae-live-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .ae-live.breach .dot, .ae-live.breach .dot::after { background: var(--critical); }
+  .ae-live .k { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.02em; text-transform: uppercase; color: color-mix(in oklab, var(--foreground) 55%, transparent); }
+  .ae-live .v { color: var(--foreground); }
+  @keyframes ae-live-ping { 75%, 100% { transform: scale(2.6); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .ae-live .dot::after { animation: none; } }
+  @media (max-width: 640px) { .ae-live .k { display: none; } }
+}

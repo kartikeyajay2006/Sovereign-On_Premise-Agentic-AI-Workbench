@@ -3,6 +3,7 @@ import { CommandBlock } from '@/components/landing/command-block'
 import { BENTO, HERO, LIMITS, PIPELINE, PROOF, RUN_IT, USE_CASES } from '@/components/landing/copy'
 import { DisplayHeading } from '@/components/landing/display-heading'
 import { DotField } from '@/components/landing/dot-field'
+import { HeroLive } from '@/components/landing/hero-live'
 import { LandingButton } from '@/components/landing/landing-button'
 import { LiveContainment } from '@/components/landing/live-containment'
 import { ProductGallery, type GallerySlide } from '@/components/landing/product-gallery'
@@ -465,6 +466,7 @@ export default function LandingPage() {
               <li key={line}>{line}</li>
             ))}
           </ul>
+          <HeroLive className="ae-load-4 mx-auto mt-5" />
           </div>
           <div aria-hidden className="ae-hero-horizon" />
         </div>
