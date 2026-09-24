@@ -814,7 +814,15 @@ export function ThreadView() {
 
       seenRef.current = new Set()
       pinnedRef.current = true
-      setTurns((prev) => [...prev, userTurn, freshAssistantTurn(assistantId, request, now)])
+      // Each run stands alone: the model is not given the runs before it, and
+      // the sidebar lists every run as its own entry. So a new request opens
+      // on a clean page rather than under the last answer, where it would
+      // read as a follow-up with a context it does not have. The run it
+      // replaces is the first entry in the history.
+      setTurns([userTurn, freshAssistantTurn(assistantId, request, now)])
+      setDrawerOpen(false)
+      setFocusEvidenceId(null)
+      setEvidenceTurnId(null)
       setBusy(true)
 
       try {

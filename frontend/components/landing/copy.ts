@@ -564,8 +564,8 @@ export const FOOTER = {
       heading: 'Product',
       links: [
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'The cited answer', href: '#exhibit' },
-        { label: 'How a run is proved', href: '#chain' },
+        { label: 'How a run is proved', href: '#how' },
+        { label: 'Use cases', href: '#use-cases' },
         { label: 'What this is not', href: '#limits' },
       ],
     },

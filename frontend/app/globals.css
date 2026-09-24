@@ -2781,7 +2781,11 @@ html[data-theme='dark'],
 /* The sign-in's brand panel: the public page's night, and its light. */
 @layer components {
   .ae-night { background: #08080a; }
-  .ae-night::after { background: radial-gradient(70% 45% at 50% 110%, rgba(150, 175, 255, 0.12), transparent 70%); }
+  .ae-night::after { background: radial-gradient(70% 45% at 50% 110%, rgba(255, 91, 26, 0.2), transparent 70%); }
+  .ae-signin-panel h2 em {
+    padding-right: 0.08em;
+    background: linear-gradient(180deg, #ffe3d1 0%, #ffa36b 52%, #ff5b1a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
 }
 
 /* ==================================================================== */
@@ -2795,8 +2799,18 @@ html[data-theme='dark'],
 @media (min-width: 1024px) {
   .app-frame { --shell-top: 0px; }
 }
-/* The sidebar's lists scroll with a hairline, not the platform's full bar. */
-.app-frame aside ::-webkit-scrollbar, [aria-label='Workbench'] ::-webkit-scrollbar { width: 6px; }
-.app-frame aside ::-webkit-scrollbar-thumb, [aria-label='Workbench'] ::-webkit-scrollbar-thumb { border-radius: 6px; background: color-mix(in oklab, var(--foreground) 14%, transparent); }
-.app-frame aside ::-webkit-scrollbar-track, [aria-label='Workbench'] ::-webkit-scrollbar-track { background: transparent; }
-.app-frame aside ::-webkit-scrollbar-button, [aria-label='Workbench'] ::-webkit-scrollbar-button { display: none; }
+/* The sidebar's history scrolls with a thin bar and no arrow buttons (a
+   thin standard scrollbar has none), and fades out under the account row. */
+.side-scroll {
+  /* scrollbar-color is inherited from the page's own rule, and while it is
+     set Chrome draws the platform bar, arrows and all; reset here, the
+     pseudo-elements below take over. */
+  scrollbar-color: auto;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+.side-scroll::-webkit-scrollbar { width: 8px; }
+.side-scroll::-webkit-scrollbar-button { display: none; height: 0; }
+.side-scroll::-webkit-scrollbar-track { background: transparent; }
+.side-scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: color-mix(in oklab, var(--foreground) 16%, transparent) padding-box; }
+.side-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--foreground) 26%, transparent); }

@@ -295,7 +295,6 @@ export default function LandingPage() {
         <div className="lp-shell">
           <Head
             id="product-title"
-            center
             eyebrow="Product"
             title="One workbench."
             em="Every step on the record."

@@ -206,15 +206,18 @@ function useHeldCount(enabled: boolean, pathname: string) {
 
 // ----------------------------------------------------------------- runs
 
-/** A run's state as a dot: the colour says what it came to, the title says it in words. */
-const OUTCOME_DOT: Record<string, string> = {
-  awaiting_approval: 'bg-approval',
-  approved: 'bg-sovereign',
-  delivered: 'bg-sovereign',
-  rejected: 'bg-critical',
-  failed: 'bg-critical',
-  blocked: 'bg-critical',
-  cancelled: 'bg-control-strong',
+/**
+ * A run's state, marked only where it is not the normal ending. A history
+ * with a green dot on every delivered run reads as a status board; this one
+ * reads as a history, and the held, refused and unfinished runs stand out
+ * in it. The title and the screen-reader line say every state in words.
+ */
+const OUTCOME_MARK: Record<string, { dot: string; word: string }> = {
+  awaiting_approval: { dot: 'bg-approval', word: 'Held' },
+  rejected: { dot: 'bg-critical', word: 'Rejected' },
+  failed: { dot: 'bg-critical', word: 'Failed' },
+  blocked: { dot: 'bg-critical', word: 'Refused' },
+  cancelled: { dot: 'bg-control-strong', word: 'Stopped' },
 }
 const FINISHED = new Set(['awaiting_approval', 'approved', 'delivered', 'rejected', 'failed', 'blocked', 'cancelled'])
 
@@ -262,7 +265,6 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
-  const [query, setQuery] = useState('')
 
   useEffect(() => {
     const onChanged = (event: Event) => {
@@ -299,31 +301,12 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
     return () => window.clearTimeout(id)
   }, [unfinished, runs])
 
-  const needle = query.trim().toLowerCase()
-  const shown = needle
-    ? runs.filter((task) =>
-        [task.prompt, task.skill ? `/${task.skill.id} ${task.skill.input}` : ''].some((text) => text.toLowerCase().includes(needle)),
-      )
-    : runs
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="px-3 pb-1 pt-1">
-        <label className="relative block">
-          <span className="sr-only">Filter runs</span>
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground-muted" aria-hidden />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter runs"
-            className="h-8 w-full rounded-[8px] bg-transparent pl-8 pr-2 text-[13px] text-foreground placeholder:text-foreground-muted transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] focus:bg-surface focus:shadow-[0_0_0_1px_var(--line-default)] focus:outline-none"
-          />
-        </label>
-      </div>
       {/* Relative, so it contains the rows' screen-reader labels, which are
-          absolutely positioned and would otherwise stretch the page. */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+          absolutely positioned and would otherwise stretch the page. The
+          list fades out under the foot rather than meeting it at an edge. */}
+      <div className="side-scroll relative min-h-0 flex-1 overflow-y-auto px-2 pb-6">
         {loading ? (
           <p className="px-2 py-2 text-[13px] text-foreground-muted">Loading runs…</p>
         ) : error ? (
@@ -333,20 +316,23 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
           </p>
         ) : runs.length === 0 ? (
           <p className="px-2 py-2 text-[13px] text-foreground-muted">No runs yet on this host.</p>
-        ) : shown.length === 0 ? (
-          <p className="px-2 py-2 text-[13px] text-foreground-muted">No run matches “{query.trim()}”.</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-px p-0">
-            {shown.map((task, i) => {
+            {runs.map((task, i) => {
               const active = task.id === activeId
               const status = String(task.status).toLowerCase()
               const following = task.id === running
+              const unfinished = following || !FINISHED.has(status)
+              const mark = unfinished ? null : OUTCOME_MARK[status] ?? null
               const group = dayGroup(task.created_at)
-              const firstOfGroup = i === 0 || dayGroup(shown[i - 1].created_at) !== group
+              const firstOfGroup = i === 0 || dayGroup(runs[i - 1].created_at) !== group
               const stateWords = following ? 'in progress' : status.replace(/_/g, ' ')
+              // The question's own first line: a starter appends its standing
+              // instruction on the lines after it.
+              const title = task.skill ? task.skill.input : task.prompt.split('\n')[0].trim()
               return (
                 <li key={task.id}>
-                  {firstOfGroup ? <p className="px-2 pb-1 pt-3 text-[11.5px] font-medium text-foreground-muted">{group}</p> : null}
+                  {firstOfGroup ? <p className={cn('px-2 pb-1.5 text-[12px] font-medium text-foreground-muted', i === 0 ? 'pt-1' : 'pt-5')}>{group}</p> : null}
                   <button
                     type="button"
                     onClick={() => {
@@ -361,24 +347,15 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
                       active ? 'bg-[color-mix(in_oklab,var(--foreground)_7%,transparent)]' : 'hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)]',
                     )}
                   >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'size-1.5 shrink-0 rounded-full',
-                        following
-                          ? 'animate-pulse bg-active motion-reduce:animate-none'
-                          : OUTCOME_DOT[status] ?? (FINISHED.has(status) ? 'bg-control-strong' : 'bg-active'),
-                      )}
-                    />
                     <span className={cn('min-w-0 flex-1 truncate text-[13px]', active ? 'font-medium text-foreground' : 'text-foreground-secondary')}>
-                      {task.skill ? (
-                        <>
-                          <span className="font-mono text-[12px] text-foreground-muted">/{task.skill.id}</span> {task.skill.input}
-                        </>
-                      ) : (
-                        task.prompt
-                      )}
+                      {task.skill ? <span className="mr-1 font-mono text-[12px] text-foreground-muted">/{task.skill.id}</span> : null}
+                      {title}
                     </span>
+                    {unfinished ? (
+                      <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-active motion-reduce:animate-none" />
+                    ) : mark ? (
+                      <span aria-hidden title={mark.word} className={cn('size-1.5 shrink-0 rounded-full', mark.dot)} />
+                    ) : null}
                     <span className="sr-only">
                       {stateWords}, {relativeTime(task.created_at)}
                     </span>
@@ -428,11 +405,13 @@ function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 pl-4 pr-3">
         <Link href="/console" aria-label="AEGIS, the thread" onClick={onNavigate} className="flex items-center gap-2.5 rounded-md text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none">
           <AegisMark size={22} />
           <span className="text-[15px] font-semibold tracking-[0.03em]">AEGIS</span>
         </Link>
+        {/* The host's one reading, next to the name it vouches for. */}
+        <SovereigntyStatus placement="start" />
       </div>
 
       <div className="flex shrink-0 flex-col gap-1 px-3">
@@ -493,7 +472,8 @@ function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
                     </span>
                   ) : null}
                 </Link>
-                {place.children ? (
+                {/* Its three screens open under it while you are in it. */}
+                {place.children && isCurrent ? (
                   <ul className="m-0 ml-[17px] flex list-none flex-col gap-px border-l border-line-subtle p-0 pl-2">
                     {place.children.map((child) => {
                       const childCurrent = onPath(pathname, child.href)
@@ -527,19 +507,18 @@ function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
         </ul>
       </nav>
 
-      <div className="mt-5 flex min-h-0 flex-1 flex-col border-t border-line-subtle pt-3">
-        <p className="px-5 pb-1 text-[12px] font-medium text-foreground-muted">Runs</p>
+      {/* The history, headed by its own dates: Today, Yesterday, Earlier. */}
+      <div aria-label="Recent runs" role="region" className="mt-5 flex min-h-0 flex-1 flex-col">
         <Suspense fallback={<RunList activeId={null} onPick={onNavigate} />}>
           <MarkedRunList onPick={onNavigate} />
         </Suspense>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-2 border-t border-line-subtle p-3">
-        <div className="flex items-center justify-between gap-2">
-          <SovereigntyStatus placement="above" />
-          <ThemeToggle />
+      <div className="flex shrink-0 items-center gap-1 border-t border-line-subtle p-2">
+        <div className="min-w-0 flex-1">
+          <RoleSwitcher placement="above" />
         </div>
-        <RoleSwitcher placement="above" />
+        <ThemeToggle className="mr-1" />
       </div>
     </div>
   )

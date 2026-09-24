@@ -59,7 +59,7 @@ export function ProductGallery({ slides, variant }: { slides: GallerySlide[]; va
       ref={root}
       onPointerEnter={() => setPaused(true)}
       onPointerLeave={() => setPaused(false)}
-      className="flex flex-col items-center"
+      className="flex flex-col items-start"
       style={{ ['--lp-dwell' as string]: `${DWELL_MS}ms` }}
     >
       <div role="tablist" aria-label="Screens of the workbench" className="lp-tabs">

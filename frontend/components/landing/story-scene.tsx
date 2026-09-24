@@ -114,7 +114,10 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
     // wherever the list falls, so the anchor is moved there.
     const how = section.querySelector<HTMLElement>('.lp-how')
     const list = el.querySelector<HTMLElement>('.lp-scene-steps')
+    const camera = el.querySelector<HTMLElement>('.lp-camera')
     const placeAnchor = () => {
+      // Laid out as a list, the horizon sits where the window's top edge falls.
+      if (camera && !wide.matches) el.style.setProperty('--hz-static', `${camera.offsetTop}px`)
       if (!how || !list) return
       if (wide.matches) how.style.removeProperty('top')
       else how.style.top = `${list.getBoundingClientRect().top - section.getBoundingClientRect().top}px`
@@ -153,6 +156,35 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
       {/* Where "How it works" lands: the start of the first step. */}
       <span id="how" aria-hidden className="lp-how" />
       <div ref={stage} className="lp-stage" data-step="0">
+        {/*
+          The hero's light: an ember horizon at the window's top edge, a floor
+          receding to it, and three facts from the record floating by the
+          window. Decoration and one reading's worth of words; every fact is
+          the run's own, and all of it is static CSS but the floor's drift.
+        */}
+        <div className="lp-backdrop" aria-hidden>
+          <div className="glow" />
+          <div className="floor">
+            <i />
+          </div>
+          <div className="horizon" />
+          {data.checksLine ? (
+            <p className="chip a">
+              <b className="ok">✓</b> {data.checksLine}
+            </p>
+          ) : null}
+          {data.citeId ? (
+            <p className="chip b">
+              <b>{data.citeId}</b> {data.citeLabel} <span>cited</span>
+            </p>
+          ) : null}
+          {data.seal && data.chain.length > 0 ? (
+            <p className="chip c">
+              <span>#{data.chain[data.chain.length - 1].seq}</span> sealed <b>{data.seal}</b>
+            </p>
+          ) : null}
+        </div>
+
         <div className="lp-scene-hero">{hero}</div>
 
         <div className="lp-camera" aria-hidden>

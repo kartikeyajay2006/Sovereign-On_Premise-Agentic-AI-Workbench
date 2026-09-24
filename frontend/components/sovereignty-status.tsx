@@ -83,7 +83,7 @@ const TONE_TEXT: Record<Exclude<Tone, undefined>, string> = {
   approval: 'text-approval-text',
 }
 
-export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: boolean; placement?: 'below' | 'above' }) {
+export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: boolean; placement?: 'below' | 'above' | 'start' }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<string | null>(null)
   const [posture, setPosture] = useState<Posture>({
@@ -262,7 +262,11 @@ export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: 
           aria-label="Egress posture"
           className={cn(
             'absolute z-[var(--z-menu)] w-72 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none',
-            placement === 'above' ? 'bottom-[calc(100%+8px)] left-0 slide-in-from-bottom-1' : 'right-0 top-[calc(100%+8px)] slide-in-from-top-1',
+            placement === 'above'
+              ? 'bottom-[calc(100%+8px)] left-0 slide-in-from-bottom-1'
+              : placement === 'start'
+                ? 'left-0 top-[calc(100%+8px)] slide-in-from-top-1'
+                : 'right-0 top-[calc(100%+8px)] slide-in-from-top-1',
           )}
         >
           <div className="flex items-center justify-between gap-3 border-b border-line-subtle px-4 py-3">
