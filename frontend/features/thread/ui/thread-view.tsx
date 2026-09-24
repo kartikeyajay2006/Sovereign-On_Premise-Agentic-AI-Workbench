@@ -190,7 +190,7 @@ export function ThreadView() {
   // time lands again instead of doing nothing.
   const [traceCount, setTraceCount] = useState(0)
 
-  const { user, role } = useRole()
+  const { user, role, can } = useRole()
   const { push } = useToast()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -232,7 +232,12 @@ export function ThreadView() {
 
   // What "/" offers. Neither is needed to ask a question, so a failure
   // leaves the menu with less in it rather than saying anything louder.
+  // Only for a role that can run work: listing skills needs task.create, and
+  // asking without it wrote a refused permission check to the audit chain
+  // every time an auditor opened the thread.
+  const canRun = can('task.create')
   useEffect(() => {
+    if (!canRun) return
     let cancelled = false
     api
       .listSkills()
@@ -255,7 +260,7 @@ export function ThreadView() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [canRun])
 
   useEffect(() => {
     let cancelled = false

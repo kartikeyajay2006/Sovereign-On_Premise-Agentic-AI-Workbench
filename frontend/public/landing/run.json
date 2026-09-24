@@ -1,121 +1,121 @@
 {
-  "_comment": "Written by scripts/capture_landing_fixture.py from one real finished run. Source: developer host, ollama loopback, api http://127.0.0.1:8000. Run chosen with --task 5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9. Never hand-edited. Receipt-row hashes are truncated to 8 hex characters for display, with the full value in hash_full. audit.tail holds the run's final record and the two written immediately before it, and each `line` is the line exactly as stored in the audit log, so its hash can be recomputed. Values the record does not carry are null, never defaulted. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
-  "captured_at": "2026-09-23T22:12:22Z",
+  "_comment": "Written by scripts/capture_landing_fixture.py from one real finished run. Source: developer host, ollama loopback, api http://127.0.0.1:8000. Run chosen with --task f30c2459-2f2b-44a0-84bd-4688d7f38260. Never hand-edited. Receipt-row hashes are truncated to 8 hex characters for display, with the full value in hash_full. audit.tail holds the run's final record and the two written immediately before it, and each `line` is the line exactly as stored in the audit log, so its hash can be recomputed. Values the record does not carry are null, never defaulted. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
+  "captured_at": "2026-09-24T01:14:17Z",
   "captured_from": "developer host, ollama loopback, api http://127.0.0.1:8000",
-  "task_id": "5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9",
-  "status": "awaiting_approval",
-  "prompt": "What severity applies when cladding damage exceeds 20% of an insulated section? Cite the clause.",
-  "created_at": "2026-09-22T16:32:47.179239Z",
-  "captured_on": "22 Sep 2026",
-  "duration_ms": 195249,
+  "task_id": "f30c2459-2f2b-44a0-84bd-4688d7f38260",
+  "status": "delivered",
+  "prompt": "Which clause of our SOPs governs the following, and what exactly does it require? internal inspection of a pressure vessel in corrosive service",
+  "created_at": "2026-09-24T01:04:29.157504Z",
+  "captured_on": "24 Sep 2026",
+  "duration_ms": 39647,
   "models": [
     "qwen2.5:3b"
   ],
   "cited": {
-    "value": "6 passages from 2 documents, 2 cited in the answer",
-    "meta": "SOP-MNT-022 §4 · SOP-INS-014 §5"
+    "value": "6 passages from 2 documents, 1 cited in the answer",
+    "meta": "SOP-INS-014 §2.2"
   },
   "checked": {
-    "value": "Did not pass verification",
-    "meta": "3 of 4 checks passed · calculation failed"
+    "value": "Passed verification",
+    "meta": "4 of 4 checks passed"
   },
   "computed": {
     "value": "No code was generated for this run",
     "meta": "sandbox not entered"
   },
   "decision": {
-    "label": "HELD",
-    "value": "Held for a reviewer before release",
-    "meta": "administrator or reviewer"
+    "label": "RELEASED",
+    "value": "No approval was required for this run",
+    "meta": "policy: auto-release permitted"
   },
   "recorded": {
-    "value": "17 records appended to the audit chain",
-    "meta": "seq 648 · 0b087291",
-    "hash_full": "0b087291827228dce80b0e32bd5f016bde5a73aba862016e1ec1a21a26c312e2"
+    "value": "10 records appended to the audit chain",
+    "meta": "seq 16 · bf6ec740",
+    "hash_full": "bf6ec740e3b6ff221314417cdb7a4b80e14e53f7ac0d9447a330d5f6214e3d46"
   },
-  "answer": "The severity is Medium [S1].\n\nThresholds for cladding damage exceeding 20% of an insulated section are defined in SOP-MNT-022, section 4.1. The approving authority for this severity classification is the Head of Inspection + Plant Manager [S4].",
+  "answer": "[S1] A pressure vessel in corrosive service shall receive an internal inspection at intervals not exceeding 48 months. [S1]",
   "evidence": [
     {
       "id": "S1",
       "rank": 1,
       "cited": true,
-      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
-      "document_id": "28da3745c2247e054e03ac03",
-      "location": "section: 4. Assessment",
-      "score": 0.7978,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 2.2 Corrosive Service",
+      "score": 0.7988,
       "classification": "confidential",
-      "version": "1.0",
-      "excerpt": "## 4. Assessment\n\n4.1 Where cladding damage exceeds 20% of the surface area of an insulated\nsection, that section shall be classified as a **Medium** severity finding\nunder SOP-INS-014 Clause 5.\n\n4.2 Localised pitting discovered beneath insulation shall be measured by pit\ngauge and reported with maximum pit depth and pit density per 100 cm².\n\n4.3 Where remaining wall thickness beneath a CUI site falls below t-min as\ndefined in SOP-INS-014 Clause 3, the finding shall be escalated to **High**\nseverity and the equipment withdrawn from service within 24 hours."
+      "version": "4.3",
+      "excerpt": "### 2.2 Corrosive Service\n\nA pressure vessel in corrosive service shall receive an external inspection\nat intervals not exceeding 12 months, an internal inspection at intervals not\nexceeding 48 months, and a thickness survey at intervals not exceeding\n24 months."
     },
     {
       "id": "S2",
       "rank": 2,
       "cited": false,
-      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
-      "document_id": "28da3745c2247e054e03ac03",
-      "location": "section: 3. Inspection Triggers",
-      "score": 0.7056,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "score": 0.7821,
       "classification": "confidential",
-      "version": "1.0",
-      "excerpt": "## 3. Inspection Triggers\n\nAn insulation removal inspection shall be raised when any of the following\nis observed:\n\n- Damaged, missing or displaced cladding\n- Staining, rust bleeding or discolouration at cladding joints\n- Water ingress at penetrations, supports, nozzles or valve boxes\n- Insulation that is soft, compressed or waterlogged to the touch\n- Equipment returning from a shutdown where insulation was disturbed"
+      "version": "4.3",
+      "excerpt": "# SOP-INS-014 — Pressure Vessel External and Internal Inspection\n\n> **SYNTHETIC DOCUMENT** — fictional procedure written for the AEGIS demonstration corpus. It is not a real site procedure and must not be used for real equipment.\n\n**Document:** SOP-INS-014\n**Revision:** 4.3\n**Status:** SYNTHETIC\n**Department:** Inspection & Integrity\n**Classification:** Confidential — Internal Use Only\n**Effective date:** 01 September 2026\n**Supersedes:** SOP-INS-014 Rev 4.2\n**Related:** SOP-INS-017, SOP-INS-021, SOP-INS-025, SOP-INS-030, SOP-MNT-022, SOP-OPS-008\n**Revision note:** Rev 4.3 restates Clauses 2 and 5 from tables into numbered sub-clauses, so each service category and each severity can be cited on its own; states the formulas and year rounding in Clauses 3.1, 4.1 and 4.2; adds cross-references in 2.5, 4.6 and 6.4. No threshold, interval, required action or approval authority changed from Rev 4.2.\n\n---"
     },
     {
       "id": "S3",
       "rank": 3,
       "cited": false,
-      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
-      "document_id": "28da3745c2247e054e03ac03",
-      "location": "section: 1. Purpose",
-      "score": 0.6894,
+      "source_document": "SOP-INS-030 — Risk-Based Inspection Planning and Inspection Intervals",
+      "document_id": "4fa9bed14c6785a43860d687",
+      "location": "section: 1. Purpose and Scope",
+      "score": 0.778,
       "classification": "confidential",
-      "version": "1.0",
-      "excerpt": "## 1. Purpose\n\nTo define the identification, assessment and mitigation of corrosion under\ninsulation on insulated piping and equipment operating within the CUI\nsusceptibility temperature range."
+      "version": "1.2",
+      "excerpt": "## 1. Purpose and Scope\n\nThis procedure ranks pressure vessels and piping circuits by risk, and sets\nhow that ranking changes inspection priority and intervals. Default intervals\nare set by SOP-INS-014 Clause 2 for vessels and SOP-INS-017 Clauses 3 and 6\nfor piping."
     },
     {
       "id": "S4",
       "rank": 4,
-      "cited": true,
+      "cited": false,
       "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
-      "document_id": "069843acdfc495fa7c2b8bfc",
-      "location": "section: 5. Findings Classification",
-      "score": 0.6844,
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 2.1 Non-Corrosive, Non-Lethal Service",
+      "score": 0.7626,
       "classification": "confidential",
-      "version": "1.0",
-      "excerpt": "## 5. Findings Classification\n\n| Severity | Definition | Required action | Approval authority |\n|---|---|---|---|\n| High | Immediate threat to containment; thickness below t-min; through-wall defect; failed relief device | Withdraw from service within 24 hours | Head of Inspection + Plant Manager |\n| Medium | Remaining life below 4 years; active external corrosion; coating breakdown over 20% of surface; insulation damage permitting CUI | Repair within the current shutdown window | Head of Inspection |\n| Low | Cosmetic corrosion; minor coating defects; labelling and access deficiencies | Rectify within 6 months | Inspection Engineer |"
+      "version": "4.3",
+      "excerpt": "### 2.1 Non-Corrosive, Non-Lethal Service\n\nA pressure vessel in non-corrosive, non-lethal service shall receive an\nexternal inspection at intervals not exceeding 24 months, an internal\ninspection at intervals not exceeding 72 months, and a thickness survey at\nintervals not exceeding 48 months."
     },
     {
       "id": "S5",
       "rank": 5,
       "cited": false,
-      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
-      "document_id": "28da3745c2247e054e03ac03",
-      "location": "section: 2. Susceptibility Range",
-      "score": 0.6811,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 6.4 Continued Service with a Medium Finding",
+      "score": 0.7603,
       "classification": "confidential",
-      "version": "1.0",
-      "excerpt": "## 2. Susceptibility Range\n\n2.1 Carbon steel equipment operating between **-4 °C and 175 °C** shall be\ntreated as susceptible to CUI.\n\n2.2 Equipment subject to cyclic operation, intermittent service, or steam\ntracing shall be treated as susceptible regardless of normal operating\ntemperature.\n\n2.3 Austenitic stainless steel operating between 50 °C and 175 °C shall be\nassessed for external chloride stress corrosion cracking in addition to CUI."
+      "version": "4.3",
+      "excerpt": "### 6.4 Continued Service with a Medium Finding\n\nAny recommendation that a vessel continue in service (continued operation)\nwith a Medium finding shall record the compensating measures applied; its\napproving authority is the Head of Inspection (Clause 5.2). Operation of equipment awaiting a\nFitness-For-Service assessment is interim operation under SOP-INS-021\nClause 6, with the approvals in SOP-OPS-008 Clause 2.8."
     },
     {
       "id": "S6",
       "rank": 6,
       "cited": false,
-      "source_document": "SOP-MNT-022 — Management of Corrosion Under Insulation (CUI)",
-      "document_id": "28da3745c2247e054e03ac03",
-      "location": "section: 5. Mitigation Hierarchy",
-      "score": 0.68,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 1. Purpose and Scope",
+      "score": 0.7601,
       "classification": "confidential",
-      "version": "1.0",
-      "excerpt": "## 5. Mitigation Hierarchy\n\nMitigation shall be selected in the following order of preference:\n\n1. Remove insulation permanently where thermal requirement no longer exists\n2. Replace with closed-cell, water-repellent insulation systems\n3. Apply a qualified thermal spray aluminium or CUI-resistant coating system\n4. Restore cladding integrity and seal all penetrations\n5. Apply accelerated monitoring where none of the above is practicable"
+      "version": "4.3",
+      "excerpt": "## 1. Purpose and Scope\n\nThis procedure governs the periodic external and internal inspection of\npressure vessels operating within the refinery battery limits, including\nseparators, knock-out drums, surge vessels and accumulators registered under\nthe Static and Mobile Pressure Vessels (Unfired) Rules.\n\nThis procedure applies to all vessels with a design pressure exceeding\n1.0 bar(g) and an internal volume exceeding 500 litres. Process piping is\ncovered by SOP-INS-017."
     }
   ],
   "retrieval": {
     "mode": "embedding",
-    "duration_ms": 4625,
-    "summary": "6 passage(s) retrieved via embedding search in 4621ms",
+    "duration_ms": 602,
+    "summary": "6 passage(s) retrieved via embedding search in 597ms",
     "policy_decision": "allow"
   },
   "verification": {
-    "valid": false,
+    "valid": true,
     "checks": [
       {
         "name": "source_verification",
@@ -125,13 +125,9 @@
       },
       {
         "name": "calculation_verification",
-        "passed": false,
-        "detail": "0 of 3 calculation(s) independently recomputed in the sandbox and matched within 1.00% tolerance.",
-        "warnings": [
-          "Severity: not evaluable",
-          "Threshold for cladding damage: not evaluable",
-          "Approved by: not evaluable"
-        ]
+        "passed": true,
+        "detail": "No numeric calculations were asserted.",
+        "warnings": []
       },
       {
         "name": "code_verification",
@@ -148,18 +144,13 @@
     ],
     "material_claims_total": 1,
     "material_claims_supported": 1,
-    "completed_at": "2026-09-22T16:36:02.361712Z"
+    "completed_at": "2026-09-24T01:05:08.827664Z"
   },
   "approval": {
-    "required": true,
-    "decision": "pending",
-    "approver_roles": [
-      "administrator",
-      "reviewer"
-    ],
-    "reasons": [
-      "verification_failure: Failed verification cannot be auto-delivered; a human decides."
-    ],
+    "required": false,
+    "decision": null,
+    "approver_roles": [],
+    "reasons": [],
     "reviewer_name": null,
     "decided_at": null
   },
@@ -170,43 +161,27 @@
       "decision": "allow",
       "rule": "models.yaml:approved_classifications",
       "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
-      "at": "2026-09-22T16:32:47.271168Z"
-    },
-    {
-      "action": "model.invoke",
-      "subject": "model:qwen2.5:3b",
-      "decision": "allow",
-      "rule": "models.yaml:approved_classifications",
-      "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
-      "at": "2026-09-22T16:33:55.033799Z"
-    },
-    {
-      "action": "model.invoke",
-      "subject": "model:qwen2.5:3b",
-      "decision": "allow",
-      "rule": "models.yaml:approved_classifications",
-      "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
-      "at": "2026-09-22T16:35:20.195648Z"
+      "at": "2026-09-24T01:04:29.890276Z"
     }
   ],
   "timeline": {
-    "total_ms": 195249,
+    "total_ms": 39647,
     "stages": [
       {
         "id": "classify",
         "ran": true,
-        "ms": 2,
+        "ms": 3,
         "model": null,
         "model_version": null,
-        "note": "question_answering · normal"
+        "note": "question_answering · confidential"
       },
       {
         "id": "plan",
-        "ran": true,
-        "ms": 63064,
-        "model": "qwen2.5:3b",
-        "model_version": "Q4_K_M",
-        "note": "3 steps"
+        "ran": false,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "no plan was made"
       },
       {
         "id": "read",
@@ -219,7 +194,7 @@
       {
         "id": "retrieve",
         "ran": true,
-        "ms": 4625,
+        "ms": 602,
         "model": null,
         "model_version": null,
         "note": "6 passages, embedding search"
@@ -235,60 +210,83 @@
       {
         "id": "draft",
         "ran": true,
-        "ms": 83241,
+        "ms": 38902,
         "model": "qwen2.5:3b",
         "model_version": "Q4_K_M",
-        "note": "244 characters"
+        "note": "123 characters"
       },
       {
         "id": "verify",
         "ran": true,
-        "ms": 42140,
-        "model": "qwen2.5:3b",
-        "model_version": "Q4_K_M",
-        "note": "3 of 4 checks passed"
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "4 of 4 checks passed"
       }
     ]
   },
+  "usage": [
+    {
+      "stage": "drafting",
+      "model": "qwen2.5:3b",
+      "display_name": "Qwen2.5 3B",
+      "prompt_tokens": 1170,
+      "output_tokens": 29,
+      "tokens_per_second": 6.16,
+      "latency_ms": 38902,
+      "load_ms": 8,
+      "prompt_eval_ms": 33708,
+      "eval_ms": 4708,
+      "context_window": 5120,
+      "cancelled": false
+    }
+  ],
+  "skill": {
+    "id": "clause",
+    "name": "Find the governing clause",
+    "sha256": "d41ed1e9e13381afa04e1da69b6b7cead2f4bbd72f23b1e861aec8694717d13f",
+    "source": "built_in",
+    "input": "internal inspection of a pressure vessel in corrosive service"
+  },
   "audit": {
     "path": "storage/logs/audit.jsonl",
-    "count": 17,
-    "first_sequence": 626,
-    "last_sequence": 648,
+    "count": 10,
+    "first_sequence": 7,
+    "last_sequence": 16,
     "tail": [
       {
-        "sequence": 646,
-        "at": "2026-09-22T16:36:02.381889+00:00",
+        "sequence": 14,
+        "at": "2026-09-24T01:05:08.828578+00:00",
         "category": "verification",
         "action": "completed",
-        "prev_hash": "a039d4ab35d74fad493bc72f9c83c98c18d46b8404b918b12191e007f7f6d827",
-        "hash": "5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0",
-        "line": "{\"sequence\": 646, \"id\": \"7b45263d-c38a-4005-9543-e1c6e77ac366\", \"at\": \"2026-09-22T16:36:02.381889+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9\", \"category\": \"verification\", \"action\": \"completed\", \"detail\": {\"valid\": false, \"checks\": {\"source_verification\": true, \"calculation_verification\": false, \"code_verification\": true, \"hallucination_check\": true}}, \"prev_hash\": \"a039d4ab35d74fad493bc72f9c83c98c18d46b8404b918b12191e007f7f6d827\", \"hash\": \"5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0\"}"
+        "prev_hash": "d29ba1a32b7b08d6a303c6f24e4b847ec07fa71050f42289ecbd1fdf73314526",
+        "hash": "54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb",
+        "line": "{\"sequence\": 14, \"id\": \"5d9bafaa-f940-4a25-a9f1-879784bccdda\", \"at\": \"2026-09-24T01:05:08.828578+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"f30c2459-2f2b-44a0-84bd-4688d7f38260\", \"category\": \"verification\", \"action\": \"completed\", \"detail\": {\"valid\": true, \"checks\": {\"source_verification\": true, \"calculation_verification\": true, \"code_verification\": true, \"hallucination_check\": true}}, \"prev_hash\": \"d29ba1a32b7b08d6a303c6f24e4b847ec07fa71050f42289ecbd1fdf73314526\", \"hash\": \"54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb\"}"
       },
       {
-        "sequence": 647,
-        "at": "2026-09-22T16:36:02.461521+00:00",
-        "category": "approval",
-        "action": "requested",
-        "prev_hash": "5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0",
-        "hash": "283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0",
-        "line": "{\"sequence\": 647, \"id\": \"12e9b8fe-5b55-4e8f-816e-8941095f198e\", \"at\": \"2026-09-22T16:36:02.461521+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9\", \"category\": \"approval\", \"action\": \"requested\", \"detail\": {\"reasons\": [\"verification_failure: Failed verification cannot be auto-delivered; a human decides.\"], \"approver_roles\": [\"administrator\", \"reviewer\"]}, \"prev_hash\": \"5caa9dcd69bbc32a9f490cbeb47f44d1b6990969bb6943c257fa832a1f7e4fe0\", \"hash\": \"283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0\"}"
+        "sequence": 15,
+        "at": "2026-09-24T01:05:08.841357+00:00",
+        "category": "policy",
+        "action": "classification_raised",
+        "prev_hash": "54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb",
+        "hash": "caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817",
+        "line": "{\"sequence\": 15, \"id\": \"c2b01150-2542-42fb-a077-7834e41516c0\", \"at\": \"2026-09-24T01:05:08.841357+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"f30c2459-2f2b-44a0-84bd-4688d7f38260\", \"category\": \"policy\", \"action\": \"classification_raised\", \"detail\": {\"from\": \"normal\", \"to\": \"confidential\", \"because\": [\"S1\", \"S2\", \"S3\", \"S4\", \"S5\", \"S6\"]}, \"prev_hash\": \"54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb\", \"hash\": \"caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817\"}"
       },
       {
-        "sequence": 648,
-        "at": "2026-09-22T16:36:02.499189+00:00",
+        "sequence": 16,
+        "at": "2026-09-24T01:05:08.903721+00:00",
         "category": "task",
-        "action": "finished:awaiting_approval",
-        "prev_hash": "283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0",
-        "hash": "0b087291827228dce80b0e32bd5f016bde5a73aba862016e1ec1a21a26c312e2",
-        "line": "{\"sequence\": 648, \"id\": \"dcd75036-5be2-45d1-8a38-0bc6fe015975\", \"at\": \"2026-09-22T16:36:02.499189+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9\", \"category\": \"task\", \"action\": \"finished:awaiting_approval\", \"detail\": {\"status\": \"awaiting_approval\", \"duration_ms\": 195249, \"deliverables\": [], \"verification_valid\": false, \"network_activity\": \"none \\u2014 all processing local\"}, \"prev_hash\": \"283b73b7682c039318ed5ec48a04e615c1ffa2eb069330610d3293a8023fbdb0\", \"hash\": \"0b087291827228dce80b0e32bd5f016bde5a73aba862016e1ec1a21a26c312e2\"}"
+        "action": "finished:delivered",
+        "prev_hash": "caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817",
+        "hash": "bf6ec740e3b6ff221314417cdb7a4b80e14e53f7ac0d9447a330d5f6214e3d46",
+        "line": "{\"sequence\": 16, \"id\": \"58160e7e-1fab-4675-88fa-dc33a556b098\", \"at\": \"2026-09-24T01:05:08.903721+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"f30c2459-2f2b-44a0-84bd-4688d7f38260\", \"category\": \"task\", \"action\": \"finished:delivered\", \"detail\": {\"status\": \"delivered\", \"duration_ms\": 39647, \"deliverables\": [], \"verification_valid\": true, \"egress\": {\"unapproved_connections_observed\": 0, \"method\": \"process-tree connection sampling; a connection that opens and closes between samples is not observed\"}}, \"prev_hash\": \"caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817\", \"hash\": \"bf6ec740e3b6ff221314417cdb7a4b80e14e53f7ac0d9447a330d5f6214e3d46\"}"
       }
     ]
   },
   "sandbox_self_test": {
-    "sequence": 839,
-    "at": "2026-09-23T22:12:22.128017+00:00",
-    "hash": "862d0f7ee1d6b8e517aa3722416814b50d76e45d82e5a79c28db7cc50a47de23",
+    "sequence": 106,
+    "at": "2026-09-24T01:14:17.022373+00:00",
+    "hash": "712075f90046a40dd64f2ea8eb4a0551281fbb0c398329f7d89868caa25a797a",
     "detail": {
       "checks": [
         {
@@ -319,7 +317,7 @@
           "name": "Permitted work still runs",
           "target": "print(sum(range(1000)))",
           "passed": true,
-          "detail": "exit 0 in 101ms"
+          "detail": "exit 0 in 110ms"
         },
         {
           "name": "Memory limit terminates a bomb",
@@ -331,7 +329,7 @@
           "name": "CPU-time limit terminates a spin",
           "target": "infinite loop under a 1s CPU-time cap",
           "passed": true,
-          "detail": "terminated after 5.33s CPU"
+          "detail": "terminated after 6.61s CPU"
         },
         {
           "name": "Process spawning is capped",
@@ -346,8 +344,8 @@
       "backend": "windows_job_object",
       "overall": "8 of 8 containment checks held on this host",
       "all_passed": true,
-      "duration_ms": 6617,
-      "ran_at": "2026-09-23T22:12:22.127530+00:00"
+      "duration_ms": 7645,
+      "ran_at": "2026-09-24T01:14:17.021855+00:00"
     }
   }
 }

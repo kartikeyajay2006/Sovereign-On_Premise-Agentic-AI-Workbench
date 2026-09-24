@@ -194,6 +194,38 @@ export function modelForRow(usage: readonly ModelUsage[], row: string): string {
 }
 
 /**
+ * How long a stage took, from what the record measured: its model calls'
+ * latencies and its tool calls' durations. A stage the record has no timing
+ * for gets null, which prints nothing -- never a zero.
+ */
+export function recordedMs(task: Task, row: string): number | null {
+  const usage = task.usage || []
+  const tools = task.tool_calls || []
+  const total = (values: (number | null | undefined)[]): number | null => {
+    const known = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+    return known.length ? known.reduce((sum, v) => sum + v, 0) : null
+  }
+  const calls = (stage: string) => usage.filter((u) => u.stage === stage).map((u) => u.latency_ms)
+  const runs = (tool: string) => tools.filter((c) => c.tool === tool).map((c) => c.duration_ms)
+  switch (row) {
+    case 'plan':
+      return total(calls('planning'))
+    case 'read':
+      return total(calls('vision_extraction'))
+    case 'retrieve':
+      return total(runs('knowledge_search'))
+    case 'sandbox':
+      return total([...calls('code_generation'), ...runs('python_exec')])
+    case 'draft':
+      return total(calls('drafting'))
+    case 'verify':
+      return total(calls('verification'))
+    default:
+      return null
+  }
+}
+
+/**
  * Reconstruct the stage board from a task record.
  *
  * A reopened run has no event stream to replay -- token frames are never
@@ -222,7 +254,7 @@ export function stagesFromTask(
   return pipeline.map((stage): PipelineStage => {
     const model = modelForRow(usage, stage.id)
     if (stage.id === current) return { ...stage, model, status: 'active', at: task.updated_at }
-    if (ran[stage.id]) return { ...stage, model, status: 'done' }
+    if (ran[stage.id]) return { ...stage, model, status: 'done', elapsedMs: recordedMs(task, stage.id) }
     return { ...stage, model, status: inFlight ? 'pending' : 'skipped' }
   })
 }

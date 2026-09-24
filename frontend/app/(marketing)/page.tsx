@@ -23,7 +23,9 @@ import {
   runId,
   seconds,
   sectionLabel,
+  sectionNumber,
   type EvidenceUnit as Unit,
+  type UsageCall,
 } from '@/components/landing/run-fixture'
 import { SectionShell } from '@/components/landing/section-shell'
 import { SelfTest } from '@/components/landing/self-test'
@@ -57,7 +59,7 @@ type Tone = 'held' | 'released' | 'refused' | 'other'
 const outcome: { label: string; tone: Tone } =
   run.status === 'awaiting_approval'
     ? { label: ANSWER.outcome.held, tone: 'held' }
-    : run.status === 'approved' || run.status === 'completed'
+    : run.status === 'approved' || run.status === 'completed' || run.status === 'delivered'
       ? { label: ANSWER.outcome.released, tone: 'released' }
       : run.status === 'rejected'
         ? { label: ANSWER.outcome.refused, tone: 'refused' }
@@ -86,23 +88,82 @@ const sources: InspectorSource[] = run.evidence.map((unit) => ({
   excerpt: unit.excerpt,
 }))
 
-// The replay: the run's own stages, checks and seal, paced for a screen.
+// The replay: the run's own stages, as the thread's transcript writes them,
+// with what each got back -- passages, tokens, checks -- hung under it.
 const STEP_WORDS: Record<string, { label: string; active: string }> = {
-  plan: { label: 'Planned', active: 'Planning' },
+  classify: { label: 'Classified the request', active: 'Reading the request' },
+  plan: { label: 'Planned the run', active: 'Planning' },
   retrieve: { label: 'Searched the knowledge base', active: 'Searching the knowledge base' },
   read: { label: 'Read the attachment', active: 'Reading the attachment' },
-  sandbox: { label: 'Ran the calculation', active: 'Running the calculation' },
-  draft: { label: 'Drafted the answer', active: 'Drafting the answer' },
-  verify: { label: 'Verified the claims', active: 'Verifying the claims' },
+  sandbox: { label: 'Ran code in the sandbox', active: 'Running code in the sandbox' },
+  draft: { label: 'Drafted the answer', active: 'Drafting' },
+  verify: { label: 'Checked every claim', active: 'Checking every claim' },
 }
+/** Which model call belongs to which line. */
+const CALL_STAGE: Record<string, string> = {
+  plan: 'planning',
+  read: 'vision_extraction',
+  sandbox: 'code_generation',
+  draft: 'drafting',
+}
+const calls: readonly UsageCall[] = run.usage ?? []
+/** One call's cost as the runtime reported it; an unreported figure is left out. */
+function callLine(call: UsageCall | undefined): string | null {
+  if (!call) return null
+  const parts = [call.display_name || call.model]
+  if (call.prompt_tokens !== null) parts.push(`${call.prompt_tokens.toLocaleString('en-US')} in`)
+  if (call.output_tokens !== null) parts.push(`${call.output_tokens.toLocaleString('en-US')} out`)
+  if (call.tokens_per_second !== null) parts.push(`${call.tokens_per_second.toFixed(1)} tok/s`)
+  return parts.join(' · ')
+}
+const passages = run.evidence.filter((unit) => /^S\d+$/.test(unit.id))
+const passageLine =
+  passages.length > 0
+    ? passages
+        .slice(0, 3)
+        .map((unit) => `${documentCode(unit)} ${sectionNumber(unit)}`.trim())
+        .join(' · ') + (passages.length > 3 ? ` · +${passages.length - 3} more` : '')
+    : null
 const replaySteps: ReplayStep[] = run.timeline.stages
   .filter((stage) => stage.ran && stage.id in STEP_WORDS)
   .map((stage) => ({
     id: stage.id,
     ...STEP_WORDS[stage.id],
-    detail: stage.model ? `${stage.note} · ${stage.model}` : stage.note,
-    seconds: seconds(stage.ms),
+    note:
+      stage.id === 'classify'
+        ? stage.note.replace(/_/g, ' ')
+        : stage.id === 'retrieve'
+          ? `${passages.length} passage${passages.length === 1 ? '' : 's'}`
+          : stage.id === 'verify'
+            ? `${passedChecks} of ${checks.length} passed`
+            : null,
+    result:
+      stage.id === 'retrieve'
+        ? passageLine
+        : stage.id in CALL_STAGE
+          ? callLine(calls.filter((call) => call.stage === CALL_STAGE[stage.id]).at(-1))
+          : null,
+    seconds: stage.id === 'classify' ? null : seconds(stage.ms),
   }))
+// The line the turn ends on: every call's tokens, and the answer's speed.
+const knownIn = calls.filter((call) => call.prompt_tokens !== null)
+const knownOut = calls.filter((call) => call.output_tokens !== null)
+const answerCall = calls.filter((call) => call.stage === 'drafting').at(-1)
+const usageLine =
+  calls.length > 0
+    ? [
+        Array.from(new Set(calls.map((call) => call.display_name || call.model))).join(', '),
+        knownIn.length === calls.length
+          ? `${knownIn.reduce((sum, call) => sum + (call.prompt_tokens ?? 0), 0).toLocaleString('en-US')} in`
+          : null,
+        knownOut.length === calls.length
+          ? `${knownOut.reduce((sum, call) => sum + (call.output_tokens ?? 0), 0).toLocaleString('en-US')} out`
+          : null,
+        answerCall?.tokens_per_second != null ? `${answerCall.tokens_per_second.toFixed(1)} tok/s` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null
 const CHECK_WORDS: Record<string, string> = {
   source_verification: 'Sources',
   calculation_verification: 'Calculations',
@@ -194,10 +255,19 @@ const GALLERY: GallerySlide[] = [
     id: 'thread',
     label: 'Thread',
     title: 'Ask in plain language.',
-    body: 'Every answer arrives cited to the passage it rests on, with the checks it passed and the time it took.',
+    body: 'A run reads like a terminal session: each step with its time, the passages it found, the model’s tokens and the checks, then the cited answer.',
     light: '/landing/shots/thread-light.png',
     dark: '/landing/shots/thread-dark.png',
-    alt: 'The AEGIS thread: a question, and an answer held for review with its citations, checks and model usage.',
+    alt: 'The AEGIS thread: a /clause request, the run as a transcript of its steps with times, tokens and four passed checks, and the answer citing S1.',
+  },
+  {
+    id: 'skills',
+    label: 'Skills',
+    title: 'Save an instruction. Call it with /.',
+    body: 'Type / for every skill and harness. A skill changes only what a run is asked, so every run it starts still meets every check.',
+    light: '/landing/shots/skills-light.png',
+    dark: '/landing/shots/skills-dark.png',
+    alt: 'The composer with its / menu open: five skills, then the harnesses, each with its command and what it does.',
   },
   {
     id: 'harness',
@@ -216,6 +286,15 @@ const GALLERY: GallerySlide[] = [
     light: '/landing/shots/approvals-light.png',
     dark: '/landing/shots/approvals-dark.png',
     alt: 'The approval queue: held runs on the left, one open on the right with the reason it was held.',
+  },
+  {
+    id: 'sandbox',
+    label: 'Sandbox',
+    title: 'Code runs under the host’s limits.',
+    body: 'Real payloads, refused before they run or contained while they do, with the memory, CPU and exit the host measured.',
+    light: '/landing/shots/sandbox-light.png',
+    dark: '/landing/shots/sandbox-dark.png',
+    alt: 'The sandbox: a memory bomb contained at the 1024 MB cap, with its traceback, peak memory and CPU time.',
   },
   {
     id: 'audit',
@@ -292,7 +371,7 @@ export default function LandingPage() {
       {/* ---------------------------------------------------------------- */}
       <section aria-labelledby="hero-title" className="relative overflow-hidden">
         <div className="ae-shell pb-12 pt-14 text-center md:pb-16 md:pt-24">
-          <a href="#proof" className="ae-announce ae-load-1">
+          <a href={HERO.announce.href} className="ae-announce ae-load-1">
             <span className="tag">{HERO.announce.tag}</span>
             {HERO.announce.text}
             <span aria-hidden className="text-foreground-muted">
@@ -327,6 +406,8 @@ export default function LandingPage() {
             <RunReplay
               runId={runId}
               prompt={run.prompt}
+              skill={run.skill ? { id: run.skill.id, name: run.skill.name, input: run.skill.input } : null}
+              usage={usageLine}
               answer={run.answer}
               sources={run.evidence.map((unit) => ({
                 id: unit.id,
@@ -363,7 +444,7 @@ export default function LandingPage() {
         eyebrow="Product"
         title="One workbench."
         titleTurn="Every step on the record."
-        lede="The thread, the harnesses, the approval queue and the audit chain, as they run on the demo host."
+        lede="The thread, skills, harnesses, the approval queue, the sandbox and the audit chain, as they run on the demo host."
       >
         <Reveal step={1}>
           <ProductGallery slides={GALLERY} />

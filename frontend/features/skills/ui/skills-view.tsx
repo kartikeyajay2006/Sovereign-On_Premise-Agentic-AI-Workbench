@@ -315,7 +315,11 @@ export function SkillsView() {
   const [skills, setSkills] = useState<Skill[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // A skill is used by starting a run, so a role that cannot start one has
+  // none to list -- and asking would only write a refusal to the audit chain.
+  const canRun = can('task.create')
   useEffect(() => {
+    if (!canRun) return
     let cancelled = false
     api
       .listSkills()
@@ -324,7 +328,7 @@ export function SkillsView() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [canRun])
 
   const builtIn = useMemo(() => (skills ?? []).filter((s) => s.source === 'built_in'), [skills])
   const custom = useMemo(() => (skills ?? []).filter((s) => s.source === 'custom'), [skills])
@@ -372,8 +376,14 @@ export function SkillsView() {
 
         <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
           <div className="flex flex-col gap-8">
+            {!canRun && (
+              <p className="text-[13.5px] text-foreground-secondary">
+                Your role reviews work rather than running it, so it has no skills to call. Every run a skill started
+                is in the audit chain, with the skill and the hash it was run at.
+              </p>
+            )}
             {error && <p className="text-[13.5px] text-critical-text">{error}</p>}
-            {!skills && !error && <p className="text-[13.5px] text-foreground-muted">Reading the skills…</p>}
+            {canRun && !skills && !error && <p className="text-[13.5px] text-foreground-muted">Reading the skills…</p>}
 
             {custom.length > 0 && (
               <section aria-labelledby="skills-custom">

@@ -83,7 +83,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # A run is only worth putting above the fold if the pipeline actually reached
 # the end of itself. Anything still moving is not a receipt.
-TERMINAL_STATUSES = {"awaiting_approval", "approved", "completed", "rejected"}
+# "delivered" is how the task service records an answer released without a
+# hold; "completed" is kept for records written before that status existed.
+TERMINAL_STATUSES = {"awaiting_approval", "approved", "completed", "delivered", "rejected"}
 
 # The same marker shape backend/agents/verifier.py treats as a citation, so a
 # passage counts as cited here exactly when it would count there.
@@ -654,6 +656,39 @@ def export_timeline(task: dict[str, Any], audit: list[dict[str, Any]]) -> dict[s
     }
 
 
+USAGE_FIELDS = (
+    "stage",
+    "model",
+    "display_name",
+    "prompt_tokens",
+    "output_tokens",
+    "tokens_per_second",
+    "latency_ms",
+    "load_ms",
+    "prompt_eval_ms",
+    "eval_ms",
+    "context_window",
+    "cancelled",
+)
+
+
+def export_usage(task: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each model call as the runtime reported it, in order.
+
+    Copied field by field; a count the runtime did not report stays null, so
+    the page's usage line prints less rather than a smaller total.
+    """
+    return [{field: call.get(field) for field in USAGE_FIELDS} for call in task.get("usage") or []]
+
+
+def export_skill(task: dict[str, Any]) -> dict[str, Any] | None:
+    """The skill the request went through, if any: its id, name, hash and the typed input."""
+    skill = task.get("skill")
+    if not isinstance(skill, dict):
+        return None
+    return {key: skill.get(key) for key in ("id", "name", "sha256", "source", "input")}
+
+
 def export_audit(task: dict[str, Any], audit_raw: list[tuple[dict[str, Any], str]], path: Path) -> dict[str, Any]:
     """The run's count, and its final record with the two written before it.
 
@@ -759,6 +794,8 @@ def build(
         "approval": export_approval(task),
         "policy_events": export_policy_events(task),
         "timeline": export_timeline(task, audit),
+        "usage": export_usage(task),
+        "skill": export_skill(task),
         "audit": export_audit(task, audit_raw, audit_path),
         "sandbox_self_test": export_sandbox_self_test(audit),
     }

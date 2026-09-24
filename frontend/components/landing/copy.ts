@@ -40,11 +40,9 @@ export const META = {
 export type Rich = ReadonlyArray<string | { v: string }>
 
 /**
- * The run shown in public/landing/thread-run.png. Identified from the image:
- * its prompt, "195.2s" against the record's 195249 ms, and "3/4 checks
- * passed". Facts printed under the screenshot are only read from the fixture
- * while the fixture is this run; re-capture another and they are omitted,
- * rather than printed under a picture of something else.
+ * The run the hand-written annotation in ANSWER was written about. The
+ * annotation is attached only while run.json is this run; capture another
+ * and it is dropped, rather than printed over an answer it does not describe.
  */
 export const SCREENSHOT_TASK_ID = '5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9'
 
@@ -60,26 +58,14 @@ export const HERO = {
   // The hero's overline and the quiet line under its buttons: statements of
   // mechanism, each one something the page below demonstrates.
   // The pill above the headline, and the note under the replay.
-  announce: { tag: 'On-prem', text: 'Models, retrieval and audit run on your own hardware' },
+  // Points at the gallery's Skills screen: what is new, said as what it does.
+  announce: { tag: 'New', text: 'Skills: save an instruction, call it with /', href: '#product' },
   replayNote:
     'A recorded run, replayed. Every value comes from its record; only the pacing is compressed, and each step shows the time it really took on a two-core laptop CPU.',
   sub: 'An air-gapped AI workbench for regulated industrial work. Every answer is cited to a page, checked against your policy, and recorded.',
   primary: { label: 'Open the workbench', href: '/sign-in' },
   secondary: { label: 'Read the source', href: REPO_URL },
   repoPath: REPO_PATH,
-  shotAlt:
-    'The AEGIS console after a completed run: a question about cladding damage severity, the verdict HELD with three of four checks passed, a folded work log reading 5 of 7 stages, and a three-sentence answer citing S1 and S4.',
-  // The two captions below name the run in the picture, so each has a
-  // version for when run.json holds a different one.
-  shotCaption:
-    'The console after a real run on this host. The answer is withheld until verification finishes; this one did not pass, so it was held for a reviewer rather than released. One of its three sentences is wrong. The next section opens this same answer from its run record — press S4 there to see which.',
-  shotCaptionOther:
-    'The console after a real run on this host. The answer is withheld until verification finishes, and a run that does not pass is held for a reviewer rather than released.',
-  shotHeld: 'held for review',
-  receiptCaption:
-    'Every value on this card was exported from the run in the screenshot by scripts/capture_landing_fixture.py and is served from public/landing/run.json. Nothing here is typed by hand, including the row that says verification did not pass and the row that says the result is still held. Without that file the page does not build.',
-  receiptCaptionOther:
-    'Every value on this card was exported from one real run by scripts/capture_landing_fixture.py and is served from public/landing/run.json. Nothing here is typed by hand. Without that file the page does not build.',
 } as const
 
 const COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
@@ -278,7 +264,7 @@ export const CHAIN = {
   evidenceCaption:
     'S1 from the answer above, as the run recorded it: the document, the section, the stored text.',
   checkedCaption:
-    'The report as the verifier wrote it. When this ran, its claim patterns counted one sentence of the answer’s three and passed it; the approving-authority sentence was never examined. The rules now count every cited sentence (policies/approval-rules.yaml), and the current check, run against this answer, passes all three — the wrong one included. Its own docstring says why:',
+    'The report exactly as the verifier wrote it for this run. A passing check says each cited sentence is about the passage it cites. The verifier’s own docstring is plain about what that does not show:',
   verifierQuote:
     'It establishes that a claim is ABOUT the passage it cites -- it cannot establish that the passage supports it. A claim reading the wrong row of a table quotes that table’s own words and passes here.',
   verifierQuoteSource: 'backend/agents/verifier.py',
@@ -479,7 +465,7 @@ export const LIMITS = {
     },
     {
       title: 'Claim checks match words, not meaning.',
-      body: 'The verifier establishes that a sentence is about the passage it cites, not that the passage supports it. A sentence that reads the wrong row of a table uses the table’s own words and passes. Section 01 shows one. Catching it takes a person with the passage open, which is why a run that fails any check is held for one.',
+      body: 'The verifier establishes that a sentence is about the passage it cites, not that the passage supports it. A sentence that reads the wrong row of a table uses the table’s own words and passes. Catching it takes a person with the passage open, which is why a run that fails any check is held for one.',
     },
     {
       title: 'The audit chain detects tampering. It does not prevent it.',

@@ -1998,28 +1998,31 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
 .ae-pill.ok { color: var(--sovereign-text); background: var(--sovereign-surface); }
 .ae-pill.fail { color: var(--critical-text); background: var(--critical-surface); }
 
-.ae-replay-steps { margin: 16px 0 0; padding: 0 0 0 12px; list-style: none; border-left: 1px solid var(--line-subtle); display: flex; flex-direction: column; gap: 7px; }
-.ae-replay-steps li { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 0.82rem; opacity: 0; transform: translateX(-4px); transition: opacity 0.35s ease, transform 0.35s var(--ae-ease); }
-.ae-replay-steps li.on { opacity: 1; transform: none; }
-.ae-replay-steps .tick { color: var(--sovereign-text); font-size: 0.75rem; }
+.ae-pill.run { color: var(--active-text); background: var(--active-surface); }
+.ae-pill.run .dot { animation: ae-pulse 1.4s ease-in-out infinite; }
+@keyframes ae-pulse { 50% { opacity: 0.35; } }
 
-.ae-replay-text { margin: 18px 0 0; font-size: 1rem; line-height: 1.7; color: var(--foreground); min-height: 5.1em; }
-.ae-word { animation: ae-word-in 0.35s ease both; }
-@keyframes ae-word-in { from { opacity: 0; } to { opacity: 1; } }
-.ae-cite { display: inline-flex; align-items: center; justify-content: center; margin: 0 2px; padding: 0 6px; height: 20px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; vertical-align: 2px; color: var(--foreground); background: color-mix(in oklab, var(--foreground) 8%, var(--surface)); animation: ae-cite-in 0.4s var(--ae-ease) both; }
-@keyframes ae-cite-in { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
-.ae-caret { display: inline-block; width: 7px; height: 1.05em; margin-left: 2px; vertical-align: -3px; border-radius: 2px; background: var(--foreground); animation: ae-caret 1s steps(2) infinite; }
-@keyframes ae-caret { 50% { opacity: 0; } }
-
-.ae-replay-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.ae-check { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 9999px; font-size: 0.8rem; font-weight: 500; border: 1px solid var(--line-subtle); opacity: 0; transform: translateY(4px) scale(0.96); transition: opacity 0.3s ease, transform 0.35s var(--ae-ease); }
-.ae-check.on { opacity: 1; transform: none; }
-.ae-check.pass { color: var(--foreground); }
-.ae-check.pass > span { color: var(--sovereign-text); }
-.ae-check.fail { color: var(--critical-text); border-color: var(--critical-border); background: var(--critical-surface); }
-
-.ae-replay-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-subtle); font-size: 0.8rem; color: var(--foreground-muted); opacity: 0; transition: opacity 0.5s ease; }
-.ae-replay-foot.on { opacity: 1; }
+/* The run as a transcript: a bullet per stage, what came back hung under it. */
+.ae-replay-log { margin: 16px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.6; }
+.ae-replay-log li { min-width: 0; animation: ae-log-in 0.3s var(--ae-ease) both; }
+@keyframes ae-log-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.ae-replay-log .row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ae-replay-log .bullet { width: 1ch; flex-shrink: 0; text-align: center; color: var(--sovereign-text); }
+.ae-replay-log .bullet.spin { color: var(--foreground); }
+.ae-replay-log .title { flex-shrink: 0; color: var(--foreground); }
+.ae-replay-log .note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground-muted); }
+.ae-replay-log .secs { margin-left: auto; flex-shrink: 0; padding-left: 8px; color: var(--foreground-muted); font-variant-numeric: tabular-nums; }
+.ae-replay-log .hang { display: flex; gap: 8px; min-width: 0; padding-left: 0.35rem; color: var(--foreground-muted); }
+.ae-replay-log .hang .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ae-replay-log .checks { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.ae-replay-log .checks > span { animation: ae-log-in 0.3s var(--ae-ease) both; }
+.ae-replay-log .ok { color: var(--sovereign-text); }
+.ae-replay-log .no { color: var(--critical-text); }
+.ae-replay-skill { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; font-size: 0.76rem; }
+.ae-replay-skill .cmd { font-family: var(--font-mono); color: var(--foreground); }
+.ae-replay-skill .name { color: var(--foreground-muted); }
+.ae-replay-worked { display: flex; flex-direction: column; gap: 2px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line-subtle); font-size: 0.76rem; line-height: 1.6; color: var(--foreground-muted); opacity: 0; transition: opacity 0.5s ease; }
+.ae-replay-worked.on { opacity: 1; }
 
 .ae-replay-sources { padding: 24px 20px; border-left: 1px solid var(--line-subtle); background: color-mix(in oklab, var(--foreground) 1.5%, var(--surface)); }
 .ae-src { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; opacity: 0; transform: translateY(6px); transition: opacity 0.4s ease, transform 0.4s var(--ae-ease), border-color 0.3s ease, background-color 0.3s ease; }
@@ -2034,8 +2037,8 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
 .ae-src .num { font-size: 0.7rem; color: var(--foreground-muted); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ae-replay-q, .ae-replay-a, .ae-replay-steps li, .ae-check, .ae-replay-foot, .ae-src, .ae-src .bar { transition: none; }
-  .ae-word, .ae-cite, .ae-shimmer, .ae-caret { animation: none; }
+  .ae-replay-q, .ae-replay-a, .ae-replay-worked, .ae-src, .ae-src .bar { transition: none; }
+  .ae-word, .ae-cite, .ae-shimmer, .ae-caret, .ae-replay-log li, .ae-replay-log .checks > span, .ae-pill.run .dot { animation: none; }
   .ae-shimmer { color: var(--foreground-secondary); background: none; }
 }
 
@@ -2159,8 +2162,8 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
   @media (max-width: 640px) {
     .ae-announce { height: auto; min-height: 34px; padding-top: 5px; padding-bottom: 5px; text-align: left; line-height: 1.35; }
     .ae-announce > [aria-hidden] { display: none; }
-    /* The replay's stage rows keep the step and its time; the detail goes. */
-    .ae-replay-steps li > .truncate { display: none; }
+    /* The replay's lines keep the step and its time; the note goes. */
+    .ae-replay-log .note { display: none; }
     .ae-replay-body > div { padding: 18px 16px; }
   }
 }

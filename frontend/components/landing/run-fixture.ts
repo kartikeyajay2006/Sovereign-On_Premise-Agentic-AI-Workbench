@@ -87,7 +87,8 @@ export interface Verification {
 
 export interface Approval {
   required: boolean
-  decision: string
+  /** Null when no approval was required, so none was ever pending. */
+  decision: string | null
   approver_roles: readonly string[]
   reasons: readonly string[]
   reviewer_name: string | null
@@ -183,6 +184,25 @@ export interface CapturedRun {
     tail: readonly AuditRecord[]
   }
   sandbox_self_test: SandboxSelfTest | null
+  /** Each model call as the runtime reported it. Absent from older captures. */
+  usage?: readonly UsageCall[]
+  /** The skill the request went through, when it went through one. */
+  skill?: { id: string; name: string; sha256: string; source: string; input: string } | null
+}
+
+export interface UsageCall {
+  stage: string
+  model: string
+  display_name: string | null
+  prompt_tokens: number | null
+  output_tokens: number | null
+  tokens_per_second: number | null
+  latency_ms: number | null
+  load_ms: number | null
+  prompt_eval_ms: number | null
+  eval_ms: number | null
+  context_window: number | null
+  cancelled: boolean | null
 }
 
 export const run: CapturedRun = fixture
@@ -222,15 +242,21 @@ export function documentTitle(item: Pick<EvidenceUnit, 'source_document'>): stri
   return (parts.length > 1 ? parts.slice(1).join(' — ') : parts[0]).trim()
 }
 
-/** "section: 5. Findings Classification" -> "§5. Findings Classification". */
+/**
+ * "section: 5. Findings Classification" -> "§5. Findings Classification".
+ * A passage from before the first section is located by the document's own
+ * title line; that is shown as the title, without a section mark it lacks.
+ */
 export function sectionLabel(item: Pick<EvidenceUnit, 'location'>): string {
-  return item.location.replace(/^\s*section:\s*/, '§').trim()
+  if (/^\s*section:/.test(item.location)) return item.location.replace(/^\s*section:\s*/, '§').trim()
+  const parts = item.location.split(' — ')
+  return (parts.length > 1 ? parts.slice(1).join(' — ') : item.location).trim()
 }
 
-/** "section: 5. Findings Classification" -> "§5". */
+/** "section: 5. Findings Classification" -> "§5"; nothing when there is no section number. */
 export function sectionNumber(item: Pick<EvidenceUnit, 'location'>): string {
   const match = /^\s*section:\s*([0-9]+(?:\.[0-9]+)*)/.exec(item.location)
-  return match ? `§${match[1]}` : sectionLabel(item)
+  return match ? `§${match[1]}` : ''
 }
 
 /** "2026-09-22T16:32:47.179239Z" -> "16:32:47 UTC". */
