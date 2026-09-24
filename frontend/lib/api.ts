@@ -23,6 +23,8 @@ import type {
   SovereigntyStatus,
   StoredFile,
   SystemHealth,
+  Skill,
+  SkillDraft,
   Task,
   TaskCreateRequest,
   TaskFile,
@@ -172,19 +174,38 @@ export const api = {
     fileIds: string[] = [],
     deliverableFormat?: string | null,
     /** A registry id, or null/undefined for Automatic. */
-    preferredModel?: string | null
+    preferredModel?: string | null,
+    /** A skill to run the prompt through, or null. */
+    skillId?: string | null
   ): Promise<Task> {
     const body: TaskCreateRequest = {
       prompt,
       file_ids: fileIds,
       deliverable_format: deliverableFormat || null,
       preferred_model: preferredModel || null,
+      skill_id: skillId || null,
     }
     return request<Task>('/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+  },
+
+  async listSkills(): Promise<Skill[]> {
+    return request<Skill[]>('/skills')
+  },
+
+  async createSkill(draft: SkillDraft): Promise<Skill> {
+    return request<Skill>('/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(draft),
+    })
+  },
+
+  async deleteSkill(skillId: string): Promise<void> {
+    await request<void>(`/skills/${encodeURIComponent(skillId)}`, { method: 'DELETE' })
   },
 
   async cancelTask(taskId: string): Promise<Task> {

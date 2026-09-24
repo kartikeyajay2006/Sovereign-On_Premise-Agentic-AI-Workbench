@@ -450,6 +450,9 @@ class TaskSummary(BaseModel):
     deliverable_count: int = 0
     approval_required: bool = False
     user_display_name: str | None = None
+    # The skill the request went through, so a list can show "/clause" and
+    # what was typed rather than the skill's whole rendering.
+    skill: SkillInvocation | None = None
 
 
 # ----------------------------------------------------------------- knowledge

@@ -13,6 +13,7 @@ import type {
   PipelineStage,
   StreamEvent,
   Task,
+  Skill,
 } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
 import { useRole } from '@/components/role-context'
@@ -21,7 +22,9 @@ import { NEW_RUN_EVENT } from '@/components/command-palette'
 import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
 import { TraceScope } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
+import { harnessApi } from '@/features/harness/api'
 import { Composer, type ComposerAttachment } from './composer'
+import type { HarnessEntry } from './slash-menu'
 import { UserTurn } from './user-turn'
 import { AssistantTurn } from './assistant-turn'
 import { SessionRail } from './session-rail'
@@ -81,6 +84,7 @@ function recordFields(task: Task) {
     elapsedMs: task.duration_ms ?? null,
     usage: task.usage || [],
     modelChoices: choicesFromRouting(task.routing),
+    profile: task.profile ? { taskType: task.profile.task_type, sensitivity: task.profile.sensitivity } : null,
     approval: task.approval
       ? {
           reasons: task.approval.reasons || [],
@@ -99,7 +103,8 @@ function recordFields(task: Task) {
 function requestFromTask(task: Task): RunRequest {
   const files = task.files || []
   return {
-    prompt: task.prompt,
+    // What was typed, so Run again sends it through the same skill.
+    prompt: task.skill ? task.skill.input : task.prompt,
     fileIds: files.map((f) => f.id),
     attachments: files.map((f) => ({
       fileId: f.id,
@@ -111,6 +116,7 @@ function requestFromTask(task: Task): RunRequest {
     // it settled on reproduces the run whether or not it was chosen by hand.
     format: task.profile?.produces_deliverable ? (task.profile.deliverable_format ?? null) : null,
     preferredModel: task.preferred_model ?? null,
+    skill: task.skill ? { id: task.skill.id, name: task.skill.name } : null,
   }
 }
 
@@ -138,6 +144,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     request,
     stopRequested: false,
     queue: null,
+    profile: null,
     approval: null,
   }
 }
@@ -165,6 +172,9 @@ export function ThreadView() {
   const [models, setModels] = useState<ModelDescriptor[] | null>(null)
   const [modelsError, setModelsError] = useState<string | null>(null)
   const [preferredModel, setPreferredModel] = useState<string | null>(null)
+  const [skills, setSkills] = useState<Skill[] | null>(null)
+  const [harnesses, setHarnesses] = useState<HarnessEntry[] | null>(null)
+  const [skill, setSkill] = useState<Skill | null>(null)
   const [hint, setHint] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusEvidenceId, setFocusEvidenceId] = useState<string | null>(null)
@@ -219,6 +229,33 @@ export function ThreadView() {
   const settleRef = useRef<(taskId: string, failure?: string) => Promise<void>>(async () => {})
   /** Runs already announced to the header as held, since a run can settle more than once. */
   const announcedHeldRef = useRef<Set<string>>(new Set())
+
+  // What "/" offers. Neither is needed to ask a question, so a failure
+  // leaves the menu with less in it rather than saying anything louder.
+  useEffect(() => {
+    let cancelled = false
+    api
+      .listSkills()
+      .then((list) => {
+        if (cancelled) return
+        setSkills(list)
+        // Arrived from "Use in the thread" on the Skills page.
+        const wanted = new URLSearchParams(window.location.search).get('skill')
+        const found = wanted ? list.find((s) => s.id === wanted) : undefined
+        if (found) {
+          setSkill(found)
+          textareaRef.current?.focus()
+        }
+      })
+      .catch(() => !cancelled && setSkills([]))
+    harnessApi
+      .catalog()
+      .then((view) => !cancelled && setHarnesses(view.harnesses.map((h) => ({ id: h.id, name: h.name, summary: h.summary }))))
+      .catch(() => !cancelled && setHarnesses([]))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -683,6 +720,7 @@ export function ThreadView() {
         attachments: request.attachments,
         author: { displayName: authorName },
         at: now,
+        skill: request.skill,
       }
 
       seenRef.current = new Set()
@@ -696,6 +734,7 @@ export function ThreadView() {
           request.fileIds,
           request.format,
           request.preferredModel,
+          request.skill?.id ?? null,
         )
         // The API answered with a classified task, so that stage is done:
         // a measured fact, where leaving it pending let the end-of-run
@@ -705,6 +744,7 @@ export function ThreadView() {
           taskId: task.id,
           stages: t.stages.map((s): PipelineStage => (s.id === 'classify' && task.profile ? { ...s, status: 'done' } : s)),
           approval: recordFields(task).approval,
+          profile: recordFields(task).profile,
         }))
         activeTaskIdRef.current = task.id
         openedRef.current = task.id
@@ -769,9 +809,11 @@ export function ThreadView() {
       })),
       format: format === 'answer' ? null : format,
       preferredModel,
+      skill: skill ? { id: skill.id, name: skill.name } : null,
     }
     setPrompt('')
     setHint(null)
+    setSkill(null)
     void dispatch(request).then((ok) => {
       if (ok) setAttachments([])
     })
@@ -867,7 +909,8 @@ export function ThreadView() {
         {
           role: 'user',
           id: `u-${task.id}`,
-          text: task.prompt,
+          text: request.prompt,
+          skill: request.skill,
           attachments: request.attachments,
           author: { displayName: task.user_display_name || 'Operator' },
           at: task.created_at,
@@ -1073,6 +1116,10 @@ export function ThreadView() {
             onPreferredModelChange={choosePreferredModel}
             hint={hint}
             textareaRef={textareaRef}
+            skills={skills}
+            harnesses={harnesses}
+            skill={skill}
+            onSkillChange={setSkill}
           />
         </div>
 

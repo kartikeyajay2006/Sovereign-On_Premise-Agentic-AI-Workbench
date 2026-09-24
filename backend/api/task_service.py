@@ -265,6 +265,7 @@ class TaskService:
                     deliverable_count=len(task.deliverables),
                     approval_required=bool(task.approval and task.approval.required),
                     user_display_name=task.user_display_name,
+                    skill=task.skill,
                 )
             )
         return summaries

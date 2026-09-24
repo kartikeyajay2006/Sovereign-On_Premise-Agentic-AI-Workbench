@@ -321,6 +321,8 @@ export interface Task {
   plan?: AgentPlan | null
   /** The model the person asked for, or null for Automatic. */
   preferred_model: string | null
+  /** Set when the request came from a skill: `prompt` is its rendering. */
+  skill?: SkillInvocation | null
   routing: RoutingDecision[]
   /** One record per model call, in the order they ran. Persisted. */
   usage: ModelUsage[]
@@ -340,6 +342,8 @@ export interface Task {
 export interface TaskSummary {
   id: string
   prompt: string
+  /** The skill the request went through; `prompt` is then its rendering. */
+  skill?: SkillInvocation | null
   status: TaskStatus
   task_type?: string | null
   sensitivity?: string | null
@@ -437,6 +441,44 @@ export interface TaskCreateRequest {
   /** A registry id to prefer. Advisory: honoured per stage only where policy
    *  would allow that model anyway. At most 128 characters. */
   preferred_model?: string | null
+  /** A skill to run; `prompt` is then what was typed after it. */
+  skill_id?: string | null
+}
+
+/**
+ * A saved instruction called as /id. It changes only what a run is asked:
+ * the rendered request meets every gate a typed one does.
+ */
+export interface Skill {
+  id: string
+  name: string
+  summary: string
+  template: string
+  deliverable_format: 'docx' | 'xlsx' | 'pptx' | 'md' | null
+  input_hint: string | null
+  source: 'built_in' | 'custom'
+  author: string | null
+  author_display_name: string | null
+  created_at: string | null
+  sha256: string
+}
+
+export interface SkillDraft {
+  id: string
+  name: string
+  summary: string
+  template: string
+  deliverable_format: Skill['deliverable_format']
+  input_hint: string | null
+}
+
+/** Which skill produced a task's request, at which hash, from what input. */
+export interface SkillInvocation {
+  id: string
+  name: string
+  sha256: string
+  source: string
+  input: string
 }
 
 export interface DiagnosticStep {

@@ -16,6 +16,12 @@ export const UserTurn = memo(function UserTurn({ turn }: { turn: UserTurnModel }
   return (
     <article className="group flex flex-col items-end">
       <div className="max-w-[85%] rounded-[22px] rounded-br-[8px] bg-surface-sunken px-4 py-3">
+        {turn.skill && (
+          <p className="mb-1 flex items-baseline gap-2 text-[12.5px]" title="This request went through a saved skill. The run met every check a typed request does.">
+            <span className="font-mono text-foreground">/{turn.skill.id}</span>
+            <span className="text-foreground-muted">{turn.skill.name}</span>
+          </p>
+        )}
         <p className="whitespace-pre-wrap text-[15.5px] leading-[1.6] text-foreground">{turn.text}</p>
 
         {turn.attachments.length > 0 && (

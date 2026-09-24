@@ -32,6 +32,8 @@ export interface UserTurn {
   author: { displayName: string }
   /** Absolute UTC. Relative time is a hover affordance, not the label. */
   at: string
+  /** The skill the request went through; `text` is then what was typed after it. */
+  skill?: { id: string; name: string } | null
 }
 
 /**
@@ -65,6 +67,8 @@ export interface RunRequest {
   format: string | null
   /** A registry id, or null for Automatic. */
   preferredModel: string | null
+  /** The skill `prompt` goes through, or null for the prompt as typed. */
+  skill: { id: string; name: string } | null
 }
 
 /**
@@ -164,6 +168,8 @@ export interface AssistantTurn {
   stopRequested: boolean
   /** From `task.queued`: the runs ahead of this one, or null once it runs. */
   queue: { position: number | null; ahead: number } | null
+  /** What the classifier made of the request, once the API has said. */
+  profile: { taskType: string; sensitivity: string } | null
   /** Why a held run is held, who may release it, and what they decided. */
   approval: {
     reasons: string[]

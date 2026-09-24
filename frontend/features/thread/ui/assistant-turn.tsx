@@ -1,8 +1,7 @@
 'use client'
 
 import { memo, useEffect, useState, type ReactNode } from 'react'
-import { ChevronRight, Download, Lock } from 'lucide-react'
-import { StageTimeline } from '@/shared/ui/timeline/stage-timeline'
+import { Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
 import { DimScope, Disclose, Light, Refused, Release, Seal } from '@/shared/motion'
 import { cn } from '@/lib/utils'
@@ -10,6 +9,7 @@ import type { EvidenceItem, ModelDescriptor } from '@/lib/types'
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
 import { AegisLogo } from '@/components/aegis-logo'
 import { AnswerActions } from './answer-actions'
+import { RunTranscript } from './run-transcript'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -57,26 +57,6 @@ const OUTCOME_LABEL: Record<AssistantTurnModel['outcome'], string> = {
   failed: 'Failed',
   blocked: 'Blocked',
   cancelled: 'Stopped',
-}
-
-/** What a stage is doing, said while it does it. */
-const STAGE_ACTIVE: Record<string, string> = {
-  classify: 'Reading the request',
-  plan: 'Planning',
-  read: 'Reading the attachments',
-  retrieve: 'Searching the knowledge base',
-  sandbox: 'Running the calculation',
-  draft: 'Drafting the answer',
-  verify: 'Checking every claim',
-}
-
-/** The verifier's checks, in the words a reader uses. */
-const CHECK_WORDS: Record<string, string> = {
-  source_verification: 'Sources',
-  calculation_verification: 'Calculations',
-  code_verification: 'Code',
-  document_verification: 'Document',
-  hallucination_check: 'Grounding',
 }
 
 /** The outcome as a pill: the fill says the state, the words say it too. */
@@ -345,29 +325,6 @@ function AnswerProse({
   )
 }
 
-/**
- * The stage rows, mapped once for both the live and the folded view.
- * `live` only while the board is following the run as it happens.
- */
-function RunLog({ stages, live = false }: { stages: AssistantTurnModel['stages']; live?: boolean }) {
-  return (
-    <StageTimeline
-      stages={stages.map((s) => ({
-        id: s.id,
-        index: s.index,
-        label: s.name,
-        state: s.status,
-        at: s.at,
-        elapsedMs: s.elapsedMs,
-        headline: s.detail ?? null,
-        model: s.model || null,
-      }))}
-      density="compact"
-      live={live}
-    />
-  )
-}
-
 const NO_EVIDENCE = new Set<string>()
 
 export const AssistantTurn = memo(function AssistantTurn({
@@ -397,7 +354,6 @@ export const AssistantTurn = memo(function AssistantTurn({
     turn.answer !== null &&
     (turn.outcome === 'delivered' || turn.outcome === 'held' || turn.outcome === 'rejected')
 
-  const activeStage = turn.stages.find((stage) => stage.status === 'active') ?? null
   const verifiedCount = turn.verification.filter((v) => v.passed).length
   const checkCount = turn.verification.length
   const verifying = turn.stages.some((s) => s.id === 'verify' && s.status === 'active')
@@ -434,18 +390,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           {running && turn.stopRequested ? 'Stopping' : OUTCOME_LABEL[turn.outcome]}
         </Light>
 
-        {running && activeStage ? (
-          <span className="ae-shimmer text-[13px] font-medium">{STAGE_ACTIVE[activeStage.id] ?? activeStage.name}…</span>
-        ) : null}
-
         <span className="flex items-center gap-3 text-[12.5px] text-foreground-muted">
-          {/* No verdict strip while running. There are no verdicts yet, and
-              zeroes would be five specific claims we cannot make. */}
-          {checkCount > 0 && (
-            <span className="tabular">
-              {verifiedCount} of {checkCount} checks passed
-            </span>
-          )}
           {running && turn.stream === 'live' ? (
             <RunElapsed startedAt={turn.startedAt} />
           ) : !running && turn.elapsedMs !== null ? (
@@ -483,25 +428,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           the screen, which for an answering product it always should have been.
         */}
         <div data-dim-item>
-          {running ? (
-            <RunLog stages={turn.stages} live={turn.stream === 'live'} />
-          ) : (
-            <details className="group">
-              <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-full py-1 pr-2 text-[13px] text-foreground-muted transition-colors hover:text-foreground-secondary [&::-webkit-details-marker]:hidden">
-                <ChevronRight
-                  className="size-3 shrink-0 transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] group-open:rotate-90"
-                  aria-hidden
-                />
-                <span className="font-medium">Show work</span>
-                <span className="tabular">
-                  {turn.stages.filter((s) => s.status === 'done').length} of {turn.stages.length} stages
-                </span>
-              </summary>
-              <div className="pt-2">
-                <RunLog stages={turn.stages} />
-              </div>
-            </details>
-          )}
+          <RunTranscript turn={turn} />
         </div>
 
         {/* ── Zone 3 — the answer, or the reason there is none ──────────── */}
@@ -578,36 +505,6 @@ export const AssistantTurn = memo(function AssistantTurn({
               </p>
             )}
             <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
-            {/*
-              The verifier's checks, each as the verifier reported it: a pill
-              per check, its own detail on hover. A failed check is the one
-              thing here in red.
-            */}
-            {turn.verification.length > 0 && (
-              <ul aria-label="Verification" className="mt-1 flex list-none flex-wrap gap-1.5 p-0">
-                {turn.verification.map((check, i) => {
-                  const name = check.name ?? check.kind ?? check.label ?? `check ${i + 1}`
-                  return (
-                    <li
-                      key={`${name}-${i}`}
-                      title={check.detail}
-                      className={cn(
-                        'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12.5px] font-medium',
-                        check.passed
-                          ? 'border-line-subtle text-foreground-secondary'
-                          : 'border-critical-border bg-critical-surface text-critical-text',
-                      )}
-                    >
-                      <span aria-hidden className={check.passed ? 'text-sovereign-text' : undefined}>
-                        {check.passed ? '✓' : '✕'}
-                      </span>
-                      {CHECK_WORDS[name] ?? name.replace(/_/g, ' ')}
-                      <span className="sr-only">{check.passed ? 'passed' : 'failed'}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
           </Release>
         ) : !running ? (
           <p className="text-body text-foreground-secondary">This run finished without an answer.</p>
@@ -750,7 +647,12 @@ export const AssistantTurn = memo(function AssistantTurn({
               canReview={canReview}
             />
           )}
-          <UsageFooter usage={turn.usage} choices={turn.modelChoices} models={models} />
+          <UsageFooter
+            usage={turn.usage}
+            choices={turn.modelChoices}
+            models={models}
+            workedMs={running ? null : turn.elapsedMs}
+          />
         </footer>
       )}
     </article>

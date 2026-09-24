@@ -64,6 +64,7 @@ interface Place extends Destination {
 
 export const PLACES: Place[] = [
   { href: '/console', label: 'Thread', key: 't', hint: 'ask, and watch the run', paths: ['/console'] },
+  { href: '/skills', label: 'Skills', key: 'i', hint: 'saved instructions, called with /', paths: ['/skills'] },
   {
     href: '/harnesses',
     label: 'Harnesses',

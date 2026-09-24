@@ -127,7 +127,11 @@ export const SessionRail = memo(function SessionRail({
   }, [refreshKey, tick])
 
   const needle = query.trim().toLowerCase()
-  const shown = needle ? runs.filter((task) => task.prompt.toLowerCase().includes(needle)) : runs
+  const shown = needle
+    ? runs.filter((task) =>
+        [task.prompt, task.skill ? `/${task.skill.id} ${task.skill.input}` : ''].some((text) => text.toLowerCase().includes(needle)),
+      )
+    : runs
 
   const unfinished = runs.some((task) => !FINISHED.has(String(task.status).toLowerCase()))
   useEffect(() => {
@@ -212,7 +216,7 @@ export const SessionRail = memo(function SessionRail({
                       type="button"
                       onClick={() => onOpen(task.id)}
                       aria-current={active ? 'true' : undefined}
-                      title={`${task.prompt} (${stateWords}, ${relativeTime(task.created_at)})`}
+                      title={`${task.skill ? `/${task.skill.id} ${task.skill.input}` : task.prompt} (${stateWords}, ${relativeTime(task.created_at)})`}
                       className={cn(
                         'flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-left transition-colors duration-100',
                         'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
@@ -234,7 +238,13 @@ export const SessionRail = memo(function SessionRail({
                           active ? 'font-medium text-foreground' : 'text-foreground-secondary',
                         )}
                       >
-                        {task.prompt}
+                        {task.skill ? (
+                          <>
+                            <span className="font-mono text-[12.5px] text-foreground-muted">/{task.skill.id}</span> {task.skill.input}
+                          </>
+                        ) : (
+                          task.prompt
+                        )}
                       </span>
                       <span className="sr-only">
                         {stateWords}, {relativeTime(task.created_at)}

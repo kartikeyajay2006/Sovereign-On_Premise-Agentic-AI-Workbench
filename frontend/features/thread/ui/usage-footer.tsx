@@ -150,14 +150,17 @@ export const UsageFooter = memo(function UsageFooter({
   usage,
   choices,
   models,
+  workedMs = null,
 }: {
   usage: ModelUsage[]
   choices: ModelChoice[]
   /** From GET /api/models, for each model's declared maximum window. */
   models: ModelDescriptor[] | null
+  /** The whole run's measured duration, once it has ended; null while it runs. */
+  workedMs?: number | null
 }) {
   const declined = declinedPreferences(choices)
-  if (usage.length === 0 && declined.length === 0) return null
+  if (usage.length === 0 && declined.length === 0 && workedMs === null) return null
 
   const completed = completedCalls(usage)
   const names = modelsThatRan(usage)
@@ -173,8 +176,21 @@ export const UsageFooter = memo(function UsageFooter({
       ? ` ${total.total - total.known} of ${total.total} calls reported no count, so this is a floor.`
       : ''
 
+  // The line a terminal agent ends its turn on: how long the run took, from
+  // the record, then what it cost.
+  const worked =
+    workedMs !== null ? (
+      <span className="text-foreground-secondary">
+        <span aria-hidden className="text-foreground-muted">
+          ✻
+        </span>{' '}
+        Worked for {formatSeconds(workedMs)}
+      </span>
+    ) : null
+
   return (
     <div className="flex flex-col gap-1">
+      {usage.length === 0 && worked && <p className="text-[12px] tabular-nums text-foreground-muted">{worked}</p>}
       {usage.length > 0 && (
         <details className="group/usage">
           <summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-0.5 rounded-full py-0.5 pr-2 text-[12px] tabular-nums text-foreground-muted transition-colors hover:text-foreground-secondary focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
@@ -182,6 +198,7 @@ export const UsageFooter = memo(function UsageFooter({
               className="size-3 shrink-0 transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] group-open/usage:rotate-90"
               aria-hidden
             />
+            {worked}
             <span className="text-foreground-secondary">{names.join(' · ')}</span>
             {/* ROLL: task.model_completed -- each call that reports moves
                 these totals, and only the digits that changed turn. */}

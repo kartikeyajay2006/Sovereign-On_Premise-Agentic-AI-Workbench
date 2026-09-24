@@ -1,12 +1,14 @@
 'use client'
 
-import { memo, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useRouter } from 'next/navigation'
 import { Menu } from '@base-ui/react/menu'
 import { ArrowUp, Check, ChevronDown, Loader2, Paperclip, Square, X } from 'lucide-react'
 import { DELIVERABLE_FORMATS } from '@/lib/presentation'
-import type { ModelDescriptor } from '@/lib/types'
+import type { ModelDescriptor, Skill } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { ModelMenu } from './model-menu'
+import { SlashMenu, slashItems, type HarnessEntry, type SlashItem } from './slash-menu'
 
 export interface ComposerAttachment {
   /** Local, for the list. The stored file's id arrives with the upload. */
@@ -47,7 +49,17 @@ export interface ComposerProps {
   /** One line of guidance above the controls, e.g. the file a starter expects. */
   hint?: string | null
   textareaRef?: RefObject<HTMLTextAreaElement | null>
+  /** From GET /api/skills; null until it answers. */
+  skills?: Skill[] | null
+  /** The harness catalogue, offered after the skills. */
+  harnesses?: HarnessEntry[] | null
+  /** The skill the next run goes through, or null. */
+  skill?: Skill | null
+  onSkillChange?: (skill: Skill | null) => void
 }
+
+/** "/", then letters: the composer is asking for a skill or a harness by name. */
+const SLASH = /^\/([a-z0-9-]*)$/i
 
 /** Tall enough for a long request, short enough to keep the thread in view. */
 const MAX_INPUT_HEIGHT = 320
@@ -122,16 +134,49 @@ export const Composer = memo(function Composer({
   onPreferredModelChange,
   hint,
   textareaRef,
+  skills = null,
+  harnesses = null,
+  skill = null,
+  onSkillChange,
 }: ComposerProps) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const ownRef = useRef<HTMLTextAreaElement | null>(null)
   const inputRef = textareaRef ?? ownRef
   const [dragging, setDragging] = useState(false)
+  const router = useRouter()
+
+  // The "/" menu: open while the whole draft is "/" and a name, until Escape.
+  const [highlight, setHighlight] = useState(0)
+  const [dismissedAt, setDismissedAt] = useState<string | null>(null)
+  const query = !skill && onSkillChange ? value.match(SLASH)?.[1] ?? null : null
+  const items = useMemo(() => (query === null ? [] : slashItems(query, skills, harnesses)), [query, skills, harnesses])
+  const menuOpen = query !== null && dismissedAt !== value
+  const active = Math.min(highlight, Math.max(0, items.length - 1))
+  // Open toward the room: up from a composer docked at the foot of a
+  // thread, down from the empty state's, which sits high under the header.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [placement, setPlacement] = useState<'above' | 'below'>('above')
+  useLayoutEffect(() => {
+    if (!menuOpen || !rootRef.current) return
+    setPlacement(rootRef.current.getBoundingClientRect().top < 400 ? 'below' : 'above')
+  }, [menuOpen])
+
+  const choose = (item: SlashItem) => {
+    if (item.kind === 'harness') {
+      router.push(`/harnesses?harness=${encodeURIComponent(item.harness.id)}`)
+      return
+    }
+    onSkillChange?.(item.skill)
+    onChange('')
+    setHighlight(0)
+    inputRef.current?.focus()
+  }
 
   // A file still uploading has no id yet. Sending then dispatched the run
   // without it, and the answer came back about a document it never saw.
   const uploading = attachments.some((a) => a.uploading)
-  const canSend = value.trim().length > 0 && !busy && !disabled && !uploading
+  // A bare "/name" is a request for the menu, not a question to send.
+  const canSend = value.trim().length > 0 && !busy && !disabled && !uploading && !(onSkillChange && !skill && SLASH.test(value))
 
   // Grow with the text, up to a ceiling. Measured before paint so the field
   // never shows a frame at the wrong height.
@@ -143,6 +188,18 @@ export const Composer = memo(function Composer({
   }, [value, inputRef])
 
   return (
+    <div ref={rootRef} className="relative">
+    {menuOpen && (
+      <SlashMenu
+        id="composer-slash"
+        query={query ?? ''}
+        items={items}
+        highlight={active}
+        onHighlight={setHighlight}
+        onChoose={choose}
+        placement={placement}
+      />
+    )}
     <div
       onDragOver={(e) => {
         e.preventDefault()
@@ -167,12 +224,66 @@ export const Composer = memo(function Composer({
       <label htmlFor="composer-input" className="sr-only">
         Describe the task
       </label>
+      {skill && (
+        <div className="flex items-center gap-2 px-4 pt-3">
+          <span className="ae-skill-chip flex min-w-0 items-center gap-1.5 rounded-full bg-surface-sunken py-1 pl-2.5 pr-1 text-[12.5px]">
+            <span className="font-mono text-foreground">/{skill.id}</span>
+            <span className="truncate text-foreground-secondary">{skill.name}</span>
+            {skill.deliverable_format && (
+              <span className="shrink-0 font-mono text-[11px] uppercase text-foreground-muted">{skill.deliverable_format}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                onSkillChange?.(null)
+                inputRef.current?.focus()
+              }}
+              aria-label={`Stop using /${skill.id}`}
+              className="grid size-5 shrink-0 place-items-center rounded-full text-foreground-muted hover:bg-surface hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        </div>
+      )}
       <textarea
         id="composer-input"
         ref={inputRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value)
+          setHighlight(0)
+        }}
+        role={menuOpen ? 'combobox' : undefined}
+        aria-expanded={menuOpen || undefined}
+        aria-controls={menuOpen && items.length > 0 ? 'composer-slash' : undefined}
+        aria-activedescendant={menuOpen && items.length > 0 ? `composer-slash-${active}` : undefined}
         onKeyDown={(e) => {
+          if (menuOpen) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault()
+              if (items.length === 0) return
+              const step = e.key === 'ArrowDown' ? 1 : -1
+              setHighlight((active + step + items.length) % items.length)
+              return
+            }
+            if ((e.key === 'Enter' || e.key === 'Tab') && items.length > 0 && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              choose(items[active])
+              return
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              setDismissedAt(value)
+              return
+            }
+          }
+          // Backspace in an empty field takes the skill off, as a chip does.
+          if (e.key === 'Backspace' && skill && value === '') {
+            e.preventDefault()
+            onSkillChange?.(null)
+            return
+          }
           if (e.key !== 'Enter') return
           // An input method editor commits a composed character with Enter.
           // Sending on that keystroke would dispatch half a word -- the case
@@ -185,7 +296,13 @@ export const Composer = memo(function Composer({
         rows={1}
         disabled={disabled}
         aria-describedby="composer-keys"
-        placeholder="Ask about a procedure, a report or a calculation…"
+        placeholder={
+          skill
+            ? skill.input_hint || 'What should it look at?'
+            : onSkillChange
+              ? 'Ask about a procedure, a report or a calculation — or type / for skills'
+              : 'Ask about a procedure, a report or a calculation…'
+        }
         style={{ maxHeight: MAX_INPUT_HEIGHT }}
         className="block min-h-[56px] w-full resize-none overflow-y-auto bg-transparent px-5 pb-1 pt-4 text-[16px] leading-[1.55] text-foreground placeholder:text-foreground-muted focus:outline-none disabled:opacity-[var(--opacity-disabled)]"
       />
@@ -287,6 +404,7 @@ export const Composer = memo(function Composer({
           )}
         </div>
       </div>
+    </div>
     </div>
   )
 })
