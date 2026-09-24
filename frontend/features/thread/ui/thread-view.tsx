@@ -175,6 +175,9 @@ export function ThreadView() {
   const [skills, setSkills] = useState<Skill[] | null>(null)
   const [harnesses, setHarnesses] = useState<HarnessEntry[] | null>(null)
   const [skill, setSkill] = useState<Skill | null>(null)
+  // Read by the starter handler, which is memoised and must not be rebuilt.
+  const skillsRef = useRef<Skill[] | null>(null)
+  skillsRef.current = skills
   const [hint, setHint] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusEvidenceId, setFocusEvidenceId] = useState<string | null>(null)
@@ -212,6 +215,8 @@ export function ThreadView() {
   const seenRef = useRef<Set<string>>(new Set())
   /** Whether the reader is at the bottom, and so wants to follow the run. */
   const pinnedRef = useRef(true)
+  /** The next scroll event is the thread's own, not the reader's. */
+  const programmaticRef = useRef(false)
   /** The next render shows a reopened run, which opens at its top. */
   const openAtTopRef = useRef(false)
   /**
@@ -564,6 +569,14 @@ export function ThreadView() {
           // thread is following, so the reader is watching the answer land.
           releasedLive: true,
         }))
+        // The answer has landed: shown once, to a reader who was following,
+        // after it has laid out. Nothing moves the page after this.
+        if (pinnedRef.current) {
+          window.requestAnimationFrame(() => {
+            programmaticRef.current = true
+            window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
+          })
+        }
         // A run held for a person has just joined the approval queue, so the
         // header reads its count again now rather than at the next
         // navigation. Once per run, however many times it settles.
@@ -627,27 +640,72 @@ export function ThreadView() {
     }
   }, [busy, activeTaskId])
 
-  // Follow the run while the reader is at the bottom; stay put once they
-  // scroll up to read. Instant, not smooth: a smooth scroll retargeted by
-  // every frame of a draft lags behind it, and mid-animation positions read
-  // as the reader having scrolled away.
+  // Follow the run while the reader is at the end, and let go the moment they
+  // move away from it -- by intent, not by distance. Following used to hold
+  // until the page was 160px from the end, and it re-pinned on every frame of
+  // a draft: one notch of the wheel moves ~100px, so a reader scrolling up to
+  // re-read something was pulled back down twenty times a second. Now any
+  // upward move by the reader releases it at once, and reaching the end
+  // again takes it back. Instant, not smooth: a smooth scroll retargeted by
+  // every frame lags behind the text it chases.
   useEffect(() => {
+    const doc = document.documentElement
+    const gap = () => doc.scrollHeight - (window.scrollY + window.innerHeight)
+    let lastY = window.scrollY
+    const release = () => {
+      pinnedRef.current = false
+    }
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) release()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home') release()
+    }
+    let touchY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? 0
+      // A finger moving down the glass scrolls the page up.
+      if (y > touchY + 4) release()
+      touchY = y
+    }
     const onScroll = () => {
-      const doc = document.documentElement
-      const away = doc.scrollHeight - (window.scrollY + window.innerHeight) >= 160
-      pinnedRef.current = !away
+      const y = window.scrollY
+      // Upward and not ours: the scrollbar dragged, a find-in-page jump.
+      if (y < lastY - 1 && !programmaticRef.current) release()
+      programmaticRef.current = false
+      lastY = y
+      if (gap() < 48) pinnedRef.current = true
       // Same value, no render: React bails out, so scrolling costs nothing.
-      setAwayFromEnd(away)
+      setAwayFromEnd(gap() >= 160)
     }
     onScroll()
+    window.addEventListener('wheel', onWheel, { passive: true })
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: true })
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
+
+  /** Scroll to the end on the thread's own behalf, so it is not read as the reader's. */
+  const followToEnd = useCallback(() => {
+    programmaticRef.current = true
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
   }, [])
 
   const jumpToLatest = useCallback(() => {
     pinnedRef.current = true
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
-  }, [])
+    followToEnd()
+  }, [followToEnd])
 
   useEffect(() => {
     if (turns.length === 0) return
@@ -657,12 +715,16 @@ export function ThreadView() {
       // the run being shown rather than the thread it replaced.
       openAtTopRef.current = false
       pinnedRef.current = false
+      programmaticRef.current = true
       window.scrollTo({ top: 0, behavior: 'instant' })
       return
     }
-    if (!pinnedRef.current) return
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
-  }, [turns])
+    // Only a run in progress is followed. Once its answer has landed the
+    // page is the reader's: a late event or a re-read of the record changes
+    // the turns, and must not move the page they are reading.
+    if (!pinnedRef.current || !busyRef.current) return
+    followToEnd()
+  }, [turns, followToEnd])
 
   const attach = useCallback(
     async (files: File[]) => {
@@ -997,6 +1059,10 @@ export function ThreadView() {
   }, [requestedRun, openRun])
 
   const pickStarter = useCallback((template: StarterTemplate) => {
+    // A skill starter puts the skill in the composer and its input in the
+    // field, exactly as picking it from the / menu would.
+    const starterSkill = template.skill ? skillsRef.current?.find((s) => s.id === template.skill) ?? null : null
+    if (starterSkill) setSkill(starterSkill)
     setPrompt(template.prompt)
     setFormat(template.format)
     const file = starterAttachment(template)
@@ -1128,7 +1194,12 @@ export function ThreadView() {
           />
         </div>
 
-        {turns.length === 0 && <StarterPrompts onPick={pickStarter} />}
+        {turns.length === 0 && (
+          <StarterPrompts
+            onPick={pickStarter}
+            visionReady={Boolean(models?.some((m) => m.available && m.capabilities.includes('vision')))}
+          />
+        )}
 
         <EvidenceRail
           open={drawerOpen}

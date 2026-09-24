@@ -47,6 +47,7 @@ export const CHECK_WORDS: Record<string, string> = {
   source_verification: 'Sources',
   calculation_verification: 'Calculations',
   code_verification: 'Code',
+  page_citation_verification: 'Pages',
   document_verification: 'Document',
   hallucination_check: 'Grounding',
 }

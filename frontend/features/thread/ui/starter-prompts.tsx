@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { BookOpenText, Calculator, FileScan, Paperclip, type LucideIcon } from 'lucide-react'
+import { BookOpenText, Calculator, FileScan, Paperclip, Quote, type LucideIcon } from 'lucide-react'
 import { CONSOLE_TEMPLATES } from '@/lib/presentation'
 
 export type StarterTemplate = (typeof CONSOLE_TEMPLATES)[number]
@@ -11,6 +11,7 @@ const CARD: Record<string, { icon: LucideIcon; blurb: string }> = {
   'approval-note': { icon: FileScan, blurb: 'Scanned PDF in, a cited Word approval note out, held for sign-off.' },
   'corrosion-calc': { icon: Calculator, blurb: 'Survey CSV in, rates and remaining life computed in the sandbox.' },
   'procedure-question': { icon: BookOpenText, blurb: 'A cited answer from your procedures, checked before release.' },
+  'clause-skill': { icon: Quote, blurb: 'The /clause skill, ready to run: the clause that governs, cited and checked.' },
 }
 
 /**
@@ -24,12 +25,17 @@ const CARD: Record<string, { icon: LucideIcon; blurb: string }> = {
  */
 export const StarterPrompts = memo(function StarterPrompts({
   onPick,
+  visionReady = false,
 }: {
   onPick: (template: StarterTemplate) => void
+  /** A vision model is installed, so a scanned report can be read here. */
+  visionReady?: boolean
 }) {
+  // Three cards: the scanned report where it can run, the skill where not.
+  const shown = CONSOLE_TEMPLATES.filter((t) => (t.needs === 'vision' ? visionReady : t.id !== 'clause-skill' || !visionReady))
   return (
     <ul aria-label="Starter requests" className="grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-3">
-      {CONSOLE_TEMPLATES.map((template, i) => {
+      {shown.map((template, i) => {
         const card = CARD[template.id]
         const Icon = card?.icon ?? BookOpenText
         return (
@@ -42,7 +48,10 @@ export const StarterPrompts = memo(function StarterPrompts({
               <span className="grid size-8 place-items-center rounded-[10px] bg-surface-sunken text-foreground-secondary transition-colors group-hover:bg-foreground group-hover:text-background">
                 <Icon className="size-4" aria-hidden />
               </span>
-              <span className="text-[14px] font-medium leading-[1.35] text-foreground">{template.title}</span>
+              <span className="text-[14px] font-medium leading-[1.35] text-foreground">
+                {template.skill ? <span className="mr-1.5 font-mono text-foreground-secondary">/{template.skill}</span> : null}
+                {template.title}
+              </span>
               <span className="text-[12.5px] leading-[1.5] text-foreground-muted">{card?.blurb}</span>
               {template.attach ? (
                 <span className="mt-auto inline-flex items-center gap-1.5 pt-1 text-[11.5px] text-foreground-muted">

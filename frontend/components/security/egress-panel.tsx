@@ -135,8 +135,21 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
 
       {interfaces.length > 0 && (
         <section aria-label="Host interfaces" className="flex flex-col gap-2">
-          <h3 className={LEDGER_MUTED}>Host network interfaces</h3>
-          <ul className="overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]">
+          {/*
+            The sentence about the host is what a reader needs; the adapters
+            behind it -- six rows of raw addresses on a laptop -- are one
+            click away rather than the largest thing on the screen.
+          */}
+          <p className="max-w-[80ch] text-ui text-foreground-muted">
+            {upExternal.length > 0
+              ? `${upExternal.length} interface${upExternal.length === 1 ? ' is' : 's are'} up with a non-loopback address, so this host is attached to a network. The figure above is about the workbench's own connections; it is not a statement that the machine is physically isolated.`
+              : 'No interface is up with a non-loopback address in this reading.'}
+          </p>
+          <details className="group">
+            <summary className={cn(LEDGER_MUTED, 'w-fit cursor-pointer list-none select-none hover:text-foreground [&::-webkit-details-marker]:hidden')}>
+              Network interfaces · {interfaces.length} <span aria-hidden className="inline-block transition-transform group-open:rotate-90">›</span>
+            </summary>
+          <ul className="mt-2 overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]">
             {interfaces.map(([name, reading]) => {
               const { external, loopbackOnly } = classify(reading)
               return (
@@ -161,11 +174,7 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
               )
             })}
           </ul>
-          <p className="max-w-[80ch] text-ui text-foreground-muted">
-            {upExternal.length > 0
-              ? `${upExternal.length} interface${upExternal.length === 1 ? ' is' : 's are'} up with a non-loopback address, so this host is attached to a network. The figure above is about the workbench's own connections; it is not a statement that the machine is physically isolated.`
-              : 'No interface is up with a non-loopback address in this reading.'}
-          </p>
+          </details>
         </section>
       )}
     </div>
