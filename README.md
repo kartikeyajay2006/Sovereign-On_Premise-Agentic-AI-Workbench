@@ -365,28 +365,46 @@ Stated plainly, because they decide whether AEGIS is right for you.
 
 <table>
 <tr>
-<td align="center" width="25%" valign="top">
+<td align="center" width="30%" valign="top">
 <a href="https://github.com/kartikeyajay2006"><img src="https://avatars.githubusercontent.com/u/317522874?v=4&s=200" width="120" alt="Kartikeya Yadav"></a>
 <br><b>Kartikeya Yadav</b>
 <br><a href="https://github.com/kartikeyajay2006">@kartikeyajay2006</a>
 <br><br><img src="https://img.shields.io/badge/lead-architecture_&_backend-ff6a1a?style=flat-square" alt="Lead">
-<br><sub>Architecture, backend, agent orchestration, sandbox, policy, verification, audit; brand kit and handbook</sub>
+<br><br>
+<sub>Designed and built the platform end to end, from the reference architecture to a working local deployment.</sub>
+<br><br>
+<sub>🏗️ <b>Foundation</b>: config-driven core, SQLite persistence, local identity and the hash-chained audit log</sub><br>
+<sub>🧭 <b>Intelligence</b>: model registry and routing, the knowledge base, tools and the default-deny policy gateway</sub><br>
+<sub>🤖 <b>Pipeline</b>: the agent orchestrator, the API and task queue, the sovereignty monitor and secure event streams</sub><br>
+<sub>📦 <b>Sandbox & proof</b>: contained code execution, the verifier and the human approval gate</sub><br>
+<sub>⚡ <b>Performance</b>: stopped host swapping (a 72 s call had become 25 min), roughly halved run time, fixed concurrent audit writes</sub><br>
+<sub>🔧 <b>Reliability</b>: scanned PDFs reaching the vision model, the queue worker, approvals and deliverables</sub><br>
+<sub>🎨 <b>Identity & docs</b>: the new AEGIS mark and brand kit, the synthetic industrial dataset, the README and the 101-page handbook</sub>
 </td>
-<td align="center" width="25%" valign="top">
+<td align="center" width="30%" valign="top">
 <a href="https://github.com/kunalKumar-13"><img src="https://avatars.githubusercontent.com/u/166685451?v=4&s=200" width="120" alt="Kunal Kumar"></a>
 <br><b>Kunal Kumar</b>
 <br><a href="https://github.com/kunalKumar-13">@kunalKumar-13</a>
 <br><br><img src="https://img.shields.io/badge/workbench-thread_·_skills_·_harnesses-ff2d6f?style=flat-square" alt="Workbench">
-<br><sub>Chat-first thread, skills and harnesses, Windows sandbox backend, usage telemetry, landing page, evidence and honesty pass</sub>
+<br><br>
+<sub>The most prolific contributor, turning the platform into the workbench people use and making every claim it makes true.</sub>
+<br><br>
+<sub>💬 <b>Workbench</b>: the chat-first thread, streamed answers, run transcripts and the sidebar of past runs</sub><br>
+<sub>⚡ <b>Skills & harnesses</b>: saved instructions called with <code>/</code>, and governed multi-run jobs with hashed reports</sub><br>
+<sub>🪟 <b>Windows containment</b>: the Job Object sandbox, probed before any code may run</sub><br>
+<sub>📈 <b>Telemetry</b>: what each run cost, which model ran it, and a stop control</sub><br>
+<sub>✅ <b>Correctness</b>: clearance before ranking, classification raised by evidence, unresolved citations held, quoted figures never counted as recomputed, the <code>getattr</code> bypass closed, no approving your own run</sub><br>
+<sub>🌐 <b>Experience</b>: the landing page that replays a real run, the light and dark design system, keyboard navigation</sub><br>
+<sub>🔍 <b>Honesty pass</b>: removed every reading, score and posture claim the backend never measured</sub>
 </td>
-<td align="center" width="25%" valign="top">
+<td align="center" width="20%" valign="top">
 <a href="https://github.com/raghav-shell"><img src="https://avatars.githubusercontent.com/u/239672511?v=4&s=200" width="120" alt="Raghav Sharma"></a>
 <br><b>Raghav Sharma</b>
 <br><a href="https://github.com/raghav-shell">@raghav-shell</a>
 <br><br><img src="https://img.shields.io/badge/design-visual_system_·_motion-b23bd9?style=flat-square" alt="Design">
-<br><sub>Frontend redesign: visual system, layouts, motion, architecture visualisation, AEGIS identity; scanned-PDF extraction and macOS sandbox</sub>
+<br><sub>Frontend visual system and motion; scanned-PDF extraction and the macOS sandbox</sub>
 </td>
-<td align="center" width="25%" valign="top">
+<td align="center" width="20%" valign="top">
 <a href="https://github.com/ankit25bcs10610"><img src="https://avatars.githubusercontent.com/u/232535999?v=4&s=200" width="120" alt="Ankit Pandey"></a>
 <br><b>Ankit Pandey</b>
 <br><a href="https://github.com/ankit25bcs10610">@ankit25bcs10610</a>
