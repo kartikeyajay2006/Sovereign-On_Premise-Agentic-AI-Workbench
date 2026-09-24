@@ -313,7 +313,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
   if (!run) {
     if (error) {
       return (
-        <div className="mx-auto w-full max-w-[1200px] px-5 py-8 lg:px-10">
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6">
           <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack} ground="paper">
             Harnesses
           </Button>
@@ -338,7 +338,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       )
     }
     return (
-      <p className="mx-auto w-full max-w-[1200px] px-5 py-8 font-mono text-meta text-foreground-muted lg:px-10">
+      <p className="mx-auto w-full max-w-[1400px] px-4 py-8 font-mono text-meta text-foreground-muted sm:px-6">
         Reading the run…
       </p>
     )
@@ -371,7 +371,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-5 py-8 lg:px-10">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack} ground="paper">
           Harnesses
@@ -387,7 +387,8 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       <header className="flex flex-col gap-3 border-b border-line-default pb-6">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Ledger>Harness run</Ledger>
-          <CopyValue label="run id" value={run.id} />
+          {/* The whole id is what Copy copies; the first eight say which run. */}
+          <CopyValue label="run id" value={run.id} display={run.id.slice(0, 8)} />
           <RunStatusBadge status={run.status} />
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -409,12 +410,17 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
             )}
           </div>
         </div>
-        <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+        {/* Who, when and how long, in words; the definition it ran -- its
+            file, version and hash -- in the title, for whoever audits it. */}
+        <p
+          className="text-[12.5px] text-foreground-muted"
+          title={`${run.harness.source} v${run.harness.version} · sha256 ${run.harness.sha256}`}
+        >
           Started by {run.user_display_name} · {formatDateTime(run.created_at)} ·{' '}
           <span className="tabular">
             {active ? 'elapsed' : 'took'} {formatDuration(elapsed)}
           </span>{' '}
-          · {run.harness.source} v{run.harness.version} · sha256 {run.harness.sha256.slice(0, 12)}
+          · v{run.harness.version}
         </p>
 
         {confirmCancel && (
@@ -469,23 +475,38 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       <Panel
         title={run.harness.aggregation === 'requirements_register' ? 'Register' : 'Answer matrix'}
         id="harness-board"
-        aside={<Ledger className="hidden md:inline">↑↓ move · ↵ details · o open in thread · esc close</Ledger>}
       >
         <Board run={run} />
       </Panel>
 
       <ReportPanel run={run} onReplace={replace} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-        <Panel title="What these outcomes do not establish" id="harness-limits">
-          <ul className="flex list-disc flex-col gap-2 py-4 pl-9 pr-4 text-ui text-foreground-secondary">
+      {/*
+        Folded, both of them. The caveats are eight paragraphs and the request
+        is every question sent: read in full they buried the answer matrix
+        above them, which is what a reader opens a finished run to see. Each
+        is one click away, its length on the summary.
+      */}
+      <div className="flex flex-col gap-3">
+        <details className="grouped group/fold">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
+            <Ledger className="text-foreground-secondary">
+              What these outcomes do not establish · {run.limitations.length}
+            </Ledger>
+            <ChevronRight aria-hidden className="size-4 text-foreground-muted transition-transform group-open/fold:rotate-90" />
+          </summary>
+          <ul className="flex list-disc flex-col gap-2 border-t border-line-subtle py-4 pl-9 pr-4 text-ui text-foreground-secondary">
             {run.limitations.map((limitation) => (
               <li key={limitation}>{limitation}</li>
             ))}
           </ul>
-        </Panel>
-        <Panel title="What was asked" id="harness-inputs-record">
-          <dl className="flex flex-col gap-3 p-4">
+        </details>
+        <details className="grouped group/asked">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
+            <Ledger className="text-foreground-secondary">What was asked, and the scope it ran in</Ledger>
+            <ChevronRight aria-hidden className="size-4 text-foreground-muted transition-transform group-open/asked:rotate-90" />
+          </summary>
+          <dl className="flex flex-col gap-3 border-t border-line-subtle p-4">
             {Object.entries(run.inputs).map(([key, value]) => (
               <div key={key} className="flex flex-col gap-1">
                 <dt>
@@ -527,7 +548,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
               </dd>
             </div>
           </dl>
-        </Panel>
+        </details>
       </div>
     </div>
   )

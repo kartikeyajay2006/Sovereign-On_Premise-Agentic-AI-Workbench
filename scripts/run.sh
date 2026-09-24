@@ -141,8 +141,12 @@ if [ "${1:-}" != "--dev" ]; then
 fi
 
 step "Starting the API"
+# --timeout-keep-alive: the web console's proxy keeps idle connections open
+# and reuses them. Uvicorn closes an idle one after 5 s by default, and a
+# request sent down it as it closes fails as "socket hang up" -- a 500 in the
+# console for a request the API never saw. 75 s outlasts the proxy's reuse.
 setsid nohup "$VENV/bin/python" -m uvicorn backend.api.main:app \
-  --host 127.0.0.1 --port "$API_PORT" >"$API_LOG" 2>&1 </dev/null &
+  --host 127.0.0.1 --port "$API_PORT" --timeout-keep-alive 75 >"$API_LOG" 2>&1 </dev/null &
 disown || true
 wait_for "http://127.0.0.1:$API_PORT/" "API" || { tail -20 "$API_LOG"; exit 1; }
 

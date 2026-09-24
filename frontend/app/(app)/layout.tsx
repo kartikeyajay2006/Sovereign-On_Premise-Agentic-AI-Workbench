@@ -5,8 +5,8 @@ import { CommandPalette } from '@/components/command-palette'
 import { RouteStage } from '@/shared/motion/route-stage'
 
 /**
- * The app frame: one room, lit from above, with the instrument's header
- * fixed at the top and the screens changing beneath it.
+ * The app frame: one room, lit from above, with the workbench's sidebar
+ * down its left edge and the screens changing beside it.
  *
  * Three things live here and nowhere else.
  *
@@ -21,17 +21,15 @@ import { RouteStage } from '@/shared/motion/route-stage'
  * for a subscriber that falls behind, so main-thread time spent on
  * decoration is time in which records can be lost.
  *
- * The top inset. The header is 56px, and 92px on the three Assurance
- * screens, which carry a second row. <main> clears it with --shell-top,
- * which the frame raises itself when the second row is present (see
- * .app-frame in globals.css), so a screen that sizes itself to the
- * viewport uses calc(100dvh - var(--shell-top)), and a sticky element
- * sticks at top: var(--shell-top), and both are right on every screen.
- * Screens outside Assurance (Approvals, the thread's run rail) still
- * resolve it to 72px, the value they were written against.
+ * The insets. From 1024px the sidebar is fixed at the left and <main>
+ * clears it with --sidebar-w; below that it is a sheet behind a 56px top
+ * bar, which <main> clears with --shell-top. A screen that sizes itself to
+ * the viewport uses calc(100dvh - var(--shell-top)), and a sticky element
+ * sticks at top: var(--shell-top), which is 0 beside the sidebar and 56px
+ * under the bar, so both are right at every width.
  *
  * The turn between screens. <RouteStage> hands navigations to the View
- * Transitions API: the header holds still and the next screen settles
+ * Transitions API: the sidebar holds still and the next screen settles
  * into place, readable from its first frame.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -64,7 +62,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <CommandPalette />
 
         <RouteStage>
-          <main id="main" tabIndex={-1} className="relative z-10 flex-1 pt-[var(--shell-top)] outline-none">
+          <main id="main" tabIndex={-1} className="relative z-10 flex-1 pt-[var(--shell-top)] outline-none lg:pl-[var(--sidebar-w)]">
             {children}
           </main>
         </RouteStage>

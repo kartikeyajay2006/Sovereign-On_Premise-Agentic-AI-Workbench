@@ -34,7 +34,20 @@ type Posture = {
   /** The egress read was abandoned unanswered, which is not the same as refused. */
   timedOut: boolean
   loading: boolean
+  /** When the egress reading on show was taken. */
+  readAt: number | null
+  /** The last sample went unanswered and the reading on show is an older one. */
+  stale: boolean
 }
+
+/**
+ * How long an earlier reading stands in for an unanswered one. During a run
+ * the model holds every core and one sample can take longer than its ten
+ * seconds; the pill used to drop its reading and say "No answer" for the
+ * rest of the run. A busy host is not an absent one, so the last reading
+ * stays, dimmed and with its age, until it is this old.
+ */
+const STALE_OK_MS = 120_000
 
 const UNKNOWN = '—'
 const RESAMPLE_MS = 30_000
@@ -70,7 +83,7 @@ const TONE_TEXT: Record<Exclude<Tone, undefined>, string> = {
   approval: 'text-approval-text',
 }
 
-export function SovereigntyStatus({ compact }: { compact?: boolean }) {
+export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: boolean; placement?: 'below' | 'above' | 'start' }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<string | null>(null)
   const [posture, setPosture] = useState<Posture>({
@@ -79,6 +92,8 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
     reachable: false,
     timedOut: false,
     loading: true,
+    readAt: null,
+    stale: false,
   })
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -89,14 +104,21 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
       withTimeout(api.sovereigntyStatus(), 10_000),
       withHealth ? withTimeout(api.health(), 25_000) : Promise.reject(new Error('not requested')),
     ])
-    setPosture((prev) => ({
-      sovereignty: sovereignty.status === 'fulfilled' ? sovereignty.value : null,
-      health: health.status === 'fulfilled' ? health.value : withHealth ? null : prev.health,
-      reachable:
-        sovereignty.status === 'fulfilled' || (withHealth && health.status === 'fulfilled'),
-      timedOut: sovereignty.status === 'rejected' && sovereignty.reason instanceof NoAnswer,
-      loading: false,
-    }))
+    setPosture((prev) => {
+      const answered = sovereignty.status === 'fulfilled'
+      const unanswered = sovereignty.status === 'rejected' && sovereignty.reason instanceof NoAnswer
+      const keep =
+        unanswered && prev.sovereignty !== null && prev.readAt !== null && Date.now() - prev.readAt < STALE_OK_MS
+      return {
+        sovereignty: answered ? sovereignty.value : keep ? prev.sovereignty : null,
+        health: health.status === 'fulfilled' ? health.value : withHealth ? null : prev.health,
+        reachable: answered || keep || (withHealth && health.status === 'fulfilled'),
+        timedOut: unanswered && !keep,
+        loading: false,
+        readAt: answered ? Date.now() : keep ? prev.readAt : null,
+        stale: keep,
+      }
+    })
   }, [])
 
   useEffect(() => {
@@ -128,7 +150,7 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
     }
   }, [open, sample])
 
-  const { sovereignty, health, reachable, loading, timedOut } = posture
+  const { sovereignty, health, reachable, loading, timedOut, stale, readAt } = posture
 
   // The pill only claims a posture the API reported. While the read is in
   // flight, or if it failed, it says so rather than showing a green light.
@@ -210,13 +232,15 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
         aria-label={`Egress posture: ${pillLabel}`}
         title={
           sovereignty
-            ? `${sovereignty.unapproved_connections} non-loopback connections observed since ${new Date(sovereignty.monitored_since).toLocaleString()}`
+            ? `${sovereignty.unapproved_connections} non-loopback connections observed since ${new Date(sovereignty.monitored_since).toLocaleString()}` +
+              (stale && readAt ? ` — last read ${Math.round((Date.now() - readAt) / 1000)} s ago; the host is busy` : '')
             : undefined
         }
         className={cn(
           'hover-decay flex h-8 items-center gap-2 whitespace-nowrap rounded-full px-3 shadow-[0_0_0_1px_var(--line-subtle)] hover:bg-surface-sunken',
           'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
           compact && 'px-1',
+          stale && 'opacity-60',
         )}
       >
         <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', pillFill)} />
@@ -236,7 +260,14 @@ export function SovereigntyStatus({ compact }: { compact?: boolean }) {
         <div
           role="dialog"
           aria-label="Egress posture"
-          className="absolute right-0 top-[calc(100%+8px)] z-[var(--z-menu)] w-72 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in slide-in-from-top-1 duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none"
+          className={cn(
+            'absolute z-[var(--z-menu)] w-72 max-w-[calc(100vw-32px)] overflow-hidden rounded-[var(--radius-md-token)] bg-surface shadow-[var(--elev-2)] animate-in duration-[var(--standard)] ease-[var(--ease-standard)] motion-reduce:animate-none',
+            placement === 'above'
+              ? 'bottom-[calc(100%+8px)] left-0 slide-in-from-bottom-1'
+              : placement === 'start'
+                ? 'left-0 top-[calc(100%+8px)] slide-in-from-top-1'
+                : 'right-0 top-[calc(100%+8px)] slide-in-from-top-1',
+          )}
         >
           <div className="flex items-center justify-between gap-3 border-b border-line-subtle px-4 py-3">
             <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">

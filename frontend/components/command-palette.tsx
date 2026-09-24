@@ -11,7 +11,7 @@ import type { TaskSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useRole } from './role-context'
 import { useToast } from './toast'
-import { DESTINATIONS, OPEN_PALETTE_EVENT, usePlatformMod } from './navigation'
+import { DESTINATIONS, NEW_RUN_EVENT, OPEN_PALETTE_EVENT, usePlatformMod } from './navigation'
 
 /**
  * Go anywhere without the mouse.
@@ -36,12 +36,9 @@ import { DESTINATIONS, OPEN_PALETTE_EVENT, usePlatformMod } from './navigation'
  * first frame, so typing never waits for anything.
  */
 
-/**
- * Dispatched with the "New run" action. The thread can listen for it and
- * clear itself; until it does, the action goes to the thread and says only
- * that, which is true either way.
- */
-export const NEW_RUN_EVENT = 'aegis:new-run'
+// Dispatched with the "New run" action; it lives with the shell, which
+// dispatches it too.
+export { NEW_RUN_EVENT } from './navigation'
 
 type Group = 'Go to' | 'Actions' | 'Recent runs' | 'Harness runs'
 

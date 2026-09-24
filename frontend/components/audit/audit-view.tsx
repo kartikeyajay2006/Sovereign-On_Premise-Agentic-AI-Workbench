@@ -21,27 +21,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, RotateCw, Search, ShieldCheck, X } from 'lucide-react'
-import { PageHeader, type PageHeaderStat } from '@/components/page-header'
+import { PageHeader } from '@/components/page-header'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
 import { Button } from '@/shared/ui/controls/button'
 import { EmptyState } from '@/shared/ui/data/empty-state'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, clockTime, describeFailure, useReading } from '@/shared/ui/data/reading'
-import { AppendScope, DimScope, MeasuredNumber, Sweep } from '@/shared/motion'
+import { AppendScope, DimScope, Sweep } from '@/shared/motion'
 import { cn } from '@/lib/utils'
-import { readChain, readExport, readRecords, type AuditRecord } from './api'
-import { ChainTail } from './chain-tail'
+import { readChain, readExport, readRecords } from './api'
 import { RecordRow, type RowCheck } from './record-list'
 import { useChainCheck } from './use-chain-check'
 import { VerificationPanel } from './verification-panel'
 
-const PAGE_SIZE = 200
-const TAIL_SIZE = 6
-
-function shortHash(hash: string | null | undefined) {
-  return hash ? `${hash.slice(0, 8)}…${hash.slice(-4)}` : '—'
-}
+/** Records read at first, and how many more each "Show more" reads. */
+const FIRST_PAGE = 50
+const MORE = 150
 
 export function AuditView() {
   const { can } = useRole()
@@ -49,14 +45,16 @@ export function AuditView() {
   const canReadAll = can('audit.read.all')
 
   const chain = useReading((signal) => readChain(signal), [])
-  const tail = useReading((signal) => readRecords({ limit: TAIL_SIZE }, signal), [])
 
   const [category, setCategory] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [applied, setApplied] = useState('')
+  // Fifty to start: the log is mostly permission checks, and two hundred rows
+  // made an 8,000px page before anyone had searched for anything.
+  const [limit, setLimit] = useState(FIRST_PAGE)
   const records = useReading(
-    (signal) => readRecords({ category, search: applied || null, limit: PAGE_SIZE }, signal),
-    [category, applied],
+    (signal) => readRecords({ category, search: applied || null, limit }, signal),
+    [category, applied, limit],
   )
 
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -67,7 +65,6 @@ export function AuditView() {
   const check = useChainCheck((summary) => {
     chain.reload()
     records.reload()
-    tail.reload()
     push(
       summary.failureCount === 0
         ? {
@@ -87,13 +84,13 @@ export function AuditView() {
   // unfiltered read is kept, so choosing one does not make the others vanish
   // from the list of choices.
   useEffect(() => {
-    const seen = [...(category ? [] : (records.data ?? [])), ...(tail.data ?? [])].map((r) => r.category)
+    const seen = (category ? [] : (records.data ?? [])).map((r) => r.category)
     if (seen.length === 0) return
     setCategories((prev) => {
       const merged = new Set([...prev, ...seen])
       return merged.size === prev.length ? prev : [...merged].sort()
     })
-  }, [records.data, tail.data, category])
+  }, [records.data, category])
 
   const verify = async () => {
     if (canReadAll) {
@@ -145,7 +142,6 @@ export function AuditView() {
         tone: 'sovereign',
       })
       records.reload()
-      tail.reload()
     } catch (error) {
       const failure = describeFailure(error)
       push({
@@ -159,15 +155,6 @@ export function AuditView() {
   }
 
   const toggle = useCallback((id: string) => setExpanded((cur) => (cur === id ? null : id)), [])
-
-  const openRecord = (record: AuditRecord) => {
-    const present = records.data?.some((r) => r.id === record.id)
-    if (!present) return
-    setExpanded(record.id)
-    window.requestAnimationFrame(() =>
-      document.getElementById(`record-${record.id}`)?.scrollIntoView({ block: 'center' }),
-    )
-  }
 
   const bySequence = useMemo(
     () => new Map((records.data ?? []).map((r) => [r.sequence, r])),
@@ -198,49 +185,25 @@ export function AuditView() {
     return phase === 'sweeping' ? 'pending' : undefined
   }
 
-  const server = chain.data
-  const checkStat: PageHeaderStat = !canReadAll
-    ? { label: 'Browser check', value: 'not for this role', tone: 'muted' }
-    : check.state.phase === 'idle'
-      ? { label: 'Browser check', value: 'not run', tone: 'muted' }
-      : check.state.phase === 'fetching'
-        ? { label: 'Browser check', value: 'downloading', tone: 'active' }
-        : check.state.phase === 'sweeping'
-          ? { label: 'Browser check', value: `${check.state.checked}/${check.state.total}`, tone: 'active' }
-          : check.state.phase === 'failed'
-            ? { label: 'Browser check', value: 'could not run', tone: 'muted' }
-            : check.state.failureCount === 0
-              ? { label: 'Browser check', value: `${check.state.total} recompute`, tone: 'sovereign' }
-              : { label: 'Browser check', value: `${check.state.failureCount} fail`, tone: 'critical' }
-
   const busyVerifying =
     serverChecking || check.state.phase === 'fetching' || check.state.phase === 'sweeping'
 
+  // Fewer rows than were asked for is the whole of what matches.
+  const complete = records.data !== null && records.data.length < limit
   const resultNote =
     records.data === null
       ? null
-      : records.data.length < PAGE_SIZE
+      : complete
         ? `${records.data.length} record${records.data.length === 1 ? '' : 's'}${category || applied ? ' match' : ''}`
-        : `the ${PAGE_SIZE} most recent${category || applied ? ' matching' : ''}`
+        : `the ${records.data.length} most recent${category || applied ? ' matching' : ''}`
 
   return (
     <div className="flex flex-col">
       <PageHeader
         title="Audit"
-        description="Every task, model call, tool run, policy decision and sign-in on this host, hash-linked so that altering or removing a record breaks the chain."
-        meta={[
-          {
-            label: 'Chain',
-            value: !server ? '—' : server.valid ? 'valid' : `broken at #${server.broken_at ?? '?'}`,
-            tone: !server ? 'muted' : server.valid ? 'sovereign' : 'critical',
-            hint: server ? `GET /api/audit/chain · checked ${clockTime(Date.parse(server.checked_at))}` : undefined,
-          },
-          // ROLL: the server's count, re-read after a check or an export
-          // (each of which writes a record of its own).
-          { label: 'Records', value: <MeasuredNumber value={server?.events} absent="—" /> },
-          { label: 'Head', value: shortHash(server?.head_hash), hint: server?.head_hash ?? undefined },
-          checkStat,
-        ]}
+        description="Every task, model call, decision and sign-in on this host, hash-linked so that changing or removing a record breaks the chain."
+        // The chain's state is the panel below, from the server and from this
+        // browser; a row of the same readings above it said it twice.
         actions={
           <>
             {/* The export route needs audit.read.all, so a role without it is
@@ -281,30 +244,6 @@ export function AuditView() {
           results={check.results.current}
           canCheck={canReadAll}
         />
-
-        <section aria-labelledby="tail-heading" className="flex flex-col gap-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 id="tail-heading" className="text-heading font-medium tracking-[var(--ls-heading)] text-foreground">
-              Newest blocks
-            </h2>
-            {!canReadAll && (
-              <span className="text-ui text-foreground-muted">Only records your role acted in are visible to it.</span>
-            )}
-          </div>
-          {tail.status === 'failed' && !tail.data ? (
-            <FailureState failure={tail.failure!} what="the newest records" retry={tail.reload} />
-          ) : !tail.data ? (
-            <ReadingLine what="the newest records" source="GET /api/audit" startedAt={tail.startedAt} />
-          ) : tail.data.length === 0 ? (
-            <EmptyState
-              className="px-0"
-              title="No records yet"
-              body="The first action on this host writes the opening block."
-            />
-          ) : (
-            <ChainTail records={tail.data} onOpen={openRecord} />
-          )}
-        </section>
 
         <section aria-labelledby="records-heading" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -372,7 +311,6 @@ export function AuditView() {
               busyLabel="Reading…"
               onClick={() => {
                 records.reload()
-                tail.reload()
                 chain.reload()
               }}
             >
@@ -453,6 +391,20 @@ export function AuditView() {
               )}
             </div>
           </div>
+          )}
+
+          {records.data && !complete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              ground="paper"
+              busy={records.refreshing}
+              busyLabel="Reading…"
+              className="self-center"
+              onClick={() => setLimit((n) => n + MORE)}
+            >
+              Show {MORE} older records
+            </Button>
           )}
         </section>
       </div>

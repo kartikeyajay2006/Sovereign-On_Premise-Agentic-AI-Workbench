@@ -213,7 +213,7 @@ The page is `min-h-[calc(100dvh-var(--shell-top))]`, because this screen carries
 
 ## 6. Assurance · Audit (`/audit`)
 
-Owner files: `components/audit/audit-view.tsx`, `verification-panel.tsx`, `chain-ribbon.tsx`, `record-list.tsx`, `chain-tail.tsx`, `use-chain-check.ts`, `chain-verify.ts`.
+Owner files: `components/audit/audit-view.tsx`, `verification-panel.tsx`, `chain-ribbon.tsx`, `record-list.tsx`, `use-chain-check.ts`, `chain-verify.ts`.
 
 The in-browser chain check is the product's best VERIFY moment, and it is already built honestly: `useChainCheck` recomputes record by record, one chunk per frame, and "nothing is shown as checked ahead of the arithmetic". Apply the direction's vocabulary to it.
 

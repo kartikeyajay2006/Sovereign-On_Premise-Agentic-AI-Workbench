@@ -1,50 +1,55 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { memo, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type RefObject,
-} from 'react'
-import { Menu, Search, X } from 'lucide-react'
-import { request } from '@/lib/api'
+  Activity,
+  BookOpen,
+  Box,
+  ClipboardCheck,
+  Layers,
+  Link2,
+  Menu,
+  MessageSquare,
+  RotateCw,
+  Search,
+  ShieldCheck,
+  SquarePen,
+  SquareSlash,
+  X,
+} from 'lucide-react'
+import { api, request } from '@/lib/api'
+import type { TaskSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Light } from '@/shared/motion/light'
-import { useReducedMotion } from '@/shared/motion/preferences'
-import { AegisLogo } from './aegis-logo'
+import { AegisMark } from './aegis-logo'
 import { RoleSwitcher } from './role-switcher'
 import { useRole } from './role-context'
 import { SovereigntyStatus } from './sovereignty-status'
+import { ThemeToggle } from './theme-toggle'
 
 /**
- * Five places, seven screens.
- *
- * Seven tabs became five when the thread absorbed Ask and Tasks: those were
- * duplicates, two more ways to do the one job the thread does. Two new
- * screens have arrived since, and each has earned a place by job, not by
- * subsystem -- which was the rule the cut followed.
+ * The workbench's shell: one sidebar, the way a productivity tool is laid
+ * out, with the places down its top, the runs under them, and the account
+ * and the host's egress reading at its foot.
  *
  *   Thread      ask one question, and watch it be answered
+ *   Skills      saved instructions, called with /
  *   Harnesses   ask the same question of many things, as one governed run
  *   Approvals   decide what a person has to release
  *   Knowledge   what the workbench knows and runs on
- *   Assurance   what this host can show about its own conduct
+ *   Assurance   what this host can show about its own conduct -- its
+ *               posture, its sandbox and its audit chain
  *
- * Harnesses is a new job, so it is a place. The sandbox console is not a
- * new job: it is the most direct way to see this host contain a real
- * payload, which is what Assurance is for, so it lives there -- with the
- * audit chain, which is the host's record of its own conduct and the
- * other half of the same argument. The three are one place with three
- * readings, switched from a second row that exists only on those screens.
- * Every screen keeps its URL, so nothing linked or bookmarked moves.
+ * The runs used to be a second rail inside the thread, beside a header of
+ * tabs: two navigations on one screen. They are one list now, in the one
+ * sidebar, reachable from every screen, and a run opens by URL (?run=), so
+ * the sidebar never reaches into the thread's state. The thread says when
+ * its runs change with RUNS_CHANGED_EVENT, and the sidebar re-reads.
  *
  * Every place is also two keys away: G then its letter, which the palette
- * and each tab's title list. Ctrl/⌘K reaches all seven by name.
+ * and each row's title list. Ctrl/⌘K reaches every screen by name. Under
+ * 1024px the sidebar is a sheet behind a menu button in a slim top bar.
  */
 
 export interface Destination {
@@ -59,45 +64,43 @@ export interface Destination {
 interface Place extends Destination {
   /** Paths that make this place the current one. */
   paths: string[]
-  children?: Destination[]
+  icon: ComponentType<{ className?: string }>
+  children?: Array<Destination & { icon: ComponentType<{ className?: string }> }>
 }
 
 export const PLACES: Place[] = [
-  { href: '/console', label: 'Thread', key: 't', hint: 'ask, and watch the run', paths: ['/console'] },
-  { href: '/skills', label: 'Skills', key: 'i', hint: 'saved instructions, called with /', paths: ['/skills'] },
-  {
-    href: '/harnesses',
-    label: 'Harnesses',
-    key: 'h',
-    hint: 'governed multi-run jobs',
-    paths: ['/harnesses'],
-  },
-  {
-    href: '/approvals',
-    label: 'Approvals',
-    key: 'a',
-    hint: 'deliverables held for a reviewer',
-    paths: ['/approvals'],
-  },
-  { href: '/registry', label: 'Knowledge', key: 'k', hint: 'models, SOPs, retrieval', paths: ['/registry'] },
+  { href: '/console', label: 'Thread', key: 't', hint: 'ask, and watch the run', paths: ['/console'], icon: MessageSquare },
+  { href: '/skills', label: 'Skills', key: 'i', hint: 'saved instructions, called with /', paths: ['/skills'], icon: SquareSlash },
+  { href: '/harnesses', label: 'Harnesses', key: 'h', hint: 'governed multi-run jobs', paths: ['/harnesses'], icon: Layers },
+  { href: '/approvals', label: 'Approvals', key: 'a', hint: 'deliverables held for a reviewer', paths: ['/approvals'], icon: ClipboardCheck },
+  { href: '/registry', label: 'Knowledge', key: 'k', hint: 'models, SOPs, retrieval', paths: ['/registry'], icon: BookOpen },
   {
     href: '/security',
     label: 'Assurance',
     key: 'p',
     hint: 'what this host can show about its own conduct',
     paths: ['/security', '/sandbox', '/audit'],
+    icon: ShieldCheck,
     children: [
-      { href: '/security', label: 'Posture', key: 'p', hint: 'egress as measured, and the policy' },
-      { href: '/sandbox', label: 'Sandbox', key: 's', hint: "run code under this host's limits" },
-      { href: '/audit', label: 'Audit', key: 'l', hint: 'the hash-chained record' },
+      { href: '/security', label: 'Posture', key: 'p', hint: 'egress as measured, and the policy', icon: Activity },
+      { href: '/sandbox', label: 'Sandbox', key: 's', hint: "run code under this host's limits", icon: Box },
+      { href: '/audit', label: 'Audit', key: 'l', hint: 'the hash-chained record', icon: Link2 },
     ],
   },
 ]
 
 /** Every screen, flat, in navigation order. The palette lists these. */
 export const DESTINATIONS: Destination[] = PLACES.flatMap((place) =>
-  place.children ? place.children : [place],
+  place.children
+    ? place.children.map(({ href, label, key, hint }) => ({ href, label, key, hint }))
+    : [{ href: place.href, label: place.label, key: place.key, hint: place.hint }],
 )
+
+/**
+ * Dispatched with "New run" -- from the sidebar or the palette -- after
+ * going to the thread, which clears itself when it hears it.
+ */
+export const NEW_RUN_EVENT = 'aegis:new-run'
 
 /** Open the command palette from anywhere, without importing it. */
 export const OPEN_PALETTE_EVENT = 'aegis:palette'
@@ -107,10 +110,20 @@ export function openCommandPalette() {
 
 /**
  * Dispatch after anything that changes the approval queue -- a run settling
- * as held, a decision recorded -- and the header re-reads its count at once
+ * as held, a decision recorded -- and the sidebar re-reads its count at once
  * instead of at the next navigation.
  */
 export const APPROVALS_CHANGED_EVENT = 'aegis:approvals-changed'
+
+/**
+ * Dispatched by the thread when a run starts, settles or is followed live,
+ * with the id of the run it is following (or null). The sidebar re-reads its
+ * list of runs and marks the live one.
+ */
+export const RUNS_CHANGED_EVENT = 'aegis:runs-changed'
+export interface RunsChangedDetail {
+  running: string | null
+}
 
 function onPath(pathname: string, path: string) {
   return pathname === path || pathname.startsWith(`${path}/`)
@@ -138,60 +151,11 @@ export function usePlatformMod(): string {
 }
 
 /**
- * Where an element's LABEL sits inside its positioned container -- its box
- * less its own horizontal padding, so a rule drawn from this spans exactly
- * the words at every breakpoint's padding -- kept current as fonts load and
- * the window resizes. `ready` turns true one frame after the first
- * placement, so an indicator is placed instantly on first paint and only
- * glides for changes after that.
- */
-function useSlot(container: RefObject<HTMLElement | null>, slot: string | null) {
-  const [box, setBox] = useState<{ x: number; w: number } | null>(null)
-  const [ready, setReady] = useState(false)
-
-  useLayoutEffect(() => {
-    const root = container.current
-    const find = () => (root && slot ? root.querySelector<HTMLElement>(`[data-slot="${slot}"]`) : null)
-    if (!find()) {
-      // Nothing to point at -- the second row has gone, or this screen is
-      // not a place. Forget the glide too, so the indicator is placed, not
-      // flown in from wherever it was last, when there is one again.
-      setBox(null)
-      setReady(false)
-      return
-    }
-    const measure = () => {
-      const el = find()
-      if (!el) {
-        setBox(null)
-        return
-      }
-      const style = getComputedStyle(el)
-      const left = parseFloat(style.paddingLeft) || 0
-      const right = parseFloat(style.paddingRight) || 0
-      setBox({ x: el.offsetLeft + left, w: Math.max(0, el.offsetWidth - left - right) })
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(root!)
-    return () => observer.disconnect()
-  }, [container, slot])
-
-  useEffect(() => {
-    if (!box || ready) return
-    const frame = window.requestAnimationFrame(() => setReady(true))
-    return () => window.cancelAnimationFrame(frame)
-  }, [box, ready])
-
-  return { box, ready }
-}
-
-/**
- * The approval queue's length, for the count on the Approvals tab.
+ * The approval queue's length, for the count on the Approvals row.
  *
  * A reading, so it follows the reading rules: shown only when the read
  * succeeded and the queue is not empty, never a zero it did not get, and
- * dated in the tab's title. It is read when the header mounts, on every
+ * dated in the row's title. It is read when the sidebar mounts, on every
  * change of screen, when the tab becomes visible again and when something
  * announces APPROVALS_CHANGED_EVENT. It is deliberately not polled: the
  * queue endpoint returns whole task records, and a timer re-reading them
@@ -240,35 +204,331 @@ function useHeldCount(enabled: boolean, pathname: string) {
   return held
 }
 
-export function Navigation() {
+// ----------------------------------------------------------------- runs
+
+/**
+ * A run's state, marked only where it is not the normal ending. A history
+ * with a green dot on every delivered run reads as a status board; this one
+ * reads as a history, and the held, refused and unfinished runs stand out
+ * in it. The title and the screen-reader line say every state in words.
+ */
+const OUTCOME_MARK: Record<string, { dot: string; word: string }> = {
+  awaiting_approval: { dot: 'bg-approval', word: 'Held' },
+  rejected: { dot: 'bg-critical', word: 'Rejected' },
+  failed: { dot: 'bg-critical', word: 'Failed' },
+  blocked: { dot: 'bg-critical', word: 'Refused' },
+  cancelled: { dot: 'bg-control-strong', word: 'Stopped' },
+}
+const FINISHED = new Set(['awaiting_approval', 'approved', 'delivered', 'rejected', 'failed', 'blocked', 'cancelled'])
+
+/** Today, Yesterday, Previous 7 days, Earlier. */
+function dayGroup(iso: string, now = new Date()): string {
+  const then = new Date(iso)
+  if (Number.isNaN(then.getTime())) return 'Earlier'
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const day = 24 * 60 * 60 * 1000
+  if (then.getTime() >= start) return 'Today'
+  if (then.getTime() >= start - day) return 'Yesterday'
+  if (then.getTime() >= start - 7 * day) return 'Previous 7 days'
+  return 'Earlier'
+}
+
+function relativeTime(iso: string): string {
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return ''
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000))
+  if (seconds < 60) return 'just now'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
+/**
+ * How often the list is read again while a run it shows is unfinished: a
+ * status here is a reading taken when the list was fetched, and a run left
+ * to finish in the background would otherwise say "executing" until
+ * something else refreshed it.
+ */
+const UNFINISHED_REFRESH_MS = 10_000
+
+/**
+ * The runs, newest first, as the thread opens them. These are tasks, not
+ * conversations: this backend has no thread entity and each run stands
+ * alone, so the list says "runs", never "chats".
+ */
+const RunList = memo(function RunList({ activeId, onPick }: { activeId: string | null; onPick: () => void }) {
+  const router = useRouter()
+  const [runs, setRuns] = useState<TaskSummary[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState<string | null>(null)
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<RunsChangedDetail>).detail
+      setRunning(detail?.running ?? null)
+      setTick((n) => n + 1)
+    }
+    window.addEventListener(RUNS_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(RUNS_CHANGED_EVENT, onChanged)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .listTasks(40)
+      .then((rows) => {
+        if (cancelled) return
+        setRuns(rows || [])
+        setError(null)
+      })
+      // Named, not swallowed: an empty list and an unreachable API look the
+      // same otherwise, and one of them is worth seeing.
+      .catch((err) => !cancelled && setError(err?.detail || err?.message || 'Could not read past runs.'))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [tick])
+
+  const unfinished = runs.some((task) => !FINISHED.has(String(task.status).toLowerCase()))
+  useEffect(() => {
+    if (!unfinished) return
+    const id = window.setTimeout(() => setTick((n) => n + 1), UNFINISHED_REFRESH_MS)
+    return () => window.clearTimeout(id)
+  }, [unfinished, runs])
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Relative, so it contains the rows' screen-reader labels, which are
+          absolutely positioned and would otherwise stretch the page. The
+          list fades out under the foot rather than meeting it at an edge. */}
+      <div className="side-scroll relative min-h-0 flex-1 overflow-y-auto px-2 pb-6">
+        {loading ? (
+          <p className="px-2 py-2 text-[13px] text-foreground-muted">Loading runs…</p>
+        ) : error ? (
+          <p className="flex items-start gap-1.5 px-2 py-2 text-meta text-critical-text">
+            <RotateCw className="mt-0.5 size-3 shrink-0" aria-hidden />
+            {error}
+          </p>
+        ) : runs.length === 0 ? (
+          <p className="px-2 py-2 text-[13px] text-foreground-muted">No runs yet on this host.</p>
+        ) : (
+          <ul className="m-0 flex list-none flex-col gap-px p-0">
+            {runs.map((task, i) => {
+              const active = task.id === activeId
+              const status = String(task.status).toLowerCase()
+              const following = task.id === running
+              const unfinished = following || !FINISHED.has(status)
+              const mark = unfinished ? null : OUTCOME_MARK[status] ?? null
+              const group = dayGroup(task.created_at)
+              const firstOfGroup = i === 0 || dayGroup(runs[i - 1].created_at) !== group
+              const stateWords = following ? 'in progress' : status.replace(/_/g, ' ')
+              // The question's own first line: a starter appends its standing
+              // instruction on the lines after it.
+              const title = task.skill ? task.skill.input : task.prompt.split('\n')[0].trim()
+              return (
+                <li key={task.id}>
+                  {firstOfGroup ? <p className={cn('px-2 pb-1.5 text-[12px] font-medium text-foreground-muted', i === 0 ? 'pt-1' : 'pt-5')}>{group}</p> : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      router.push(`/console?run=${task.id}`)
+                      onPick()
+                    }}
+                    aria-current={active ? 'true' : undefined}
+                    title={`${task.skill ? `/${task.skill.id} ${task.skill.input}` : task.prompt} (${stateWords}, ${relativeTime(task.created_at)})`}
+                    className={cn(
+                      'flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2 text-left transition-colors duration-100',
+                      'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
+                      active ? 'bg-[color-mix(in_oklab,var(--foreground)_7%,transparent)]' : 'hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)]',
+                    )}
+                  >
+                    <span className={cn('min-w-0 flex-1 truncate text-[13px]', active ? 'font-medium text-foreground' : 'text-foreground-secondary')}>
+                      {task.skill ? <span className="mr-1 font-mono text-[12px] text-foreground-muted">/{task.skill.id}</span> : null}
+                      {title}
+                    </span>
+                    {unfinished ? (
+                      <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-active motion-reduce:animate-none" />
+                    ) : mark ? (
+                      <span aria-hidden title={mark.word} className={cn('size-1.5 shrink-0 rounded-full', mark.dot)} />
+                    ) : null}
+                    <span className="sr-only">
+                      {stateWords}, {relativeTime(task.created_at)}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+})
+
+/**
+ * The list, marked with the run the thread has open. Reading ?run= needs a
+ * Suspense boundary in a layout, so it is read here, below one, and the
+ * list renders unmarked for the moment before it is.
+ */
+function MarkedRunList({ onPick }: { onPick: () => void }) {
+  const pathname = usePathname() ?? ''
+  const params = useSearchParams()
+  return <RunList activeId={onPath(pathname, '/console') ? params.get('run') : null} onPick={onPick} />
+}
+
+// ------------------------------------------------------------ the sidebar
+
+function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname() ?? ''
   const router = useRouter()
   const { role, can } = useRole()
   const mod = usePlatformMod()
-  const reduced = useReducedMotion()
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  const current = PLACES.find((place) => place.paths.some((path) => onPath(pathname, path))) ?? null
-  const currentChild = current?.children?.find((child) => onPath(pathname, child.href)) ?? null
-
-  // The Assurance tab opens where the reader's job is: the auditor's is the
-  // chain, everyone else's is the posture.
-  const hrefFor = (place: Place) =>
-    place.children ? (role.id === 'auditor' ? '/audit' : place.href) : place.href
-
-  // --------------------------------------------------------------- held
   const held = useHeldCount(can('approval.read'), pathname)
-  const lastHeld = useRef<number | null>(null)
-  const [heldRose, setHeldRose] = useState(0)
-  useEffect(() => {
-    const count = held?.count ?? null
-    // The count lights when it rises, because that is a run arriving at the
-    // gate. Falling is a decision made, which is not "held".
-    if (count !== null && lastHeld.current !== null && count > lastHeld.current) {
-      setHeldRose((n) => n + 1)
-    }
-    if (count !== null) lastHeld.current = count
-  }, [held])
+
+  // The Assurance row opens where the reader's job is: the auditor's is the
+  // chain, everyone else's is the posture.
+  const hrefFor = (place: Place) => (place.children ? (role.id === 'auditor' ? '/audit' : place.href) : place.href)
+
+  const newRun = () => {
+    const openRun = new URLSearchParams(window.location.search).has('run')
+    if (!onPath(pathname, '/console') || openRun) router.push('/console')
+    window.dispatchEvent(new Event(NEW_RUN_EVENT))
+    onNavigate()
+  }
+
+  const row = 'flex h-8 items-center gap-2.5 rounded-[8px] px-2 text-[13.5px] transition-colors duration-100 focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none'
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 pl-4 pr-3">
+        <Link href="/console" aria-label="AEGIS, the thread" onClick={onNavigate} className="flex items-center gap-2.5 rounded-md text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none">
+          <AegisMark size={22} />
+          <span className="text-[15px] font-semibold tracking-[0.03em]">AEGIS</span>
+        </Link>
+        {/* The host's one reading, next to the name it vouches for. */}
+        <SovereigntyStatus placement="start" />
+      </div>
+
+      <div className="flex shrink-0 flex-col gap-1 px-3">
+        <button
+          type="button"
+          onClick={newRun}
+          className="flex h-9 items-center gap-2.5 rounded-[9px] border border-line-subtle bg-surface px-2.5 text-[13.5px] font-medium text-foreground shadow-[0_1px_2px_oklch(0_0_0/0.05)] transition-[border-color,box-shadow] duration-150 hover:border-line-default focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none active:scale-[0.99]"
+        >
+          <SquarePen className="size-4 text-foreground-secondary" aria-hidden />
+          New run
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            openCommandPalette()
+            onNavigate()
+          }}
+          aria-keyshortcuts="Control+K Meta+K"
+          className={cn(row, 'text-foreground-secondary hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] hover:text-foreground')}
+        >
+          <Search className="size-4 text-foreground-muted" aria-hidden />
+          Search
+          <kbd className="ml-auto rounded-[5px] px-1.5 font-sans text-[11px] text-foreground-muted shadow-[0_0_0_1px_var(--line-subtle)]">{mod} K</kbd>
+        </button>
+      </div>
+
+      <nav aria-label="Workbench" className="mt-4 shrink-0 px-3">
+        <ul className="m-0 flex list-none flex-col gap-px p-0">
+          {PLACES.map((place) => {
+            const isCurrent = place.paths.some((path) => onPath(pathname, path))
+            const Icon = place.icon
+            const count = place.href === '/approvals' && held && held.count > 0 ? held.count : null
+            return (
+              <li key={place.href}>
+                <Link
+                  href={hrefFor(place)}
+                  onClick={onNavigate}
+                  aria-current={isCurrent && !place.children ? 'page' : undefined}
+                  title={
+                    count !== null && held
+                      ? `${place.label} · G then ${place.key.toUpperCase()} · ${count} held, read ${new Date(held.at).toLocaleTimeString()}`
+                      : `${place.label} · G then ${place.key.toUpperCase()}`
+                  }
+                  className={cn(
+                    row,
+                    isCurrent && !place.children
+                      ? 'bg-[color-mix(in_oklab,var(--foreground)_7%,transparent)] font-medium text-foreground'
+                      : 'text-foreground-secondary hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] hover:text-foreground',
+                    isCurrent && place.children && 'font-medium text-foreground',
+                  )}
+                >
+                  <Icon className={cn('size-4 shrink-0', isCurrent ? 'text-foreground' : 'text-foreground-muted')} />
+                  {place.label}
+                  {count !== null ? (
+                    <span className="tabular ml-auto rounded-[5px] px-1.5 font-mono text-[11px] leading-[18px] text-approval-text shadow-[0_0_0_1px_var(--approval-border)]">
+                      {count}
+                      <span className="sr-only"> held</span>
+                    </span>
+                  ) : null}
+                </Link>
+                {/* Its three screens open under it while you are in it. */}
+                {place.children && isCurrent ? (
+                  <ul className="m-0 ml-[17px] flex list-none flex-col gap-px border-l border-line-subtle p-0 pl-2">
+                    {place.children.map((child) => {
+                      const childCurrent = onPath(pathname, child.href)
+                      const ChildIcon = child.icon
+                      return (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            onClick={onNavigate}
+                            aria-current={childCurrent ? 'page' : undefined}
+                            title={`${child.label} · G then ${child.key.toUpperCase()}`}
+                            className={cn(
+                              row,
+                              'h-7 text-[13px]',
+                              childCurrent
+                                ? 'bg-[color-mix(in_oklab,var(--foreground)_7%,transparent)] font-medium text-foreground'
+                                : 'text-foreground-muted hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] hover:text-foreground',
+                            )}
+                          >
+                            <ChildIcon className="size-3.5 shrink-0" />
+                            {child.label}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : null}
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+
+      {/* The history, headed by its own dates: Today, Yesterday, Earlier. */}
+      <div aria-label="Recent runs" role="region" className="mt-5 flex min-h-0 flex-1 flex-col">
+        <Suspense fallback={<RunList activeId={null} onPick={onNavigate} />}>
+          <MarkedRunList onPick={onNavigate} />
+        </Suspense>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1 border-t border-line-subtle p-2">
+        <div className="min-w-0 flex-1">
+          <RoleSwitcher placement="above" />
+        </div>
+        <ThemeToggle className="mr-1" />
+      </div>
+    </div>
+  )
+}
+
+export function Navigation() {
+  const pathname = usePathname() ?? ''
+  const router = useRouter()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const sheetRef = useRef<HTMLDivElement | null>(null)
 
   // ------------------------------------------------------- G sequences
   useEffect(() => {
@@ -309,313 +569,53 @@ export function Navigation() {
       if (event.key === 'Escape') setMobileOpen(false)
     }
     window.addEventListener('keydown', onKey)
+    sheetRef.current?.querySelector<HTMLElement>('a, button')?.focus()
     return () => window.removeEventListener('keydown', onKey)
   }, [mobileOpen])
 
-  // -------------------------------------------------------- indicators
-  const tabsRef = useRef<HTMLDivElement | null>(null)
-  const subRef = useRef<HTMLDivElement | null>(null)
-  const active = useSlot(tabsRef, current?.href ?? null)
-  const activeSub = useSlot(subRef, currentChild?.href ?? null)
-
-  // The hover highlight glides between tabs while the pointer moves across
-  // them. It appears at once where the pointer enters, glides only for a
-  // move from one tab to the next, and fades on the hover pair's 150ms
-  // decay when the pointer leaves the group.
-  const [hover, setHover] = useState<{ x: number; w: number; glide: boolean } | null>(null)
-  const [hoverShown, setHoverShown] = useState(false)
-  const hoverShownRef = useRef(false)
-  hoverShownRef.current = hoverShown
-  const onTabEnter = useCallback((el: HTMLElement) => {
-    // Glide only from a highlight already on screen. Entering the group
-    // from outside places it at once: there is nothing to glide from.
-    const glide = hoverShownRef.current
-    setHover({ x: el.offsetLeft, w: el.offsetWidth, glide })
-  }, [])
-
-  const subnav = current?.children ?? null
-
   return (
-    /*
-      A flat bar on a hairline, not a floating card: a bar that meets the
-      edges and sits on a rule reads as part of the instrument, and a card
-      floating over the page is every template's house style.
+    <>
+      {/* The sidebar, from a laptop's width up. */}
+      <aside
+        aria-label="Workbench"
+        className="fixed inset-y-0 left-0 z-[var(--z-topbar)] hidden w-[var(--sidebar-w)] border-r border-line-subtle bg-surface-sunken lg:block"
+      >
+        <SidebarBody onNavigate={() => {}} />
+      </aside>
 
-      No backdrop-filter. A full-width blur re-samples everything beneath it
-      on every frame anything under it changes, and what scrolls under this
-      bar is a live stage board.
-    */
-    <header className="fixed inset-x-0 top-0 z-[80] border-b border-line-subtle bg-background">
-      {/*
-        Budgeted for 1024px, the narrowest width the tabs show at: logo,
-        five tabs, the posture readout and the account button come to about
-        1010px there, so between lg and xl the gaps and tab padding tighten
-        and the Go-to button steps aside (Ctrl/⌘K still opens the palette).
-      */}
-      <div className="mx-auto grid max-w-[1400px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 px-4 sm:px-6 xl:gap-x-6">
-        {/* Inside the app the mark goes to the thread, not out to the public
-            page: clicking a logo should not sign you out of the room. */}
-        <Link
-          href="/console"
-          aria-label="AEGIS, the thread"
-          className="col-start-1 row-start-1 flex h-14 shrink-0 items-center rounded-[var(--radius)] focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+      {/* Below it: a slim top bar, and the same sidebar as a sheet. */}
+      <header className="fixed inset-x-0 top-0 z-[var(--z-topbar)] flex h-14 items-center gap-3 border-b border-line-subtle bg-background px-4 lg:hidden">
+        <button
+          type="button"
+          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((open) => !open)}
+          className="flex size-9 items-center justify-center rounded-[9px] text-foreground shadow-[0_0_0_1px_var(--line-subtle)] hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
         >
-          <AegisLogo size={24} variant="compact" />
+          {mobileOpen ? <X className="size-4" aria-hidden /> : <Menu className="size-4" aria-hidden />}
+        </button>
+        <Link href="/console" aria-label="AEGIS, the thread" className="flex items-center gap-2 text-foreground">
+          <AegisMark size={20} />
+          <span className="text-[14px] font-semibold tracking-[0.03em]">AEGIS</span>
         </Link>
-
-        <nav
-          aria-label="Workbench"
-          className="col-start-2 row-start-1 hidden h-14 min-w-0 items-stretch lg:flex"
-        >
+        <div className="ml-auto">
+          <SovereigntyStatus />
+        </div>
+      </header>
+      {mobileOpen ? (
+        <>
+          <div aria-hidden onClick={() => setMobileOpen(false)} className="fixed inset-0 z-[var(--z-drawer)] bg-[var(--scrim)] lg:hidden" />
           <div
-            ref={tabsRef}
-            className="relative flex items-stretch"
-            onPointerLeave={() => setHoverShown(false)}
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Workbench"
+            className="fixed inset-y-0 left-0 z-[var(--z-drawer)] w-[min(300px,86vw)] border-r border-line-subtle bg-surface-sunken shadow-[var(--elev-3)] lg:hidden"
           >
-            {/* The hover highlight. Its width animates as well as its
-                position: it is out of flow, has no children and is one
-                element, so the layout it costs is its own box. */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-y-3 left-0 rounded-full bg-surface-sunken"
-              style={{
-                width: hover?.w ?? 0,
-                transform: `translateX(${hover?.x ?? 0}px)`,
-                opacity: hoverShown && hover ? 1 : 0,
-                transition: !hoverShown
-                  ? 'opacity var(--hover-out) var(--ease-move)'
-                  : hover?.glide && !reduced
-                    ? 'transform var(--micro) var(--ease-micro), width var(--micro) var(--ease-micro), opacity 0ms'
-                    : 'none',
-              }}
-            />
-
-            {PLACES.map((place) => {
-              const isCurrent = current?.href === place.href
-              const isApprovals = place.href === '/approvals'
-              const count = isApprovals && held && held.count > 0 ? held.count : null
-              return (
-                <Link
-                  key={place.href}
-                  href={hrefFor(place)}
-                  data-slot={place.href}
-                  aria-current={isCurrent ? 'page' : undefined}
-                  title={
-                    isApprovals && held
-                      ? `${place.label} · G then ${place.key.toUpperCase()} · ${held.count} held, read ${new Date(held.at).toLocaleTimeString()}`
-                      : `${place.label} · G then ${place.key.toUpperCase()}`
-                  }
-                  onPointerEnter={(event) => {
-                    onTabEnter(event.currentTarget)
-                    setHoverShown(true)
-                  }}
-                  className={cn(
-                    'relative flex items-center gap-2 rounded-full px-3 text-[14px] font-medium',
-                    'transition-colors duration-[var(--hover-out)] ease-[var(--ease-move)] hover:duration-0',
-                    'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
-                    isCurrent ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
-                  )}
-                >
-                  {place.label}
-                  {count !== null && (
-                    <Light
-                      as="span"
-                      tone="approval"
-                      bloomKey={heldRose || null}
-                      className="inline-flex rounded-[var(--radius-xs)]"
-                    >
-                      <span className="tabular flex h-4 min-w-4 items-center justify-center rounded-[var(--radius-xs)] px-1 font-mono text-ledger leading-none text-approval-text shadow-[0_0_0_1px_var(--approval-border)]">
-                        {count}
-                        <span className="sr-only"> held</span>
-                      </span>
-                    </Light>
-                  )}
-                </Link>
-              )
-            })}
-
-            {/* The current place: an ink bar sitting on the header's own
-                rule. Ink, because selection is never a status hue. It is a
-                1px element scaled to the tab's width, so the glide between
-                tabs is a composited transform and never a layout. */}
-            <span
-              aria-hidden
-              className={cn(
-                'pointer-events-none absolute -bottom-px left-0 h-[2px] w-px origin-left bg-foreground',
-                active.ready &&
-                  'transition-transform duration-[var(--spatial)] ease-[var(--ease-spatial)] motion-reduce:transition-none',
-              )}
-              style={
-                active.box
-                  ? { transform: `translateX(${active.box.x}px) scaleX(${active.box.w})` }
-                  : { opacity: 0 }
-              }
-            />
+            <SidebarBody onNavigate={() => setMobileOpen(false)} />
           </div>
-        </nav>
-
-        <div className="col-start-3 row-start-1 flex h-14 items-center gap-1.5 sm:gap-2">
-          <button
-            type="button"
-            onClick={openCommandPalette}
-            aria-label="Go to a screen, run or action"
-            aria-keyshortcuts="Control+K Meta+K"
-            className={cn(
-              'hover-decay hidden h-8 items-center gap-2 rounded-full bg-surface px-3 text-ui text-foreground-muted md:flex lg:hidden xl:flex xl:w-[200px]',
-              'shadow-[0_0_0_1px_var(--line-subtle)] hover:text-foreground hover:shadow-[0_0_0_1px_var(--line-default)]',
-              'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
-            )}
-          >
-            <Search className="size-3.5 shrink-0" aria-hidden />
-            <span className="hidden xl:inline">Search</span>
-            <kbd className="ml-auto hidden h-5 items-center rounded-full px-1.5 font-sans text-[11px] leading-none text-foreground-muted shadow-[0_0_0_1px_var(--line-subtle)] xl:inline-flex">
-              {mod} K
-            </kbd>
-          </button>
-          <div className="hidden sm:block">
-            <SovereigntyStatus />
-          </div>
-          <RoleSwitcher />
-          <button
-            type="button"
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((open) => !open)}
-            className="hover-decay flex h-8 w-8 items-center justify-center rounded-[var(--radius)] text-foreground shadow-[0_0_0_1px_var(--control-default)] hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none lg:hidden"
-          >
-            {mobileOpen ? <X className="h-4 w-4" aria-hidden /> : <Menu className="h-4 w-4" aria-hidden />}
-          </button>
-        </div>
-
-        {/*
-          The second row: one place, three readings. It exists only on the
-          Assurance screens, and its presence is what the app frame reads
-          (via :has) to reserve the extra 36px, so the value is right on the
-          first frame. The same ink rule as the row above, one scale down:
-          switching a reading and switching a place are the same gesture.
-        */}
-        {subnav && (
-          <nav
-            aria-label={`${current?.label} screens`}
-            data-shell-subnav
-            className="col-span-3 row-start-2 h-9 lg:col-span-1 lg:col-start-2"
-          >
-            <div ref={subRef} className="relative flex h-full items-stretch">
-              {subnav.map((child) => {
-                const isCurrent = currentChild?.href === child.href
-                return (
-                  <Link
-                    key={child.href}
-                    href={child.href}
-                    data-slot={child.href}
-                    aria-current={isCurrent ? 'page' : undefined}
-                    title={`${child.label} · G then ${child.key.toUpperCase()}`}
-                    className={cn(
-                      'hover-decay flex items-center rounded-[var(--radius-xs)] px-3 text-ui font-medium',
-                      'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
-                      isCurrent ? 'text-foreground' : 'text-foreground-muted hover:text-foreground',
-                    )}
-                  >
-                    {child.label}
-                  </Link>
-                )
-              })}
-              <span
-                aria-hidden
-                className={cn(
-                  'pointer-events-none absolute -bottom-px left-0 h-[2px] w-px origin-left bg-foreground',
-                  activeSub.ready &&
-                    'transition-transform duration-[var(--spatial)] ease-[var(--ease-spatial)] motion-reduce:transition-none',
-                )}
-                style={
-                  activeSub.box
-                    ? { transform: `translateX(${activeSub.box.x}px) scaleX(${activeSub.box.w})` }
-                    : { opacity: 0 }
-                }
-              />
-            </div>
-          </nav>
-        )}
-      </div>
-
-      {/* The rule between the two rows spans the window, like the one under
-          the header does; inside the 1400px column it would stop short. */}
-      {subnav && (
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-14 h-px bg-line-subtle" />
-      )}
-
-      {/* A tap outside the sheet closes it. The scrim is light, so it fades;
-          the sheet is content, so it moves. */}
-      {mobileOpen && (
-        <div
-          aria-hidden
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-x-0 bottom-0 top-14 bg-[var(--scrim)] animate-in fade-in duration-[var(--micro)] motion-reduce:animate-none lg:hidden"
-        />
-      )}
-      {mobileOpen && (
-        <div
-          className="aegis-appear absolute inset-x-0 top-full border-b border-line-default bg-surface shadow-[var(--elev-2)] lg:hidden"
-          style={{ '--rise': 'calc(var(--shift-sm) * -1)' } as CSSProperties}
-        >
-          <nav aria-label="Workbench" className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6">
-            <ul className="flex flex-col">
-              {PLACES.map((place) => {
-                const isCurrent = current?.href === place.href
-                return (
-                  <li key={place.href}>
-                    <Link
-                      href={hrefFor(place)}
-                      aria-current={isCurrent && !place.children ? 'page' : undefined}
-                      className={cn(
-                        'hover-decay flex h-10 items-center justify-between rounded-[var(--radius-menu-row)] px-3 text-body',
-                        'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
-                        isCurrent
-                          ? 'bg-[var(--selected-surface)] text-foreground shadow-[inset_2px_0_0_0_var(--selected-rail)]'
-                          : 'text-foreground-secondary hover:bg-surface-sunken hover:text-foreground',
-                      )}
-                    >
-                      {place.label}
-                      {place.href === '/approvals' && held && held.count > 0 && (
-                        <span className="tabular font-mono text-ledger text-approval-text">
-                          {held.count} held
-                        </span>
-                      )}
-                    </Link>
-                    {place.children && (
-                      <ul className="mb-1 ml-3 flex flex-col border-l border-line-subtle pl-2">
-                        {place.children.map((child) => {
-                          const childCurrent = onPath(pathname, child.href)
-                          return (
-                            <li key={child.href}>
-                              <Link
-                                href={child.href}
-                                aria-current={childCurrent ? 'page' : undefined}
-                                className={cn(
-                                  'hover-decay flex h-9 items-center rounded-[var(--radius-menu-row)] px-3 text-ui',
-                                  'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
-                                  childCurrent
-                                    ? 'text-foreground'
-                                    : 'text-foreground-muted hover:bg-surface-sunken hover:text-foreground',
-                                )}
-                              >
-                                {child.label}
-                              </Link>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line-subtle pt-3 sm:hidden">
-              <SovereigntyStatus />
-            </div>
-          </nav>
-        </div>
-      )}
-    </header>
+        </>
+      ) : null}
+    </>
   )
 }

@@ -81,14 +81,17 @@ NUMERIC_ASSERTION = re.compile(
 )
 
 # Arithmetic worth recomputing: an explicit result, an operation between
-# figures, or the words a computed quantity travels with. A figure merely
-# quoted from a clause -- "24 months", "20%" -- carries none of these, and
-# asking a model to extract calculations from it cost 15 to 37 seconds on this
-# host to learn there were none.
+# figures, a figure carried to decimal places with its unit -- which is how a
+# computed result reads, "0.55 mm/year", "6.18 years" -- or the text saying it
+# computed something. A figure merely quoted from a clause carries none of
+# these: "24 months", "20%", and "remaining life is less than 2 years", which
+# the words "remaining life" alone used to send for extraction, for a 21.5 s
+# model call that found nothing to recompute.
 ARITHMETIC_SIGNAL = re.compile(
     r"=\s*-?\d"
     r"|\d\s*[-+×x*/÷]\s*\d"
-    r"|\b(?:rate|remaining life|calculated|computed|recomputed|per year|mm/y(?:ea)?r|/yr)\b",
+    r"|\d+\.\d+\s*(?:mm/y(?:ea)?r|mm|years?|yrs?|months?|%|/yr|bar|mpa|kpa|psi)\b"
+    r"|\b(?:calculated|computed|recomputed)\b",
     re.IGNORECASE,
 )
 
@@ -1437,6 +1440,7 @@ class AgentOrchestrator:
                         detail=f"This check could not be completed: {exc}",
                     )
                 )
+            checks.append(self.verifier.check_citations(answer_text, evidence))
             checks.append(self.verifier.check_page_citations(answer_text, evidence))
 
             checked_calculations: list[dict[str, Any]] = []

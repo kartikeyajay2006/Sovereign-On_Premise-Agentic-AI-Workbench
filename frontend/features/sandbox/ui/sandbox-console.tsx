@@ -12,6 +12,7 @@ import { SANDBOX_PRESETS, type SandboxPreset } from '../model/presets'
 import type { SandboxExecuteResponse, SandboxLimits } from '../model/types'
 import { ResultPanel } from './result-panel'
 import { SelfTestPanel } from './self-test-panel'
+import { sandboxMechanism } from '@/lib/presentation'
 
 const CLASSIFICATIONS: Sensitivity[] = ['normal', 'confidential', 'sensitive', 'restricted']
 
@@ -116,9 +117,9 @@ export function SandboxConsole() {
     <div className="pb-16">
       <PageHeader
         title="Sandbox"
-        description="Run Python under this host's limits and see what it did: the rule that refused it, or the exit, CPU, memory and output it measured. The same gateway, validator and audit trail as an agent's own code."
+        description="Run Python under this host's limits and see exactly what it did — through the same gateway, checks and audit trail as an agent's own code."
         meta={[
-          { label: 'Mechanism', value: limits ? limits.backend : '—' },
+          { label: 'Limits enforced by', value: limits ? sandboxMechanism(limits.backend) : '—', hint: limits?.backend },
           { label: 'Memory', value: limits ? `≤ ${limits.memory_mb} MB` : '—' },
           { label: 'CPU', value: limits ? `≤ ${limits.cpu_seconds} s` : '—' },
           {

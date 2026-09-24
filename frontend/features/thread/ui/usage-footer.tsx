@@ -146,11 +146,59 @@ function UsageTable({
   )
 }
 
+/**
+ * What a reader did not expect: a model request that was not honoured, and
+ * an answer cut off at its output limit. Said outright rather than folded
+ * away with the figures.
+ */
+function UsageNotes({
+  usage,
+  declined,
+}: {
+  usage: ModelUsage[]
+  declined: ReturnType<typeof declinedPreferences>
+}) {
+  const answer = answerCall(usage)
+  const cut = answer !== null && answer.done_reason === 'length'
+  if (declined.length === 0 && !cut) return null
+  return (
+    <div className="flex flex-col gap-1">
+      {declined.map((note) => (
+        <p key={note.key} className="text-meta text-foreground-secondary">
+          You asked for <span className="font-mono text-foreground">{note.preferred}</span>.{' '}
+          {note.used ? (
+            <>
+              {stageName(note.stage)} used <span className="text-foreground">{note.used}</span>
+              {note.reason ? `: ${note.reason}.` : '.'}
+            </>
+          ) : (
+            <>
+              No model could run {stageName(note.stage).toLowerCase()}
+              {note.reason ? `: ${note.reason}.` : '.'}
+            </>
+          )}
+        </p>
+      ))}
+      {cut && answer && (
+        // Amber, because it asks for attention: the runtime reported that the
+        // model was still writing when the budget ran out.
+        <p className="text-meta text-approval-text">
+          The answer stopped at its{' '}
+          {answer.output_limit ? `${formatCount(answer.output_limit)}-token ` : ''}output limit, before the model had
+          finished it.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export const UsageFooter = memo(function UsageFooter({
   usage,
   choices,
   models,
   workedMs = null,
+  notesOnly = false,
+  withNotes = true,
 }: {
   usage: ModelUsage[]
   choices: ModelChoice[]
@@ -158,9 +206,18 @@ export const UsageFooter = memo(function UsageFooter({
   models: ModelDescriptor[] | null
   /** The whole run's measured duration, once it has ended; null while it runs. */
   workedMs?: number | null
+  /**
+   * Only the notes a reader did not expect -- a declined model request, an
+   * answer cut off at its limit -- without the line of figures, which sits
+   * in the turn's folded log.
+   */
+  notesOnly?: boolean
+  /** False where the notes are shown elsewhere, as in the turn's folded log. */
+  withNotes?: boolean
 }) {
   const declined = declinedPreferences(choices)
   if (usage.length === 0 && declined.length === 0 && workedMs === null) return null
+  if (notesOnly) return <UsageNotes usage={usage} declined={declined} />
 
   const completed = completedCalls(usage)
   const names = modelsThatRan(usage)
@@ -239,34 +296,7 @@ export const UsageFooter = memo(function UsageFooter({
         </details>
       )}
 
-      {/* Said outright rather than folded away: a request that was not
-          honoured is the one thing here the reader did not expect. */}
-      {declined.map((note) => (
-        <p key={note.key} className="text-meta text-foreground-secondary">
-          You asked for <span className="font-mono text-foreground">{note.preferred}</span>.{' '}
-          {note.used ? (
-            <>
-              {stageName(note.stage)} used <span className="text-foreground">{note.used}</span>
-              {note.reason ? `: ${note.reason}.` : '.'}
-            </>
-          ) : (
-            <>
-              No model could run {stageName(note.stage).toLowerCase()}
-              {note.reason ? `: ${note.reason}.` : '.'}
-            </>
-          )}
-        </p>
-      ))}
-
-      {answer && answer.done_reason === 'length' && (
-        // Amber, because it asks for attention: the runtime reported that the
-        // model was still writing when the budget ran out.
-        <p className="text-meta text-approval-text">
-          The answer stopped at its{' '}
-          {answer.output_limit ? `${formatCount(answer.output_limit)}-token ` : ''}output limit, before the
-          model had finished it.
-        </p>
-      )}
+      {!notesOnly && withNotes && <UsageNotes usage={usage} declined={declined} />}
     </div>
   )
 })

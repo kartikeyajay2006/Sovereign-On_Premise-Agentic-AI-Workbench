@@ -335,7 +335,7 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-[1200px] px-5 py-8 lg:px-10">
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6">
         <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack} ground="paper">
           Harnesses
         </Button>
@@ -352,14 +352,14 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
 
   if (!definition) {
     return (
-      <p className="mx-auto w-full max-w-[1200px] px-5 py-8 font-mono text-meta text-foreground-muted lg:px-10">
+      <p className="mx-auto w-full max-w-[1400px] px-4 py-8 font-mono text-meta text-foreground-muted sm:px-6">
         Reading the definition…
       </p>
     )
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-5 py-8 lg:px-10" onKeyDown={onFormKey}>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-8 sm:px-6" onKeyDown={onFormKey}>
       <div>
         <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onBack} ground="paper">
           Harnesses
@@ -367,16 +367,19 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
       </div>
 
       <header className="flex flex-col gap-2 border-b border-line-default pb-6">
-        <Ledger>Configure · {definition.source}</Ledger>
+        <Ledger>Configure</Ledger>
         <h1 className="text-title font-medium tracking-[var(--ls-title)] text-foreground">
           {definition.name}
         </h1>
         <p className="max-w-[80ch] text-body text-foreground-secondary">{definition.description}</p>
-        <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-          v{definition.version} · sha256 {definition.sha256.slice(0, 16)} ·{' '}
+        <p
+          className="text-[12.5px] text-foreground-muted"
+          title={`${definition.source} v${definition.version} · sha256 ${definition.sha256}`}
+        >
+          v{definition.version} ·{' '}
           {definition.report_requires_approval
-            ? 'report released only after sign-off'
-            : 'report released when written'}
+            ? 'The report is released only after sign-off'
+            : 'The report is released when it is written'}
         </p>
       </header>
 

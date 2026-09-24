@@ -19,7 +19,7 @@ import { useEventStream } from '@/hooks/use-event-stream'
 import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
 import { NEW_RUN_EVENT } from '@/components/command-palette'
-import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
+import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT, type RunsChangedDetail } from '@/components/navigation'
 import { TraceScope } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { harnessApi } from '@/features/harness/api'
@@ -27,7 +27,6 @@ import { Composer, type ComposerAttachment } from './composer'
 import type { HarnessEntry } from './slash-menu'
 import { UserTurn } from './user-turn'
 import { AssistantTurn } from './assistant-turn'
-import { SessionRail } from './session-rail'
 import { StarterPrompts, starterAttachment, type StarterTemplate } from './starter-prompts'
 import { selectableModels } from './model-menu'
 import type {
@@ -120,6 +119,28 @@ function requestFromTask(task: Task): RunRequest {
   }
 }
 
+/**
+ * How far the end of the thread is below the bottom of the window, in px.
+ *
+ * Measured to the thread's own last element, not the document's height: a
+ * box anywhere else on the page that overflowed -- the run rail's labels
+ * once did, by the length of its hidden list -- made "the end of the
+ * document" a stretch of blank page below the thread, and following a run
+ * scrolled into it.
+ */
+function gapToEnd(end: HTMLElement | null): number {
+  if (!end) return document.documentElement.scrollHeight - (window.scrollY + window.innerHeight)
+  return end.getBoundingClientRect().bottom - window.innerHeight
+}
+
+/** Scroll so the thread's end sits at the bottom of the window. */
+function scrollToEnd(end: HTMLElement | null) {
+  const top = end
+    ? window.scrollY + end.getBoundingClientRect().bottom - window.innerHeight
+    : document.documentElement.scrollHeight
+  window.scrollTo({ top: Math.max(0, top), behavior: 'instant' })
+}
+
 function freshAssistantTurn(id: string, request: RunRequest, at: string): AssistantTurnModel {
   return {
     role: 'assistant',
@@ -175,6 +196,9 @@ export function ThreadView() {
   const [skills, setSkills] = useState<Skill[] | null>(null)
   const [harnesses, setHarnesses] = useState<HarnessEntry[] | null>(null)
   const [skill, setSkill] = useState<Skill | null>(null)
+  // Read by the starter handler, which is memoised and must not be rebuilt.
+  const skillsRef = useRef<Skill[] | null>(null)
+  skillsRef.current = skills
   const [hint, setHint] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusEvidenceId, setFocusEvidenceId] = useState<string | null>(null)
@@ -193,6 +217,8 @@ export function ThreadView() {
   const { user, role, can } = useRole()
   const { push } = useToast()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  /** The last thing in the thread's column: where following a run stops. */
+  const endRef = useRef<HTMLDivElement | null>(null)
 
   /*
     Refs for what callbacks need to read without being rebuilt. handleEvent
@@ -212,6 +238,8 @@ export function ThreadView() {
   const seenRef = useRef<Set<string>>(new Set())
   /** Whether the reader is at the bottom, and so wants to follow the run. */
   const pinnedRef = useRef(true)
+  /** The next scroll event is the thread's own, not the reader's. */
+  const programmaticRef = useRef(false)
   /** The next render shows a reopened run, which opens at its top. */
   const openAtTopRef = useRef(false)
   /**
@@ -564,6 +592,14 @@ export function ThreadView() {
           // thread is following, so the reader is watching the answer land.
           releasedLive: true,
         }))
+        // The answer has landed: shown once, to a reader who was following,
+        // after it has laid out. Nothing moves the page after this.
+        if (pinnedRef.current) {
+          window.requestAnimationFrame(() => {
+            programmaticRef.current = true
+            scrollToEnd(endRef.current)
+          })
+        }
         // A run held for a person has just joined the approval queue, so the
         // header reads its count again now rather than at the next
         // navigation. Once per run, however many times it settles.
@@ -627,27 +663,71 @@ export function ThreadView() {
     }
   }, [busy, activeTaskId])
 
-  // Follow the run while the reader is at the bottom; stay put once they
-  // scroll up to read. Instant, not smooth: a smooth scroll retargeted by
-  // every frame of a draft lags behind it, and mid-animation positions read
-  // as the reader having scrolled away.
+  // Follow the run while the reader is at the end, and let go the moment they
+  // move away from it -- by intent, not by distance. Following used to hold
+  // until the page was 160px from the end, and it re-pinned on every frame of
+  // a draft: one notch of the wheel moves ~100px, so a reader scrolling up to
+  // re-read something was pulled back down twenty times a second. Now any
+  // upward move by the reader releases it at once, and reaching the end
+  // again takes it back. Instant, not smooth: a smooth scroll retargeted by
+  // every frame lags behind the text it chases.
   useEffect(() => {
+    const gap = () => gapToEnd(endRef.current)
+    let lastY = window.scrollY
+    const release = () => {
+      pinnedRef.current = false
+    }
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) release()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home') release()
+    }
+    let touchY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? 0
+      // A finger moving down the glass scrolls the page up.
+      if (y > touchY + 4) release()
+      touchY = y
+    }
     const onScroll = () => {
-      const doc = document.documentElement
-      const away = doc.scrollHeight - (window.scrollY + window.innerHeight) >= 160
-      pinnedRef.current = !away
+      const y = window.scrollY
+      // Upward and not ours: the scrollbar dragged, a find-in-page jump.
+      if (y < lastY - 1 && !programmaticRef.current) release()
+      programmaticRef.current = false
+      lastY = y
+      if (gap() < 48) pinnedRef.current = true
       // Same value, no render: React bails out, so scrolling costs nothing.
-      setAwayFromEnd(away)
+      setAwayFromEnd(gap() >= 160)
     }
     onScroll()
+    window.addEventListener('wheel', onWheel, { passive: true })
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: true })
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
+
+  /** Scroll to the end on the thread's own behalf, so it is not read as the reader's. */
+  const followToEnd = useCallback(() => {
+    programmaticRef.current = true
+    scrollToEnd(endRef.current)
   }, [])
 
   const jumpToLatest = useCallback(() => {
     pinnedRef.current = true
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
-  }, [])
+    followToEnd()
+  }, [followToEnd])
 
   useEffect(() => {
     if (turns.length === 0) return
@@ -657,12 +737,16 @@ export function ThreadView() {
       // the run being shown rather than the thread it replaced.
       openAtTopRef.current = false
       pinnedRef.current = false
+      programmaticRef.current = true
       window.scrollTo({ top: 0, behavior: 'instant' })
       return
     }
-    if (!pinnedRef.current) return
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
-  }, [turns])
+    // Only a run in progress is followed. Once its answer has landed the
+    // page is the reader's: a late event or a re-read of the record changes
+    // the turns, and must not move the page they are reading.
+    if (!pinnedRef.current || !busyRef.current) return
+    followToEnd()
+  }, [turns, followToEnd])
 
   const attach = useCallback(
     async (files: File[]) => {
@@ -730,7 +814,15 @@ export function ThreadView() {
 
       seenRef.current = new Set()
       pinnedRef.current = true
-      setTurns((prev) => [...prev, userTurn, freshAssistantTurn(assistantId, request, now)])
+      // Each run stands alone: the model is not given the runs before it, and
+      // the sidebar lists every run as its own entry. So a new request opens
+      // on a clean page rather than under the last answer, where it would
+      // read as a follow-up with a context it does not have. The run it
+      // replaces is the first entry in the history.
+      setTurns([userTurn, freshAssistantTurn(assistantId, request, now)])
+      setDrawerOpen(false)
+      setFocusEvidenceId(null)
+      setEvidenceTurnId(null)
       setBusy(true)
 
       try {
@@ -981,6 +1073,13 @@ export function ThreadView() {
     return () => window.removeEventListener(NEW_RUN_EVENT, newRun)
   }, [newRun])
 
+  // The sidebar lists the runs. It re-reads them when one starts or settles
+  // here, and marks the one this tab is following live.
+  const followingId = busy ? activeTaskId : null
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<RunsChangedDetail>(RUNS_CHANGED_EVENT, { detail: { running: followingId } }))
+  }, [runsVersion, followingId])
+
   /**
    * ?run=<id> opens that run.
    *
@@ -997,6 +1096,10 @@ export function ThreadView() {
   }, [requestedRun, openRun])
 
   const pickStarter = useCallback((template: StarterTemplate) => {
+    // A skill starter puts the skill in the composer and its input in the
+    // field, exactly as picking it from the / menu would.
+    const starterSkill = template.skill ? skillsRef.current?.find((s) => s.id === template.skill) ?? null : null
+    if (starterSkill) setSkill(starterSkill)
     setPrompt(template.prompt)
     setFormat(template.format)
     const file = starterAttachment(template)
@@ -1032,13 +1135,6 @@ export function ThreadView() {
       neither one narrows the other.
     */
     <div className="flex w-full items-stretch">
-      <SessionRail
-        activeTaskId={openedTaskId}
-        runningTaskId={busy ? activeTaskId : null}
-        onOpen={openRun}
-        onNew={newRun}
-        refreshKey={runsVersion}
-      />
       {/*
         TRACE: a citation in an answer and its row in the rail light together
         under the pointer, and a click lands on the row. The rail belongs to
@@ -1048,13 +1144,18 @@ export function ThreadView() {
       <TraceScope
         className={cn(
           'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
-          turns.length === 0 ? 'min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'py-8',
+          // With a run on screen the column fills the window, so the composer
+          // below it sits at the window's foot even under a short answer.
+          turns.length === 0 ? 'thread-empty min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'min-h-[calc(100dvh-var(--shell-top))] pt-8',
           // Above 1280px the rail docks rather than overlays, so the column
           // steps aside instead of being covered. Checking a citation should
           // never cost you the sentence that made the claim. It steps at
-          // once: easing the padding re-wrapped the answer on every frame,
+          // once: easing the margin would re-wrap the answer on every frame,
           // and nothing here animates layout.
-          drawerOpen && 'xl:pr-[420px]',
+          // The column keeps its full measure and moves over, clear of the
+          // rail: padding it inside its own 768px had left the answer about
+          // 300px wide and the composer's placeholder wrapping.
+          drawerOpen && 'xl:mr-[400px]',
         )}
       >
         {/*
@@ -1065,7 +1166,7 @@ export function ThreadView() {
         {turns.length === 0 && (
           <div className="thread-hello text-center">
             <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
-              What should we check today?
+              What should we <em className="font-serif text-[1.08em] font-normal italic tracking-[-0.01em]">check</em> today?
             </h1>
             <p className="mx-auto mt-2 max-w-[52ch] text-[0.98rem] leading-[1.55] text-foreground-secondary">
               Ask about a procedure, a report or a calculation. Every answer is cited, checked against policy and
@@ -1090,7 +1191,7 @@ export function ThreadView() {
           ),
         )}
 
-        <div className={cn('z-[var(--z-rail)]', turns.length > 0 && 'sticky bottom-6')}>
+        <div className={cn('z-[var(--z-rail)]', turns.length > 0 && 'thread-dock sticky bottom-0 mt-auto pb-6 pt-10')}>
           {/* Only while a run is writing below the fold: the one moment a
               reader who scrolled up to check something needs a way back. */}
           {busy && awayFromEnd && (
@@ -1128,7 +1229,16 @@ export function ThreadView() {
           />
         </div>
 
-        {turns.length === 0 && <StarterPrompts onPick={pickStarter} />}
+        {/* Zero height, and its margin cancels the column's gap, so marking
+            the end adds no space after the composer. */}
+        <div ref={endRef} aria-hidden className="-mt-6" />
+
+        {turns.length === 0 && (
+          <StarterPrompts
+            onPick={pickStarter}
+            visionReady={Boolean(models?.some((m) => m.available && m.capabilities.includes('vision')))}
+          />
+        )}
 
         <EvidenceRail
           open={drawerOpen}

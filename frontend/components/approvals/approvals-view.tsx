@@ -8,9 +8,7 @@ import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
 import { PageHeader } from '@/components/page-header'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
-import { MeasuredNumber } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
-import { Kbd } from '@/shared/ui/controls/kbd'
 import { Segmented } from '@/shared/ui/controls/segmented'
 import { EmptyState } from '@/shared/ui/data/empty-state'
 import {
@@ -22,7 +20,7 @@ import {
   useReading,
 } from '@/shared/ui/data/reading'
 import { cn } from '@/lib/utils'
-import { RUNS_LIMIT, readHeld, readRuns, readTask, recordDecision } from './api'
+import { readHeld, readRuns, readTask, recordDecision } from './api'
 import { DecisionDialog, type DecisionKind } from './decision-dialog'
 import { SENSITIVITY_ORDER, mergeQueue, type Decision, type QueueItem } from './model'
 import { QueueRow } from './queue-list'
@@ -409,55 +407,32 @@ export function ApprovalsView() {
     ? data.runs.filter((r) => String(r.status).toLowerCase() === 'awaiting_approval').length
     : null
 
-  // Null is "not read", which the header shows as a dash, never as a zero.
-  const heldCount: number | null = !data ? null : forbidden ? visibleHeld : counts.held
-  const decidedCount: number | null = forbidden || !data?.runs ? null : counts.approved + counts.rejected
-
   return (
     // Sized against the shell's own top inset, not a literal 72px, so the
     // queue and the pane always end at the bottom of the window.
     <div className="flex flex-col lg:h-[calc(100dvh-var(--shell-top))]">
       <PageHeader
         title="Approvals"
-        description="Runs held for a person's decision before anything they produced is released. Each decision is written to the audit chain against the reviewer who made it."
-        meta={[
-          {
-            label: 'Held',
-            // ROLL: the queue re-read, or a decision the service returned.
-            value: <MeasuredNumber value={heldCount} absent="—" />,
-            tone: heldCount ? 'approval' : 'default',
-            hint: forbidden
-              ? canReadAll
-                ? 'Held runs in the task list'
-                : 'Your own runs that are held'
-              : 'GET /api/approvals',
-          },
-          {
-            label: 'Decided',
-            // ROLL: as above.
-            value: <MeasuredNumber value={decidedCount} absent="—" />,
-            hint: `Approved or rejected among the last ${RUNS_LIMIT} runs this role can read`,
-          },
-          { label: 'Signs as', value: reviewer },
-          {
-            label: 'Permission',
-            value: canDecide ? 'approval.decide' : canRead ? 'read only' : 'none',
-            tone: canDecide ? 'default' : 'muted',
-          },
-        ]}
+        description="Runs held for a person before anything they produced is released. Each decision is recorded against the reviewer who made it."
+        // No row of readings: the counts are on the filter below, and who
+        // signs is said beside the decision itself.
         actions={
           <>
+            {/* The reading's time is kept, in the titles: a header is not the
+                place for a clock, and the queue says when it was read to anyone
+                who asks. */}
             {queue.readAt !== null && (
               <span
-                className="flex items-center gap-2 font-mono text-ledger text-foreground-muted"
+                className="flex items-center gap-2 text-[12.5px] text-foreground-muted"
                 title={
-                  live
-                    ? 'Connected to the event stream: held runs and decisions arrive without a reload'
-                    : 'Not connected to the event stream: use Refresh to read the queue again'
+                  (live
+                    ? 'Connected to the event stream: held runs and decisions arrive without a reload.'
+                    : 'Not connected to the event stream: use Refresh to read the queue again.') +
+                  ` Read ${clockTime(queue.readAt)}.`
                 }
               >
-                <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-foreground-secondary' : 'bg-control-strong')} />
-                {live ? 'live' : 'not live'} · read {clockTime(queue.readAt)}
+                <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-sovereign' : 'bg-control-strong')} />
+                {live ? 'Live' : 'Not live'}
               </span>
             )}
             <Button
@@ -468,6 +443,7 @@ export function ApprovalsView() {
               busy={queue.refreshing}
               busyLabel="Reading…"
               onClick={queue.reload}
+              title={queue.readAt !== null ? `Read ${clockTime(queue.readAt)}` : undefined}
             >
               Refresh
             </Button>
@@ -534,24 +510,6 @@ export function ApprovalsView() {
                   />
                 )}
               </div>
-              <p className="hidden items-center gap-2 text-ui text-foreground-muted md:flex">
-                <Kbd>j</Kbd>
-                <Kbd>k</Kbd>
-                <span>move</span>
-                <span aria-hidden>·</span>
-                <Kbd>↵</Kbd>
-                <span>open</span>
-                {canDecide && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <Kbd>a</Kbd>
-                    <span>approve</span>
-                    <span aria-hidden>·</span>
-                    <Kbd>r</Kbd>
-                    <span>reject</span>
-                  </>
-                )}
-              </p>
             </div>
 
             <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[var(--radius)] shadow-[var(--elev-0)] lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
@@ -572,6 +530,9 @@ export function ApprovalsView() {
                   <ul
                     ref={listRef}
                     aria-label="Approval queue"
+                    // The keys are said here and on the two decision buttons,
+                    // which carry theirs, rather than in a row of their own.
+                    title="j and k move through the queue; Enter opens a run"
                     className="min-h-0 flex-1 lg:overflow-y-auto"
                   >
                     {filtered.map((item) => (

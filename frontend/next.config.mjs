@@ -35,6 +35,14 @@ const CONTENT_SECURITY_POLICY = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // The API is reached through this server's /api rewrite, and Next cuts
+    // every proxied request at 30 s unless told otherwise. The run's event
+    // stream stays open for the whole run -- often longer than 30 s on a CPU
+    // host -- so it was being cut mid-answer, and the thread fell back to
+    // polling the record every four seconds. An hour covers any run.
+    proxyTimeout: 60 * 60 * 1000,
+  },
   typescript: {
     // Type errors fail the build. This was previously ignored, which is how a
     // page shipped rendering fields the API does not return: the mismatch was
