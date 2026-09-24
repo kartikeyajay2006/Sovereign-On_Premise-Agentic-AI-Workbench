@@ -1144,7 +1144,9 @@ export function ThreadView() {
       <TraceScope
         className={cn(
           'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
-          turns.length === 0 ? 'thread-empty min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'pt-8',
+          // With a run on screen the column fills the window, so the composer
+          // below it sits at the window's foot even under a short answer.
+          turns.length === 0 ? 'thread-empty min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'min-h-[calc(100dvh-var(--shell-top))] pt-8',
           // Above 1280px the rail docks rather than overlays, so the column
           // steps aside instead of being covered. Checking a citation should
           // never cost you the sentence that made the claim. It steps at
@@ -1189,7 +1191,7 @@ export function ThreadView() {
           ),
         )}
 
-        <div className={cn('z-[var(--z-rail)]', turns.length > 0 && 'thread-dock sticky bottom-0 pb-6 pt-10')}>
+        <div className={cn('z-[var(--z-rail)]', turns.length > 0 && 'thread-dock sticky bottom-0 mt-auto pb-6 pt-10')}>
           {/* Only while a run is writing below the fold: the one moment a
               reader who scrolled up to check something needs a way back. */}
           {busy && awayFromEnd && (

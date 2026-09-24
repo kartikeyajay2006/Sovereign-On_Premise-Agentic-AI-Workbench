@@ -11,6 +11,7 @@ import { ProductGallery, type GallerySlide } from '@/components/landing/product-
 import { RevealSection } from '@/components/landing/reveal-section'
 import { documentCode, run, runId, sectionLabel, sectionNumber, seconds, type EvidenceUnit as Unit } from '@/components/landing/run-fixture'
 import { StoryScene, type SceneData } from '@/components/landing/story-scene'
+import { checkLabel } from '@/lib/presentation'
 
 // --------------------------------------------------------------------------- //
 // The run, read once.
@@ -29,15 +30,6 @@ const hash8 = run.recorded?.hash_full ? run.recorded.hash_full.slice(0, 8) : nul
 const audit = run.audit
 const auditRange = audit.count > 0 && audit.first_sequence !== null && audit.last_sequence !== null ? { first: audit.first_sequence, last: audit.last_sequence } : null
 
-const CHECK_WORDS: Record<string, string> = {
-  source_verification: 'Sources',
-  calculation_verification: 'Calculations',
-  code_verification: 'Code',
-  citation_verification: 'Citations',
-  page_citation_verification: 'Pages',
-  document_verification: 'Document',
-  hallucination_check: 'Grounding',
-}
 
 // Passages, and the first one the answer cites.
 const passages = run.evidence.filter((unit) => /^S\d+$/.test(unit.id))
@@ -112,7 +104,7 @@ const scene: SceneData = {
   answer: answerText,
   citeId: first?.id ?? '',
   citeLabel: first ? `${documentCode(first)} ${sectionNumber(first)}`.trim() : '',
-  checks: checks.map((check) => ({ label: CHECK_WORDS[check.name] ?? check.name.replace(/_/g, ' '), passed: check.passed })),
+  checks: checks.map((check) => ({ label: checkLabel(check.name), passed: check.passed })),
   checksLine: checks.length > 0 ? `${passedChecks} of ${checks.length} checks passed` : null,
   clause,
   chain: audit.tail.map((record) => ({ seq: record.sequence, what: `${record.category} · ${record.action}`, hash: record.hash })),

@@ -389,7 +389,7 @@ export function SkillsView() {
 
       {/* The page's own column, so the list starts under the title; the
           list keeps a reading width inside it. */}
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-4 pt-6 sm:px-6 [&>*]:max-w-[1040px]">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-4 pt-6 sm:px-6">
         {creating && (
           <NewSkill
             taken={taken}

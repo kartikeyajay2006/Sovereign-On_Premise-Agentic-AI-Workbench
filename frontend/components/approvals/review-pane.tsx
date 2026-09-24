@@ -8,6 +8,7 @@ import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type ReadFailure } from '@/shared/ui/data/reading'
+import { checkLabel } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 import { formatSize, splitReason, stamp, type QueueItem } from './model'
 import { DECISION_MARK } from './queue-list'
@@ -283,7 +284,7 @@ function Verification({ report }: { report: VerificationReport | null | undefine
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-body text-foreground">
-                  {(check.name ?? 'unnamed check').replace(/_/g, ' ')}
+                  {checkLabel(check.name)}
                 </span>
                 {check.detail && <span className="text-ui text-foreground-secondary">{check.detail}</span>}
                 {(check.warnings ?? []).map((warning) => (

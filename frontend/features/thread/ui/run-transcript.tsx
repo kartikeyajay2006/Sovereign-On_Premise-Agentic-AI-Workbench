@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from '@/lib/types'
+import { checkLabel } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 import { useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW } from '../model/board'
@@ -43,16 +44,8 @@ const ACTIVE: Record<string, string> = {
   verify: 'Checking every claim',
 }
 
-/** The verifier's checks, in the words a reader uses. */
-export const CHECK_WORDS: Record<string, string> = {
-  source_verification: 'Sources',
-  calculation_verification: 'Calculations',
-  code_verification: 'Code',
-  citation_verification: 'Citations',
-  page_citation_verification: 'Pages',
-  document_verification: 'Document',
-  hallucination_check: 'Grounding',
-}
+/** The verifier's checks, in the words a reader uses: see lib/presentation. */
+export { CHECK_WORDS } from '@/lib/presentation'
 
 /**
  * The glyph a working line carries. It turns on the compositor: the glyph
@@ -126,7 +119,7 @@ function Checks({ checks }: { checks: VerificationCheck[] }) {
             <span aria-hidden className={check.passed ? 'text-sovereign-text' : undefined}>
               {check.passed ? '✓' : '✕'}
             </span>{' '}
-            {CHECK_WORDS[name] ?? name.replace(/_/g, ' ')}
+            {checkLabel(name)}
             <span className="sr-only">{check.passed ? ' passed' : ' failed'}</span>
           </span>
         )

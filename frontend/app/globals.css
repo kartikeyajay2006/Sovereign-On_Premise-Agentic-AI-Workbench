@@ -936,17 +936,37 @@ html[data-theme='dark'],
        watching a stage change. Reserving the gutter makes the crossing
        invisible; on overlay scrollbars it reserves nothing. */
     scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    /* The thumb is a control -- it is how a reader knows how much of a long
-       ledger they have seen -- so it takes a control edge, 3.64:1 on the
-       ground, not a divider line at 2.04:1. Inherited by every scrolling
-       pane, so all of them match. */
-    scrollbar-color: var(--control-strong) transparent;
 
     /* The grey flash a touch screen paints over a tapped control is
        replaced by the control's own pressed state, never left empty. */
     -webkit-tap-highlight-color: transparent;
   }
+  /* The scrollbar. The thumb is a control -- it is how a reader knows how
+     much of a long ledger they have seen -- so it takes a control edge,
+     3.64:1 on the ground, not a divider line at 2.04:1.
+
+     Chromium draws it from the pseudo-elements below, which it only honours
+     while scrollbar-color and scrollbar-width are left at auto: set either,
+     as this rule used to on the root (scrollbar-color is inherited), and
+     every pane got the platform's bar back, arrow buttons and all. So the
+     standard properties are for the browsers without the pseudo-elements,
+     and every pane in the app gets the same thin, arrowless thumb. */
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: var(--control-strong) transparent;
+    }
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--control-strong) 70%, transparent) padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--control-strong); }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -2802,15 +2822,10 @@ html[data-theme='dark'],
 /* The sidebar's history scrolls with a thin bar and no arrow buttons (a
    thin standard scrollbar has none), and fades out under the account row. */
 .side-scroll {
-  /* scrollbar-color is inherited from the page's own rule, and while it is
-     set Chrome draws the platform bar, arrows and all; reset here, the
-     pseudo-elements below take over. */
-  scrollbar-color: auto;
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
           mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
 }
+/* A little narrower and quieter than the page's, until the list is under the pointer. */
 .side-scroll::-webkit-scrollbar { width: 8px; }
-.side-scroll::-webkit-scrollbar-button { display: none; height: 0; }
-.side-scroll::-webkit-scrollbar-track { background: transparent; }
-.side-scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 8px; background: color-mix(in oklab, var(--foreground) 16%, transparent) padding-box; }
+.side-scroll::-webkit-scrollbar-thumb { border-width: 2px; background-color: color-mix(in oklab, var(--foreground) 14%, transparent); }
 .side-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--foreground) 26%, transparent); }

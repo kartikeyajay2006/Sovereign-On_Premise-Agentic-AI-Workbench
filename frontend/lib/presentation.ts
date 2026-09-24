@@ -159,3 +159,24 @@ const SANDBOX_MECHANISMS: Record<string, string> = {
 export function sandboxMechanism(backend: string): string {
   return SANDBOX_MECHANISMS[backend] ?? backend
 }
+
+/**
+ * The verifier's checks, in the words a reader uses. The thread's
+ * transcript, the approval queue and the public page all say them this way,
+ * so a check is called the same thing wherever it is shown.
+ */
+export const CHECK_WORDS: Record<string, string> = {
+  source_verification: 'Sources',
+  calculation_verification: 'Calculations',
+  code_verification: 'Code',
+  citation_verification: 'Citations',
+  page_citation_verification: 'Pages',
+  document_verification: 'Document',
+  hallucination_check: 'Grounding',
+}
+
+/** A check's name as a reader says it; an unknown one, with its underscores spaced. */
+export function checkLabel(name: string | null | undefined): string {
+  if (!name) return 'Unnamed check'
+  return CHECK_WORDS[name] ?? name.replace(/_/g, ' ')
+}

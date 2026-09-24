@@ -95,7 +95,7 @@ export function RoleSwitcher({ placement = 'below' }: { placement?: 'below' | 'a
         </span>
         {placement === 'above' ? (
           <span className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="truncate text-[13.5px] font-medium text-foreground">{displayName}</span>
+            <span className="truncate text-[13px] font-medium text-foreground">{displayName}</span>
             {/* The second line says what the first does not: the role, unless
                 the display name already is it, and then the account. */}
             <span className="truncate text-[12px] text-foreground-muted">{displayName === role.label ? username : role.label}</span>
@@ -103,13 +103,17 @@ export function RoleSwitcher({ placement = 'below' }: { placement?: 'below' | 'a
         ) : (
           <span className="hidden max-w-[160px] truncate text-[13.5px] font-medium text-foreground sm:inline">{displayName}</span>
         )}
-        <ChevronDown
-          aria-hidden
-          className={cn(
-            'h-3.5 w-3.5 shrink-0 text-foreground-muted transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] motion-reduce:transition-none',
-            placement === 'above' ? !open && 'rotate-180' : open && 'rotate-180',
-          )}
-        />
+        {/* The sidebar's account row is a row: the whole of it opens the menu,
+            and the name gets the room a chevron would have taken. */}
+        {placement === 'above' ? null : (
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              'h-3.5 w-3.5 shrink-0 text-foreground-muted transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] motion-reduce:transition-none',
+              open && 'rotate-180',
+            )}
+          />
+        )}
       </button>
 
       {open && (
