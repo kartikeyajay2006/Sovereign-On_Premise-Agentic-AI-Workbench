@@ -13,14 +13,17 @@ choices explained.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import re
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import groupby
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable, TypeVar
 
 from backend.agents.verifier import get_verification_engine
 from backend.core.audit import get_audit_log
@@ -30,11 +33,14 @@ from backend.core.schemas import (
     AgentPlan,
     ApprovalRecord,
     EvidenceItem,
+    ModelDescriptor,
     ModelRole,
+    ModelUsage,
     PlanStep,
     PolicyDecision,
     RoutingDecision,
     SandboxResult,
+    Sensitivity,
     StoredFile,
     Task,
     TaskProfile,
@@ -43,8 +49,13 @@ from backend.core.schemas import (
     ToolCall,
     User,
     VerificationCheck,
+    VerificationReport,
 )
-from backend.models_layer.client import InferenceError, get_inference_client
+from backend.models_layer.client import (
+    GenerationResult,
+    InferenceError,
+    get_inference_client,
+)
 from backend.models_layer.manager import get_model_manager
 from backend.models_layer.registry import get_model_registry
 from backend.models_layer.router import NoEligibleModelError, get_model_router
@@ -69,12 +80,96 @@ NUMERIC_ASSERTION = re.compile(
     re.IGNORECASE,
 )
 
+# Arithmetic worth recomputing: an explicit result, an operation between
+# figures, or the words a computed quantity travels with. A figure merely
+# quoted from a clause -- "24 months", "20%" -- carries none of these, and
+# asking a model to extract calculations from it cost 15 to 37 seconds on this
+# host to learn there were none.
+ARITHMETIC_SIGNAL = re.compile(
+    r"=\s*-?\d"
+    r"|\d\s*[-+×x*/÷]\s*\d"
+    r"|\b(?:rate|remaining life|calculated|computed|recomputed|per year|mm/y(?:ea)?r|/yr)\b",
+    re.IGNORECASE,
+)
+
+#: How often an in-flight model call looks for a stop request. A call is one
+#: HTTP request that runs for minutes on this host, so this, not the stage
+#: boundary, is what bounds how long Stop takes to be honoured.
+CANCEL_POLL_SECONDS = 0.25
+
+_T = TypeVar("_T")
+
 
 class TaskCancelled(RuntimeError):
     """Raised when the person who asked for a task asks it to stop."""
 
     def __init__(self, task_id: str) -> None:
         super().__init__(f"Task {task_id} was stopped by request")
+
+
+def _option_int(options: dict[str, Any], key: str) -> int | None:
+    """A positive integer generation option, or None when it was not sent."""
+    value = options.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _ms(nanoseconds: int | None) -> int | None:
+    return None if nanoseconds is None else int(round(nanoseconds / 1_000_000))
+
+
+def _usage_record(
+    *,
+    stage: str,
+    descriptor: ModelDescriptor,
+    options: dict[str, Any],
+    latency_ms: int,
+    started_at: datetime,
+    streamed: bool,
+    result: GenerationResult | None = None,
+) -> ModelUsage:
+    """One call's usage. With no result the call was stopped, and says so.
+
+    Every count is copied as the runtime reported it, None included; nothing
+    here substitutes a zero for a figure that did not arrive.
+    """
+    return ModelUsage(
+        stage=stage,
+        model=descriptor.id,
+        display_name=descriptor.display_name,
+        prompt_tokens=result.prompt_eval_count if result else None,
+        output_tokens=result.eval_count if result else None,
+        latency_ms=latency_ms,
+        tokens_per_second=result.tokens_per_second if result else None,
+        context_window=_option_int(options, "num_ctx"),
+        output_limit=_option_int(options, "num_predict"),
+        done_reason=result.done_reason if result else None,
+        first_token_ms=result.first_token_ms if result else None,
+        load_ms=_ms(result.load_duration_ns) if result else None,
+        prompt_eval_ms=_ms(result.prompt_eval_duration_ns) if result else None,
+        eval_ms=_ms(result.eval_duration_ns) if result else None,
+        streamed=streamed,
+        cancelled=result is None,
+        started_at=started_at,
+    )
+
+
+def _needs_plan(profile: TaskProfile, files: list[StoredFile]) -> bool:
+    """Whether this task's work branches enough to be worth planning.
+
+    A plan earns its cost when there is more than one way through: code to
+    run, a drawing to read, a document to produce, or attachments whose
+    handling depends on what they are. A single retrieval question has one
+    route, and planning it was costing 79 seconds of a 200-second run for an
+    artifact no client renders.
+    """
+    return bool(
+        profile.requires_code_execution
+        or profile.requires_vision
+        or profile.produces_deliverable
+        or files
+    )
 
 
 @dataclass(frozen=True)
@@ -135,9 +230,56 @@ class EvidenceLedger:
         return len(self._items)
 
 
+def _raised_reason(items: list[EvidenceItem], level: Sensitivity) -> str:
+    """An approval reason naming the evidence that raised a run's class.
+
+    Written as the policy engine writes its own ("rule: description"), so the
+    screens that already split and render those reasons show it unchanged.
+    A document is named by its code, the part of the source before the
+    title, which is how the corpus and the demo script refer to it.
+    """
+    ids = ", ".join(item.id for item in items)
+    documents: list[str] = []
+    for item in items:
+        code = item.source_document.split(" — ")[0].strip()
+        if code and code not in documents:
+            documents.append(code)
+    source = f"{ids} ({', '.join(documents)})" if documents else ids
+    verb = "is" if len(items) == 1 else "are"
+    return (
+        f"classification_raised: Evidence {source} {verb} {level.value}, "
+        f"so the run is {level.value} too."
+    )
+
+
 def _strip_reasoning(text: str) -> str:
     """Remove chain-of-thought blocks some reasoning models emit."""
     return THINK_BLOCK.sub("", text or "").strip()
+
+
+def _visible_so_far(raw: str) -> str:
+    """The part of a partial stream that is safe to show the reader.
+
+    `_strip_reasoning` only removes *closed* `<think>` blocks, which is all a
+    finished response can contain. A stream in flight can also end part-way
+    into an open one, so everything from an unclosed opener onward is dropped
+    too -- otherwise the reader watches the model think.
+
+    A trailing partial tag is held back for the same reason: `<thi` at the end
+    of the buffer may be the start of an opener, and showing it would leak a
+    fragment of markup that the next fragment turns into a block.
+    """
+    visible = THINK_BLOCK.sub("", raw or "")
+    opener = visible.find("<think>")
+    if opener != -1:
+        visible = visible[:opener]
+    # Hold back a trailing prefix of "<think>" that may still be completed.
+    tail = visible[-7:]
+    for cut in range(len(tail), 0, -1):
+        if "<think>".startswith(tail[-cut:]):
+            visible = visible[:-cut]
+            break
+    return visible
 
 
 def _parse_json(text: str) -> dict[str, Any] | None:
@@ -204,17 +346,62 @@ class AgentOrchestrator:
         status: TaskStatus,
         message: str,
         data: dict[str, Any] | None = None,
+        *,
+        phase: str | None = None,
     ) -> None:
+        """Enter a stage, announcing it.
+
+        `phase` names which piece of work is starting, because `status` does
+        not: reading a scan, running code, reasoning and drafting a document
+        are all EXECUTING. A client that mapped status alone to a stage row
+        lit the sandbox row for plain reasoning and then marked it done, on a
+        run that never touched the sandbox.
+        """
         if self._check_cancelled(task):
             raise TaskCancelled(task.id)
         task.status = status
         task.updated_at = datetime.now(timezone.utc)
         self._checkpoint(task)
-        await self._emit(
-            task,
-            "task.stage",
-            {"status": status.value, "message": message, **(data or {})},
-        )
+        payload: dict[str, Any] = {"status": status.value, "message": message, **(data or {})}
+        if phase:
+            payload["phase"] = phase
+        await self._emit(task, "task.stage", payload)
+
+    async def _until_stopped(self, task: Task, work: Awaitable[_T]) -> _T:
+        """Await one model call, abandoning it as soon as a stop is requested.
+
+        Stop used to be honoured only between stages, and a stage on this
+        host is one model call that runs for minutes: pressing Stop during a
+        ninety-second draft did nothing for ninety seconds and then stopped a
+        run that had already paid for the expensive part. Cancelling the
+        request closes its connection, which is what tells the runtime to
+        stop generating as well.
+        """
+        if self._check_cancelled(task):
+            # Asked to stop before the call began: do not begin it.
+            if asyncio.iscoroutine(work):
+                work.close()
+            raise TaskCancelled(task.id)
+        job = asyncio.ensure_future(work)
+        try:
+            while True:
+                done, _ = await asyncio.wait({job}, timeout=CANCEL_POLL_SECONDS)
+                if done:
+                    return job.result()
+                if self._check_cancelled(task):
+                    job.cancel()
+                    # Waited on rather than awaited, so this task's own
+                    # cancellation (a worker shutdown) still propagates.
+                    await asyncio.wait({job})
+                    if not job.cancelled():
+                        # Retrieved, so an error raised while the call was
+                        # being torn down is not reported as an unhandled one.
+                        job.exception()
+                    raise TaskCancelled(task.id)
+        except asyncio.CancelledError:
+            # The worker itself is stopping: take the request down with it.
+            job.cancel()
+            raise
 
     # -- model invocation --------------------------------------------------
     async def _generate(
@@ -227,13 +414,23 @@ class AgentOrchestrator:
         prompt: str,
         images: list[Path] | None = None,
         format_json: bool = False,
+        stream_to_user: bool = False,
     ) -> tuple[str, RoutingDecision]:
-        """Route to a model for this stage, enforce model policy, then generate."""
+        """Route to a model for this stage, enforce model policy, then generate.
+
+        `stream_to_user` publishes each fragment as `task.token` while the
+        model is still producing. Only the stage whose text the reader will
+        actually read should set it: the planning and verification stages run
+        against the same models, and streaming those into the answer pane
+        would show the reader a draft of reasoning they were never meant to
+        see mistaken for the answer.
+        """
         assert task.profile is not None
         decision = await self.router.route(
             task.profile,
             stage=stage,
             extra_capabilities=["vision"] if images else None,
+            preferred_model=task.preferred_model,
         )
         task.routing.append(decision)
         self._checkpoint(task)
@@ -249,6 +446,9 @@ class AgentOrchestrator:
                 "rule": decision.rule,
                 "used_fallback": decision.used_fallback,
                 "candidates": decision.candidates,
+                "preferred_model": decision.preferred_model,
+                "preference_honoured": decision.preference_honoured,
+                "preference_reason": decision.preference_reason,
             },
         )
 
@@ -286,6 +486,12 @@ class AgentOrchestrator:
                 },
             )
 
+        # Admission can take seconds when it has to evict a model. A stop that
+        # arrived meanwhile ends the run here, before the audit trail records
+        # an inference that is never going to start.
+        if self._check_cancelled(task):
+            raise TaskCancelled(task.id)
+
         self.audit.record(
             category="model",
             action="inference_started",
@@ -303,24 +509,95 @@ class AgentOrchestrator:
             },
         )
 
-        result = await self.client.generate(
-            model=descriptor.provider_model,
-            prompt=prompt,
-            system=system_prompt,
-            images=images,
-            options=self.router.generation_options(descriptor.id, stage=stage),
-            serving=self.router.serving_options(descriptor.id),
-            format_json=format_json,
+        # Resolved once and used for both the call and its usage record, so
+        # the window the record reports is the window the call was given.
+        options = self.router.generation_options(descriptor.id, stage=stage)
+        serving = self.router.serving_options(descriptor.id)
+        started_at = datetime.now(timezone.utc)
+        started = time.perf_counter()
+        try:
+            if stream_to_user:
+                result = await self._until_stopped(
+                    task,
+                    self._generate_streaming(
+                        task,
+                        model=descriptor.provider_model,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        images=images,
+                        options=options,
+                        serving=serving,
+                        stage=stage,
+                        format_json=format_json,
+                    ),
+                )
+            else:
+                result = await self._until_stopped(
+                    task,
+                    self.client.generate(
+                        model=descriptor.provider_model,
+                        prompt=prompt,
+                        system=system_prompt,
+                        images=images,
+                        options=options,
+                        serving=serving,
+                        format_json=format_json,
+                    ),
+                )
+        except TaskCancelled:
+            # The call consumed real time before it was stopped, so it is on
+            # the record -- with its wall clock and no counts, because the
+            # runtime reports counts only in the message a stopped call never
+            # sends.
+            stopped = _usage_record(
+                stage=stage,
+                descriptor=descriptor,
+                options=options,
+                latency_ms=int((time.perf_counter() - started) * 1000),
+                started_at=started_at,
+                streamed=stream_to_user,
+            )
+            task.usage.append(stopped)
+            self._checkpoint(task)
+            self.audit.record(
+                category="model",
+                action="inference_cancelled",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={
+                    "stage": stage,
+                    "model": descriptor.id,
+                    "latency_ms": stopped.latency_ms,
+                },
+            )
+            raise
+
+        usage = _usage_record(
+            stage=stage,
+            descriptor=descriptor,
+            options=options,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            started_at=started_at,
+            streamed=stream_to_user,
+            result=result,
         )
+        task.usage.append(usage)
+        self._checkpoint(task)
         await self._emit(
             task,
             "task.model_completed",
             {
                 "stage": stage,
                 "model": descriptor.id,
-                "latency_ms": result.latency_ms,
-                "tokens_per_second": result.tokens_per_second,
-                "eval_count": result.eval_count,
+                "latency_ms": usage.latency_ms,
+                "tokens_per_second": usage.tokens_per_second,
+                "eval_count": usage.output_tokens,
+                "prompt_tokens": usage.prompt_tokens,
+                "output_tokens": usage.output_tokens,
+                # The whole record, so a live client shows exactly what a
+                # reopened run will read back from the task.
+                "usage": usage.model_dump(mode="json"),
             },
         )
         self.audit.record(
@@ -332,11 +609,109 @@ class AgentOrchestrator:
             detail={
                 "stage": stage,
                 "model": descriptor.id,
-                "latency_ms": result.latency_ms,
+                "latency_ms": usage.latency_ms,
                 "output_chars": len(result.text),
+                "prompt_tokens": usage.prompt_tokens,
+                "output_tokens": usage.output_tokens,
+                "done_reason": usage.done_reason,
             },
         )
         return _strip_reasoning(result.text), decision
+
+    async def _generate_streaming(
+        self,
+        task: Task,
+        *,
+        model: str,
+        prompt: str,
+        system_prompt: str,
+        images: list[Path] | None,
+        options: dict[str, Any],
+        stage: str,
+        format_json: bool = False,
+        serving: dict[str, Any] | None = None,
+    ) -> GenerationResult:
+        """Stream one stage, publishing `task.token` as the text arrives.
+
+        Two things make this more than a loop over fragments.
+
+        A reasoning model emits `<think>` blocks the reader must never see,
+        and a fragment boundary can fall anywhere -- including between the
+        `<` and the `think>`. So the visible text is recomputed from the whole
+        raw buffer each time rather than filtered per fragment: closed blocks
+        are removed, and an unclosed one truncates everything after it. The
+        delta published is whatever that leaves beyond what was already sent,
+        which is correct however the fragments happen to split.
+
+        Fragments also arrive far faster than a reader reads. Publishing each
+        one would put thousands of SSE frames on the wire for a single answer,
+        so they are coalesced into roughly 20 frames a second: still
+        continuous to the eye, two orders of magnitude cheaper.
+        """
+        raw = ""
+        sent = ""
+        stats: dict[str, Any] = {}
+        started = time.perf_counter()
+        # Load plus prompt processing: the wait before anything could appear.
+        first_token_ms: int | None = None
+        last_flush = 0.0
+        FLUSH_INTERVAL = 0.05
+
+        async def flush() -> None:
+            nonlocal sent
+            visible = _visible_so_far(raw)
+            if len(visible) > len(sent):
+                sent = visible
+                # The whole visible text, not the delta since the last frame.
+                #
+                # A delta protocol cannot survive a dropped frame, and frames
+                # do get dropped: the client's EventSource is torn down when
+                # its task id or enabled flag changes and reconnects on any
+                # error, and token frames are deliberately excluded from the
+                # replay buffer. A client that missed one frame would append
+                # the next onto a gap and render a draft that silently begins
+                # mid-sentence -- observed losing the first 22 characters of
+                # an answer.
+                #
+                # Sending the cumulative text makes every frame a complete
+                # repair of the one before it. The cost is bytes on a loopback
+                # connection, which is the cheapest thing this system spends.
+                await self._emit(task, "task.token", {"stage": stage, "text": visible})
+
+        # aclosing, so that however this loop ends -- including a stop that
+        # cancels this coroutine between fragments -- the generator is closed
+        # at once, which closes the connection and ends the runtime's work,
+        # rather than whenever the garbage collector finalises it.
+        async with contextlib.aclosing(
+            self.client.stream(
+                model=model,
+                prompt=prompt,
+                system=system_prompt,
+                images=images,
+                options=options,
+                format_json=format_json,
+                stats_out=stats,
+                serving=serving,
+            )
+        ) as fragments:
+            async for fragment in fragments:
+                if first_token_ms is None:
+                    first_token_ms = int((time.perf_counter() - started) * 1000)
+                raw += fragment
+                now = time.perf_counter()
+                if now - last_flush >= FLUSH_INTERVAL:
+                    last_flush = now
+                    await flush()
+
+        await flush()
+
+        return GenerationResult.from_runtime(
+            text=raw,
+            model=model,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            stats=stats,
+            first_token_ms=first_token_ms,
+        )
 
     # -- tool invocation ---------------------------------------------------
     async def _call_tool(
@@ -627,6 +1002,11 @@ class AgentOrchestrator:
                 system_prompt=self.config.system_prompt("planning"),
                 prompt=prompt,
                 format_json=True,
+                # 79 seconds of the measured run, generating 1218 characters
+                # the reader never saw. The text is JSON and is never shown as
+                # prose -- the client counts these frames to report real
+                # progress instead of leaving the stage blank.
+                stream_to_user=True,
             )
             parsed = _parse_json(text) or {}
         except (InferenceError, NoEligibleModelError):
@@ -787,6 +1167,8 @@ class AgentOrchestrator:
         # rather than asking a model to confirm the obvious.
         if not NUMERIC_ASSERTION.search(text or ""):
             return []
+        if not ARITHMETIC_SIGNAL.search(text or ""):
+            return []
         try:
             raw, _ = await self._generate(
                 task,
@@ -822,6 +1204,9 @@ class AgentOrchestrator:
         started = datetime.now(timezone.utc)
         assert task.profile is not None
         profile = task.profile
+
+        if profile.task_type == TaskType.CONVERSATION:
+            return await self._converse(task, user, started)
 
         workspace = self.config.settings.path("workspaces") / task.id
         workspace.mkdir(parents=True, exist_ok=True)
@@ -860,6 +1245,7 @@ class AgentOrchestrator:
                     task,
                     TaskStatus.EXECUTING,
                     f"Reading {len(images)} visual input(s) with the vision model",
+                    phase="vision_extraction",
                 )
                 findings: list[dict[str, Any]] = []
                 for _, grouped in groupby(images, key=lambda item: item.source.id):
@@ -892,10 +1278,49 @@ class AgentOrchestrator:
                 extraction = {"document_type": "visual inputs", "findings": findings}
 
             # ---------------------------------------------------- plan
-            await self._stage(task, TaskStatus.PLANNED, "Producing an execution plan")
-            task.plan = await self._plan(task, user, extraction=extraction)
+            #
+            # Planned only when there is something to plan.
+            #
+            # This ran unconditionally and was the most expensive stage of
+            # every run -- 79 seconds of a 200-second measured run, producing
+            # 1218 characters of JSON. What consumed it was one membership
+            # test, `"python_exec" in planned_actions`, sitting beside a
+            # `profile.requires_code_execution` that the classifier had
+            # already computed; `_mark_step` wrote statuses onto steps no
+            # client renders, since the frontend subscribes to `task.planned`
+            # and reads nothing from its payload.
+            #
+            # So a single-step retrieval question spent two fifths of its
+            # wall-clock deciding how to answer a question that has one way
+            # to be answered. A plan earns its cost when the work branches:
+            # code to run, files to read, or a document to produce.
+            #
+            # Deliberately not keyed on `step_budget`: that is a ceiling the
+            # classifier allows, not an estimate of what the task needs. A
+            # one-sentence retrieval question comes back with a budget of 14,
+            # so any test against it would keep planning for everything.
+            needs_plan = _needs_plan(profile, task.files)
 
-            planned_actions = {step.action for step in task.plan.steps}
+            if needs_plan:
+                await self._stage(
+                    task, TaskStatus.PLANNED, "Producing an execution plan", phase="planning"
+                )
+                task.plan = await self._plan(task, user, extraction=extraction)
+                planned_actions = {step.action for step in task.plan.steps}
+            else:
+                # Said, not silently skipped. A stage that did not run must
+                # report that it did not run: this pipeline's claim is that
+                # the log accounts for every stage, and a plan quietly absent
+                # would leave a reader to assume one was made.
+                task.plan = None
+                planned_actions = set()
+                await self._stage(
+                    task,
+                    TaskStatus.PLANNED,
+                    "No plan required: a single retrieval step with no code, files or deliverable",
+                    {"skipped": True},
+                    phase="planning",
+                )
 
             if reads_images:
                 self._mark_step(task, {"vision_extract", "vision_analysis"}, "done")
@@ -929,7 +1354,10 @@ class AgentOrchestrator:
             # ------------------------------------------------- retrieval
             if profile.requires_retrieval:
                 await self._stage(
-                    task, TaskStatus.RETRIEVING, "Searching the local knowledge base"
+                    task,
+                    TaskStatus.RETRIEVING,
+                    "Searching the local knowledge base",
+                    phase="retrieval",
                 )
                 self._mark_step(task, {"knowledge_search"}, "running")
                 query = task.prompt
@@ -964,21 +1392,34 @@ class AgentOrchestrator:
             # ------------------------------------------ code execution
             if profile.requires_code_execution or "python_exec" in planned_actions:
                 await self._stage(
-                    task, TaskStatus.EXECUTING, "Generating and running code in the sandbox"
+                    task,
+                    TaskStatus.EXECUTING,
+                    "Generating and running code in the sandbox",
+                    phase="code_execution",
                 )
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "running")
                 sandbox_result = await self._run_code_stage(task, user, context, ledger)
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "done")
 
             # ---------------------------------------------- reasoning
-            await self._stage(task, TaskStatus.EXECUTING, "Reasoning over the gathered evidence")
+            await self._stage(
+                task,
+                TaskStatus.EXECUTING,
+                "Reasoning over the gathered evidence",
+                phase="reasoning",
+            )
             self._mark_step(task, {"reason", "analysis"}, "running")
             answer_text = await self._reason(task, user, evidence, extraction, sandbox_result)
             task.answer = answer_text
             self._mark_step(task, {"reason", "analysis"}, "done")
 
             # -------------------------------------------- verification
-            await self._stage(task, TaskStatus.VERIFYING, "Verifying evidence and calculations")
+            await self._stage(
+                task,
+                TaskStatus.VERIFYING,
+                "Verifying evidence and calculations",
+                phase="verification",
+            )
 
             # Verification reads model output, which is untrusted: a figure
             # returned as "19.9 mm" once crashed a run that had otherwise
@@ -1005,6 +1446,12 @@ class AgentOrchestrator:
                     calculations
                 )
                 checks.append(calculation_check)
+            except TaskCancelled:
+                # A stop is not a check that failed. Caught by the clause
+                # below it would have been filed in the verification report
+                # as "figures could not be recomputed", on a run that went on
+                # to report itself verified-then-cancelled.
+                raise
             except Exception as exc:
                 checks.append(
                     VerificationCheck(
@@ -1038,6 +1485,7 @@ class AgentOrchestrator:
                     task,
                     TaskStatus.EXECUTING,
                     f"Drafting the {(profile.deliverable_format or 'docx').upper()} deliverable",
+                    phase="deliverable",
                 )
                 self._mark_step(task, {"document_generate"}, "running")
                 draft_content = await self._draft(
@@ -1068,12 +1516,63 @@ class AgentOrchestrator:
                 },
             )
 
+            # ------------------------------------------ classification
+            #
+            # An answer is at least as sensitive as the most sensitive thing
+            # it was built from. The profile's classification was set from the
+            # prompt and the attachments alone, so an engineer's question
+            # answered out of a Restricted design memo stayed "normal": it was
+            # not held, and any deliverable was stamped with a class below the
+            # material inside it. Retrieval already refused evidence above the
+            # user's clearance; this is the other half -- what was admitted
+            # raises the output to its own level before the approval gate
+            # reads it. It only ever rises.
+            raised = self._classification_of_evidence(task.evidence)
+            raised_by: list[EvidenceItem] = []
+            if raised is not None and self.config.classification_rank(
+                raised.value
+            ) > self.config.classification_rank(profile.sensitivity.value):
+                previous = profile.sensitivity
+                profile = profile.model_copy(update={"sensitivity": raised})
+                task.profile = profile
+                self._checkpoint(task)
+                raised_by = [item for item in task.evidence if item.classification == raised]
+                self.audit.record(
+                    category="policy",
+                    action="classification_raised",
+                    actor=user.username,
+                    actor_role=user.role,
+                    task_id=task.id,
+                    detail={
+                        "from": previous.value,
+                        "to": raised.value,
+                        "because": [item.id for item in raised_by],
+                    },
+                )
+                await self._emit(
+                    task,
+                    "task.classified",
+                    {
+                        "sensitivity": raised.value,
+                        "raised_from": previous.value,
+                        "reason": "evidence used in the answer is classified higher",
+                    },
+                )
+
             # ------------------------------------------------- approval
             required, reasons, approvers = self.gateway.approval_requirement(
                 profile,
                 prompt=task.prompt,
                 verification_valid=task.verification.valid,
             )
+            # The gate's own reason says only that sensitive or restricted
+            # work needs an authority. When the class came from the evidence
+            # rather than the request, a reader saw "4 of 4 checks passed"
+            # beside HELD and had no way to learn that retrieval had admitted
+            # a Restricted design memo. The reason now names it, ahead of the
+            # rule it triggered.
+            if raised_by and any(r.startswith("sensitive_classification") for r in reasons):
+                reasons = [_raised_reason(raised_by, profile.sensitivity), *reasons]
             task.approval = ApprovalRecord(
                 required=required,
                 reasons=reasons,
@@ -1109,16 +1608,23 @@ class AgentOrchestrator:
                 task.completed_at = datetime.now(timezone.utc)
 
         except TaskCancelled:
+            # Read before it is overwritten: the audit record said "stopped
+            # during: cancelled", which is true of every cancelled run.
+            stopped_during = task.status.value
             task.status = TaskStatus.CANCELLED
             task.error = "Stopped at your request."
-            await self._emit(task, "task.cancelled", {"reason": "stopped by request"})
+            await self._emit(
+                task,
+                "task.cancelled",
+                {"reason": "stopped by request", "stopped_during": stopped_during},
+            )
             self.audit.record(
                 category="agent",
                 action="cancelled",
                 actor=user.username,
                 actor_role=user.role,
                 task_id=task.id,
-                detail={"stage": task.status.value},
+                detail={"stage": stopped_during},
             )
         except NoEligibleModelError as exc:
             task.status = TaskStatus.BLOCKED
@@ -1166,7 +1672,85 @@ class AgentOrchestrator:
         )
         return task
 
+    async def _converse(self, task: Task, user: User, started: datetime) -> Task:
+        """Answer a conversational message in one short model call.
+
+        A greeting went through the whole pipeline: retrieval, a 1,236-token
+        drafting prompt, a verification call, and a hold -- 140 seconds on
+        this host to answer "Hi", which ended waiting for a reviewer. It makes
+        no claims, so there is nothing to retrieve for, nothing to verify and
+        nothing to hold. It still goes through model routing and policy like
+        every call, streams like every answer, and is recorded: the verifier's
+        report says plainly that no checks were run and why.
+
+        It shares the drafting stage's system prompt, so the runtime's cache
+        of that prompt serves greetings and questions alike.
+        """
+        try:
+            # "reasoning" is the phase every client maps to the answer's row.
+            await self._stage(task, TaskStatus.EXECUTING, "Replying", phase="reasoning")
+            text, _ = await self._generate(
+                task,
+                user,
+                stage="drafting",
+                system_prompt=self.config.system_prompt("reasoning"),
+                prompt=self.config.prompt("task.converse", prompt=task.prompt),
+                stream_to_user=True,
+            )
+            text = text.strip()
+            await self._emit(task, "task.answer", {"answer": text})
+            task.answer = text
+            task.verification = VerificationReport(
+                valid=True,
+                checks=[],
+                limitations=[
+                    "Conversational reply: nothing was retrieved and no claims were checked, "
+                    "because the message asked for none."
+                ],
+                completed_at=datetime.now(timezone.utc),
+            )
+            task.approval = ApprovalRecord(required=False)
+            self.audit.record(
+                category="agent",
+                action="conversational_reply",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={"characters": len(text)},
+            )
+            await self._stage(task, TaskStatus.DELIVERED, "Replied")
+            task.completed_at = datetime.now(timezone.utc)
+        except TaskCancelled:
+            task.status = TaskStatus.CANCELLED
+            task.error = "Stopped at your request."
+            await self._emit(task, "task.cancelled", {"reason": "stopped by request", "stopped_during": "executing"})
+        except NoEligibleModelError as exc:
+            task.status = TaskStatus.BLOCKED
+            task.error = str(exc)
+            await self._emit(task, "task.blocked", {"reason": str(exc)})
+        except InferenceError as exc:
+            task.status = TaskStatus.FAILED
+            task.error = f"Local inference failed: {exc}"
+            await self._emit(task, "task.failed", {"reason": task.error})
+        task.updated_at = datetime.now(timezone.utc)
+        task.duration_ms = int((task.updated_at - started).total_seconds() * 1000)
+        await self._emit(task, "task.finished", {"status": task.status.value, "duration_ms": task.duration_ms})
+        return task
+
     # -- stage helpers -----------------------------------------------------
+    def _classification_of_evidence(self, evidence: list[EvidenceItem]) -> Sensitivity | None:
+        """The most sensitive classification among the evidence, if any.
+
+        Ranked by the configured classification levels, not by enum order,
+        so the policy file stays the one place the ordering is defined.
+        """
+        if not evidence:
+            return None
+        return max(
+            (item.classification for item in evidence),
+            key=lambda level: self.config.classification_rank(level.value),
+        )
+
     @staticmethod
     def _mark_step(task: Task, actions: set[str], status: str) -> None:
         if task.plan is None:
@@ -1310,13 +1894,18 @@ class AgentOrchestrator:
         extraction: dict[str, Any] | None,
         sandbox_result: SandboxResult | None,
     ) -> str:
+        # Empty when there is nothing: a line saying so was tokens read on
+        # every run for no answer's benefit.
         extraction_block = ""
         if extraction:
-            extraction_block = "Visual content is recorded in the page-labelled evidence below."
+            # The extraction itself is page-labelled evidence now, cited by its
+            # [V...] identifier; repeating it here as JSON would only cost tokens.
+            extraction_block = "\nVisual content is recorded in the page-labelled evidence below.\n"
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
-                "\n\nOutput of code executed in the secure sandbox:\n"
+                "\nOutput of code executed in the secure sandbox:\n"
                 + sandbox_result.stdout[:2000]
+                + "\n"
             )
 
         page_items = sorted(
@@ -1337,7 +1926,7 @@ class AgentOrchestrator:
         prompt = self.config.prompt(
             "task.reason_with_page_evidence" if page_items else "task.reason_with_evidence",
             prompt=task.prompt,
-            extraction_block=extraction_block or "No visual or computed input for this task.",
+            extraction_block=extraction_block,
             evidence=evidence_block,
         )
         text, _ = await self._generate(
@@ -1346,7 +1935,13 @@ class AgentOrchestrator:
             stage="drafting",
             system_prompt=self.config.system_prompt("reasoning"),
             prompt=prompt,
+            # The one stage whose output the reader reads as the answer.
+            stream_to_user=True,
         )
+        # Still emitted: `task.token` carries the text as it arrives, but a
+        # client that joined late, missed frames, or reloaded has no way to
+        # rebuild it. This is the authoritative copy and the one that is
+        # persisted.
         await self._emit(task, "task.answer", {"answer": text})
         return text
 

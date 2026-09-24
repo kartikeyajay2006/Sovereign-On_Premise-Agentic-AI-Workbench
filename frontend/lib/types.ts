@@ -30,7 +30,6 @@ export type PolicyDecision = 'allow' | 'deny' | 'require_approval'
 export interface Role {
   id: RoleId
   label: string
-  persona: string
   description: string
   capabilities: string[]
 }
@@ -62,16 +61,56 @@ export interface Session {
   expires_at: string
 }
 
-export type StageStatus = 'pending' | 'active' | 'done' | 'failed' | 'held' | 'skipped'
+/**
+ * The nine states a pipeline stage can be in.
+ *
+ * This shipped with six. The three additions are the ones that carry the
+ * demo, because four of these states describe a stage that produced no
+ * result and they are not the same fact:
+ *
+ *   skipped      the system chose not to run it — no numeric claims were
+ *                made, so there was nothing to recompute
+ *   blocked      the system correctly stopped upstream, so this stage never
+ *                got its turn
+ *   denied       policy refused it. This is the product working, not failing
+ *   unavailable  this host structurally cannot report on it
+ *
+ * Collapsing them is what let the old board paint stages green that had
+ * never received an event. The distinction between "the system broke" and
+ * "the system correctly stopped" is the single most important thing this
+ * interface has to communicate.
+ *
+ * Re-exported from shared/ui/types so the primitives and the app agree on
+ * one vocabulary.
+ */
+export type { StageState as StageStatus } from '@/shared/ui/types'
+import type { StageState as StageStatus } from '@/shared/ui/types'
 
 export interface PipelineStage {
   id: string
   index: string
   name: string
   model: string
-  latencyMs: number
   status: StageStatus
   detail?: string
+  /**
+   * ISO timestamp of when this stage started. Drives the measured dwell
+   * counter. Null until it starts — never a placeholder.
+   */
+  at: string | null
+  /**
+   * Final elapsed time, frozen when the stage settles. Null while running or
+   * if it never ran.
+   *
+   * Replaces `latencyMs: number`, which was initialised to 0 for every stage
+   * in DEFAULT_PIPELINE and never filled in by anything — so the board was
+   * reading a hardcoded zero and suppressing it with `latencyMs > 0`. Null
+   * says "no reading"; 0 would say "instantaneous", and those are different
+   * claims.
+   */
+  elapsedMs: number | null
+  /** One short backend-authored clause. Never templated in the UI. */
+  headline?: string | null
 }
 
 export interface StoredFile {
@@ -218,6 +257,59 @@ export interface RoutingDecision {
   used_fallback: boolean
   candidates: Record<string, any>[]
   decided_at: string
+  /** The pipeline stage this decision served; null on records written before
+   *  the field existed, and for a decision routed without a stage. */
+  stage: string | null
+  /** What the person asked for in the composer. Null when they chose
+   *  Automatic -- and then the two fields below are null as well. */
+  preferred_model: string | null
+  /** True when used, false when declined. Never true for a model that failed
+   *  a gate: the router honours a request only inside the same policy. */
+  preference_honoured: boolean | null
+  /** The one gate that declined the request, as a clause:
+   *  "qwen3:8b lacks the vision capability this stage requires". */
+  preference_reason: string | null
+}
+
+/**
+ * What one model call cost. Transcribed from ModelUsage in
+ * backend/core/schemas.py, field for field.
+ *
+ * Every count is nullable because the runtime does not always report one --
+ * Ollama omits a zero counter, and a stopped call never receives the final
+ * message the counts travel in. Null is "not reported" and must render as
+ * nothing. It is never a zero: a total that read a missing count as 0 would
+ * understate the run, which is the class of figure this interface exists to
+ * refuse.
+ */
+export interface ModelUsage {
+  stage: string
+  /** Registry id, e.g. "qwen2.5:3b". */
+  model: string
+  display_name: string | null
+  prompt_tokens: number | null
+  output_tokens: number | null
+  /** Wall clock around the whole call, timed by the orchestrator. */
+  latency_ms: number
+  /** Output tokens over the runtime's own generation time, so model load and
+   *  prompt processing are not averaged in. */
+  tokens_per_second: number | null
+  /** The num_ctx this call ran with -- the stage budget, which is far below
+   *  the model's declared maximum. Fill is measured against this. */
+  context_window: number | null
+  /** The num_predict this call ran with. */
+  output_limit: number | null
+  /** "stop" for a finished answer; "length" when the output limit ran out. */
+  done_reason: string | null
+  /** Streamed calls only: the wait before the runtime's first token. */
+  first_token_ms: number | null
+  load_ms: number | null
+  prompt_eval_ms: number | null
+  eval_ms: number | null
+  streamed: boolean
+  /** Stopped at the operator's request; carries wall clock and no counts. */
+  cancelled: boolean
+  started_at: string
 }
 
 export interface Task {
@@ -233,7 +325,13 @@ export interface Task {
   files: StoredFile[]
   profile?: TaskProfile | null
   plan?: AgentPlan | null
+  /** The model the person asked for, or null for Automatic. */
+  preferred_model: string | null
+  /** Set when the request came from a skill: `prompt` is its rendering. */
+  skill?: SkillInvocation | null
   routing: RoutingDecision[]
+  /** One record per model call, in the order they ran. Persisted. */
+  usage: ModelUsage[]
   tool_calls: ToolCall[]
   evidence: EvidenceItem[]
   verification?: VerificationReport | null
@@ -250,6 +348,8 @@ export interface Task {
 export interface TaskSummary {
   id: string
   prompt: string
+  /** The skill the request went through; `prompt` is then its rendering. */
+  skill?: SkillInvocation | null
   status: TaskStatus
   task_type?: string | null
   sensitivity?: string | null
@@ -279,7 +379,8 @@ export interface ApprovalItem {
   title: string
   submittedBy: string
   submittedAt: string
-  priority: 'CRITICAL' | 'HIGH' | 'NORMAL'
+  /** The task's data classification, as the profile reports it. */
+  sensitivity: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   classification: 'CONFIDENTIAL' | 'RESTRICTED' | 'INTERNAL'
   document: string
@@ -343,6 +444,47 @@ export interface TaskCreateRequest {
   prompt: string
   file_ids?: string[]
   deliverable_format?: string | null
+  /** A registry id to prefer. Advisory: honoured per stage only where policy
+   *  would allow that model anyway. At most 128 characters. */
+  preferred_model?: string | null
+  /** A skill to run; `prompt` is then what was typed after it. */
+  skill_id?: string | null
+}
+
+/**
+ * A saved instruction called as /id. It changes only what a run is asked:
+ * the rendered request meets every gate a typed one does.
+ */
+export interface Skill {
+  id: string
+  name: string
+  summary: string
+  template: string
+  deliverable_format: 'docx' | 'xlsx' | 'pptx' | 'md' | null
+  input_hint: string | null
+  source: 'built_in' | 'custom'
+  author: string | null
+  author_display_name: string | null
+  created_at: string | null
+  sha256: string
+}
+
+export interface SkillDraft {
+  id: string
+  name: string
+  summary: string
+  template: string
+  deliverable_format: Skill['deliverable_format']
+  input_hint: string | null
+}
+
+/** Which skill produced a task's request, at which hash, from what input. */
+export interface SkillInvocation {
+  id: string
+  name: string
+  sha256: string
+  source: string
+  input: string
 }
 
 export interface DiagnosticStep {
@@ -405,16 +547,17 @@ export interface NetworkConnection {
 export interface SovereigntyStatus {
   sovereign: boolean
   external_api_calls: number
-  cloud_llm_calls: number
   internet_requests: number
   dns_requests: number
-  data_leaving_host_bytes: number
   unapproved_connections: number
   local_connections: number
   monitored_since: string
   last_checked: string
   violations: NetworkConnection[]
+  /** False while the monitor is stopped or its last sample took no reading. */
   monitor_active: boolean
+  /** Why the last sample took no reading, when it did not. */
+  monitor_error?: string | null
   interfaces: Record<string, any>
 }
 
@@ -446,13 +589,46 @@ export interface ModelDescriptor {
   notes?: string | null
 }
 
+/**
+ * GET /api/models/status, transcribed from the route rather than imagined.
+ *
+ * The previous declaration had four of its six fields wrong: `registered` was
+ * typed as ModelDescriptor[] when the route returns `len(snapshot.models)`, a
+ * number; `provider_reachable`, `installed_on_host` and `unregistered_on_host`
+ * do not exist on the response at all. request<T>() asserts rather than
+ * validates, so tsc had nothing to check against and the Registry page
+ * compiled clean and crashed on load with `status?.registered.map is not a
+ * function` the moment the fetch resolved.
+ *
+ * This is counts and roles. The model list is a different endpoint,
+ * GET /api/models, which is what api.models() returns.
+ */
 export interface ModelsStatus {
   provider: string
-  provider_reachable: boolean
-  registered: ModelDescriptor[]
-  installed_on_host: string[]
-  unregistered_on_host: string[]
-  roles: Record<string, string>
+  base_url: string
+  reachable: boolean
+  /** How many models the registry knows about. A count, not a list. */
+  registered: number
+  /** How many of those are actually present on the host. */
+  available: number
+  /** Provider models installed on the host that the registry does not list. */
+  unregistered_installed: string[]
+  residency: Record<string, unknown>
+  /**
+   * Ollama's own /api/ps entries, passed through unchanged by
+   * manager.resident_models() -- objects, not names. This was typed string[]
+   * when it was transcribed, which the registry screen had to work around
+   * with a type of its own.
+   */
+  resident_in_runtime: {
+    name?: string
+    model?: string
+    size?: number
+    size_vram?: number
+    expires_at?: string
+  }[]
+  /** role -> the ids of the available models serving it. */
+  roles: Record<string, string[]>
 }
 
 export interface StreamEvent {

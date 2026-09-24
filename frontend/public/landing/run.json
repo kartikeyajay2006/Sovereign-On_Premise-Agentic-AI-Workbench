@@ -1,0 +1,351 @@
+{
+  "_comment": "Written by scripts/capture_landing_fixture.py from one real finished run. Source: developer host, ollama loopback, api http://127.0.0.1:8000. Run chosen with --task f30c2459-2f2b-44a0-84bd-4688d7f38260. Never hand-edited. Receipt-row hashes are truncated to 8 hex characters for display, with the full value in hash_full. audit.tail holds the run's final record and the two written immediately before it, and each `line` is the line exactly as stored in the audit log, so its hash can be recomputed. Values the record does not carry are null, never defaulted. Nothing is redacted -- the corpus is synthetic, seeded by scripts/seed_demo_data.py.",
+  "captured_at": "2026-09-24T01:14:17Z",
+  "captured_from": "developer host, ollama loopback, api http://127.0.0.1:8000",
+  "task_id": "f30c2459-2f2b-44a0-84bd-4688d7f38260",
+  "status": "delivered",
+  "prompt": "Which clause of our SOPs governs the following, and what exactly does it require? internal inspection of a pressure vessel in corrosive service",
+  "created_at": "2026-09-24T01:04:29.157504Z",
+  "captured_on": "24 Sep 2026",
+  "duration_ms": 39647,
+  "models": [
+    "qwen2.5:3b"
+  ],
+  "cited": {
+    "value": "6 passages from 2 documents, 1 cited in the answer",
+    "meta": "SOP-INS-014 §2.2"
+  },
+  "checked": {
+    "value": "Passed verification",
+    "meta": "4 of 4 checks passed"
+  },
+  "computed": {
+    "value": "No code was generated for this run",
+    "meta": "sandbox not entered"
+  },
+  "decision": {
+    "label": "RELEASED",
+    "value": "No approval was required for this run",
+    "meta": "policy: auto-release permitted"
+  },
+  "recorded": {
+    "value": "10 records appended to the audit chain",
+    "meta": "seq 16 · bf6ec740",
+    "hash_full": "bf6ec740e3b6ff221314417cdb7a4b80e14e53f7ac0d9447a330d5f6214e3d46"
+  },
+  "answer": "[S1] A pressure vessel in corrosive service shall receive an internal inspection at intervals not exceeding 48 months. [S1]",
+  "evidence": [
+    {
+      "id": "S1",
+      "rank": 1,
+      "cited": true,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 2.2 Corrosive Service",
+      "score": 0.7988,
+      "classification": "confidential",
+      "version": "4.3",
+      "excerpt": "### 2.2 Corrosive Service\n\nA pressure vessel in corrosive service shall receive an external inspection\nat intervals not exceeding 12 months, an internal inspection at intervals not\nexceeding 48 months, and a thickness survey at intervals not exceeding\n24 months."
+    },
+    {
+      "id": "S2",
+      "rank": 2,
+      "cited": false,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "score": 0.7821,
+      "classification": "confidential",
+      "version": "4.3",
+      "excerpt": "# SOP-INS-014 — Pressure Vessel External and Internal Inspection\n\n> **SYNTHETIC DOCUMENT** — fictional procedure written for the AEGIS demonstration corpus. It is not a real site procedure and must not be used for real equipment.\n\n**Document:** SOP-INS-014\n**Revision:** 4.3\n**Status:** SYNTHETIC\n**Department:** Inspection & Integrity\n**Classification:** Confidential — Internal Use Only\n**Effective date:** 01 September 2026\n**Supersedes:** SOP-INS-014 Rev 4.2\n**Related:** SOP-INS-017, SOP-INS-021, SOP-INS-025, SOP-INS-030, SOP-MNT-022, SOP-OPS-008\n**Revision note:** Rev 4.3 restates Clauses 2 and 5 from tables into numbered sub-clauses, so each service category and each severity can be cited on its own; states the formulas and year rounding in Clauses 3.1, 4.1 and 4.2; adds cross-references in 2.5, 4.6 and 6.4. No threshold, interval, required action or approval authority changed from Rev 4.2.\n\n---"
+    },
+    {
+      "id": "S3",
+      "rank": 3,
+      "cited": false,
+      "source_document": "SOP-INS-030 — Risk-Based Inspection Planning and Inspection Intervals",
+      "document_id": "4fa9bed14c6785a43860d687",
+      "location": "section: 1. Purpose and Scope",
+      "score": 0.778,
+      "classification": "confidential",
+      "version": "1.2",
+      "excerpt": "## 1. Purpose and Scope\n\nThis procedure ranks pressure vessels and piping circuits by risk, and sets\nhow that ranking changes inspection priority and intervals. Default intervals\nare set by SOP-INS-014 Clause 2 for vessels and SOP-INS-017 Clauses 3 and 6\nfor piping."
+    },
+    {
+      "id": "S4",
+      "rank": 4,
+      "cited": false,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 2.1 Non-Corrosive, Non-Lethal Service",
+      "score": 0.7626,
+      "classification": "confidential",
+      "version": "4.3",
+      "excerpt": "### 2.1 Non-Corrosive, Non-Lethal Service\n\nA pressure vessel in non-corrosive, non-lethal service shall receive an\nexternal inspection at intervals not exceeding 24 months, an internal\ninspection at intervals not exceeding 72 months, and a thickness survey at\nintervals not exceeding 48 months."
+    },
+    {
+      "id": "S5",
+      "rank": 5,
+      "cited": false,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 6.4 Continued Service with a Medium Finding",
+      "score": 0.7603,
+      "classification": "confidential",
+      "version": "4.3",
+      "excerpt": "### 6.4 Continued Service with a Medium Finding\n\nAny recommendation that a vessel continue in service (continued operation)\nwith a Medium finding shall record the compensating measures applied; its\napproving authority is the Head of Inspection (Clause 5.2). Operation of equipment awaiting a\nFitness-For-Service assessment is interim operation under SOP-INS-021\nClause 6, with the approvals in SOP-OPS-008 Clause 2.8."
+    },
+    {
+      "id": "S6",
+      "rank": 6,
+      "cited": false,
+      "source_document": "SOP-INS-014 — Pressure Vessel External and Internal Inspection",
+      "document_id": "4d0ee13857c6cfc220764dec",
+      "location": "section: 1. Purpose and Scope",
+      "score": 0.7601,
+      "classification": "confidential",
+      "version": "4.3",
+      "excerpt": "## 1. Purpose and Scope\n\nThis procedure governs the periodic external and internal inspection of\npressure vessels operating within the refinery battery limits, including\nseparators, knock-out drums, surge vessels and accumulators registered under\nthe Static and Mobile Pressure Vessels (Unfired) Rules.\n\nThis procedure applies to all vessels with a design pressure exceeding\n1.0 bar(g) and an internal volume exceeding 500 litres. Process piping is\ncovered by SOP-INS-017."
+    }
+  ],
+  "retrieval": {
+    "mode": "embedding",
+    "duration_ms": 602,
+    "summary": "6 passage(s) retrieved via embedding search in 597ms",
+    "policy_decision": "allow"
+  },
+  "verification": {
+    "valid": true,
+    "checks": [
+      {
+        "name": "source_verification",
+        "passed": true,
+        "detail": "1 of 1 material claims are supported by local evidence (100%; threshold 60%).",
+        "warnings": []
+      },
+      {
+        "name": "calculation_verification",
+        "passed": true,
+        "detail": "No numeric calculations were asserted.",
+        "warnings": []
+      },
+      {
+        "name": "code_verification",
+        "passed": true,
+        "detail": "No code was generated or executed for this task.",
+        "warnings": []
+      },
+      {
+        "name": "hallucination_check",
+        "passed": true,
+        "detail": "1 of 1 material claim(s) traceable to local evidence or independent computation.",
+        "warnings": []
+      }
+    ],
+    "material_claims_total": 1,
+    "material_claims_supported": 1,
+    "completed_at": "2026-09-24T01:05:08.827664Z"
+  },
+  "approval": {
+    "required": false,
+    "decision": null,
+    "approver_roles": [],
+    "reasons": [],
+    "reviewer_name": null,
+    "decided_at": null
+  },
+  "policy_events": [
+    {
+      "action": "model.invoke",
+      "subject": "model:qwen2.5:3b",
+      "decision": "allow",
+      "rule": "models.yaml:approved_classifications",
+      "reason": "model 'qwen2.5:3b' is registered and approved for 'normal' data",
+      "at": "2026-09-24T01:04:29.890276Z"
+    }
+  ],
+  "timeline": {
+    "total_ms": 39647,
+    "stages": [
+      {
+        "id": "classify",
+        "ran": true,
+        "ms": 3,
+        "model": null,
+        "model_version": null,
+        "note": "question_answering · confidential"
+      },
+      {
+        "id": "plan",
+        "ran": false,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "no plan was made"
+      },
+      {
+        "id": "read",
+        "ran": false,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "no file was attached"
+      },
+      {
+        "id": "retrieve",
+        "ran": true,
+        "ms": 602,
+        "model": null,
+        "model_version": null,
+        "note": "6 passages, embedding search"
+      },
+      {
+        "id": "sandbox",
+        "ran": false,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "no code was generated"
+      },
+      {
+        "id": "draft",
+        "ran": true,
+        "ms": 38902,
+        "model": "qwen2.5:3b",
+        "model_version": "Q4_K_M",
+        "note": "123 characters"
+      },
+      {
+        "id": "verify",
+        "ran": true,
+        "ms": null,
+        "model": null,
+        "model_version": null,
+        "note": "4 of 4 checks passed"
+      }
+    ]
+  },
+  "usage": [
+    {
+      "stage": "drafting",
+      "model": "qwen2.5:3b",
+      "display_name": "Qwen2.5 3B",
+      "prompt_tokens": 1170,
+      "output_tokens": 29,
+      "tokens_per_second": 6.16,
+      "latency_ms": 38902,
+      "load_ms": 8,
+      "prompt_eval_ms": 33708,
+      "eval_ms": 4708,
+      "context_window": 5120,
+      "cancelled": false
+    }
+  ],
+  "skill": {
+    "id": "clause",
+    "name": "Find the governing clause",
+    "sha256": "d41ed1e9e13381afa04e1da69b6b7cead2f4bbd72f23b1e861aec8694717d13f",
+    "source": "built_in",
+    "input": "internal inspection of a pressure vessel in corrosive service"
+  },
+  "audit": {
+    "path": "storage/logs/audit.jsonl",
+    "count": 10,
+    "first_sequence": 7,
+    "last_sequence": 16,
+    "tail": [
+      {
+        "sequence": 14,
+        "at": "2026-09-24T01:05:08.828578+00:00",
+        "category": "verification",
+        "action": "completed",
+        "prev_hash": "d29ba1a32b7b08d6a303c6f24e4b847ec07fa71050f42289ecbd1fdf73314526",
+        "hash": "54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb",
+        "line": "{\"sequence\": 14, \"id\": \"5d9bafaa-f940-4a25-a9f1-879784bccdda\", \"at\": \"2026-09-24T01:05:08.828578+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"f30c2459-2f2b-44a0-84bd-4688d7f38260\", \"category\": \"verification\", \"action\": \"completed\", \"detail\": {\"valid\": true, \"checks\": {\"source_verification\": true, \"calculation_verification\": true, \"code_verification\": true, \"hallucination_check\": true}}, \"prev_hash\": \"d29ba1a32b7b08d6a303c6f24e4b847ec07fa71050f42289ecbd1fdf73314526\", \"hash\": \"54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb\"}"
+      },
+      {
+        "sequence": 15,
+        "at": "2026-09-24T01:05:08.841357+00:00",
+        "category": "policy",
+        "action": "classification_raised",
+        "prev_hash": "54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb",
+        "hash": "caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817",
+        "line": "{\"sequence\": 15, \"id\": \"c2b01150-2542-42fb-a077-7834e41516c0\", \"at\": \"2026-09-24T01:05:08.841357+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"f30c2459-2f2b-44a0-84bd-4688d7f38260\", \"category\": \"policy\", \"action\": \"classification_raised\", \"detail\": {\"from\": \"normal\", \"to\": \"confidential\", \"because\": [\"S1\", \"S2\", \"S3\", \"S4\", \"S5\", \"S6\"]}, \"prev_hash\": \"54ca4492fd393b2aa30aac0a19ae76688c9968d4142065c06cc60eb077f1b5cb\", \"hash\": \"caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817\"}"
+      },
+      {
+        "sequence": 16,
+        "at": "2026-09-24T01:05:08.903721+00:00",
+        "category": "task",
+        "action": "finished:delivered",
+        "prev_hash": "caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817",
+        "hash": "bf6ec740e3b6ff221314417cdb7a4b80e14e53f7ac0d9447a330d5f6214e3d46",
+        "line": "{\"sequence\": 16, \"id\": \"58160e7e-1fab-4675-88fa-dc33a556b098\", \"at\": \"2026-09-24T01:05:08.903721+00:00\", \"actor\": \"engineer\", \"actor_role\": \"engineer\", \"task_id\": \"f30c2459-2f2b-44a0-84bd-4688d7f38260\", \"category\": \"task\", \"action\": \"finished:delivered\", \"detail\": {\"status\": \"delivered\", \"duration_ms\": 39647, \"deliverables\": [], \"verification_valid\": true, \"egress\": {\"unapproved_connections_observed\": 0, \"method\": \"process-tree connection sampling; a connection that opens and closes between samples is not observed\"}}, \"prev_hash\": \"caefbc8d33aafd45672eb16147fbb391026f9ebe2f36c4106ef31cc8cd5f2817\", \"hash\": \"bf6ec740e3b6ff221314417cdb7a4b80e14e53f7ac0d9447a330d5f6214e3d46\"}"
+      }
+    ]
+  },
+  "sandbox_self_test": {
+    "sequence": 106,
+    "at": "2026-09-24T01:14:17.022373+00:00",
+    "hash": "712075f90046a40dd64f2ea8eb4a0551281fbb0c398329f7d89868caa25a797a",
+    "detail": {
+      "checks": [
+        {
+          "name": "Static import review",
+          "target": "import socket; socket.socket()",
+          "passed": true,
+          "detail": "line 1: import of denied module 'socket'"
+        },
+        {
+          "name": "Runtime socket denial",
+          "target": "socket.socket() and _socket.socket() with the static check bypassed",
+          "passed": true,
+          "detail": "BLOCKED: SovereignNetworkBlocked"
+        },
+        {
+          "name": "Process escape review",
+          "target": "os.system('id')",
+          "passed": true,
+          "detail": "line 2: process escape 'os.system()'"
+        },
+        {
+          "name": "Filesystem write confinement",
+          "target": "open('../../escape_probe.txt', 'w') with the static check bypassed",
+          "passed": true,
+          "detail": "BLOCKED: SovereignFilesystemBlocked"
+        },
+        {
+          "name": "Permitted work still runs",
+          "target": "print(sum(range(1000)))",
+          "passed": true,
+          "detail": "exit 0 in 110ms"
+        },
+        {
+          "name": "Memory limit terminates a bomb",
+          "target": "allocate 200 MB under a 128 MB Job Object cap",
+          "passed": true,
+          "detail": "commit refused at the cap; exit 1, peak 8.7 MB"
+        },
+        {
+          "name": "CPU-time limit terminates a spin",
+          "target": "infinite loop under a 1s CPU-time cap",
+          "passed": true,
+          "detail": "terminated after 6.61s CPU"
+        },
+        {
+          "name": "Process spawning is capped",
+          "target": "spawn 10 children under a 3-process Job Object cap",
+          "passed": true,
+          "detail": "SPAWN_CAPPED_AT 1 OSError"
+        }
+      ],
+      "passed": 8,
+      "total": 8,
+      "assessable": true,
+      "backend": "windows_job_object",
+      "overall": "8 of 8 containment checks held on this host",
+      "all_passed": true,
+      "duration_ms": 7645,
+      "ran_at": "2026-09-24T01:14:17.021855+00:00"
+    }
+  }
+}

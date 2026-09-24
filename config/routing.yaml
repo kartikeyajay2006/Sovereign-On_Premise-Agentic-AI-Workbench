@@ -115,9 +115,19 @@ stage_output_tokens:
 # is being paged in and out a seventy-second call takes twenty-five minutes.
 #
 # Reading a scan needs room for the image tokens. Text stages do not.
+#
+# The text stages share ONE value, because they share one model and the
+# runtime allocates the cache when it loads the model: a call asking for a
+# different window forces a full reload of a model already in memory.
+# Measured on a live run with drafting at 5120 and verification at 3072:
+# verification's load_ms was 7093 -- seven seconds reloading qwen2.5:3b to
+# shrink a cache it already had. The difference in cache between 3072 and
+# 5120 on a 3B model is tens of megabytes; the reload was paid on every run.
+# vision_extraction keeps its own value: it runs on a different model, so it
+# swaps regardless.
 stage_context_tokens:
   vision_extraction: 8192
-  planning: 4096
-  code_generation: 4096
-  verification: 3072
+  planning: 5120
+  code_generation: 5120
+  verification: 5120
   drafting: 5120

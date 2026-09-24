@@ -23,7 +23,11 @@ from backend.core.schemas import (
     Sensitivity,
     TaskProfile,
 )
-from backend.models_layer.registry import ModelRegistry, get_model_registry
+from backend.models_layer.registry import (
+    ModelRegistry,
+    RegistrySnapshot,
+    get_model_registry,
+)
 
 
 class NoEligibleModelError(RuntimeError):
@@ -118,6 +122,34 @@ class ModelRouter:
             return False
         return all(capability in model.capabilities for capability in capabilities)
 
+    @staticmethod
+    def _why_not(
+        model_id: str,
+        snapshot: RegistrySnapshot,
+        capabilities: list[str],
+        sensitivity: Sensitivity,
+    ) -> str:
+        """The first hard gate a requested model fails, in `_eligible`'s order.
+
+        One gate, named specifically. "Not eligible" would be true and would
+        leave the person unable to tell a model they could install from one
+        policy will never let near this data.
+        """
+        if not snapshot.provider_reachable:
+            return "the local inference server is unreachable"
+        model = snapshot.by_id(model_id)
+        if model is None:
+            return f"{model_id} is not in the model registry"
+        if not model.available:
+            return f"{model_id} is registered but not installed on this host"
+        if sensitivity not in model.approved_classifications:
+            return f"{model_id} is not approved for {sensitivity.value} data"
+        missing = [capability for capability in capabilities if capability not in model.capabilities]
+        if missing:
+            noun = "capability" if len(missing) == 1 else "capabilities"
+            return f"{model_id} lacks the {', '.join(missing)} {noun} this stage requires"
+        return f"{model_id} is not eligible for this stage"
+
     # -- public API --------------------------------------------------------
     async def route(
         self,
@@ -125,9 +157,20 @@ class ModelRouter:
         *,
         stage: str | None = None,
         extra_capabilities: list[str] | None = None,
+        preferred_model: str | None = None,
     ) -> RoutingDecision:
+        """Choose the model for one stage.
+
+        `preferred_model` is a request, not an override. It is looked for
+        among the models that already passed every hard gate for this stage
+        -- after the configured fallback, so it is judged by exactly the
+        policy that judged everything else -- and chosen over the top scorer
+        only if it is there. Otherwise the router's own choice stands and
+        the decision names the gate the request failed.
+        """
         snapshot = await self.registry.refresh()
         rule = self._select_rule(profile)
+        preferred = (preferred_model or "").strip() or None
 
         requirement = dict(rule.get("require") or {})
         stage_roles = self.config.routing.get("stage_roles") or {}
@@ -207,6 +250,13 @@ class ModelRouter:
                     "Local inference server is unreachable; no model can be "
                     "selected. Start the on-premise runtime and retry."
                 )
+            declined = (
+                self._why_not(preferred, snapshot, capabilities, profile.sensitivity)
+                if preferred
+                else None
+            )
+            if declined:
+                reason += f" Requested {preferred} was not used: {declined}."
             return RoutingDecision(
                 requested_role=applied_role,
                 required_capabilities=capabilities,
@@ -217,9 +267,26 @@ class ModelRouter:
                 used_fallback=used_fallback,
                 candidates=candidates[:6],
                 decided_at=decided_at,
+                stage=stage,
+                preferred_model=preferred,
+                preference_honoured=False if preferred else None,
+                preference_reason=declined,
             )
 
         winner = eligible[0]
+        preference_honoured: bool | None = None
+        preference_reason: str | None = None
+        if preferred:
+            requested = next((item for item in eligible if item["model"] == preferred), None)
+            if requested is not None:
+                winner = requested
+                preference_honoured = True
+            else:
+                preference_honoured = False
+                preference_reason = self._why_not(
+                    preferred, snapshot, capabilities, profile.sensitivity
+                )
+
         matched = [
             capability
             for capability in capabilities
@@ -234,6 +301,10 @@ class ModelRouter:
         ]
         if used_fallback:
             reason_parts.insert(0, "primary requirement unmet, applied configured fallback")
+        if preference_honoured:
+            reason_parts.insert(0, f"{preferred} requested and eligible")
+        elif preference_honoured is False:
+            reason_parts.insert(0, f"requested {preferred} not used: {preference_reason}")
         if stage:
             reason_parts.insert(0, f"stage '{stage}'")
 
@@ -247,6 +318,10 @@ class ModelRouter:
             used_fallback=used_fallback,
             candidates=candidates[:6],
             decided_at=decided_at,
+            stage=stage,
+            preferred_model=preferred,
+            preference_honoured=preference_honoured,
+            preference_reason=preference_reason,
         )
 
     async def resolve_descriptor(self, decision: RoutingDecision) -> ModelDescriptor:

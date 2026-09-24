@@ -296,11 +296,24 @@ class KnowledgeBase:
         top_k: int | None = None,
         departments: list[str] | None = None,
         min_score: float | None = None,
+        max_classification: str | None = None,
     ) -> tuple[list[EvidenceItem], Literal["embedding", "lexical"], int]:
         started = time.perf_counter()
         limit = int(top_k or self._kb_config.get("default_top_k", 6))
         floor = float(min_score if min_score is not None else self._kb_config.get("min_score", 0.15))
         rows = self.db.iter_chunks(departments)
+        # Clearance is applied before ranking, not after. Filtering the top k
+        # afterwards gave an operator three passages where an engineer got six,
+        # because Restricted passages had taken the other slots and were then
+        # removed: less context for the answer, and a count that told the
+        # operator something above their clearance had matched.
+        if max_classification is not None:
+            ceiling = self.config.classification_rank(max_classification)
+            rows = [
+                row
+                for row in rows
+                if self.config.classification_rank(row.get("classification") or "normal") <= ceiling
+            ]
         if not rows:
             return [], "lexical", int((time.perf_counter() - started) * 1000)
 

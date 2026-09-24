@@ -1,0 +1,15 @@
+# Built-in skill: a DOCX approval note for a reviewer.
+# Wording rules: see clause.yaml, with one deliberate exception. "Approval
+# note" is itself a sensitivity trigger in config/classification.yaml, so
+# every run of this skill is sensitive and held for sign-off -- exactly as
+# the same request typed into the thread is. That is the policy applying to
+# what the skill is, not the template changing it.
+
+id: approval-note
+name: Draft an approval note
+summary: A DOCX approval note citing each requirement, for a reviewer to sign off.
+input_hint: What needs approving, e.g. continued operation of V-2104 with a Medium finding
+deliverable_format: docx
+template: >-
+  Prepare an approval note, based on our SOPs and citing each requirement,
+  for: {input}

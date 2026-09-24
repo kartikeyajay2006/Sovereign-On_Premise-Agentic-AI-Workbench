@@ -46,6 +46,9 @@ export function EvidenceDrawer({
           {items.map((e) => {
             const src = e.source || e.source_document || 'Local Document'
             const loc = e.clause || e.location || ''
+            // A similarity bar filled to an invented 0.95 is a measurement the
+            // system never took. When the backend reports no score the whole
+            // row is omitted rather than drawn at a flattering default.
             const metric = e.kind === 'vision_extraction' ? e.confidence : (e.similarity ?? e.score)
             const metricLabel = e.kind === 'vision_extraction' ? 'Model estimate' : 'Similarity'
 

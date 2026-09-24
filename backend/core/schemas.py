@@ -37,6 +37,10 @@ class TaskType(str, Enum):
     VISION_ANALYSIS = "vision_analysis"
     SUMMARIZATION = "summarization"
     QUESTION_ANSWERING = "question_answering"
+    # A greeting, thanks or an acknowledgement: not a task. Answered in one
+    # short model call, without retrieval, claim checks or approval, because
+    # it makes no claims (backend/agents/orchestrator.py, _converse).
+    CONVERSATION = "conversation"
 
 
 class Complexity(str, Enum):
@@ -186,6 +190,68 @@ class RoutingDecision(BaseModel):
     used_fallback: bool = False
     candidates: list[dict[str, Any]] = Field(default_factory=list)
     decided_at: datetime
+    # The pipeline stage this decision served, when routed for one. It was
+    # only ever inside `reason` as prose, so a reopened run could not say
+    # which stage a declined request applied to without parsing a sentence.
+    stage: str | None = None
+    # What the person asked for, and what became of it. All three stay None
+    # when they left the choice to the router. A preference is honoured only
+    # where policy would have allowed that model anyway, so a request is
+    # never a way round an approval, an installation or a capability gate --
+    # and when it is declined, `preference_reason` says which gate declined
+    # it, so the interface can tell them rather than quietly substitute.
+    preferred_model: str | None = None
+    preference_honoured: bool | None = None
+    preference_reason: str | None = None
+
+
+class ModelUsage(BaseModel):
+    """What one model call cost, as measured.
+
+    Every figure here is timed by the orchestrator around the call, reported
+    by the runtime at the end of it, or -- the window and the output budget --
+    exactly what the call was sent with. A figure the runtime did not report
+    stays None. Zero is a count; None is the absence of one, and a total that
+    quietly read a missing count as zero would understate the run it
+    describes.
+    """
+
+    stage: str
+    #: The registry id that served the call, e.g. ``qwen2.5:3b``.
+    model: str
+    display_name: str | None = None
+    #: Tokens the runtime reports for the prompt (``prompt_eval_count``).
+    prompt_tokens: int | None = None
+    #: Tokens the runtime reports generating (``eval_count``). Includes any
+    #: reasoning a model produced and the workbench then stripped.
+    output_tokens: int | None = None
+    #: Wall clock around the whole call: queueing, load, prompt and output.
+    latency_ms: int
+    #: ``output_tokens`` over the runtime's own generation time
+    #: (``eval_duration``), so model load and prompt processing are not
+    #: averaged into what reads as generation speed.
+    tokens_per_second: float | None = None
+    #: The context window this call was given (``num_ctx``). Stage budgets
+    #: in config/routing.yaml make it far smaller than the model's declared
+    #: maximum, and a prompt's share of the window it actually ran in is the
+    #: figure that says how close the call came to truncation.
+    context_window: int | None = None
+    #: The output budget this call was given (``num_predict``).
+    output_limit: int | None = None
+    #: Why the runtime stopped: ``stop`` for a finished answer, ``length``
+    #: when the output budget ran out first.
+    done_reason: str | None = None
+    #: Only a streamed call can time its first visible fragment.
+    first_token_ms: int | None = None
+    load_ms: int | None = None
+    prompt_eval_ms: int | None = None
+    eval_ms: int | None = None
+    streamed: bool = False
+    #: Stopped at the operator's request before the runtime finished. The
+    #: runtime reports counts only in its final message, so a stopped call
+    #: carries its wall clock and nothing else.
+    cancelled: bool = False
+    started_at: datetime
 
 
 # ------------------------------------------------------------------ evidence
@@ -312,6 +378,23 @@ class TaskCreateRequest(BaseModel):
     prompt: str = Field(min_length=1)
     file_ids: list[str] = Field(default_factory=list)
     deliverable_format: str | None = None
+    # A registry id the person would like used. Advisory: the router honours
+    # it per stage only where the model is eligible under the same policy,
+    # and records why wherever it is not.
+    preferred_model: str | None = Field(default=None, max_length=128)
+    # A skill to run: `prompt` is then what was typed after it, and the
+    # skill's template turns it into the request (backend/skills/registry.py).
+    skill_id: str | None = Field(default=None, max_length=32)
+
+
+class SkillInvocation(BaseModel):
+    """Which skill produced a task's request, at which hash, from what input."""
+
+    id: str
+    name: str
+    sha256: str
+    source: str
+    input: str
 
 
 class PolicyEvent(BaseModel):
@@ -339,7 +422,15 @@ class Task(BaseModel):
     files: list[StoredFile] = Field(default_factory=list)
     profile: TaskProfile | None = None
     plan: AgentPlan | None = None
+    preferred_model: str | None = None
+    # Set when the request came from a skill: the prompt above is the skill's
+    # rendering, and this is what the person typed and which skill made it.
+    skill: SkillInvocation | None = None
     routing: list[RoutingDecision] = Field(default_factory=list)
+    # One record per model call, in the order they ran. Persisted with the
+    # task, so a run reopened later reports what it cost rather than only
+    # what it said.
+    usage: list[ModelUsage] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
     evidence: list[EvidenceItem] = Field(default_factory=list)
     verification: VerificationReport | None = None
@@ -365,6 +456,9 @@ class TaskSummary(BaseModel):
     deliverable_count: int = 0
     approval_required: bool = False
     user_display_name: str | None = None
+    # The skill the request went through, so a list can show "/clause" and
+    # what was typed rather than the skill's whole rendering.
+    skill: SkillInvocation | None = None
 
 
 # ----------------------------------------------------------------- knowledge
@@ -432,16 +526,17 @@ class NetworkConnection(BaseModel):
 class SovereigntyStatus(BaseModel):
     sovereign: bool
     external_api_calls: int = 0
-    cloud_llm_calls: int = 0
     internet_requests: int = 0
     dns_requests: int = 0
-    data_leaving_host_bytes: int = 0
     unapproved_connections: int = 0
     local_connections: int = 0
     monitored_since: datetime
     last_checked: datetime
     violations: list[NetworkConnection] = Field(default_factory=list)
+    # False while the monitor is stopped or its last sample produced no
+    # reading; monitor_error then says why.
     monitor_active: bool = True
+    monitor_error: str | None = None
     interfaces: dict[str, Any] = Field(default_factory=dict)
 
 

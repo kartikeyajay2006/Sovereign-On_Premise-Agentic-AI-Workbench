@@ -1,39 +1,20 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="180" height="180" rx="40" fill="#0A0A0A" />
-  
-  <!-- Outer Radial Dashed Orbit -->
-  <circle
-    cx="90"
-    cy="90"
-    r="72"
-    stroke="#F7F7F5"
-    stroke-width="3"
-    stroke-dasharray="8 12"
-    stroke-opacity="0.2"
-  />
-
-  <!-- Aegis Shield Contour -->
-  <path
-    d="M90 26L142 49V87C142 118.5 119.5 145.5 90 154C60.5 145.5 38 118.5 38 87V49L90 26Z"
-    stroke="#F7F7F5"
-    stroke-width="8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-
-  <!-- Inner Geometric Alpha Apex (Aegis "A") -->
-  <path
-    d="M90 50L118 108H102L90 82L78 108H62L90 50Z"
-    fill="#F7F7F5"
-  />
-
-  <!-- Sovereign Emerald Defense Diamond Core -->
-  <path
-    d="M90 98L99 113L90 128L81 113L90 98Z"
-    fill="#16A34A"
-  />
-
-  <!-- Top / Bottom Apex Guide Marks -->
-  <line x1="90" y1="14" x2="90" y2="26" stroke="#16A34A" stroke-width="6" stroke-linecap="round" />
-  <line x1="90" y1="154" x2="90" y2="166" stroke="#16A34A" stroke-width="6" stroke-linecap="round" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+  <!--
+    The AEGIS mark at tab size: the ink tile with the glyph, as in
+    components/aegis-logo.tsx. The colours follow the browser's theme, so
+    the tile is ink on a light tab strip and ivory on a dark one.
+  -->
+  <style>
+    .tile { fill: #141413; }
+    .ink { stroke: #faf9f6; fill: none; }
+    .dot { fill: #faf9f6; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #f2f1ec; }
+      .ink { stroke: #141413; }
+      .dot { fill: #141413; }
+    }
+  </style>
+  <rect class="tile" x="0.5" y="0.5" width="23" height="23" rx="6.5" />
+  <path class="ink" d="M6.6 17.4 12 6.6l5.4 10.8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle class="dot" cx="12" cy="15.1" r="1.55" />
 </svg>

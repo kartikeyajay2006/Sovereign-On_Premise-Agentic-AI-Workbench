@@ -12,6 +12,28 @@
 
 classification_version: 1
 
+# ------------------------------------------------------------ conversation
+# A message that is conversation rather than a task -- a greeting, thanks, an
+# acknowledgement, asking what the workbench is -- matched against the WHOLE
+# message (case-insensitive, trailing punctuation allowed). It is answered in
+# one short model call without retrieval, claim checks or approval: there are
+# no claims to ground. Anything longer, anything with an attachment, and
+# anything that goes on to ask something ("yes, and what about clause 5?")
+# is a task and takes the full pipeline.
+conversation:
+  max_words: 6
+  patterns:
+    - "(hi|hello|hey|hiya|namaste|yo)( there| aegis| again)?"
+    - "good (morning|afternoon|evening)( aegis)?"
+    - "(thanks|thank you|thx|ty)( so much| a lot| aegis)?"
+    - "(ok|okay|cool|great|nice|perfect|got it|understood|sounds good)"
+    - "(yes|yeah|yep|no|nope|sure)"
+    - "(bye|goodbye|see you)"
+    - "(who|what) are you"
+    - "what (can|do) you do"
+    - "how do (i|you) use (this|you|aegis)"
+    - "help"
+
 # ---------------------------------------------------------------- input type
 # Derived primarily from attached file extensions/MIME, with prompt hints as a
 # secondary signal. `extensions` are matched case-insensitively.
@@ -89,7 +111,9 @@ task_types:
         - {match: "compute", weight: 4}
         - {match: "how much", weight: 3}
         - {match: "thickness", weight: 3}
-        - {match: "pressure", weight: 2}
+        # Not "pressure": in this corpus it is almost always "pressure
+        # vessel", a noun, and it tipped plain lookups ("the interval between
+        # inspections of a pressure vessel") into calculations on a tie.
         - {match: "corrosion rate", weight: 5}
         - {match: "remaining life", weight: 5}
         - {match: "tonnage", weight: 3}
@@ -148,11 +172,13 @@ complexity:
         - {match: "based on the sop", weight: 4}
         - {match: "cross-check", weight: 4}
         - {match: "verify against", weight: 4}
+      # Not retrieval on its own: looking one thing up and answering it is
+      # two steps, and counting it made every one-line question "agentic"
+      # with a budget of 14.
       signals:
         multiple_files: 3
         deliverable_required: 3
         visual_input: 2
-        retrieval_required: 2
     multi_step:
       patterns:
         - {match: "then", weight: 2}

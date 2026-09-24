@@ -23,6 +23,9 @@ roles:
       - knowledge.ingest
       - task.read.department
       - deliverable.download.department
+      # Save a request template others can call as /name. A skill changes
+      # only what a run is asked; every run still meets every gate.
+      - skill.create
     max_data_classification: restricted
 
   reviewer:
@@ -52,6 +55,8 @@ roles:
       - policy.read
       - knowledge.manage
       - system.manage
+      # Delete a skill someone else added.
+      - skill.manage
     max_data_classification: restricted
 
 # Departments constrain which knowledge-base documents a user may retrieve.

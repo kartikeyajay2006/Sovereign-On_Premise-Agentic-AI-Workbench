@@ -22,7 +22,7 @@ from backend.core.schemas import (
     User,
 )
 from backend.policy.gateway import PolicyGateway
-from backend.tools.sandbox import Sandbox, StaticValidator
+from backend.tools.sandbox import RESOURCE_LIMITS_AVAILABLE, Sandbox, StaticValidator
 
 
 # --------------------------------------------------------------------- setup
@@ -91,6 +91,21 @@ class TestStaticValidation:
             "__import__('socket')",
             "(). __class__.__bases__",
             "x = ().__class__.__subclasses__()",
+            # Indirect process escape.
+            #
+            # The suite above only ever tried os.system() spelled out, which
+            # the validator catches by matching an ast.Attribute whose
+            # receiver is named 'os'. Reaching the same function through
+            # getattr is an ast.Call on ast.Name('getattr') and matched
+            # nothing, so these three passed with zero violations while 'os'
+            # and 'sys' were allow-listed imports. Building the attribute
+            # name from pieces also defeats denied_attributes, which compares
+            # the literal attribute text.
+            "import os\ngetattr(os, 'system')('id')",
+            "import os\ngetattr(os, 'sys' + 'tem')('id')",
+            "import os\nvars(os)['system']('id')",
+            "import sys\nsetattr(sys, 'x', 1)",
+            "import os\nglobals()['os'].system('id')",
         ],
     )
     def test_rejects_dangerous_source(self, validator: StaticValidator, source: str) -> None:
@@ -118,6 +133,16 @@ class TestStaticValidation:
 
 
 # ------------------------------------------------------------ sandbox runtime
+@pytest.mark.skipif(
+    not RESOURCE_LIMITS_AVAILABLE,
+    reason=(
+        "This host has no POSIX resource limits, so the sandbox refuses to "
+        "execute rather than running generated code unbounded. These tests "
+        "assert containment behaviour that cannot exist here; they run under "
+        "WSL2/Linux. See docs/RUNTIME-ENVIRONMENT.md. The skip is deliberate "
+        "and reported — it is not the same as passing."
+    ),
+)
 class TestSandboxContainment:
     @pytest.fixture(scope="class")
     def sandbox(self) -> Sandbox:
@@ -297,6 +322,19 @@ class TestAuditChain:
 
         assert not log.verify_chain().valid
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason=(
+            "The test spawns writers with multiprocessing and passes a local "
+            "closure to them. Windows has no fork, so the child is started by "
+            "spawn and the callable cannot be pickled — the test fails on its "
+            "own harness, not on the lock it is checking. The Windows lock "
+            "path (msvcrt.locking) is exercised by every other audit test "
+            "here; proving cross-process serialisation needs the test "
+            "rewritten with a module-level worker function, which is worth "
+            "doing. Runs under WSL2/Linux meanwhile."
+        ),
+    )
     def test_concurrent_writers_cannot_fork_the_chain(self, tmp_path) -> None:
         """Two processes appended at once and both claimed the same sequence.
 
@@ -407,3 +445,106 @@ class TestApprovalGateIsActionable:
             assert "approval.decide" in config.role_permissions(role), (
                 f"policy nominated '{role}', which cannot decide approvals"
             )
+
+
+class TestSelfTestOnAHostThatCannotExecute:
+    """Not assessable is a third outcome, and on this class of host it is the
+    true one.
+
+    Every execute() returns the refusal when POSIX resource limits are absent,
+    and the checks read that as containment holding: "Static import review:
+    PASS -- execution refused" claims a control was demonstrated when nothing
+    was submitted. Three refusals scored as passes, the fourth failed because
+    permitted work cannot run either, and the security page reported
+    CONTAINMENT FAILURE -- alarming about the wrong thing while flattering the
+    three it got wrong.
+    """
+
+    def test_a_refusing_host_makes_no_containment_claim(self, monkeypatch):
+        from backend.tools import sandbox as sandbox_module
+
+        engine = sandbox_module.get_sandbox()
+        monkeypatch.setattr(sandbox_module, "RESOURCE_LIMITS_AVAILABLE", False)
+
+        report = engine.self_test_report()
+
+        assert report["assessable"] is False
+        assert report["checks"] == []
+        assert report["total"] == 0
+        assert "CONTAINMENT FAILURE" not in report["overall"]
+        assert "not assessable" in report["overall"].lower()
+        # The operator is told what to do about it, not just that it failed.
+        assert "WSL2" in report["reason"]
+
+    def test_a_refusal_is_never_counted_as_a_passing_check(self, monkeypatch):
+        from backend.tools import sandbox as sandbox_module
+
+        engine = sandbox_module.get_sandbox()
+        monkeypatch.setattr(sandbox_module, "RESOURCE_LIMITS_AVAILABLE", False)
+
+        report = engine.self_test_report()
+        assert report["passed"] == 0
+        assert report["all_passed"] is False
+
+
+class TestSandboxConsoleIsGoverned:
+    """The interactive console must be no weaker than an agent tool call.
+
+    It is the security demo surface, so the temptation is to make it 'just run
+    the code'. These assert that it goes through the same gates: authentication,
+    the python_exec RBAC check, and the static validator - none of which the
+    endpoint may bypass, however direct the console feels.
+    """
+
+    def setup_method(self) -> None:
+        from backend.core.identity import get_identity_service
+
+        get_identity_service().ensure_seed_users()
+
+    @staticmethod
+    def _login(client, username: str) -> dict[str, str]:
+        response = client.post(
+            "/api/auth/login", json={"username": username, "password": "workbench"}
+        )
+        assert response.status_code == 200, response.text
+        return {"Authorization": f"Bearer {response.json()['token']}"}
+
+    def test_console_requires_authentication(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import create_app
+
+        with TestClient(create_app()) as client:
+            assert client.post("/api/sandbox/execute", json={"code": "print(1)"}).status_code == 401
+
+    def test_console_denies_a_role_without_python_exec(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import create_app
+
+        # The auditor holds read-only oversight and is not granted python_exec
+        # in tool-permissions.yaml. The console must refuse it, not run it.
+        with TestClient(create_app()) as client:
+            headers = self._login(client, "auditor")
+            response = client.post(
+                "/api/sandbox/execute", json={"code": "print(1)"}, headers=headers
+            )
+            assert response.status_code == 403
+
+    def test_console_cannot_bypass_the_static_validator(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from backend.api.main import create_app
+
+        with TestClient(create_app()) as client:
+            headers = self._login(client, "engineer")
+            response = client.post(
+                "/api/sandbox/execute",
+                json={"code": "import os\ngetattr(os, 'sys' + 'tem')('id')"},
+                headers=headers,
+            )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            # The indirect process escape must be caught before execution.
+            assert body["result"]["static_validation_passed"] is False
+            assert body["result"]["ok"] is False

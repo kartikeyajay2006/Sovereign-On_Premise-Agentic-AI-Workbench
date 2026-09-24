@@ -1,9 +1,12 @@
 /**
  * Static presentation constants.
  *
- * The `persona` on each role is a label for the demonstration roles, not a
- * real person: never render it where a reader could take it for the signed-in
- * user, because this system records who approved what.
+ * Roles carried a `persona` — invented names such as "M. Okonkwo" and
+ * "L. Bergström" — with a warning here never to render one where a reader
+ * could take it for the signed-in user. role-switcher.tsx did exactly that,
+ * falling back to the persona and then to a hardcoded "S. Ramanathan" for the
+ * name shown as the current operator. On a system that records who approved
+ * what, a fabricated human name is not a placeholder. The field is gone.
  *
  * Everything here describes the *shape* of the interface — the stages a run
  * moves through, the roles that exist, the nodes in the architecture diagram,
@@ -23,35 +26,30 @@ export const ROLES: Role[] = [
   {
     id: 'operator',
     label: 'Plant Operator',
-    persona: 'M. Okonkwo',
     description: 'Submits inspection and calculation tasks from the field.',
     capabilities: ['Submit tasks', 'Upload documents', 'View own deliverables'],
   },
   {
     id: 'engineer',
     label: 'Integrity Engineer',
-    persona: 'S. Ramanathan',
     description: 'Runs advanced sandboxed tooling and corrosion analysis.',
     capabilities: ['Advanced tools', 'Sandbox execution', 'Semantic search', 'Submit tasks'],
   },
   {
     id: 'reviewer',
     label: 'Approving Reviewer',
-    persona: 'L. Bergström',
     description: 'Reviews held deliverables and authorizes release.',
     capabilities: ['Approval queue', 'Release deliverables', 'Reject with notes'],
   },
   {
     id: 'auditor',
     label: 'Internal Auditor',
-    persona: 'D. Haleem',
     description: 'Verifies the cryptographic audit chain and exports logs.',
     capabilities: ['Audit trail', 'Chain verification', 'Export log'],
   },
   {
     id: 'admin',
     label: 'Platform Admin',
-    persona: 'root@host',
     description: 'Manages sovereignty policy, RBAC and sandbox posture.',
     capabilities: ['Security center', 'Policy matrix', 'Sandbox diagnostics', 'All tools'],
   },
@@ -61,23 +59,37 @@ export const ROLES: Role[] = [
 // stage and how long it took are filled in from the run itself, because
 // showing a model name and a latency before anything has executed states two
 // things the host has not done.
-export const DEFAULT_PIPELINE: PipelineStage[] = [
-  { id: 'classify', index: '01', name: 'Classify', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'plan', index: '02', name: 'Plan', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'read', index: '03', name: 'Read', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'retrieve', index: '04', name: 'Retrieve', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'sandbox', index: '05', name: 'Sandbox', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'draft', index: '06', name: 'Draft', model: '', latencyMs: 0, status: 'pending' },
-  { id: 'verify', index: '07', name: 'Verify', model: '', latencyMs: 0, status: 'pending' },
-]
+// Every row exists as `pending` from the moment a run starts, and events
+// mutate rows rather than appending them. That is what makes the board
+// stable: no layout shift by construction, and a stage that never reports is
+// visibly a stage that never reported rather than a row that never appeared.
+//
+// `at` and `elapsedMs` start null, not 0. Null is "no reading"; 0 would claim
+// the stage took no time. The previous shape initialised latencyMs to 0 for
+// all seven and nothing ever wrote to it.
+const stage = (
+  id: string,
+  index: string,
+  name: string,
+): PipelineStage => ({
+  id,
+  index,
+  name,
+  model: '',
+  status: 'pending',
+  at: null,
+  elapsedMs: null,
+  headline: null,
+})
 
-export const SOVEREIGN_NODES = [
-  { id: 'model', label: 'LOCAL MODEL' },
-  { id: 'vector', label: 'VECTOR STORE' },
-  { id: 'sandbox', label: 'SANDBOX' },
-  { id: 'docs', label: 'DOCUMENT STORE' },
-  { id: 'agent', label: 'AGENT' },
-  { id: 'audit', label: 'AUDIT LOG' },
+export const DEFAULT_PIPELINE: PipelineStage[] = [
+  stage('classify', '01', 'Classify'),
+  stage('plan', '02', 'Plan'),
+  stage('read', '03', 'Read'),
+  stage('retrieve', '04', 'Retrieve'),
+  stage('sandbox', '05', 'Sandbox'),
+  stage('draft', '06', 'Draft'),
+  stage('verify', '07', 'Verify'),
 ]
 
 export const CONSOLE_TEMPLATES = [

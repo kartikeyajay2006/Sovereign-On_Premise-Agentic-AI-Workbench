@@ -1,0 +1,16 @@
+# Built-in skill: the clause that governs a situation.
+#
+# A skill decides only what a run is asked (backend/skills/registry.py). The
+# wording follows the harness templates' two rules: it names our "SOPs" so
+# the run retrieves whatever its task type, and it carries no word that
+# changes classification (safety, hazard, shutdown, incident, statutory,
+# regulatory, confidential) -- such a word must come from the input, so only
+# that run is treated as sensitive. tests/test_skills.py holds both.
+
+id: clause
+name: Find the governing clause
+summary: The clause of the SOPs that governs a situation, and exactly what it requires.
+input_hint: The situation, e.g. internal inspection of a vessel in corrosive service
+template: >-
+  Which clause of our SOPs governs the following, and what exactly does it
+  require? {input}

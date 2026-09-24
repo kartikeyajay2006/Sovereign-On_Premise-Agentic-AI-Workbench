@@ -19,6 +19,17 @@ from backend.core.schemas import StreamEvent
 MAX_QUEUE = 256
 REPLAY_BUFFER = 400
 
+#: Events that are live-only and are never kept for replay.
+#:
+#: A draft streams at roughly twenty frames a second, so a single answer can
+#: publish more fragments than the whole replay buffer holds. Keeping them
+#: would evict the structural events -- the model choice, the evidence, the
+#: verification -- that a reconnecting client actually needs, and replaying
+#: them is worse than useless: the client appends deltas, so a buffer holding
+#: only the tail would rebuild a draft that begins mid-sentence. The complete
+#: text arrives on ``task.answer`` regardless, which is the authoritative copy.
+EPHEMERAL_EVENTS = frozenset({"task.token"})
+
 
 class EventBus:
     """Fan-out of :class:`StreamEvent` to any number of live subscribers."""
@@ -41,7 +52,8 @@ class EventBus:
             at=datetime.now(timezone.utc),
             data=data or {},
         )
-        self._recent.append(message)
+        if event not in EPHEMERAL_EVENTS:
+            self._recent.append(message)
         async with self._lock:
             subscribers = list(self._subscribers)
         for queue in subscribers:

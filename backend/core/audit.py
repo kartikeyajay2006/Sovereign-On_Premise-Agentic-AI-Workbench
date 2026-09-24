@@ -11,7 +11,6 @@ checkable rather than merely asserted.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import json
 import os
@@ -19,12 +18,51 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import IO, Any, Iterator
 
 from backend.core.config import get_config
 from backend.core.schemas import AuditChainStatus, AuditEvent
 
 GENESIS_HASH = "0" * 64
+
+
+# --------------------------------------------------------------- file locking
+# The audit file is appended to by more than one process, so the write has to
+# be serialised by the operating system rather than by a lock inside one
+# interpreter.
+#
+# `fcntl` is POSIX-only and importing it at module scope made this module — and
+# therefore the policy gateway, the sovereignty monitor, identity and the
+# orchestrator, all of which import it — impossible to load on Windows. The
+# whole backend failed to start, and the test suite silently collected six
+# fewer modules rather than reporting that audit and security coverage had been
+# skipped.
+#
+# Both branches take a genuine cross-process exclusive lock on the same file.
+# This is a portability fix, not a weakening: neither path is a no-op, and a
+# platform offering no kernel lock at all would raise rather than pretend.
+try:  # POSIX
+    import fcntl
+
+    def _lock_exclusive(handle: IO[Any]) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+    def _unlock(handle: IO[Any]) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+except ModuleNotFoundError:  # Windows
+    import msvcrt
+
+    def _lock_exclusive(handle: IO[Any]) -> None:
+        # msvcrt locks a byte range from the current offset, so the file needs
+        # at least the one byte being locked. LK_LOCK blocks and retries rather
+        # than failing immediately on contention.
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock(handle: IO[Any]) -> None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 class AuditLog:
@@ -90,12 +128,17 @@ class AuditLog:
         the point, but the write path should not permit it in the first place.
         """
         self._lock_path.touch(exist_ok=True)
-        with self._lock_path.open("a+") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        # The Windows byte-range lock needs a byte to lock, and an empty lock
+        # file has none. Writing one is harmless on both platforms: nothing
+        # reads this file's contents, only its lock state.
+        if self._lock_path.stat().st_size == 0:
+            self._lock_path.write_bytes(b"\0")
+        with self._lock_path.open("r+b") as handle:
+            _lock_exclusive(handle)
             try:
                 yield
             finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _unlock(handle)
 
     # -- writing -----------------------------------------------------------
     def record(

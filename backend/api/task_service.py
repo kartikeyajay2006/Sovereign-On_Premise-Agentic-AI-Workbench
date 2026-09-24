@@ -22,6 +22,7 @@ from backend.core.config import get_config
 from backend.core.database import get_database
 from backend.core.events import get_event_bus
 from backend.core.schemas import (
+    SkillInvocation,
     ApprovalRecord,
     InputType,
     PolicyDecision,
@@ -33,6 +34,61 @@ from backend.core.schemas import (
     User,
 )
 from backend.policy.gateway import get_policy_gateway
+
+
+def _egress_reading() -> dict[str, Any] | None:
+    """The egress monitor's cumulative count and whether it is watching."""
+    try:
+        from backend.security.sovereignty import get_sovereignty_monitor
+
+        status = get_sovereignty_monitor().status()
+    except Exception:  # the monitor is an observer; its failure must not fail a run
+        return None
+    return {
+        "unapproved_total": status.unapproved_connections,
+        "active": status.monitor_active,
+    }
+
+
+def _egress_over_run(
+    before: dict[str, Any] | None, after: dict[str, Any] | None
+) -> dict[str, Any]:
+    """What the egress monitor observed while one task ran -- and only that.
+
+    This replaces a constant. Every run's audit record carried
+    "network_activity": "none -- all processing local", written whatever
+    happened, into the tamper-evident log, where anyone reading it would take
+    it for an observation. The chain protects that record from being edited
+    afterwards; it cannot make a sentence true that was never checked.
+
+    The count is the difference in the monitor's running total across the
+    run window. It is null, with the reason, when the monitor was not
+    running at both ends, because an unwatched window is not a clean one.
+    The method is stated because the monitor samples: a connection that
+    opens and closes between two samples is not seen.
+    """
+    method = (
+        "process-tree connection sampling; a connection that opens and closes "
+        "between samples is not observed"
+    )
+    if before is None or after is None:
+        return {
+            "unapproved_connections_observed": None,
+            "reason": "the egress monitor could not be read",
+            "method": method,
+        }
+    if not (before["active"] and after["active"]):
+        return {
+            "unapproved_connections_observed": None,
+            "reason": "the egress monitor was not running for the whole run",
+            "method": method,
+        }
+    return {
+        "unapproved_connections_observed": max(
+            0, after["unapproved_total"] - before["unapproved_total"]
+        ),
+        "method": method,
+    }
 
 
 class TaskError(RuntimeError):
@@ -173,8 +229,16 @@ class TaskService:
                 task.id,
                 task.status.value,
                 payload,
+                # Every state a run cannot leave. Cancelled and blocked were
+                # missing, so a stopped run's row never got a completion time.
                 completed=task.status
-                in {TaskStatus.DELIVERED, TaskStatus.REJECTED, TaskStatus.FAILED},
+                in {
+                    TaskStatus.DELIVERED,
+                    TaskStatus.REJECTED,
+                    TaskStatus.FAILED,
+                    TaskStatus.BLOCKED,
+                    TaskStatus.CANCELLED,
+                },
             )
 
     def get_task(self, task_id: str) -> Task | None:
@@ -201,6 +265,7 @@ class TaskService:
                     deliverable_count=len(task.deliverables),
                     approval_required=bool(task.approval and task.approval.required),
                     user_display_name=task.user_display_name,
+                    skill=task.skill,
                 )
             )
         return summaries
@@ -221,7 +286,34 @@ class TaskService:
         prompt: str,
         file_ids: list[str],
         deliverable_format: str | None = None,
+        preferred_model: str | None = None,
+        skill_id: str | None = None,
     ) -> Task:
+        # A skill turns what was typed into the request. Everything below
+        # then sees only that request, so a skill meets every gate a typed
+        # request does and can change nothing but the words.
+        skill: SkillInvocation | None = None
+        if skill_id:
+            from backend.skills.registry import get_skill_registry
+
+            found = get_skill_registry().get(skill_id)
+            if found is None:
+                raise TaskError(f"No skill named /{skill_id}.")
+            skill = SkillInvocation(
+                id=found.id,
+                name=found.name,
+                sha256=found.sha256,
+                source=found.source.value,
+                input=prompt,
+            )
+            prompt = found.render(prompt)
+            if deliverable_format is None:
+                deliverable_format = found.deliverable_format
+        # Stored as asked, even when it names nothing installed. Whether it
+        # can be honoured is decided per stage by the router, which records
+        # the answer on each routing decision; refusing the task here would
+        # hide that answer instead of giving it.
+        preferred_model = (preferred_model or "").strip() or None
         files: list[StoredFile] = []
         for file_id in file_ids:
             stored = self.get_file(file_id)
@@ -245,6 +337,8 @@ class TaskService:
             updated_at=now,
             files=files,
             profile=profile,
+            preferred_model=preferred_model,
+            skill=skill,
         )
 
         required, reasons, approvers = self.gateway.approval_requirement(
@@ -268,6 +362,9 @@ class TaskService:
                 "prompt_chars": len(prompt),
                 "input_hashes": [stored.sha256 for stored in files],
                 "filenames": [stored.filename for stored in files],
+                "preferred_model": preferred_model,
+                "skill": skill.id if skill else None,
+                "skill_sha256": skill.sha256 if skill else None,
             },
         )
         self.audit.record(
@@ -296,6 +393,7 @@ class TaskService:
                 "prompt": prompt,
                 "profile": profile.model_dump(mode="json"),
                 "approval": task.approval.model_dump(mode="json"),
+                "preferred_model": preferred_model,
             },
         )
 
@@ -425,6 +523,7 @@ class TaskService:
                 user = identity.get_user(user_id)
                 if task is None or user is None:
                     continue
+                egress_before = _egress_reading()
                 task = await self.orchestrator.run(task, user, persist=self._persist)
                 self._persist(task)
                 self.audit.record(
@@ -440,7 +539,7 @@ class TaskService:
                         "verification_valid": (
                             task.verification.valid if task.verification else None
                         ),
-                        "network_activity": "none — all processing local",
+                        "egress": _egress_over_run(egress_before, _egress_reading()),
                     },
                 )
             except Exception as exc:  # a worker must never die silently
@@ -451,6 +550,10 @@ class TaskService:
                 )
             finally:
                 self._active = None
+                # A stop request is spent once its run has ended, however it
+                # ended. Left in the set, every stopped run's id stayed there
+                # for the life of the process.
+                self._cancelled.discard(task_id)
                 self._queue.task_done()
 
     async def start(self, worker_count: int = 1) -> None:
@@ -527,6 +630,20 @@ class TaskService:
             raise TaskError(
                 f"Role '{user.role}' is not an approving authority for this task "
                 f"(requires one of: {', '.join(task.approval.approver_roles)})"
+            )
+        # Separation of duties, enforced rather than asserted.
+        #
+        # The Approvals screen tells an engineer "approval is separated from
+        # execution on purpose: whoever ran the task does not sign it off".
+        # Nothing here checked it. A reviewer inherits task.create, so a
+        # reviewer could run a task and release their own deliverable, and
+        # the audit chain would record it as a second pair of eyes that was
+        # never there. Checked by account, not role, and for every role --
+        # an administrator's own work needs someone else's signature too.
+        if task.user_id == user.id:
+            raise TaskError(
+                "You ran this task, so you cannot approve or reject it. "
+                "A different account holding approval.decide must decide it."
             )
 
         approved = decision == "approve"

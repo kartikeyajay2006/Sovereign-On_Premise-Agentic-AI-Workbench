@@ -200,7 +200,25 @@ def policies(user: CurrentUser) -> dict[str, Any]:
 # ----------------------------------------------------------------- knowledge
 @router.get("/knowledge/documents", response_model=list[KnowledgeDocument])
 def knowledge_documents(user: CurrentUser) -> list[KnowledgeDocument]:
-    return get_knowledge_base().list_documents()
+    """The documents this account could retrieve from, and no others.
+
+    This listed every document to every signed-in role, so an operator saw
+    the title, department and classification of a Restricted design memo it
+    could never open -- search refused the content, and the catalogue
+    announced that it existed and what it was about. Filtered by the same
+    two rules as search: the caller's departments unless theirs is an
+    override role, and nothing above their clearance.
+    """
+    config = get_config()
+    overrides = config.access_control.get("file_access", {}).get("override_roles", [])
+    clearance = config.classification_rank(user.max_data_classification.value)
+    allowed = None if user.role in overrides else {user.department, "general"}
+    return [
+        document
+        for document in get_knowledge_base().list_documents()
+        if (allowed is None or document.department in allowed)
+        and config.classification_rank(document.classification.value) <= clearance
+    ]
 
 
 @router.post("/knowledge/search", response_model=KnowledgeSearchResponse)
@@ -209,16 +227,47 @@ async def knowledge_search(
     user: Annotated[User, Depends(require_permission("knowledge.search"))],
 ) -> KnowledgeSearchResponse:
     knowledge_base = get_knowledge_base()
+    config = get_config()
+    overrides = config.access_control.get("file_access", {}).get("override_roles", [])
+
+    # Scope exactly as the agent's own retrieval tool does (tools/registry.py),
+    # because this route reaches the same passages and must not be the way
+    # around the rule the tool enforces.
+    #
+    # It was not. `departments` came from the request body and was used as
+    # given, so any role holding knowledge.search could name another
+    # department and read its chunks; only a request that named nothing was
+    # scoped. And nothing here filtered by clearance at all, so the
+    # Knowledge screen's tester returned restricted and sensitive passages
+    # to roles the agent path would never have shown them to. A caller may
+    # now narrow its scope, never widen it.
     departments = payload.departments
-    overrides = get_config().access_control.get("file_access", {}).get("override_roles", [])
-    if departments is None and user.role not in overrides:
-        departments = [user.department, "general"]
+    if user.role not in overrides:
+        allowed = {user.department, "general"}
+        departments = (
+            sorted(allowed)
+            if departments is None
+            else [department for department in departments if department in allowed]
+        )
+        if not departments:
+            return KnowledgeSearchResponse(
+                query=payload.query, retrieval_mode="lexical", results=[], took_ms=0
+            )
 
     results, mode, took_ms = await knowledge_base.search(
-        payload.query, top_k=payload.top_k, departments=departments
+        payload.query,
+        top_k=payload.top_k,
+        departments=departments,
+        max_classification=user.max_data_classification.value,
     )
+    clearance = config.classification_rank(user.max_data_classification.value)
+    permitted = [
+        item
+        for item in results
+        if config.classification_rank(item.classification.value) <= clearance
+    ]
     return KnowledgeSearchResponse(
-        query=payload.query, retrieval_mode=mode, results=results, took_ms=took_ms
+        query=payload.query, retrieval_mode=mode, results=permitted, took_ms=took_ms
     )
 
 
@@ -345,11 +394,53 @@ def sandbox_self_test(user: CurrentUser) -> dict[str, Any]:
 # --------------------------------------------------------------------- health
 @router.get("/health", response_model=SystemHealth)
 async def health(user: CurrentUser) -> SystemHealth:
+    """Report what this host can currently do.
+
+    Four of the readings below are blocking calls, and this is an ``async def``
+    route, so they used to run directly on the event loop:
+
+    * ``knowledge_base.stats()`` queries SQLite.
+    * ``Sandbox.is_ready()`` starts a child interpreter with a 15 second
+      timeout. On the supported platform that is a real subprocess spawn.
+    * ``AuditLog.verify_chain()`` reads and re-hashes the entire audit file,
+      so it gets slower for the life of the deployment.
+    * ``SovereigntyMonitor.status()`` walks the process tree with psutil.
+
+    While any of them ran, the loop could serve nothing else. The interface
+    polls this endpoint, so during a task run the proxy reported
+    ``ECONNRESET`` on /api/health and ``ERR_INCOMPLETE_CHUNKED_ENCODING`` on
+    the event stream — the live view dropped exactly when a run was in
+    progress, which is when it matters. Events are also dropped for a slow
+    subscriber (``backend/core/events.py``), so stalling the loop can cost
+    records, not merely responsiveness.
+
+    Each blocking reading is now taken on a worker thread, and they are taken
+    concurrently rather than one after another.
+    """
     registry = get_model_registry()
-    snapshot = await registry.refresh(force=True)
     knowledge_base = get_knowledge_base()
-    stats = knowledge_base.stats()
     monitor = get_sovereignty_monitor()
+    sandbox = get_sandbox()
+    audit_log = get_audit_log()
+
+    # Not force=True. The registry already caches behind a TTL, and forcing a
+    # refresh here means every health poll makes an HTTP call to the inference
+    # provider — which, during a run, is the one process on the host saturated
+    # with work. Measured on this machine while a task was executing: health
+    # took between 1.6 and 20 seconds and a third of the requests timed out
+    # outright. The cached snapshot is the right answer for an endpoint the
+    # interface polls; /models/status still forces when a human asks for it.
+    snapshot, stats, retrieval_mode, sandbox_ready, chain, sovereignty = (
+        await asyncio.gather(
+            registry.refresh(),
+            asyncio.to_thread(knowledge_base.stats),
+            knowledge_base.retrieval_mode(),
+            asyncio.to_thread(sandbox.is_ready),
+            asyncio.to_thread(audit_log.verify_chain),
+            asyncio.to_thread(monitor.status),
+        )
+    )
+
     return SystemHealth(
         inference_provider=str(get_config().settings.inference.get("provider", "ollama")),
         inference_reachable=snapshot.provider_reachable,
@@ -357,11 +448,11 @@ async def health(user: CurrentUser) -> SystemHealth:
         models_available=len(snapshot.available()),
         knowledge_documents=stats["documents"],
         knowledge_chunks=stats["chunks"],
-        retrieval_mode=await knowledge_base.retrieval_mode(),
-        sandbox_runtime=get_sandbox().runtime,
-        sandbox_ready=get_sandbox().is_ready(),
-        audit_chain_valid=get_audit_log().verify_chain().valid,
-        sovereignty_ok=monitor.status().sovereign,
+        retrieval_mode=retrieval_mode,
+        sandbox_runtime=sandbox.runtime,
+        sandbox_ready=sandbox_ready,
+        audit_chain_valid=chain.valid,
+        sovereignty_ok=sovereignty.sovereign,
         uptime_seconds=(datetime.now(timezone.utc) - BOOT_TIME).total_seconds(),
         checked_at=datetime.now(timezone.utc),
     )
@@ -398,11 +489,31 @@ async def event_stream(user: CurrentUser, task_id: str | None = None) -> Streami
                 detail="You may only subscribe to your own task events",
             )
 
+    # Ownership, remembered per task for the life of this stream.
+    #
+    # This read and parsed the whole task record from SQLite for every event
+    # delivered to a subscriber without task.read.all. While a draft streams
+    # that is about twenty frames a second, so twenty full-record reads a
+    # second per open tab -- and the event bus drops events for a subscriber
+    # that falls behind, which turns a slow ownership check into missing
+    # stage events. A task's owner never changes, so the answer is cached --
+    # both ways, so a foreign task is also asked about only once. A task not
+    # found is NOT cached: an event that outran its row's commit would
+    # otherwise be remembered as "not yours" and hide the whole run from
+    # the person who started it.
+    owners: dict[str, bool] = {}
+
     def visible(event_task_id: str | None) -> bool:
         if event_task_id is None or can_read_all:
             return True
+        known = owners.get(event_task_id)
+        if known is not None:
+            return known
         task = service.get_task(event_task_id)
-        return task is not None and task.user_id == user.id
+        if task is None:
+            return False
+        owners[event_task_id] = task.user_id == user.id
+        return owners[event_task_id]
 
     async def generator() -> AsyncIterator[str]:
         yield ": stream open\n\n"

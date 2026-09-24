@@ -1,0 +1,10 @@
+# Built-in skill: what the procedures require, as handover points.
+# Wording rules: see clause.yaml.
+
+id: handover
+name: Handover points
+summary: What the SOPs require for a situation, as short points for the next shift.
+input_hint: The situation, e.g. a PSV in fouling service due for its bench test
+template: >-
+  Summarise, as short handover points for the next shift, what our SOPs
+  require for: {input}

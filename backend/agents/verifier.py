@@ -36,10 +36,54 @@ SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 # Verification reads model output, which is untrusted input, so the figure is
 # recovered rather than assumed.
 LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
-CITATION_PATTERN = re.compile(r"\[(?:S|F|V)\d+\]")
+# Must cover every prefix EvidenceLedger.PREFIXES can mint — S knowledge base,
+# F uploaded file, V vision extraction, C computation — plus the E fallback for
+# an unrecognised kind. While this matched only S and F, a citation of a vision
+# extraction or a calculation read as no citation at all, so an answer drawn
+# from a scanned drawing counted as uncited and failed verification on evidence
+# it had in fact used.
+CITATION_PATTERN = re.compile(r"\[(?:[SFVCE])\d+\]")
 PAGE_CITATION_PATTERN = re.compile(r"\[((?:F|V)\d+)\]")
 PAGE_MENTION_PATTERN = re.compile(r"\bpages?\s+(\d+)\b", re.IGNORECASE)
 NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
+# Where a claim POINTS rather than what it SAYS: clause and section numbers
+# and document codes. They are removed before figures are compared, because
+# a claim reading "Clause 5 requires quarterly lubrication [S3]" shared the
+# "5" with any passage containing "5.2 Medium ..." and was corroborated by it,
+# whatever it asserted. Citing a clause number is not agreeing with it.
+#
+# Citation markers too. "[S4]" carries a digit, and the claim "The approving
+# authority for a Medium finding is the Head of Inspection [S4]" was being
+# corroborated by the 4 in its own citation id matching "below 4 years" in
+# the passage -- a test asserting that claim was supported had been passing
+# on that digit alone.
+REFERENCE_PATTERN = re.compile(
+    r"(?:\b(?:clause|section|sections|para|paragraph|table|rev(?:ision)?)\s*|§\s*)"
+    r"\d+(?:\.\d+)*"
+    r"|\[[A-Z]\d+\]"
+    r"|\b[A-Z]{2,}(?:-[A-Z]{2,})*-\d+\b",
+    re.IGNORECASE,
+)
+
+
+def _figures(text: str) -> set[str]:
+    """The quantities in a sentence, stripped of the references it cites.
+
+    A lone single digit is not a figure worth matching on: "1", "4" and "5"
+    appear in nearly every numbered passage, so a match on one says nothing
+    about whether the passage carries the claim. A decimal, a figure of two
+    or more digits, or a digit written with its unit or a percent sign still
+    counts -- "20%", "0.55 mm/yr", "24 months" all do.
+    """
+    stripped = REFERENCE_PATTERN.sub(" ", text)
+    figures: set[str] = set()
+    for match in re.finditer(r"-?\d+(?:\.\d+)?(\s*(?:%|mm|cm|m\b|kg|bar|psi|kpa|mpa|°c|years?|months?|days?|hours?|hrs?))?", stripped, re.IGNORECASE):
+        number = match.group(0).strip()
+        digits = re.sub(r"[^\d.]", "", number)
+        has_unit = bool(match.group(1))
+        if has_unit or "." in digits or len(digits.replace(".", "")) >= 2:
+            figures.add(re.match(r"-?\d+(?:\.\d+)?", number).group(0))
+    return figures
 
 
 def _coerce_number(value: Any) -> float | None:
@@ -60,6 +104,67 @@ def _coerce_number(value: Any) -> float | None:
             except ValueError:
                 return None
     return None
+
+
+WORD_PATTERN = re.compile(r"[A-Za-z][A-Za-z\-]{4,}")
+
+
+def _is_quoted_figure(expression: Any) -> bool:
+    """Whether an "expression" is only a number restating itself.
+
+    Parsed, never evaluated: model output is untrusted input. A bare
+    constant, or a negated one, computes nothing; anything with an operator,
+    a name or a call does. An expression that does not parse is left to the
+    recomputation path, which reports it as not evaluable.
+    """
+    import ast
+
+    text = str(expression or "").strip()
+    if not text:
+        return False
+    try:
+        node = ast.parse(text, mode="eval").body
+    except SyntaxError:
+        return False
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        node = node.operand
+    return isinstance(node, ast.Constant) and isinstance(node.value, (int, float))
+
+
+def _corroborates(claim: str, excerpt: str) -> bool:
+    """Whether a passage carries the substance of a claim.
+
+    Two signals, both lexical: a figure from the claim appearing in the
+    passage, or enough of its distinctive words doing so.
+
+    This is deliberately a low bar, and its limit is worth stating where
+    someone will read it. It establishes that a claim is ABOUT the passage it
+    cites -- it cannot establish that the passage supports it. A claim reading
+    the wrong row of a table quotes that table's own words and passes here.
+    Catching that needs entailment, or the reviewer this system routes to,
+    which is why a failed check holds the task for a human rather than
+    rewriting the answer.
+    """
+    # Figures only, references stripped first -- see REFERENCE_PATTERN. The
+    # excerpt is stripped too, so its own "5.2" heading cannot match a claim.
+    figures = _figures(claim)
+    if figures and figures & _figures(excerpt):
+        return True
+
+    # The words test sees the claim without its references as well, so a
+    # document code or "section" cannot make up one of the matching words.
+    tokens = {word.lower() for word in WORD_PATTERN.findall(REFERENCE_PATTERN.sub(" ", claim))}
+    if not tokens:
+        return False
+    excerpt_tokens = {word.lower() for word in WORD_PATTERN.findall(excerpt)}
+    overlap = tokens & excerpt_tokens
+    # The floor cannot exceed what the claim has to offer. Requiring three
+    # matching words flatly meant a short claim could never corroborate
+    # however exact it was: "The severity is Medium [S1]" carries two
+    # distinctive words, matched both against the passage that says exactly
+    # that, and was still reported unsupported.
+    required = min(len(tokens), max(3, int(len(tokens) * 0.35)))
+    return len(overlap) >= required
 
 
 class VerificationEngine:
@@ -95,28 +200,22 @@ class VerificationEngine:
         cited = CITATION_PATTERN.findall(claim)
         if cited:
             referenced = {marker.strip("[]") for marker in cited}
-            matching = [item.id for item in evidence if item.id in referenced]
+            matching = [item for item in evidence if item.id in referenced]
+            # Citing a passage that was retrieved is not the same as that
+            # passage saying what the claim says. This returned True on the
+            # existence of the id alone, so any sentence ending in [S1] was
+            # "supported" whatever it asserted -- the check could be passed by
+            # citing at random. The claim's own terms must also appear in the
+            # passage it names.
+            for item in matching:
+                if _corroborates(claim, item.excerpt):
+                    return True, [item.id]
             if matching:
-                return True, matching
+                return False, []
 
-        numbers = set(NUMBER_PATTERN.findall(claim))
-        if numbers:
-            for item in evidence:
-                if numbers & set(NUMBER_PATTERN.findall(item.excerpt)):
-                    return True, [item.id]
-
-        tokens = {
-            word.lower()
-            for word in re.findall(r"[A-Za-z][A-Za-z\-]{4,}", claim)
-        }
-        if tokens:
-            for item in evidence:
-                excerpt_tokens = {
-                    word.lower() for word in re.findall(r"[A-Za-z][A-Za-z\-]{4,}", item.excerpt)
-                }
-                overlap = tokens & excerpt_tokens
-                if len(overlap) >= max(3, int(len(tokens) * 0.35)):
-                    return True, [item.id]
+        for item in evidence:
+            if _corroborates(claim, item.excerpt):
+                return True, [item.id]
         return False, []
 
     def check_sources(self, text: str, evidence: list[EvidenceItem]) -> VerificationCheck:
@@ -213,6 +312,44 @@ class VerificationEngine:
                 [],
             )
 
+        # A figure quoted from a source is not a calculation, and recomputing
+        # it proves nothing.
+        #
+        # Observed on a live run: asked about an approval authority, the model
+        # listed "Insulated piping damage threshold: 20", "Inspection interval:
+        # 24" and "Approval authority: 1 (Head of Inspection)" as calculations
+        # -- bare literals, one of them a person encoded as the number 1. The
+        # sandbox evaluated 20 and got 20, and the report said "3 of 3
+        # calculation(s) independently recomputed and matched": a pass for
+        # three tautologies, on the check whose whole claim is independence.
+        # A literal is now reported as quoted and never counted as recomputed;
+        # only an expression that actually computes something is.
+        quoted = [c for c in calculations if _is_quoted_figure(c.get("expression"))]
+        calculations = [c for c in calculations if not _is_quoted_figure(c.get("expression"))]
+        quoted_entries = [
+            {
+                **dict(c),
+                "recomputed": None,
+                "matched": None,
+                "note": "quoted from the sources, not calculated; nothing to recompute",
+            }
+            for c in quoted
+        ]
+        if not calculations:
+            return (
+                VerificationCheck(
+                    name="calculation_verification",
+                    kind="calculation",
+                    passed=True,
+                    detail=(
+                        f"No calculations were made: {len(quoted)} figure(s) were quoted "
+                        "from the sources rather than computed, so there was nothing to "
+                        "recompute."
+                    ),
+                ),
+                quoted_entries,
+            )
+
         tolerance = float(self._rules.get("calculation_tolerance", 0.01))
         program_lines = ["import json", "results = []"]
         for index, calculation in enumerate(calculations):
@@ -281,6 +418,11 @@ class VerificationEngine:
                         )
             checked.append(entry)
 
+        quoted_note = (
+            f" {len(quoted)} further figure(s) were quoted from the sources, not computed."
+            if quoted
+            else ""
+        )
         return (
             VerificationCheck(
                 name="calculation_verification",
@@ -289,11 +431,11 @@ class VerificationEngine:
                 detail=(
                     f"{verified_count} of {len(calculations)} calculation(s) independently "
                     f"recomputed in the sandbox and matched within "
-                    f"{tolerance:.2%} tolerance."
+                    f"{tolerance:.2%} tolerance.{quoted_note}"
                 ),
                 warnings=mismatches[:5],
             ),
-            checked,
+            checked + quoted_entries,
         )
 
     # -- code --------------------------------------------------------------

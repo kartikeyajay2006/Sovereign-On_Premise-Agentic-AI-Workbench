@@ -1,21 +1,42 @@
 'use client'
 
 import { ArrowRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { Button } from '@/shared/ui/controls/button'
 
-type Variant = 'primary' | 'outline' | 'ghost' | 'danger' | 'ink'
+/**
+ * Deprecated. Use `Button` from `@/shared/ui/controls/button`.
+ *
+ * This is a shim so the ~20 existing call sites keep working while they are
+ * migrated one screen at a time, rather than in one unreviewable change.
+ *
+ * What changed underneath them:
+ *
+ * - `rounded-full` becomes the 4px house radius. A pill-shaped control reads
+ *   consumer; this is an instrument panel, and `rounded-full` was the most
+ *   common radius in a product whose radius token is 4px.
+ * - `transition-all duration-200` becomes three named properties on the
+ *   asymmetric hover pair — instant in, 150ms decay. Transitioning `all`
+ *   animates properties nobody chose, including layout ones.
+ * - `active:translate-y-px` is gone. A button that moves when pressed is a
+ *   consumer gesture, and it animates layout.
+ * - `focus-visible:ring-foreground/30` becomes the ink gap ring. The old ring
+ *   was roughly 1.1:1 against its surroundings, against a 3:1 requirement:
+ *   decoration rather than an affordance.
+ *
+ * The five old variants map onto the new four. `ink` and `primary` were both
+ * filled dark buttons differing only in which near-black they used, so they
+ * collapse together.
+ */
+type LegacyVariant = 'primary' | 'outline' | 'ghost' | 'danger' | 'ink'
 
-const base =
-  'group inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 py-2.5 text-[13px] font-medium tracking-[0.01em] transition-all duration-200 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30'
-
-const variants: Record<Variant, string> = {
-  primary: 'bg-foreground text-primary-foreground hover:bg-foreground/90 active:translate-y-px',
-  ink: 'bg-ink-foreground text-ink hover:bg-ink-foreground/90 active:translate-y-px',
-  outline: 'border border-border-strong bg-surface text-foreground hover:border-foreground',
-  ghost: 'text-foreground-secondary hover:text-foreground',
-  danger: 'border border-critical/40 text-critical hover:bg-critical/10',
-}
+const VARIANT_MAP = {
+  primary: 'primary',
+  ink: 'primary',
+  outline: 'secondary',
+  ghost: 'ghost',
+  danger: 'danger',
+} as const satisfies Record<LegacyVariant, 'primary' | 'secondary' | 'ghost' | 'danger'>
 
 export function SovButton({
   children,
@@ -25,13 +46,19 @@ export function SovButton({
   ...props
 }: {
   children: ReactNode
-  variant?: Variant
+  variant?: LegacyVariant
   arrow?: boolean
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button className={cn(base, variants[variant], className)} {...props}>
+    <Button
+      variant={VARIANT_MAP[variant]}
+      size="md"
+      className={className}
+      icon={arrow ? ArrowRight : undefined}
+      iconPosition="end"
+      {...props}
+    >
       {children}
-      {arrow && <ArrowRight className="arrow-shift h-4 w-4" />}
-    </button>
+    </Button>
   )
 }

@@ -1,0 +1,10 @@
+# Built-in skill: band a finding and name who may accept it.
+# Wording rules: see clause.yaml.
+
+id: severity
+name: Classify a finding
+summary: The severity band a finding falls in under the SOPs, and who must approve continued operation.
+input_hint: The finding, e.g. cladding damage over 35% of the insulated section
+template: >-
+  Under our SOPs, what severity band does this finding fall in, and who must
+  approve continued operation with it? Finding: {input}

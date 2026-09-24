@@ -1,90 +1,61 @@
-'use client'
-
 import { cn } from '@/lib/utils'
 
 interface AegisLogoProps {
   className?: string
   size?: number
-  variant?: 'mark' | 'full' | 'compact'
+  /**
+   * mark     the badge alone: an ink tile with the glyph knocked out of it
+   * glyph    the glyph alone, in currentColor, for a tile drawn by the caller
+   * compact  the badge and the name
+   * full     the badge, the name and the product line
+   */
+  variant?: 'mark' | 'glyph' | 'compact' | 'full'
   iconClassName?: string
 }
 
-export function AegisLogo({
-  className,
-  size = 32,
-  variant = 'full',
-  iconClassName,
-}: AegisLogoProps) {
+/**
+ * The AEGIS mark: a Λ with one point beneath its apex.
+ *
+ * The A of the name with its crossbar taken out, and in its place a single
+ * point -- one recorded fact, where a bar would have been drawn. It is a
+ * stroke, not a shape, so it stays two clean lines and a dot at 16px, and it
+ * sits on an ink tile with generous corners so the mark reads as the
+ * product's icon wherever it appears: the header, the sign-in, the tab.
+ *
+ * The glyph is drawn in the page's own ground colour on the tile, not cut
+ * out of it, so no mask id has to be unique per instance.
+ */
+function Glyph({ ink }: { ink: string }) {
   return (
-    <div className={cn('inline-flex items-center gap-3 select-none', className)}>
-      {/* Bespoke Geometric Aegis Shield Mark */}
-      <div
-        className={cn(
-          'relative flex items-center justify-center shrink-0 rounded-[6px] bg-foreground text-background shadow-xs transition-transform duration-200 group-hover:scale-[1.03]',
-          iconClassName,
-        )}
-        style={{ width: size, height: size }}
-      >
-        <svg
-          viewBox="0 0 36 36"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-[78%] h-[78%]"
-        >
-          {/* Subtle Cybernetic Grid / Background Ring */}
-          <circle
-            cx="18"
-            cy="18"
-            r="14.5"
-            stroke="currentColor"
-            strokeWidth="0.75"
-            strokeDasharray="2 3"
-            strokeOpacity="0.25"
-          />
+    <>
+      <path d="M6.6 17.4 12 6.6l5.4 10.8" stroke={ink} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx="12" cy="15.1" r="1.5" fill={ink} />
+    </>
+  )
+}
 
-          {/* Aegis Outer Protective Shield Facets */}
-          <path
-            d="M18 4.5L29 9.5V17.5C29 24.2 24.3 29.8 18 31.5C11.7 29.8 7 24.2 7 17.5V9.5L18 4.5Z"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+export function AegisLogo({ className, size = 32, variant = 'full', iconClassName }: AegisLogoProps) {
+  const icon =
+    variant === 'glyph' ? (
+      <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0', iconClassName)}>
+        <Glyph ink="currentColor" />
+      </svg>
+    ) : (
+      <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden className={cn('shrink-0 text-foreground', iconClassName)}>
+        <rect x="0.5" y="0.5" width="23" height="23" rx="6.5" fill="currentColor" />
+        <Glyph ink="var(--background)" />
+      </svg>
+    )
 
-          {/* Inner Geometric Alpha / Aegis Core Vertex */}
-          <path
-            d="M18 9.5L24 22H20.5L18 16.5L15.5 22H12L18 9.5Z"
-            fill="currentColor"
-            fillOpacity="0.95"
-          />
+  if (variant === 'mark' || variant === 'glyph') return <span className={cn('inline-flex', className)}>{icon}</span>
 
-          {/* Central Air-Gap Core Pulse Diamond */}
-          <path
-            d="M18 20L19.8 23L18 26L16.2 23L18 20Z"
-            fill="var(--sovereign)"
-            className="transition-colors group-hover:fill-[var(--sovereign)]"
-          />
-
-          {/* Subtle Top Radar Ticks */}
-          <line x1="18" y1="2" x2="18" y2="4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          <line x1="18" y1="31.5" x2="18" y2="34" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
+  return (
+    <div className={cn('inline-flex select-none items-center gap-2.5', className)}>
+      {icon}
+      <div className="flex flex-col leading-none">
+        <span className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">AEGIS</span>
+        {variant === 'full' && <span className="mt-[3px] text-[11px] text-foreground-muted">Agentic workbench</span>}
       </div>
-
-      {/* Typography for 'full' and 'compact' variants */}
-      {variant !== 'mark' && (
-        <div className="flex flex-col leading-none">
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[13px] font-black uppercase tracking-[0.24em] text-foreground">
-              AEGIS
-            </span>
-            <span className="h-1 w-1 rounded-full bg-[var(--sovereign)]" />
-          </div>
-          <span className="mt-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.34em] text-foreground-muted">
-            {variant === 'compact' ? 'WORKBENCH' : 'AGENTIC WORKBENCH'}
-          </span>
-        </div>
-      )}
     </div>
   )
 }

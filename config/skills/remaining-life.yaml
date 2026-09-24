@@ -1,0 +1,11 @@
+# Built-in skill: corrosion rate and remaining life from readings.
+# The arithmetic runs in the sandbox and is recomputed by the verifier.
+# Wording rules: see clause.yaml.
+
+id: remaining-life
+name: Corrosion rate and remaining life
+summary: Rate and remaining life from thickness readings, computed in the sandbox and recomputed by the verifier.
+input_hint: The readings, e.g. nominal 12.0 mm, minimum required 7.2 mm, 10.9 mm after 2 years
+template: >-
+  Calculate the corrosion rate and the remaining life from these readings,
+  using the method in our SOPs: {input}

@@ -1,30 +1,67 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { useRole } from '@/components/role-context'
+import { AegisLogo } from '@/components/aegis-logo'
 
+/** After this long the check explains itself instead of just waiting. */
+const SLOW_AFTER_MS = 6000
+
+/**
+ * Keeps signed-out visitors out of the app screens.
+ *
+ * Two changes. The redirect now carries the path it came from, so signing in
+ * from a link to /approvals lands on /approvals rather than on the thread.
+ * And the waiting state no longer pulses "Verifying session…" for ever: the
+ * session check is one request to the service with no timeout of its own,
+ * and when that service is starting up or pinned by a model run it can hang.
+ * After six seconds it says what it is waiting for and offers the way out.
+ */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { authenticated, loading } = useRole()
   const router = useRouter()
+  const pathname = usePathname()
+  const [slow, setSlow] = useState(false)
 
   useEffect(() => {
     if (!loading && !authenticated) {
-      router.replace('/sign-in')
+      const next = pathname && pathname !== '/sign-in' ? `?next=${encodeURIComponent(pathname)}` : ''
+      router.replace(`/sign-in${next}`)
     }
-  }, [authenticated, loading, router])
+  }, [authenticated, loading, router, pathname])
 
-  // Show nothing while checking auth state
+  useEffect(() => {
+    if (!loading) {
+      setSlow(false)
+      return
+    }
+    const timer = window.setTimeout(() => setSlow(true), SLOW_AFTER_MS)
+    return () => window.clearTimeout(timer)
+  }, [loading])
+
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-[3px] bg-foreground">
-            <span className="h-2.5 w-2.5 rounded-[1px] border border-primary-foreground" />
-          </span>
-          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-foreground-muted animate-pulse">
-            Verifying session…
-          </span>
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
+        <div role="status" className="flex max-w-[360px] flex-col items-start gap-3">
+          <AegisLogo size={20} variant="mark" iconClassName="text-foreground-muted" />
+          <p className="text-body text-foreground-secondary">Checking your session…</p>
+          {slow && (
+            <>
+              <p className="text-body text-foreground-muted">
+                The workbench service has not answered{' '}
+                <span className="font-mono text-ui text-foreground-secondary">GET /api/auth/me</span>{' '}
+                yet. It may still be starting, or busy with a model run on this machine.
+              </p>
+              <Link
+                href="/sign-in"
+                className="text-body text-foreground underline decoration-line-strong underline-offset-4 hover:decoration-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+              >
+                Go to sign in
+              </Link>
+            </>
+          )}
         </div>
       </div>
     )

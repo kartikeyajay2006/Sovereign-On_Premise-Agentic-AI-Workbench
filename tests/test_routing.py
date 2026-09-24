@@ -23,6 +23,7 @@ from backend.core.schemas import (
 )
 from backend.models_layer.registry import RegistrySnapshot
 from backend.models_layer.router import ModelRouter
+from backend.tools.sandbox import RESOURCE_LIMITS_AVAILABLE
 
 
 # --------------------------------------------------------------- fixtures
@@ -294,6 +295,17 @@ class TestVerificationEngine:
         )
         assert check.passed
 
+    @pytest.mark.skipif(
+        not RESOURCE_LIMITS_AVAILABLE,
+        reason=(
+            "Independent recomputation runs inside the sandbox, and the "
+            "sandbox refuses to execute on a host with no resource limits. "
+            "The guarantee this test asserts genuinely does not hold here, so "
+            "it is skipped rather than passed — check_calculations reports "
+            "passed=False in that situation, which is the intended behaviour. "
+            "Runs under WSL2/Linux; see docs/RUNTIME-ENVIRONMENT.md."
+        ),
+    )
     def test_recomputes_calculations_independently(self, engine) -> None:
         check, results = engine.check_calculations(
             [
