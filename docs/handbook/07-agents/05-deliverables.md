@@ -58,6 +58,6 @@ A download goes through the same checks every time: the caller must own the task
 
 | | | |
 |:--|:--:|--:|
-| [← 7.4 · Tools](04-tools.md) | [↑ 07 · Agents and orchestration](README.md) |  |
+| [← 7.4 · Tools](04-tools.md) | [↑ 07 · Agents and orchestration](README.md) | [08 · Verification →](../08-verification/README.md) |
 
 <!-- nav:end -->
