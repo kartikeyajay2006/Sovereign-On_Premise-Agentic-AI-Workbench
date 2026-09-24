@@ -248,7 +248,13 @@ export function RunReplay({
                 return (
                   <li key={step.id}>
                     <div className="row">
-                      {active ? <Spinner /> : <span className="bullet" aria-hidden>●</span>}
+                      {active ? (
+                        <Spinner />
+                      ) : (
+                        <span className={cn('bullet', step.id === 'verify' && passed < checks.length && 'fail')} aria-hidden>
+                          ●
+                        </span>
+                      )}
                       <span className={cn('title', active && 'ae-shimmer')}>
                         {active ? `${step.active}…` : step.label}
                       </span>

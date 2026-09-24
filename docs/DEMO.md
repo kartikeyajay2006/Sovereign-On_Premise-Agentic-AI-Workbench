@@ -95,11 +95,20 @@ carry. The model never sees it.
 
 ### Timing
 
-Inference is local and CPU-only, so a run takes minutes, not seconds. The
-most recent run of the Scenario 1 prompt took 134.3 s on the development host
-(run `dfe0babf`, 23 Sep 2026, against this corpus). The capture the landing
-page tells the story of took 246.8 s against the earlier four-document corpus
-(`frontend/public/landing/run.json`).
+Inference is local and CPU-only. Measured on the development host (a two-core
+laptop CPU, Qwen2.5 3B) on 24 Sep 2026, against this corpus:
+
+| Request | Time | Why |
+| --- | --- | --- |
+| "Hi", "thanks", "what can you do?" | 3–6 s | Conversation: one short model call, no retrieval, nothing to check or hold |
+| A retrieval question (Scenario 1 shape) | 25–45 s | One drafting call over ~1,100 prompt tokens; the standing instructions are cached after the first run |
+| `/clause internal inspection of a pressure vessel in corrosive service` | 39.6 s | Run `f30c2459`, the one the landing page replays |
+| A three-question sweep (`sop-question-sweep`) | 1 min 52 s | Three governed runs, 28–48 s each |
+| `/approval-note …` (a DOCX) | about 3.5 min | Planning, drafting and the document are three model calls |
+
+The model the everyday stages use is loaded when the server starts and kept
+for 30 minutes after its last use (`inference.prewarm`, `inference.keep_alive`
+in `config/app.yaml`), so the first question does not pay a 7–14 s load.
 Tasks run one at a time (`backend/api/main.py` starts one worker); a task
 submitted while another runs waits in the queue and shows its position. For a
 fixed demo slot, run a few scenarios live and pre-run the rest; their full
@@ -566,6 +575,32 @@ is worth more to a regulated site than a fluent yes.
 **Why it matters.** The person who checks the work cannot also do it, and
 what they check is tamper-evident.
 
+### Scenario 13 — Skills: a saved instruction, called with /
+
+**Sign in as** `engineer`.
+
+1. In the thread, type `/`. The menu lists every skill, then every harness.
+   Pick `/clause` (or keep typing to filter; Enter or Tab takes it). It sits
+   in the composer as a chip, and the placeholder says what to type.
+2. Type `internal inspection of a pressure vessel in corrosive service` and
+   send. The transcript fills in as the run goes: classified, searched (six
+   passages, by document and section), drafted (tokens in and out, speed),
+   every claim checked. Expect **48 months**, cited to SOP-INS-014 §2.2, and
+   the run delivered.
+3. Open **Skills**. Each skill shows its whole template with the place the
+   typed text goes, and its hash. Add one — for example `/psv-interval`,
+   *"What bench-test interval do our SOPs set for {input}?"*. A template with
+   anything but `{input}` is refused, here and by the server.
+4. Sign in as `operator`: the skill is in the `/` menu, but there is no form
+   to add one (`POST /api/skills` is 403 without `skill.create`).
+5. In **Audit**, the skill's creation is recorded with its hash, and the run's
+   `received` event carries `skill` and `skill_sha256`.
+
+**Why it matters.** A skill changes only what a run is asked. The request it
+renders is classified, grounded, verified and held like one typed by hand —
+run `/severity` on the cladding finding and it is held, for the same reasons
+a typed question would be.
+
 ---
 
 ## 3. Running order for a timed slot
@@ -573,6 +608,9 @@ what they check is tamper-evident.
 Pre-run Scenarios 2 (both accounts), 3 (both accounts), 4, 5, 7 and 10. Then
 live:
 
+0. Type **Hi** first: it answers in a few seconds, because a greeting makes
+   no claims and is not sent through retrieval and checks. Then
+   **Scenario 13**, `/clause`: the transcript, and how a skill is added.
 1. **Scenario 1**: the grounded answer. Open a citation to show that §5.2
    names only the Head of Inspection, then read the held line: retrieval
    admitted a Restricted memo, so the run is Restricted and waits for a

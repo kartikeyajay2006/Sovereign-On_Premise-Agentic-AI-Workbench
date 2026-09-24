@@ -157,6 +157,8 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
       {lines.map((stage) => {
         const active = stage.status === 'active' && turn.outcome === 'running'
         const failed = stage.status === 'failed' || stage.status === 'denied'
+        // The checks ran, and found something: the line says so in its bullet.
+        const flagged = stage.id === 'verify' && !active && turn.verification.some((c) => !c.passed)
         const calls = callsFor(turn.usage, stage.id)
         let title = active ? ACTIVE[stage.id] ?? stage.name : DONE[stage.id] ?? stage.name
         if (stage.id === 'draft' && conversation) title = active ? 'Replying' : 'Replied'
@@ -185,7 +187,7 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
               ) : (
                 <span
                   aria-hidden
-                  className={cn('inline-block w-[1ch] text-center', failed ? 'text-critical-text' : 'text-sovereign-text')}
+                  className={cn('inline-block w-[1ch] text-center', failed || flagged ? 'text-critical-text' : 'text-sovereign-text')}
                 >
                   ●
                 </span>

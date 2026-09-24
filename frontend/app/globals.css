@@ -2009,6 +2009,7 @@ html[data-theme='dark'] .ae-shot-dark { display: block; }
 .ae-replay-log .row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .ae-replay-log .bullet { width: 1ch; flex-shrink: 0; text-align: center; color: var(--sovereign-text); }
 .ae-replay-log .bullet.spin { color: var(--foreground); }
+.ae-replay-log .bullet.fail { color: var(--critical-text); }
 .ae-replay-log .title { flex-shrink: 0; color: var(--foreground); }
 .ae-replay-log .note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground-muted); }
 .ae-replay-log .secs { margin-left: auto; flex-shrink: 0; padding-left: 8px; color: var(--foreground-muted); font-variant-numeric: tabular-nums; }
