@@ -16,9 +16,9 @@
 
 <div align="center">
 
-<img src="docs/assets/readme/screenshot-landing.webp" alt="The AEGIS landing page: 'Local is not enough. So prove the rest.', with a replay of a recorded run underneath." width="900">
+<img src="docs/assets/readme/screenshot-landing.webp" alt="The AEGIS landing page: 'Answers you can prove.', with the workbench window below the headline, ready to play a recorded run." width="900">
 
-<sub>The public page replays a real recorded run, straight from its audit records.</sub>
+<sub>The public page plays one real recorded run as you scroll: every word and figure in it is the run's own.</sub>
 
 </div>
 
@@ -63,7 +63,7 @@ Everything in that diagram runs on one machine. Inference is reached over loopba
 <img src="docs/assets/readme/flow-understand.svg" alt="Documents enter, are parsed or rasterised and read, normalised, chunked, embedded locally and stored as evidence units carrying full provenance." width="100%">
 </div>
 
-A PDF is inspected **page by page**. Pages with a text layer are parsed directly. Pages without one (a scan, a photographed report) are rasterised and read by the local vision model in small batches, and a page the vision model returns empty falls back to local Tesseract OCR. Every page becomes its own citable evidence item (`[V1]`, `[V2]` …) that knows its document, page number and source hash. The verifier refuses an answer that attributes a `[V…]` citation to a different page than the one it came from.
+A PDF is inspected **page by page**. Pages with a text layer are parsed directly. Pages without one (a scan, a photographed report) are rasterised and read by the local vision model in small batches, and a page the vision model returns empty falls back to local Tesseract OCR. Every page becomes its own citable evidence item (`[V1]`, `[V2]` …) that knows its document, page number and source hash. The verifier refuses an answer that attributes a `[V…]` citation to a different page than the one it came from, and holds any answer with a citation that leads to no evidence the run recorded.
 
 ### 02 / DECIDE
 
@@ -99,35 +99,35 @@ Every record in `storage/logs/audit.jsonl` carries the hash of the one before it
 
 ## See AEGIS in action
 
-Real screens from a local instance on a CPU-only Windows laptop, using the synthetic demo corpus and `qwen2.5:3b`.
+Real screens from a local instance on a CPU-only Windows laptop, running the synthetic demo corpus.
 
 <div align="center">
 
-<img src="docs/assets/readme/screenshot-thread-answer.webp" alt="The thread: a question about inspection intervals, the run's stages with timings and model usage, five of five checks passed, and a two-sentence answer citing S1." width="900">
+<img src="docs/assets/readme/screenshot-thread-answer.webp" alt="The workbench: a sidebar of places and runs, and a /clause run delivered in 39.6 s with 4 of 4 checks passed and its answer cited to SOP-INS-014 section 2.2." width="900">
 
-<sub><b>Thread</b> — ask in plain language and watch the run: classification, retrieval, the model and its token counts, every check, then an answer cited to the section it came from.</sub>
+<sub><b>Thread</b> — ask in plain language, or call a skill with <code>/</code>. The answer comes back cited to the section it came from, with its checks, timings and model usage one click away.</sub>
 
 </div>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/readme/screenshot-thread-deliverable.webp" alt="A deliverable run held for review, with Sources, Document and Grounding checks failed in red." width="100%"><sub><b>Held, honestly</b> — a drafted approval note whose checks failed is shown failing and held; nothing is released on the model's word.</sub></td>
-<td width="50%"><img src="docs/assets/readme/screenshot-approvals.webp" alt="Approval queue with the held run, the rules that held it, the withheld DOCX with its SHA-256, and Approve or Reject." width="100%"><sub><b>Approvals</b> — why it was held, the withheld file and its hash, and a decision recorded against the reviewer.</sub></td>
+<td width="50%"><img src="docs/assets/readme/screenshot-thread-deliverable.webp" alt="An /approval-note run held for review: 1 of 5 checks failed, a cited draft, and the DOCX withheld with its SHA-256." width="100%"><sub><b>Held</b> — a drafted approval note that failed a check is held, its DOCX withheld and hashed; nothing is released on the model's word.</sub></td>
+<td width="50%"><img src="docs/assets/readme/screenshot-approvals.webp" alt="Approval queue: three held runs, why one was held (restricted evidence, failed verification), its cited deliverable and each check." width="100%"><sub><b>Approvals</b> — why each run was held, what it would release, every check, and a decision recorded against the reviewer.</sub></td>
 </tr>
 <tr>
-<td><img src="docs/assets/readme/screenshot-skills.webp" alt="Skills screen listing built-in skills such as /approval-note and /clause, and a form to add one." width="100%"><sub><b>Skills</b> — saved instructions called with <code>/</code> in the thread; each run records which skill version shaped it.</sub></td>
-<td><img src="docs/assets/readme/screenshot-harnesses.webp" alt="Harness library: obligation coverage check, requirements register, SOP question sweep." width="100%"><sub><b>Harnesses</b> — whole jobs that fan out into many governed runs and return one hashed report.</sub></td>
+<td><img src="docs/assets/readme/screenshot-skills.webp" alt="Skills: the five built-in skills, /approval-note, /clause, /handover, /remaining-life and /severity." width="100%"><sub><b>Skills</b> — saved instructions called with <code>/</code> in the thread; each run records which skill version shaped it.</sub></td>
+<td><img src="docs/assets/readme/screenshot-harnesses.webp" alt="Harnesses: the library of three jobs, and a finished SOP question sweep with 3 of 3 items settled." width="100%"><sub><b>Harnesses</b> — one job over many items; each item is an ordinary checked run, and the job ends in one hashed report.</sub></td>
 </tr>
 <tr>
-<td><img src="docs/assets/readme/screenshot-sandbox.webp" alt="Sandbox running a corrosion-rate script under a Windows Job Object, with exit code, peak memory, CPU time and blocked network attempts." width="100%"><sub><b>Sandbox</b> — run code under this host's limits and see what it measured, or which rule refused it.</sub></td>
-<td><img src="docs/assets/readme/screenshot-audit.webp" alt="Audit screen: server and browser both recompute 110 records to the same head hash." width="100%"><sub><b>Audit</b> — the chain recomputed by the server and by your browser, which must agree.</sub></td>
+<td><img src="docs/assets/readme/screenshot-sandbox.webp" alt="Sandbox: limits enforced by a Windows Job Object, a corrosion-rate payload, and the attacks it must stop." width="100%"><sub><b>Sandbox</b> — run code under this host's limits, or fire the attacks it must stop, and see what it measured or which rule refused it.</sub></td>
+<td><img src="docs/assets/readme/screenshot-audit.webp" alt="Audit: 854 records recompute on the server to one head hash, with a browser check one click away." width="100%"><sub><b>Audit</b> — every task, model call, decision and sign-in, hash-linked; recomputed by the server and, on demand, by your browser.</sub></td>
 </tr>
 </table>
 
 <div align="center">
-<img src="docs/assets/readme/screenshot-security.webp" alt="Assurance screen showing zero non-loopback connections observed from the workbench's own processes." width="900">
+<img src="docs/assets/readme/screenshot-security.webp" alt="Assurance: egress measured at zero, containment tested on demand, and ten actions no role can take." width="900">
 
-<sub><b>Assurance</b> — egress as measured from the workbench's own process tree, not asserted.</sub>
+<sub><b>Assurance</b> — what the host measured (egress), what it tested (containment) and what it is configured to allow (policy), each labelled as which.</sub>
 </div>
 
 ---
@@ -137,7 +137,7 @@ Real screens from a local instance on a CPU-only Windows laptop, using the synth
 | Capability | What is actually implemented |
 |---|---|
 | **Local inference** | Ollama over loopback, enforced to `127.0.0.1`; six models declared in `config/models.yaml` |
-| **Chat-first thread** | One thread for questions, calculations and deliverables; live stage board, token streaming, per-run model choice, run history |
+| **Workbench** | One thread for questions, calculations and deliverables in a sidebar workbench with every run listed; token streaming, per-run model choice, run transcript |
 | **Multimodal ingestion** | Per-page PDF inspection, PyMuPDF rasterisation, batched vision reading with Tesseract fallback, XLSX/DOCX/CSV parsing |
 | **Retrieval** | Local embeddings with cosine similarity, BM25 lexical fallback, department and classification isolation before ranking |
 | **Task analysis** | Type, complexity, sensitivity and capability requirements from `config/classification.yaml`; a run is raised to the class of the evidence it reads |
@@ -145,7 +145,7 @@ Real screens from a local instance on a CPU-only Windows laptop, using the synth
 | **Skills** | Saved, versioned instructions invoked with `/`; five built in under `config/skills/`, more added from the UI |
 | **Harnesses** | Multi-run jobs (obligation coverage, requirements register, SOP question sweep) with one aggregated, hashed report |
 | **Constrained execution** | AST validation plus POSIX rlimits, a macOS memory watchdog, or a Windows Job Object; socket neutralisation |
-| **Verification** | Claims traced to evidence, page citations checked against their pages, asserted figures recomputed |
+| **Verification** | Claims traced to evidence, every citation checked to lead somewhere, page citations checked against their pages, asserted figures recomputed |
 | **Policy gateway** | Default-deny tool and path checks, classification-aware egress rules, approval requirements |
 | **Human approval** | Deliverables held until a role holding `approval.decide` signs; reviewer and reason recorded |
 | **Deliverables** | DOCX, XLSX, PPTX and Markdown, generated locally and hashed |
@@ -266,11 +266,11 @@ python scripts/seed_demo_data.py
 - **macOS and Windows:** start them yourself in two terminals:
 
 ```bash
-python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 75
 cd frontend && npm run build && npm start
 ```
 
-Then open **http://127.0.0.1:3000**. The API listens on **127.0.0.1:8000**. To run the API on another port, set `WORKBENCH_API_URL` before `npm run build`, because the proxy target is fixed at build time.
+Then open **http://127.0.0.1:3000**. The API listens on **127.0.0.1:8000**; `--timeout-keep-alive 75` keeps it from closing connections the web proxy is about to reuse. To run the API on another port, set `WORKBENCH_API_URL` before `npm run build`, because the proxy target is fixed at build time.
 
 **Seeded accounts:** `operator`, `engineer`, `reviewer`, `auditor` and `admin`, all with the password `workbench`. That password is `security.seed_user_password` in `config/app.yaml`; change it before any real deployment. The demo script lists what each role can see and do.
 
@@ -300,7 +300,7 @@ frontend/
   shared/         design-system controls, data display and motion primitives
 scripts/          run.sh, seed_demo_data.py, demo_e2e.py, audit_tool.py, fixture capture
 sample_data/      the synthetic SOP corpus, records and scanned reports
-tests/            428 tests: security, sandbox, queue, evidence, verification, harnesses, telemetry
+tests/            435 tests: security, sandbox, queue, evidence, verification, harnesses, telemetry
 docs/             DEMO, USE-CASES, RUNTIME-ENVIRONMENT, design notes, README assets
 ```
 
@@ -329,12 +329,12 @@ These are stated plainly, because they affect whether this is right for your dep
 - [x] Per-page multimodal ingestion: rasterisation, batched vision reading, OCR fallback
 - [x] Retrieval with provenance-preserving citations and lexical fallback
 - [x] Sandboxed execution with static validation and OS limits on Linux, macOS and Windows
-- [x] Verification engine: evidence tracing, page-citation checks, figure recomputation
+- [x] Verification engine: evidence tracing, citation and page-citation checks, figure recomputation
 - [x] Default-deny policy gateway with classification-aware rules
 - [x] Human approval gate with role separation and recorded reviewer
 - [x] Hash-chained audit log, verified on the server and in the browser
 - [x] Deliverable generation: DOCX, XLSX, PPTX, Markdown
-- [x] Chat-first thread with live stage board and token streaming
+- [x] Sidebar workbench: one thread, every run listed, token streaming
 - [x] Skills and multi-run harnesses
 - [x] Model, retrieval and sandbox transparency screens
 - [ ] Permission-derived navigation, so a role sees only what it may reach
