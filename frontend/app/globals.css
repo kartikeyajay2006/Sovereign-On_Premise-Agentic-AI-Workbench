@@ -2218,7 +2218,8 @@ html[data-theme='dark'],
   }
   .ae-hero-stage { position: relative; z-index: 2; margin-top: calc(-1 * var(--ae-overlap)); }
   .ae-hero-band .ae-display .soft,
-  .ae-footer-title .soft {
+  .ae-footer-title .soft,
+  .ae-signin-panel .soft {
     background: linear-gradient(95deg, oklch(0.88 0.08 62) 0%, oklch(0.82 0.1 20) 45%, oklch(0.8 0.1 300) 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
@@ -2301,5 +2302,34 @@ html[data-theme='dark'],
   @media (max-width: 640px) {
     .ae-hero { --ae-overlap: 110px; }
     .ae-hero-proof { gap: 6px 16px; font-size: 0.78rem; }
+  }
+}
+
+/* ==================================================================== */
+/* The thread's grounds                                                 */
+/*                                                                      */
+/* Four surfaces that used to be one sheet: the run list on a recessed  */
+/* ground, the run's log on a card of its own, the answer on the page,  */
+/* and the composer docked over a fade. All static: nothing here draws  */
+/* per frame on the thread that parses the event stream.                */
+/* ==================================================================== */
+@layer components {
+  /* The run's log: a terminal card, apart from the answer's prose. */
+  .thread-log { background: color-mix(in oklab, var(--foreground) 2.5%, var(--background)); }
+  [data-theme='dark'] .thread-log { background: color-mix(in oklab, var(--foreground) 4%, var(--background)); }
+
+  /* The docked composer: the thread fades out beneath it instead of meeting an edge. */
+  .thread-dock { background: linear-gradient(to top, var(--background) 60%, transparent); }
+
+  /* The empty thread: a faint lattice around the greeting. It reaches past
+     the column but stops short of the run list at every width it shows at. */
+  .thread-empty { position: relative; isolation: isolate; }
+  .thread-empty::before {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 50%; z-index: -1; pointer-events: none;
+    width: calc(100% + 240px); transform: translateX(-50%);
+    background-image: radial-gradient(circle, color-mix(in oklab, var(--foreground) 26%, transparent) 1px, transparent 1.5px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 55% 42% at 50% 40%, #000 8%, transparent 72%);
+            mask-image: radial-gradient(ellipse 55% 42% at 50% 40%, #000 8%, transparent 72%);
   }
 }

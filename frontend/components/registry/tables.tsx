@@ -19,7 +19,18 @@ function day(iso: string) {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+/**
+ * Where a document came from, from the project root down: the full path
+ * names the machine's user folder, which a screenshot has no need to carry.
+ * The full path stays on hover for the operator who wants the file.
+ */
+function shownPath(path: string) {
+  const unix = path.split('\\').join('/')
+  const at = unix.search(/\/(sample_data|storage)\//)
+  return at >= 0 ? unix.slice(at + 1) : unix.split('/').slice(-2).join('/')
 }
 
 const TH = 'px-4 py-2 text-left font-mono text-ledger font-normal uppercase tracking-[var(--ls-ledger)] text-foreground-muted'
@@ -82,7 +93,9 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                   <span className="min-w-0 text-body font-medium text-foreground">{d.title}</span>
                   <ClassificationTag level={d.classification} />
                 </div>
-                <span className="truncate font-mono text-ledger text-foreground-muted">{d.source_path}</span>
+                <span className="truncate font-mono text-ledger text-foreground-muted" title={d.source_path}>
+                  {shownPath(d.source_path)}
+                </span>
                 <span className="tabular flex flex-wrap gap-x-3 font-mono text-ledger text-foreground-secondary">
                   <span>{d.department}</span>
                   <span>v{d.version}</span>
@@ -135,7 +148,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                       {d.title}
                     </span>
                     <span className="block truncate font-mono text-ledger text-foreground-muted" title={d.source_path}>
-                      {d.source_path} · v{d.version}
+                      {shownPath(d.source_path)} · v{d.version}
                     </span>
                   </div>
                   <div role="cell" className={cn(TD, 'truncate font-mono text-ui text-foreground-secondary')}>
@@ -153,7 +166,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                   >
                     {formatBytes(d.size_bytes)}
                   </div>
-                  <div role="cell" className={cn(TD, 'tabular hidden font-mono text-ui text-foreground-secondary lg:block')}>
+                  <div role="cell" className={cn(TD, 'tabular hidden whitespace-nowrap font-mono text-ui text-foreground-secondary lg:block')}>
                     {day(d.ingested_at)}
                   </div>
                   <div

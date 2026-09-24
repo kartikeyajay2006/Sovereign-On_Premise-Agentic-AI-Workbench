@@ -14,6 +14,7 @@ import { useRole } from '@/components/role-context'
 import { Wordmark } from '@/components/landing/wordmark'
 import { cn } from '@/lib/utils'
 import { HostStatus } from './host-status'
+import { HERO } from '@/components/landing/copy'
 
 /**
  * Where to go after signing in: the path the guard bounced from, if it is a
@@ -131,12 +132,46 @@ export function SignInView({ api }: { api: string }) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      <header className="ae-shell flex h-16 items-center justify-between">
+    <div className="flex min-h-dvh bg-background">
+      {/*
+        The brand panel, from a laptop's width up: the landing page's night
+        ground and its three guarantees, so signing in reads as the same
+        product as the page that led here. Static CSS; nothing moves.
+      */}
+      <aside
+        data-theme="dark"
+        aria-label="About AEGIS"
+        className="ae-night ae-signin-panel sticky top-0 hidden h-dvh w-[44%] max-w-[620px] shrink-0 flex-col justify-between p-10 lg:flex xl:p-14"
+      >
         <Link
           href="/"
           aria-label="AEGIS — home"
-          className="rounded-full focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+          className="w-fit rounded-full focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+        >
+          <Wordmark />
+        </Link>
+        <div>
+          <p className="ae-kicker m-0">On your own hardware</p>
+          <h2 className="mt-4 max-w-[16ch] text-[clamp(2rem,3vw,2.7rem)] font-semibold leading-[1.06] tracking-[-0.038em] text-foreground">
+            Every answer cited, <span className="soft">checked and recorded.</span>
+          </h2>
+          <ul className="ae-hero-proof mt-8 flex-col items-start justify-start gap-3">
+            {HERO.proof.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+        <p className="m-0 max-w-[44ch] text-[0.82rem] leading-[1.55] text-foreground-muted">
+          Models, retrieval and the audit chain run on the machine you are signing in to.
+        </p>
+      </aside>
+
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
+      <header className="flex h-16 items-center justify-between px-5 sm:px-8">
+        <Link
+          href="/"
+          aria-label="AEGIS — home"
+          className="rounded-full focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none lg:invisible"
         >
           <Wordmark />
         </Link>
@@ -265,6 +300,7 @@ export function SignInView({ api }: { api: string }) {
           </div>
         </div>
       </main>
+      </div>
     </div>
   )
 }

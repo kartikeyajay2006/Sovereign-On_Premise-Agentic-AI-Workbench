@@ -146,7 +146,7 @@ export const SessionRail = memo(function SessionRail({
       // Sticky under the fixed header, so the list stays in reach however
       // long the thread beside it grows. Sized against the shell's own
       // inset rather than a literal, which is right under either header.
-      className="sticky top-[var(--shell-top)] hidden h-[calc(100dvh-var(--shell-top))] w-[264px] shrink-0 flex-col self-start border-r border-line-subtle bg-[color-mix(in_oklab,var(--foreground)_2%,var(--background))] lg:flex"
+      className="sticky top-[var(--shell-top)] hidden h-[calc(100dvh-var(--shell-top))] w-[264px] shrink-0 flex-col self-start border-r border-line-subtle bg-surface-sunken lg:flex"
     >
       <div className="px-3 pb-2 pt-3">
         <button

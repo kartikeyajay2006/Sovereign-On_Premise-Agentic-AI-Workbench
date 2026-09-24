@@ -145,7 +145,10 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
   if (lines.length === 0 && !waiting) return null
 
   return (
-    <ol aria-label="What the run did" className="m-0 flex list-none flex-col gap-1.5 p-0 font-mono text-[12.5px] leading-[1.6]">
+    <ol
+      aria-label="What the run did"
+      className="thread-log m-0 flex list-none flex-col gap-1.5 rounded-[14px] border border-line-subtle px-3.5 py-3 font-mono text-[12.5px] leading-[1.6]"
+    >
       {waiting && turn.queue && (
         <li className="flex items-baseline gap-2 text-foreground-secondary">
           <Spinner />
