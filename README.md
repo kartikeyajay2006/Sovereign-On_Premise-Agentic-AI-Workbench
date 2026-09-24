@@ -4,7 +4,7 @@
 
 <br>
 
-**[Demo](#aegis-in-5-seconds)** · **[Architecture](#full-system-architecture)** · **[Security](#security-by-architecture)** · **[Quick start](#quick-start)** · **[Docs](docs/)**
+**[See it](#see-aegis-in-action)** · **[Architecture](#full-system-architecture)** · **[Security](#security-by-architecture)** · **[Quick start](#quick-start)** · **[Demo script](docs/DEMO.md)**
 
 <br>
 
@@ -14,17 +14,15 @@
 
 ---
 
-## AEGIS in 5 seconds
-
 <div align="center">
 
-<img src="docs/assets/readme/aegis-demo.gif" alt="Walkthrough of the AEGIS console, a delivered answer with citations, the approval queue, the audit trail and the security posture screen." width="900">
+<img src="docs/assets/readme/screenshot-landing.webp" alt="The AEGIS landing page: 'Answers you can prove.', with the workbench window below the headline, ready to play a recorded run." width="900">
 
-<sub>Real screens from a running instance — console, delivered answer, approval queue, audit chain, sovereignty posture.</sub>
+<sub>The public page plays one real recorded run as you scroll: every word and figure in it is the run's own.</sub>
 
 </div>
 
-> One request. Several controlled stages. One outcome you can prove afterwards.
+> Ask a question in a thread. AEGIS answers it from your own documents, cites the section every sentence came from, checks the claims and the arithmetic, holds anything that leaves the building for a named reviewer, and writes every step to a hash-chained log.
 
 ---
 
@@ -44,9 +42,9 @@ A sensitive organisation has to control the **data**, the **models**, the **tool
 
 | | Stage | What it does | The line that matters |
 |---|---|---|---|
-| **01** | **UNDERSTAND** | Scans, drawings, spreadsheets and reports become evidence units that keep their source, page and section | Raw document → traceable evidence |
-| **02** | **DECIDE** | The task is classified, then routed to a model that policy permits and the host can actually hold in memory | **Installed ≠ authorised** |
-| **03** | **EXECUTE** | Generated code runs in a constrained subprocess with resource limits and neutralised network primitives | **Code runs. Network doesn't.** |
+| **01** | **UNDERSTAND** | Reports, scans, drawings and spreadsheets become evidence units that keep their document, page and section | Raw document → traceable evidence |
+| **02** | **DECIDE** | The request is classified, then each stage is routed to a model that policy permits and the host can hold in memory | **Installed ≠ authorised** |
+| **03** | **EXECUTE** | Generated code runs in a constrained subprocess with OS resource limits and neutralised network primitives | **Code runs. Network doesn't.** |
 | **04** | **PROVE** | Claims are checked against evidence, figures recomputed, policy applied, a human signs, the record is hash-chained | Every answer has a provable history |
 
 ---
@@ -57,9 +55,7 @@ A sensitive organisation has to control the **data**, the **models**, the **tool
 <img src="docs/assets/readme/architecture-overview.svg" alt="AEGIS architecture: browser to FastAPI to task analyser, model router, agent orchestrator, four tool columns, verification, policy gateway, human approval and verified output, with cross-cutting registry, policy, SSE, audit, sovereignty monitoring and access control." width="100%">
 </div>
 
-Everything in that diagram runs on one machine. Inference is reached over loopback; the platform makes no outbound calls at runtime.
-
----
+Everything in that diagram runs on one machine. Inference is reached over loopback, and the platform makes no outbound calls at runtime.
 
 ### 01 / UNDERSTAND
 
@@ -67,9 +63,7 @@ Everything in that diagram runs on one machine. Inference is reached over loopba
 <img src="docs/assets/readme/flow-understand.svg" alt="Documents enter, are parsed or rasterised and read, normalised, chunked, embedded locally and stored as evidence units carrying full provenance." width="100%">
 </div>
 
-A PDF with a text layer is parsed directly. One without — a scan, a photographed report — is rasterised page by page and read by the local vision model instead. Either way, what lands in the index is an evidence unit that still knows which document, page and section it came from.
-
----
+A PDF is inspected **page by page**. Pages with a text layer are parsed directly. Pages without one (a scan, a photographed report) are rasterised and read by the local vision model in small batches, and a page the vision model returns empty falls back to local Tesseract OCR. Every page becomes its own citable evidence item (`[V1]`, `[V2]` …) that knows its document, page number and source hash. The verifier refuses an answer that attributes a `[V…]` citation to a different page than the one it came from, and holds any answer with a citation that leads to no evidence the run recorded.
 
 ### 02 / DECIDE
 
@@ -77,9 +71,7 @@ A PDF with a text layer is parsed directly. One without — a scan, a photograph
 <img src="docs/assets/readme/flow-decide.svg" alt="A task is analysed for type, complexity and sensitivity, then routed through the model registry, policy gateway and resource fit to an approved model per stage." width="100%">
 </div>
 
-Each pipeline stage declares the capability it needs; the router scores the registry against that, the caller's role, the data classification and the memory actually free on the host. A model being installed is not the same as a model being permitted for this task.
-
----
+Each stage declares the capability it needs. The router scores the registry against that, the caller's role, the data classification and the memory actually free on the host. You can also pin a model per run from the thread. A conversational message ("thanks", "hello") takes a fast path with no retrieval. A single retrieval question skips planning entirely, because a plan earns its cost only when the work branches.
 
 ### 03 / EXECUTE
 
@@ -87,9 +79,13 @@ Each pipeline stage declares the capability it needs; the router scores the regi
 <img src="docs/assets/readme/flow-execute.svg" alt="Agent requests pass a policy check and AST validation before running in an isolated subprocess with CPU, memory, file-size and process limits, and neutralised socket primitives." width="100%">
 </div>
 
-Arithmetic that ends up in a signed document is never taken from the model's own token prediction — it is written as Python and executed. Before it runs, the source is scanned for disallowed imports and calls; while it runs, POSIX resource limits bound it and a `sitecustomize` shim replaces socket primitives so an outbound call raises rather than connects.
+Arithmetic that ends up in a signed document is never taken from the model's own token prediction. It is written as Python and executed. Before it runs, the source is scanned for disallowed imports and calls. While it runs, OS-level limits bound it:
 
----
+- **Linux:** POSIX `setrlimit` (CPU, address space, file size, processes).
+- **macOS:** the same, except that a parent watchdog enforces resident memory, because a useful address-space limit cannot be set there.
+- **Windows:** a kernel **Job Object** (committed memory, CPU time, active processes, kill-on-close). It is assigned before the child runs a line of user code and is probed on the host before execution is allowed at all.
+
+A `sitecustomize` shim replaces the socket primitives, so an outbound call raises rather than connects.
 
 ### 04 / PROVE
 
@@ -97,34 +93,42 @@ Arithmetic that ends up in a signed document is never taken from the model's own
 <img src="docs/assets/readme/flow-prove.svg" alt="Model output passes evidence, calculation and policy checks, then human approval, producing a verified output and a hash-chained audit record." width="100%">
 </div>
 
-Every record in `storage/logs/audit.jsonl` carries the hash of the one before it. Editing or deleting a line breaks the chain, and the Audit screen will name the sequence where verification first fails.
+Every record in `storage/logs/audit.jsonl` carries the hash of the one before it. Editing or deleting a line breaks the chain. The Audit screen verifies it twice: once on the server, and once again in your browser with Web Crypto, independently of the server.
 
 ---
 
 ## See AEGIS in action
 
+Real screens from a local instance on a CPU-only Windows laptop, running the synthetic demo corpus.
+
 <div align="center">
 
-<img src="docs/assets/readme/screenshot-answer.webp" alt="A delivered task showing the prompt, status, the answer citing SOP-INS-014 and SOP-OPS-008, and the tool invocation that retrieved six passages." width="900">
+<img src="docs/assets/readme/screenshot-thread-answer.webp" alt="The workbench: a sidebar of places and runs, and a /clause run delivered in 39.6 s with 4 of 4 checks passed and its answer cited to SOP-INS-014 section 2.2." width="900">
 
-<sub><b>A delivered answer</b> — cited to the organisation's own procedures, with the retrieval call that produced it.</sub>
+<sub><b>Thread</b> — ask in plain language, or call a skill with <code>/</code>. The answer comes back cited to the section it came from, with its checks, timings and model usage one click away.</sub>
 
 </div>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/readme/screenshot-console.webp" alt="AEGIS console with the task dispatcher and radial topology." width="100%"><sub><b>Console</b> — dispatch a task, watch the stages.</sub></td>
-<td width="50%"><img src="docs/assets/readme/screenshot-ask.webp" alt="Ask screen listing documents on the host with a question field." width="100%"><sub><b>Ask</b> — question the documents already on the host.</sub></td>
+<td width="50%"><img src="docs/assets/readme/screenshot-thread-deliverable.webp" alt="An /approval-note run held for review: 1 of 5 checks failed, a cited draft, and the DOCX withheld with its SHA-256." width="100%"><sub><b>Held</b> — a drafted approval note that failed a check is held, its DOCX withheld and hashed; nothing is released on the model's word.</sub></td>
+<td width="50%"><img src="docs/assets/readme/screenshot-approvals.webp" alt="Approval queue: three held runs, why one was held (restricted evidence, failed verification), its cited deliverable and each check." width="100%"><sub><b>Approvals</b> — why each run was held, what it would release, every check, and a decision recorded against the reviewer.</sub></td>
 </tr>
 <tr>
-<td><img src="docs/assets/readme/screenshot-tasks.webp" alt="Task archive with per-run type, actor and status." width="100%"><sub><b>Tasks</b> — every run, with models, tools and latency.</sub></td>
-<td><img src="docs/assets/readme/screenshot-approvals.webp" alt="Approval queue showing held deliverables awaiting a reviewer." width="100%"><sub><b>Approvals</b> — nothing is released without a signature.</sub></td>
+<td><img src="docs/assets/readme/screenshot-skills.webp" alt="Skills: the five built-in skills, /approval-note, /clause, /handover, /remaining-life and /severity." width="100%"><sub><b>Skills</b> — saved instructions called with <code>/</code> in the thread; each run records which skill version shaped it.</sub></td>
+<td><img src="docs/assets/readme/screenshot-harnesses.webp" alt="Harnesses: the library of three jobs, and a finished SOP question sweep with 3 of 3 items settled." width="100%"><sub><b>Harnesses</b> — one job over many items; each item is an ordinary checked run, and the job ends in one hashed report.</sub></td>
 </tr>
 <tr>
-<td><img src="docs/assets/readme/screenshot-audit.webp" alt="Audit trail with chain verification and hash blocks." width="100%"><sub><b>Audit</b> — hash-chained, verified on demand.</sub></td>
-<td><img src="docs/assets/readme/screenshot-security.webp" alt="Security posture screen with sandbox self-test and policy view." width="100%"><sub><b>Security</b> — live sandbox self-test and policy set.</sub></td>
+<td><img src="docs/assets/readme/screenshot-sandbox.webp" alt="Sandbox: limits enforced by a Windows Job Object, a corrosion-rate payload, and the attacks it must stop." width="100%"><sub><b>Sandbox</b> — run code under this host's limits, or fire the attacks it must stop, and see what it measured or which rule refused it.</sub></td>
+<td><img src="docs/assets/readme/screenshot-audit.webp" alt="Audit: 854 records recompute on the server to one head hash, with a browser check one click away." width="100%"><sub><b>Audit</b> — every task, model call, decision and sign-in, hash-linked; recomputed by the server and, on demand, by your browser.</sub></td>
 </tr>
 </table>
+
+<div align="center">
+<img src="docs/assets/readme/screenshot-security.webp" alt="Assurance: egress measured at zero, containment tested on demand, and ten actions no role can take." width="900">
+
+<sub><b>Assurance</b> — what the host measured (egress), what it tested (containment) and what it is configured to allow (policy), each labelled as which.</sub>
+</div>
 
 ---
 
@@ -132,22 +136,24 @@ Every record in `storage/logs/audit.jsonl` carries the hash of the one before it
 
 | Capability | What is actually implemented |
 |---|---|
-| **Local inference** | Ollama over loopback; six models declared in `config/models.yaml`, enforced to `127.0.0.1` |
-| **Multimodal ingestion** | PDF text extraction, PyMuPDF rasterisation for scans, vision reading, XLSX/DOCX/CSV parsing |
-| **Retrieval** | Local embeddings with cosine similarity, BM25 lexical fallback, provenance preserved into citations |
-| **Task analysis** | Type, complexity, sensitivity and capability requirements from `config/classification.yaml` |
-| **Model routing** | Per-stage roles and capabilities, scored against the registry, policy and free memory |
-| **Model residency** | Single-model residency with eviction, so a small host is not asked to hold everything at once |
-| **Agent orchestration** | Seven stages — classify, plan, read, retrieve, sandbox, draft, verify — with bounded code retry |
-| **Constrained execution** | AST validation, POSIX rlimits (CPU, address space, file size, processes), socket neutralisation |
-| **Verification** | Claims traced to evidence, asserted figures recomputed, per-check pass/fail report |
+| **Local inference** | Ollama over loopback, enforced to `127.0.0.1`; six models declared in `config/models.yaml` |
+| **Workbench** | One thread for questions, calculations and deliverables in a sidebar workbench with every run listed; token streaming, per-run model choice, run transcript |
+| **Multimodal ingestion** | Per-page PDF inspection, PyMuPDF rasterisation, batched vision reading with Tesseract fallback, XLSX/DOCX/CSV parsing |
+| **Retrieval** | Local embeddings with cosine similarity, BM25 lexical fallback, department and classification isolation before ranking |
+| **Task analysis** | Type, complexity, sensitivity and capability requirements from `config/classification.yaml`; a run is raised to the class of the evidence it reads |
+| **Model routing** | Per-stage roles and capabilities, scored against the registry, policy and free memory, with single-model residency |
+| **Skills** | Saved, versioned instructions invoked with `/`; five built in under `config/skills/`, more added from the UI |
+| **Harnesses** | Multi-run jobs (obligation coverage, requirements register, SOP question sweep) with one aggregated, hashed report |
+| **Constrained execution** | AST validation plus POSIX rlimits, a macOS memory watchdog, or a Windows Job Object; socket neutralisation |
+| **Verification** | Claims traced to evidence, every citation checked to lead somewhere, page citations checked against their pages, asserted figures recomputed |
 | **Policy gateway** | Default-deny tool and path checks, classification-aware egress rules, approval requirements |
-| **Human approval** | Deliverables held unreleased until a role holding `approval.decide` signs; reviewer recorded |
+| **Human approval** | Deliverables held until a role holding `approval.decide` signs; reviewer and reason recorded |
 | **Deliverables** | DOCX, XLSX, PPTX and Markdown, generated locally and hashed |
-| **Tamper-evident audit** | Append-only JSONL, each record hashing the previous, `flock`-serialised across processes |
-| **Sovereignty monitoring** | Socket inventory and egress accounting surfaced on the Security screen |
-| **Live execution trace** | Server-Sent Events; 29 event types published during a run |
-| **Access control** | Five roles and 21 permissions with inheritance, defined in `policies/access-control.yaml` |
+| **Tamper-evident audit** | Append-only JSONL, each record hashing the previous, verified server-side and in the browser |
+| **Sovereignty monitoring** | Socket inventory and egress accounting of the workbench's own processes |
+| **Usage telemetry** | Per-call prompt and output tokens, load, eval and first-token time, context window, done reason |
+| **Live execution trace** | Server-Sent Events, 32 event types across tasks, harnesses and the sovereignty monitor |
+| **Access control** | Five roles and 22 permissions with inheritance, in `policies/access-control.yaml` |
 
 ---
 
@@ -163,8 +169,11 @@ MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  
 
 - Inference is pinned to loopback and refused otherwise.
 - Tool invocation is default-deny, resolved per role from policy files.
-- Generated code is statically validated before execution — imports and call targets are scanned.
-- Execution runs in a subprocess under `RLIMIT_CPU`, `RLIMIT_FSIZE`, `RLIMIT_NPROC` and `RLIMIT_CORE`, plus `RLIMIT_AS` where supported. On macOS, a parent watchdog enforces the resident-memory limit because a useful address-space limit cannot be applied. The environment is scrubbed and the working directory is scoped.
+- Generated code is statically validated before execution: imports and call targets are scanned.
+- Execution is bounded by the host's own mechanism, and never runs unbounded:
+  - **Linux:** `RLIMIT_CPU`, `RLIMIT_AS`, `RLIMIT_FSIZE`, `RLIMIT_NPROC` and `RLIMIT_CORE`.
+  - **macOS:** the same without `RLIMIT_AS`, which cannot be set usefully there, so a resident-memory watchdog replaces it.
+  - **Windows:** a Job Object. If the host cannot prove its limits hold, execution is refused rather than run unbounded.
 - Socket primitives are replaced inside the sandbox interpreter, so an outbound call raises rather than connects, and the attempt is recorded.
 - File access is confined to the task workspace; path escapes are refused by the policy gateway.
 - Approval is separated from execution: the role that runs a task does not hold `approval.decide`.
@@ -172,7 +181,7 @@ MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  
 
 **What this is not**
 
-Sandboxing here is **application-level isolation inside a subprocess** — static validation, resource limits and a runtime shim. It is **not** a VM, container, namespace or seccomp boundary, and it should not be described as one. A deployment handling genuinely hostile input should place this process inside an OS-level boundary as well. No claim of unbreakable isolation is made anywhere in this repository.
+Sandboxing here is **application-level isolation inside a subprocess**: static validation, OS resource limits and a runtime shim. It is **not** a VM, container, namespace or seccomp boundary, and it should not be described as one. A deployment handling genuinely hostile input should place this process inside an OS-level boundary as well. [`docs/RUNTIME-ENVIRONMENT.md`](docs/RUNTIME-ENVIRONMENT.md) sets out exactly what is and is not guaranteed.
 
 ---
 
@@ -180,17 +189,17 @@ Sandboxing here is **application-level isolation inside a subprocess** — stati
 
 | Layer | Actually used |
 |---|---|
-| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind 4, Three.js + react-three-fiber |
-| **Backend** | FastAPI, Pydantic v2, Uvicorn, Python 3.11 |
-| **Inference** | Ollama (loopback) — Qwen3 8B, Qwen2.5 3B, Qwen2.5 Coder 7B, Qwen2.5-VL 3B, Moondream 2, Nomic Embed Text |
-| **Storage** | SQLite — tasks, users, sessions, files, knowledge chunks and vectors |
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| **Backend** | FastAPI, Pydantic v2, Uvicorn, Python 3.11+ |
+| **Inference** | Ollama (loopback): Qwen3 8B, Qwen2.5 3B, Qwen2.5 Coder 7B, Qwen2.5-VL 3B, Moondream 2, Nomic Embed Text |
+| **Storage** | SQLite: tasks, users, sessions, files, skills, harness runs, knowledge chunks and vectors |
 | **Retrieval** | Locally computed embeddings, cosine similarity, BM25 fallback |
-| **Documents** | PyMuPDF, pypdf, python-docx, openpyxl, python-pptx, Pillow |
-| **Execution** | Python subprocess sandbox with AST validation and POSIX rlimits |
+| **Documents** | PyMuPDF, pypdf, Tesseract OCR, python-docx, openpyxl, python-pptx, Pillow |
+| **Execution** | Python subprocess sandbox: AST validation, POSIX rlimits / macOS watchdog / Windows Job Object |
 | **Transport** | REST + Server-Sent Events |
 | **Monitoring** | psutil-based socket and egress inventory |
 
-There is no PostgreSQL, pgvector, Neo4j or Redis in this project — the store is SQLite, and vector search is computed in process.
+There is no PostgreSQL, pgvector, Neo4j or Redis in this project: the store is SQLite, and vector search is computed in process.
 
 ---
 
@@ -202,22 +211,31 @@ There is no PostgreSQL, pgvector, Neo4j or Redis in this project — the store i
 |---|---|---|
 | **Upload** | File stored locally, hashed, classified | `file` audit record |
 | **Classify** | Task type, complexity, sensitivity determined | Profile with signals and reasons |
-| **Plan** | Steps decomposed before any of them run | `task.planned` event |
-| **Read** | Text-less PDF rasterised, read by the vision model | Extraction with page references |
+| **Read** | Text-less pages rasterised, read by the vision model (OCR fallback) | One `[V…]` evidence item per page |
+| **Plan** | Steps decomposed, because the work branches | `task.planned` event |
 | **Retrieve** | SOP corpus searched, passages returned with provenance | Evidence units `[S1] [S2] …` |
 | **Route** | Each stage matched to a permitted model | Routing decisions on the task |
-| **Execute** | Corrosion rate and remaining life computed in the sandbox | Script, stdout, resource usage |
-| **Verify** | Figures recomputed, claims traced, checks scored | Verification report |
+| **Execute** | Corrosion rate and remaining life computed in the sandbox | Script, stdout, measured limits |
+| **Verify** | Figures recomputed, claims and page citations traced | Verification report |
 | **Policy** | Classification and egress rules applied | Policy events |
-| **Approve** | Held until a reviewer signs | Reviewer name, id, timestamp |
+| **Approve** | Held until a reviewer signs | Reviewer, decision, timestamp |
 | **Deliver** | DOCX approval note generated and hashed | Deliverable record |
 | **Audit** | Every step above chained | `audit.jsonl` |
+
+[`docs/DEMO.md`](docs/DEMO.md) has twelve scripted scenarios like this one, each with the account to use and the correct answer to check the model against.
 
 ---
 
 ## Quick start
 
-**Prerequisites** — Python 3.11+, Node 20+, [Ollama](https://ollama.com) running locally, and Tesseract OCR (`brew install tesseract` on macOS; included in the Docker image) for scanned pages the vision model cannot read.
+**Prerequisites:**
+- Python 3.11+
+- Node 20+
+- [Ollama](https://ollama.com), running locally
+- Tesseract OCR, for scanned pages the vision model cannot read:
+  - macOS: `brew install tesseract`
+  - Windows: the UB Mannheim installer
+  - Docker: included in the image
 
 ```bash
 # 1. Clone
@@ -225,31 +243,36 @@ git clone https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Wo
 cd Sovereign-On_Premise-Agentic-AI-Workbench
 
 # 2. Backend
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # 3. Frontend
 cd frontend && npm install && cd ..
 
-# 4. Models — pull what the registry declares
+# 4. Models: pull what the registry declares
 ollama pull qwen3:8b
 ollama pull qwen2.5:3b
 ollama pull qwen2.5-coder:7b
 ollama pull qwen2.5vl:3b
 ollama pull nomic-embed-text
 
-# 5. Optional — seed the demonstration corpus
+# 5. Seed the synthetic demonstration corpus
 python scripts/seed_demo_data.py
-
-# 6. Run both services
-./scripts/run.sh
 ```
 
-Then open **http://127.0.0.1:3000**. The API listens on **127.0.0.1:8000**.
+**6. Run both services.**
 
-Seeded accounts — `operator`, `engineer`, `reviewer`, `auditor`, `admin`. The seed password is set by `security.seed_user_password` in `config/app.yaml`; change it before any real deployment. Stop everything with `./scripts/run.sh --stop`.
+- **Linux:** `./scripts/run.sh` builds the frontend and starts both services. `./scripts/run.sh --stop` stops them.
+- **macOS and Windows:** start them yourself in two terminals:
 
-Frontend configuration lives in `frontend/.env.local` — copy `frontend/.env.example` to start. No secret is required to run the workbench.
+```bash
+python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 75
+cd frontend && npm run build && npm start
+```
+
+Then open **http://127.0.0.1:3000**. The API listens on **127.0.0.1:8000**; `--timeout-keep-alive 75` keeps it from closing connections the web proxy is about to reuse. To run the API on another port, set `WORKBENCH_API_URL` before `npm run build`, because the proxy target is fixed at build time.
+
+**Seeded accounts:** `operator`, `engineer`, `reviewer`, `auditor` and `admin`, all with the password `workbench`. That password is `security.seed_user_password` in `config/app.yaml`; change it before any real deployment. The demo script lists what each role can see and do.
 
 ---
 
@@ -257,58 +280,68 @@ Frontend configuration lives in `frontend/.env.local` — copy `frontend/.env.ex
 
 ```
 backend/
-  agents/         orchestrator, planner, verifier — the seven-stage pipeline
-  api/            FastAPI app, routes, task queue and worker
-  core/           config, schemas, database, identity, audit chain, analyzer
+  agents/         orchestrator, planner, verifier: the staged pipeline
+  api/            FastAPI app, routes (tasks, skills, harnesses, sandbox, system), queue and worker
+  core/           config, schemas, database, identity, audit chain, analyzer, events
+  harness/        multi-run jobs: definitions, expansion, aggregation, reports
   models_layer/   registry, router, residency manager, Ollama client
   policy/         default-deny gateway for tools, paths and approvals
-  rag/            parsing, chunking, embedding, retrieval
+  rag/            parsing (per-page PDF, OCR), chunking, embedding, retrieval
   security/       sovereignty monitor
-  tools/          sandbox, deliverable generation, tool registry
-config/           models, routing, classification, prompts, app settings
-policies/         access control, approval rules, tool permissions, classification
-frontend/         Next.js console — console, ask, tasks, approvals, registry, security, audit
-scripts/          run.sh, demo seeding, verification tooling
-tests/            118 tests across security, queue, evidence, deliverables, verification
-docs/             architecture notes and README assets
+  skills/         skill registry
+  tools/          sandbox (POSIX / macOS / Windows backends), deliverables, tool registry
+config/           models, routing, classification, prompts, skills/, harnesses/, app settings
+policies/         access control, approval rules, tool permissions, data classification
+frontend/
+  app/            routes: landing, sign-in, console (thread), skills, harnesses,
+                  approvals, registry (knowledge), security, sandbox, audit
+  features/       thread, evidence, skills, harness, sandbox
+  components/     approvals, audit, registry, security, landing, navigation
+  shared/         design-system controls, data display and motion primitives
+scripts/          run.sh, seed_demo_data.py, demo_e2e.py, audit_tool.py, fixture capture
+sample_data/      the synthetic SOP corpus, records and scanned reports
+tests/            435 tests: security, sandbox, queue, evidence, verification, harnesses, telemetry
+docs/             DEMO, USE-CASES, RUNTIME-ENVIRONMENT, design notes, README assets
 ```
+
+`scripts/audit_tool.py` verifies or archives the audit chain from the command line. `scripts/demo_e2e.py` drives the headline task end to end against a running instance.
 
 ---
 
 ## Limitations
 
-Stated plainly, because they affect whether this is right for your deployment.
+These are stated plainly, because they affect whether this is right for your deployment.
 
-- **Latency is hardware-bound.** On a CPU-only host a full question takes roughly 45–75 seconds. A GPU changes this substantially; nothing in the design hides the cost.
-- **Vision is the expensive path.** Rasterising and reading a large scanned PDF is far slower than a text query, and scales with page count.
-- **Cold starts matter.** The first call after a model is evicted pays load time; single-model residency trades throughput for fitting on a small host.
+- **Latency is hardware-bound.** On a CPU-only laptop a cited answer takes about 40 seconds and a drafted deliverable about 4 minutes. A GPU changes this substantially, and nothing in the design hides the cost.
+- **Small models draft thin documents.** The verifier says so. With `qwen2.5:3b` and no attached report, an approval note comes back with placeholders and fails its grounding checks, and it is held rather than released.
+- **Vision is the expensive path.** Reading a scanned PDF scales with page count.
+- **Cold starts matter.** The first call after a model is evicted pays its load time. Single-model residency trades throughput for fitting on a small host.
 - **Application-level sandboxing is not VM isolation.** See [Security by architecture](#security-by-architecture).
 - **Policy files are deployment-specific.** The shipped roles, classifications and approval rules are a sensible default, not your organisation's.
 - **Compliance is not a software property.** The audit chain supports an assurance process; it does not constitute one.
-- **Optional Firebase sign-in is a convenience layer, not the security boundary.** It is off by default and cannot work air-gapped; workbench accounts are the supported path.
 
 ---
 
 ## Roadmap
 
 - [x] Local inference with a declared, policy-checked model registry
-- [x] Per-stage model routing with residency management
-- [x] Multimodal ingestion including rasterisation for scanned documents
+- [x] Per-stage model routing with residency management and per-run model choice
+- [x] Per-page multimodal ingestion: rasterisation, batched vision reading, OCR fallback
 - [x] Retrieval with provenance-preserving citations and lexical fallback
-- [x] Sandboxed code execution with static validation and resource limits
-- [x] Verification engine — evidence tracing and figure recomputation
+- [x] Sandboxed execution with static validation and OS limits on Linux, macOS and Windows
+- [x] Verification engine: evidence tracing, citation and page-citation checks, figure recomputation
 - [x] Default-deny policy gateway with classification-aware rules
 - [x] Human approval gate with role separation and recorded reviewer
-- [x] Hash-chained audit log with cross-process locking and on-demand verification
-- [x] Deliverable generation — DOCX, XLSX, PPTX, Markdown
-- [x] Live execution trace over SSE
-- [x] Sovereignty monitoring and sandbox self-test
-- [ ] Token-level answer streaming (the model client supports it; the orchestrator does not yet use it)
-- [ ] Model and routing transparency screens (`/models`, `/routing/rules` are served but not surfaced)
-- [ ] Per-task policy event panel
+- [x] Hash-chained audit log, verified on the server and in the browser
+- [x] Deliverable generation: DOCX, XLSX, PPTX, Markdown
+- [x] Sidebar workbench: one thread, every run listed, token streaming
+- [x] Skills and multi-run harnesses
+- [x] Model, retrieval and sandbox transparency screens
 - [ ] Permission-derived navigation, so a role sees only what it may reach
+- [ ] Per-task policy event panel in the thread
 - [ ] Merkle-tree audit structure for efficient partial proofs
-- [ ] P&ID graph extraction — symbols and their connections
+- [ ] P&ID graph extraction: symbols and their connections
+- [ ] Offline deployment bundle, with a working frontend container
 
 ---
 
@@ -317,7 +350,8 @@ Stated plainly, because they affect whether this is right for your deployment.
 | | |
 |---|---|
 | **[@kartikeyajay2006](https://github.com/kartikeyajay2006)** | Architecture, backend, agent orchestration, sandbox, policy, verification, audit |
-| **Raghav Sharma** | Frontend redesign — visual system, layouts, motion, architecture visualisation, AEGIS brand identity |
+| **[@kunalKumar-13](https://github.com/kunalKumar-13)** | Chat-first thread, skills and harnesses, Windows sandbox backend, usage telemetry, landing page, evidence and honesty pass |
+| **Raghav Sharma** | Frontend redesign: visual system, layouts, motion, architecture visualisation, AEGIS brand identity; scanned-PDF extraction and macOS sandbox |
 | **Ankit Pandey** | Contributions to the workbench |
 
 ---
@@ -332,8 +366,6 @@ Stated plainly, because they affect whether this is right for your deployment.
 **UNDERSTAND → DECIDE → EXECUTE → PROVE**
 
 *Private intelligence. Provable control.*
-
-**YOUR DATA. YOUR MODELS. YOUR INFRASTRUCTURE. YOUR CONTROL.**
 
 <sub>Built for Smart India Hackathon 2025 · Every claim above was checked against the code before it was written.</sub>
 

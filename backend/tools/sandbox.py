@@ -57,7 +57,7 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -1471,9 +1471,6 @@ class Sandbox:
         return sorted(
             path.name for path in workspace.iterdir() if path.name not in skip
         )
-
-    def workspace_for(self, run_directory: str) -> Path:
-        return self._workspace_root() / run_directory
 
     # -- self-test ---------------------------------------------------------
     def self_test_report(self) -> dict[str, Any]:

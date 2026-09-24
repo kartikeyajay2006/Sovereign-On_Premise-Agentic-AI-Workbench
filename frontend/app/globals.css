@@ -35,7 +35,6 @@
   --ink-foreground: #f5f5f2;
   --ink-muted: #9a978f;
   --ink-border: #242422;
-  --ink-grid: #1a1a19;
 
   /* status */
   --sovereign: #16a34a;
@@ -456,7 +455,6 @@ html[data-theme='dark'],
   --ink-foreground: #141413;
   --ink-muted: #5f5b57;
   --ink-border: #d8d5d0;
-  --ink-grid: #e4e1dc;
 
   /* Ink inverted: the primary control is an ivory pill at night. */
   --action: #f2f1ec;
@@ -667,8 +665,6 @@ html[data-theme='dark'],
   /* and muted ink falls under it on three. Hence the rule, with no      */
   /* third case.                                                         */
   /* ------------------------------------------------------------------ */
-  --wash-sovereign: linear-gradient(to bottom, oklch(from var(--sovereign) l c h / 11%), transparent 70%);
-  --wash-active:    linear-gradient(to bottom, oklch(from var(--active) l c h / 11%), transparent 70%);
   --wash-approval:  linear-gradient(to bottom, oklch(from var(--approval) l c h / 11%), transparent 70%);
   --wash-critical:  linear-gradient(to bottom, oklch(from var(--critical) l c h / 12%), transparent 70%);
 
@@ -782,7 +778,6 @@ html[data-theme='dark'],
   --color-ink-foreground: var(--ink-foreground);
   --color-ink-muted: var(--ink-muted);
   --color-ink-border: var(--ink-border);
-  --color-ink-grid: var(--ink-grid);
 
   --color-sovereign: var(--sovereign);
   --color-active: var(--active);
@@ -1008,24 +1003,11 @@ html[data-theme='dark'],
   background-size: 56px 56px;
 }
 
-@utility tech-grid-ink {
-  background-image:
-    linear-gradient(to right, var(--ink-grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--ink-grid) 1px, transparent 1px);
-  background-size: 56px 56px;
-}
-
 /* glass-chassis and glass-chassis-dark are gone. A full-width
    backdrop-filter re-samples everything beneath it on every frame the
    stage board changes, and against flat warm paper it was visually
    near-identical to a plain tinted surface. Neither had any consumer
    outside this file. */
-
-/* The 1px vertical connector behind a timeline's markers. */
-@utility rail-line {
-  width: 1px;
-  background: var(--line-default);
-}
 
 /* Applied to any latency, score, hash fragment, count or coordinate that
    needs to line up in a column. */
@@ -1045,9 +1027,6 @@ html[data-theme='dark'],
 }
 @utility grouped-row {
   border-bottom: 1px solid var(--line-subtle);
-}
-@utility grouped-row-last {
-  border-bottom: 0;
 }
 
 /* The asymmetric hover. Enter is instantaneous; only the decay is
@@ -1214,45 +1193,6 @@ html[data-theme='dark'],
 }
 
 /* ------------------------------------------------------------------ */
-/* Verdict badge: the rule set features/verification/ui/verdict-badge  */
-/* asks for in its NEEDS-GLOBAL note.                                  */
-/*                                                                     */
-/* Glyph and label, always, so no verdict is ever icon-only. Only the  */
-/* shared shape lives here; the text colour, the ring and the weight   */
-/* stay per verdict in the component, because they are what differs.  */
-/* The note wrote --text-meta and --text-ui, which are Tailwind's own  */
-/* theme names; these are the --size-* tokens they resolve to, which   */
-/* are always on :root. Every value matches what the component draws   */
-/* inline today, including its inline size and its 4px headline        */
-/* padding, so moving the component onto these classes changes        */
-/* nothing on screen.                                                  */
-/* ------------------------------------------------------------------ */
-.verdict {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--size-meta);
-  line-height: var(--lh-meta);
-  letter-spacing: var(--ls-meta);
-  text-transform: uppercase;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-xs);
-}
-.verdict[data-size='inline'] {
-  padding: var(--space-0) var(--space-2);
-}
-.verdict[data-size='headline'] {
-  font-size: var(--size-ui);
-  line-height: var(--lh-ui);
-  padding: var(--space-2) var(--space-4);
-}
-.verdict-glyph {
-  font-size: var(--size-meta);
-  line-height: 1;
-}
-
-/* ------------------------------------------------------------------ */
 /* Motion                                                              */
 /* ------------------------------------------------------------------ */
 @keyframes sov-pulse {
@@ -1273,25 +1213,8 @@ html[data-theme='dark'],
    a governed run actually did, neither is meaningful, and an infinite
    loop competes with local inference for the main thread.
 
-   sov-pulse, sov-reveal and sov-line-grow survive; sov-pulse has six
-   consumers and arrow-shift is used by the button. */
-
-@keyframes sov-reveal {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes sov-line-grow {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-
-.reveal {
-  opacity: 0;
-}
-.reveal.in-view {
-  animation: sov-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
+   sov-pulse survives: it has six consumers, and arrow-shift is used by
+   the button. */
 
 .arrow-shift {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
@@ -1481,19 +1404,6 @@ html[data-theme='dark'],
 .aegis-light[data-rest='none'] { --light-rest: var(--light-rest-none); }
 .aegis-light[data-rest='rim']  { --light-rest: var(--light-rest-rim); }
 .aegis-light[data-rest='full'] { --light-rest: var(--light-rest-full); }
-
-/* ------------------------------------------------------------------ */
-/* The stage board's connector, drawing into the next stage.            */
-/*                                                                      */
-/* Referent: task.stage moving a stage to done while the board is live. */
-/* Downward from the top, because that is the direction the run flows.  */
-/* A connector that is already drawn when its board mounts was read     */
-/* from the record and never takes this class.                          */
-/* ------------------------------------------------------------------ */
-.aegis-draw-down {
-  transform-origin: top;
-  animation: aegis-draw-y var(--standard) var(--ease-standard) both;
-}
 
 /* ------------------------------------------------------------------ */
 /* VERIFY — a check moving across a set, as far as it has actually got. */
@@ -1730,8 +1640,6 @@ html[data-theme='dark'],
 /* ------------------------------------------------------------------ */
 /* Utilities for the light register.                                    */
 /* ------------------------------------------------------------------ */
-@utility wash-sovereign { background-image: var(--wash-sovereign); }
-@utility wash-active    { background-image: var(--wash-active); }
 @utility wash-approval  { background-image: var(--wash-approval); }
 @utility wash-critical  { background-image: var(--wash-critical); }
 
@@ -1851,10 +1759,6 @@ html[data-theme='dark'],
     --dur-land: 0ms;
   }
   /* Transforms are gated at the keyframe, not the duration. */
-  .reveal {
-    opacity: 1;
-    animation: none;
-  }
   .sov-pulse {
     animation: none;
     opacity: 1;
@@ -1879,7 +1783,6 @@ html[data-theme='dark'],
   .aegis-append,
   .aegis-roll-in,
   .aegis-refuse-rule,
-  .aegis-draw-down,
   .aegis-seal[data-draw] .aegis-seal-rule,
   .aegis-seal[data-draw] .aegis-seal-mark {
     animation: none;
@@ -1977,7 +1880,6 @@ html[data-theme='dark'],
 [data-theme='dark'] .ae-shot-dark { display: block; }
 
 /* ---- cards and grids ------------------------------------------------- */
-.ae-card { border: 1px solid var(--line-subtle); border-radius: 18px; background: var(--surface); }
 .ae-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line-subtle); border-radius: 18px; background: var(--line-subtle); }
 .ae-stat { display: flex; flex-direction: column; gap: 6px; padding: clamp(20px, 2.4vw, 28px); background: var(--background); }
 .ae-stat .v { font-weight: 600; font-size: clamp(2rem, 3.4vw, 2.8rem); line-height: 1; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; color: var(--foreground); }
@@ -2136,11 +2038,6 @@ html[data-theme='dark'],
       radial-gradient(110% 90% at 55% 105%, oklch(0.3 0.04 165) 0%, transparent 60%),
       oklch(0.2 0.012 60);
   }
-
-  .ae-painted { position: relative; isolation: isolate; overflow: hidden; background: var(--ae-paint); }
-  .ae-painted::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; background-image: var(--ae-grain); background-size: 160px 160px; opacity: 0.16; mix-blend-mode: soft-light; }
-  [data-theme='dark'] .ae-painted::after { opacity: 0.22; mix-blend-mode: overlay; }
-  .ae-painted > * { position: relative; z-index: 1; }
 
   /* The hero frame is painted now, not grey. */
   .ae-frame { background: var(--ae-paint); position: relative; isolation: isolate; overflow: hidden; }

@@ -25,7 +25,7 @@ import pytest
 from backend.api.task_service import TaskError
 from backend.core.database import Database
 from backend.core.events import EventBus
-from backend.core.schemas import ApprovalRecord, Task, TaskStatus
+from backend.core.schemas import ApprovalRecord, Task
 from backend.harness.expansion import HarnessInputError
 from backend.harness.models import HarnessOutcome, HarnessStartRequest, ItemState, RunStatus
 from backend.harness.service import (

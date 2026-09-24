@@ -26,7 +26,6 @@ from backend.agents.orchestrator import AgentOrchestrator, TaskCancelled
 from backend.core.schemas import (
     ModelDescriptor,
     ModelRole,
-    ModelUsage,
     RoutingDecision,
     Sensitivity,
     Task,

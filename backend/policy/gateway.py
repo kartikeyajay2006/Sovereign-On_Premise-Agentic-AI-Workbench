@@ -28,14 +28,6 @@ from backend.core.schemas import (
 )
 
 
-class PolicyViolation(RuntimeError):
-    """Raised when a denied action is attempted anyway."""
-
-    def __init__(self, event: PolicyEvent) -> None:
-        super().__init__(event.reason)
-        self.event = event
-
-
 class PolicyGateway:
     """Config-driven RBAC/ABAC enforcement with a default-deny posture."""
 

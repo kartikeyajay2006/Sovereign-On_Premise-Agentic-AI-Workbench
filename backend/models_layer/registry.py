@@ -128,13 +128,6 @@ class ModelRegistry:
         snapshot = await self.refresh()
         return snapshot.by_id(model_id)
 
-    async def is_registered(self, provider_model: str) -> bool:
-        """Policy check: refuse inference on models not declared in config."""
-        snapshot = await self.refresh()
-        return any(
-            descriptor.provider_model == provider_model for descriptor in snapshot.models
-        )
-
     async def embedding_model(self) -> ModelDescriptor | None:
         snapshot = await self.refresh()
         candidates = [

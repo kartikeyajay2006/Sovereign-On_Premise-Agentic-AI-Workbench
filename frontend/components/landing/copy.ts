@@ -19,7 +19,6 @@
 // Machine excerpts below are quoted verbatim from files in this repository,
 // and each carries the path it came from. None of them is illustrative.
 
-import type { Stage } from './stage-table'
 
 export const REPO_URL =
   'https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench'
@@ -71,106 +70,6 @@ export const HERO = {
   repoPath: REPO_PATH,
 } as const
 
-const COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
-/** 2 -> "two", 12 -> "12". Words below ten, figures above, as prose sets them. */
-const count = (n: number) => COUNT[n] ?? String(n)
-
-// --------------------------------------------------------------------------- //
-// 02 — The premise
-// --------------------------------------------------------------------------- //
-
-export const PREMISE = {
-  id: 'premise',
-  index: '02',
-  eyebrow: 'The problem',
-  title: 'Running the model locally',
-  titleTurn: 'answers one question.',
-  // `open` is how many of the five the run's record cannot yet settle,
-  // counted by the page from the record.
-  lede: (open: number) =>
-    `Self-hosting solves privacy. It is silent on everything a regulated organisation is actually asked afterwards. Below, each of those questions is answered from the record of the run above${
-      open === 0 ? '.' : ` — including the ${count(open)} it cannot answer yet.`
-    }`,
-  solved: {
-    label: 'Solved by running it yourself',
-    body: 'The prompt never leaves the building.',
-    note: 'Measured rather than asserted: section 05 reads, live, how many unapproved connections the monitor has observed from this workbench’s processes.',
-  },
-  ledger: {
-    label: 'Still open',
-    run: (run: string) => `answered from ${run}`,
-    model: {
-      question: 'Which model answered, and was it permitted to?',
-      answer: (model: string, calls: number, reason: string): Rich => [
-        { v: model },
-        calls === 1
-          ? `, on its one model call. It was allowed before it ran: “${reason}”.`
-          : `, on all ${count(calls)} of its model calls. Each was allowed before it ran: “${reason}”.`,
-      ],
-      // When not every call was allowed, the ledger says so and quotes nothing.
-      mixed: (refused: number, calls: number): Rich => [
-        `${count(refused)} of ${count(calls)} model calls were refused by policy.`,
-      ],
-      none: 'No model call was recorded for this run.',
-      source: (rule: string) => `policy_events · ${rule}`,
-    },
-    read: {
-      question: 'What did it read, and on which page?',
-      answer: (passages: number, mode: string, clauses: string[]): Rich =>
-        clauses.length === 0
-          ? [`${passages} passages, by ${mode} search. The answer cites none of them.`]
-          : [
-              `${passages} passages, by ${mode} search. The answer cites ${count(clauses.length)}: `,
-              ...clauses.flatMap((clause, i) => [
-                ...(i === 0 ? [] : [i === clauses.length - 1 ? ' and ' : ', ']),
-                { v: clause },
-              ]),
-              '.',
-            ],
-      none: 'Nothing was retrieved for this run.',
-      source: 'evidence',
-    },
-    arithmetic: {
-      question: 'Is the arithmetic right, or was it predicted?',
-      // The detail is the verifier's own sentence, verbatim.
-      failed: (detail: string): Rich => ['Not established. ', detail],
-      passed: (detail: string): Rich => ['Recomputed. ', detail],
-      none: 'No calculation check was recorded for this run.',
-      source: 'verification · calculation_verification',
-    },
-    authorised: {
-      question: 'Who authorised the result before it was acted on?',
-      held: 'Held',
-      // Printed after a HELD label, so it does not say "held" again.
-      pending: (rule: string, reason: string, roles: string): Rich => [
-        'No one yet, under ',
-        { v: rule },
-        `: “${reason}” It waits on the ${roles} role.`,
-      ],
-      decided: (who: string, when: string): Rich => [`Released by ${who}, `, { v: when }, '.'],
-      refused: (when: string): Rich => ['A reviewer refused release, ', { v: when }, '.'],
-      none: 'No approval was required for this run.',
-      source: 'approval',
-    },
-    regulator: {
-      question: 'What can you hand a regulator in six months?',
-      answer: (count: number, first: number, last: number, hash: string): Rich => [
-        `${count} records in the hash-chained audit log, `,
-        { v: `seq ${first}` },
-        ' to ',
-        { v: `seq ${last}` },
-        '. The last is stored with the hash ',
-        { v: hash },
-        '.',
-      ],
-      none: 'No audit record was found for this run.',
-      source: 'storage/logs/audit.jsonl',
-    },
-  },
-  closing:
-    'Nothing the model reads ever leaves the machine it runs on — and the workbench counts the attempts.',
-} as const
-
 // --------------------------------------------------------------------------- //
 // 03 — The chain
 // --------------------------------------------------------------------------- //
@@ -181,80 +80,6 @@ export const CHAIN = {
   title: 'Cited. Checked. Recorded.',
   titleTurn: 'Before anything leaves.',
   lede: 'Every answer goes through three steps, and each leaves something you can open. These are from the run above.',
-} as const
-
-// --------------------------------------------------------------------------- //
-// 04 — One run, end to end
-// --------------------------------------------------------------------------- //
-
-export const RUN = {
-  id: 'run',
-  index: '04',
-  eyebrow: 'The run',
-  title: 'One run,',
-  titleTurn: 'end to end.',
-  lede: (ran: number, idle: number) =>
-    `Seven stages. Each declares the capability it needs, is routed to a model policy permits and the host can actually hold in memory, and leaves something behind. The last column is the run above, read from its audit records: ${count(ran)} ${ran === 1 ? 'stage' : 'stages'} ran${
-      idle > 0 ? `, and ${count(idle)} had nothing to do` : ''
-    }.`,
-  timelineLabel: 'Where its time went',
-  runColumn: 'This run',
-  notRun: 'not run',
-  notMeasured: 'not measured',
-  between: 'Between stages',
-  stages: [
-    {
-      index: '01',
-      id: 'classify',
-      name: 'Classify',
-      action: 'Type, complexity and sensitivity are determined from config/classification.yaml',
-      leaves: 'task.classified',
-    },
-    {
-      index: '02',
-      id: 'plan',
-      name: 'Plan',
-      action: 'Steps are decomposed before any of them execute',
-      leaves: 'task.planned',
-    },
-    {
-      index: '03',
-      id: 'read',
-      name: 'Read',
-      action: 'A PDF with no text layer is rasterised and read by the vision model',
-      leaves: 'extraction + page refs',
-    },
-    {
-      index: '04',
-      id: 'retrieve',
-      name: 'Retrieve',
-      action: 'The local corpus is searched; passages keep their provenance',
-      leaves: '[S1] [S2] …',
-    },
-    {
-      index: '05',
-      id: 'sandbox',
-      name: 'Sandbox',
-      action: 'Generated Python runs under AST validation and resource limits',
-      leaves: 'script, stdout, rusage',
-    },
-    {
-      index: '06',
-      id: 'draft',
-      name: 'Draft',
-      action: 'The answer is composed against the retrieved evidence only',
-      leaves: 'draft + citations',
-    },
-    {
-      index: '07',
-      id: 'verify',
-      name: 'Verify',
-      action: 'Claims are traced, figures recomputed, checks scored',
-      leaves: 'verification report',
-    },
-  ] satisfies Stage[],
-  closing:
-    'The task then stops. A deliverable is held until a role holding approval.decide signs it, and the role that ran the task is not that role.',
 } as const
 
 // --------------------------------------------------------------------------- //

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime, timezone
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request

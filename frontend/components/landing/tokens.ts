@@ -17,9 +17,6 @@
 /** The page's single content column: 1180px with a fluid gutter (globals.css, .ae-shell). */
 export const SHELL = 'ae-shell'
 
-/** A narrower column for long-form prose: roughly 62 characters. */
-export const PROSE = 'max-w-[62ch]'
-
 /**
  * A small label over a card's contents: plain sans, medium weight. It was an
  * uppercase mono micro-label; caps everywhere read as noise.
@@ -38,16 +35,6 @@ export const MONO_VALUE = 'font-mono text-ui font-[425] text-foreground-secondar
 /** The same, one step down, for a value sharing a row with a MONO_LABEL. */
 export const MONO_META = 'font-mono text-meta font-[425] text-foreground-secondary'
 
-/**
- * Section heading. text-display (32px) is the largest product token; the 36px
- * step above it is a marketing size and exists only here.
- */
-export const SECTION_TITLE =
-  'text-balance text-display font-medium leading-[1.12] tracking-[-0.024em] text-foreground md:text-[36px] md:leading-[1.08] md:tracking-[-0.028em]'
-
-/** Section lede, directly under a section heading. --text-heading (16px/24px). */
-export const SECTION_LEDE = 'mt-4 text-heading font-normal text-foreground-secondary'
-
 /** A card: a white sheet with a hairline and a generous radius. */
 export const CARD = 'rounded-[16px] border border-line-subtle bg-surface'
 
@@ -65,30 +52,3 @@ export const ACTION_FILL = 'bg-action text-action-ink hover:bg-action-hover'
  */
 export const FOCUS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background'
-
-/**
- * The only control heights on this page.
- *
- * sm/md/lg are --control-sm (32px), --control-lg (40px) and 44px. The 44px rung
- * exists for the hero CTAs at mobile, where WCAG 2.2 AAA target size applies to
- * the page's actual conversion path.
- */
-export const CONTROL = {
-  sm: 'h-8 px-3 text-ui',
-  md: 'h-10 px-5 text-body',
-  lg: 'h-11 px-5 text-answer',
-} as const
-
-/**
- * The outline control boundary.
- *
- * WCAG 2.2 SC 1.4.11 requires 3:1 for the visual boundary of a user-interface
- * component, which a hairline token is not built to reach. Mixing
- * --foreground into --background at 55% introduces no hue -- it is the ink
- * and the ground the page already has -- and on the dark palette lands at
- * #807e7a: 4.76:1 against --background and 4.42:1 against --surface. Hairlines
- * between rows keep --border, because a row rule is decorative grouping
- * rather than a control boundary.
- */
-export const CONTROL_EDGE =
-  'border-[color-mix(in_oklab,var(--foreground)_55%,var(--background))]'

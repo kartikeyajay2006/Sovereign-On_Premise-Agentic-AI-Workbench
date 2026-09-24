@@ -45,15 +45,6 @@ export interface User {
   max_data_classification: 'normal' | 'confidential' | 'sensitive' | 'restricted'
 }
 
-export interface DirectoryUser {
-  username: string
-  display_name: string
-  role: string
-  department: string
-  description?: string
-  password_hint?: string
-}
-
 export interface Session {
   token: string
   user: User
@@ -374,46 +365,6 @@ export interface TaskRecord {
   classification: 'CONFIDENTIAL' | 'RESTRICTED' | 'INTERNAL'
 }
 
-export interface ApprovalItem {
-  id: string
-  title: string
-  submittedBy: string
-  submittedAt: string
-  /** The task's data classification, as the profile reports it. */
-  sensitivity: string
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  classification: 'CONFIDENTIAL' | 'RESTRICTED' | 'INTERNAL'
-  document: string
-  extractedText: string
-  evidence: EvidenceItem[]
-  verification: VerificationCheck[]
-  draft: string
-  rawTask?: Task
-}
-
-export interface SopRecord {
-  id: string
-  title: string
-  department: string
-  classification: 'CONFIDENTIAL' | 'RESTRICTED' | 'INTERNAL'
-  chunks: number
-  ingested: string
-  status: 'INDEXED' | 'INGESTING' | 'ERROR'
-  source_path?: string
-  version?: string
-}
-
-export interface TaskFile {
-  id: string
-  filename: string
-  type: string
-  sizeKb: number
-  classification: 'CONFIDENTIAL' | 'RESTRICTED' | 'INTERNAL'
-  task: string
-  uploaded: string
-  status: 'STORED' | 'PROCESSING'
-}
-
 export interface KnowledgeDocument {
   id: string
   title: string
@@ -526,14 +477,6 @@ export interface AuditEvent {
   prevHash?: string
 }
 
-export interface AuditChainStatus {
-  valid: boolean
-  events: number
-  broken_at?: number | null
-  head_hash?: string | null
-  checked_at: string
-}
-
 export interface NetworkConnection {
   laddr: string
   raddr: string | null
@@ -559,16 +502,6 @@ export interface SovereigntyStatus {
   /** Why the last sample took no reading, when it did not. */
   monitor_error?: string | null
   interfaces: Record<string, any>
-}
-
-export interface SandboxTestResult {
-  checks: { name: string; target: string; passed: boolean; detail: string }[]
-  passed: number
-  total: number
-  overall: string
-  all_passed: boolean
-  duration_ms: number
-  ran_at: string
 }
 
 export interface ModelDescriptor {

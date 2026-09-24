@@ -196,13 +196,6 @@ class Database:
         with self.connect() as connection:
             connection.execute("DELETE FROM sessions WHERE token = ?", (token,))
 
-    def purge_expired_sessions(self) -> int:
-        with self.connect() as connection:
-            cursor = connection.execute(
-                "DELETE FROM sessions WHERE expires_at < ?", (_utcnow(),)
-            )
-            return cursor.rowcount
-
     # -- files -------------------------------------------------------------
     def insert_file(self, record: dict[str, Any]) -> None:
         payload = dict(record)

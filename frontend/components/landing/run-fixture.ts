@@ -28,7 +28,6 @@
 // JavaScript whole.
 
 import fixture from '@/public/landing/run.json'
-import type { ReceiptRow } from './run-receipt'
 
 interface FixtureRow {
   value: string
@@ -210,14 +209,6 @@ export const run: CapturedRun = fixture
 /** A short run id. The full uuid is 36 characters and swamps the header row. */
 export const runId = `tsk_${run.task_id.slice(0, 8)}`
 
-export const receiptRows: ReceiptRow[] = [
-  { label: 'Cited', ...run.cited },
-  { label: 'Checked', ...run.checked },
-  { label: 'Computed', ...run.computed },
-  { label: run.decision.label, value: run.decision.value, meta: run.decision.meta },
-  { label: 'Recorded', value: run.recorded.value, meta: run.recorded.meta },
-]
-
 // --------------------------------------------------------------------------- //
 // Formatting. Every helper returns null for a value the record does not carry,
 // so a caller has to decide what absence looks like instead of receiving a
@@ -271,9 +262,4 @@ export function clock(iso: string | null | undefined): string | null {
   if (!iso) return null
   const match = /T(\d{2}:\d{2}:\d{2})/.exec(iso)
   return match ? `${match[1]} UTC` : null
-}
-
-/** The stage a check name belongs to, in words: "calculation_verification" -> "calculation". */
-export function checkName(name: string): string {
-  return name.replace(/_verification$|_check$/, '').replace(/_/g, ' ')
 }

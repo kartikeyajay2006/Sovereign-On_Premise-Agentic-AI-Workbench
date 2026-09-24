@@ -18,7 +18,6 @@ import contextlib
 import json
 import re
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import groupby
@@ -34,7 +33,6 @@ from backend.core.schemas import (
     ApprovalRecord,
     EvidenceItem,
     ModelDescriptor,
-    ModelRole,
     ModelUsage,
     PlanStep,
     PolicyDecision,
