@@ -22,6 +22,9 @@
 
 **[🎬 See it](#-see-aegis-in-action)** · **[🧭 How it works](#-understand--decide--execute--prove)** · **[🧩 Features](#-what-is-inside)** · **[🔐 Security](#-security-by-architecture)** · **[🚀 Quick start](#-quick-start)** · **[📚 Handbook](#-the-aegis-handbook)** · **[👥 Team](#-the-team)**
 
+For the next build phases and the single flagship workflow to take to SIH, see the
+[winning build plan](docs/SIH-WINNING-BUILD-PLAN.md).
+
 </div>
 
 ---
