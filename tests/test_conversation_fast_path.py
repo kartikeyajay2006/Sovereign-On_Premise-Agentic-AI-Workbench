@@ -169,6 +169,9 @@ class TestTheCalculationGate:
             "Internal inspection is due every 24 months [S1].",
             "Wall loss above 20% of nominal is reported as High [S2].",
             "The retention period is 7 years under clause 4.2 [S3].",
+            # A clause's threshold, not a computed remaining life.
+            "When remaining life is less than 2 years, a Fitness-For-Service assessment is required [S3].",
+            "Inspect before the next interval of 24 months at the measured corrosion rate [S2].",
         ],
     )
     async def test_a_quoted_figure_is_not_sent_for_extraction(self, counting, text: str) -> None:

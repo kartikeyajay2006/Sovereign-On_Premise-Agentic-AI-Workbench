@@ -26,4 +26,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=20s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"
 
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --timeout-keep-alive: see scripts/run.sh -- a proxy reusing an idle
+# connection uvicorn has just closed fails as "socket hang up".
+CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "75"]

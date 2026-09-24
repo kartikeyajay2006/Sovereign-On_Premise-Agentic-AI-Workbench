@@ -81,10 +81,26 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
   const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
 
   try {
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       ...options,
       headers,
     })
+
+    // A read that failed in the proxy rather than in the API is tried once
+    // more. The API reports its own failures as JSON; a 5xx that is not JSON
+    // is this server's rewrite losing the connection ("socket hang up") on
+    // the way, before the API ever saw the request. Only a read is retried:
+    // sending a write twice could do it twice.
+    const method = (options.method || 'GET').toUpperCase()
+    if (
+      !res.ok &&
+      res.status >= 500 &&
+      method === 'GET' &&
+      !(res.headers.get('content-type') || '').includes('application/json')
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      res = await fetch(url, { ...options, headers })
+    }
 
     if (!res.ok) {
       let detail = ''
