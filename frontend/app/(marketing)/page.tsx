@@ -137,7 +137,7 @@ const GALLERY: GallerySlide[] = [
     body: 'A run reads like a terminal session: each step with its time, the passages it found, the model’s tokens and the checks, then the cited answer.',
     light: '/landing/shots/thread-light.png',
     dark: '/landing/shots/thread-dark.png',
-    alt: 'The AEGIS thread: a /clause request, the run as a transcript of its steps with times, tokens and four passed checks, and the answer citing S1.',
+    alt: 'The AEGIS thread: a /clause request delivered in 18.8 s with six of six checks passed, and the answer citing S1, SOP-INS-014 §2.2.',
   },
   {
     id: 'skills',
