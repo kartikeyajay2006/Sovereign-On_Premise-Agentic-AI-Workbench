@@ -65,6 +65,8 @@ export function SectionShell({
       aria-labelledby={headingId}
       // scroll-mt clears the sticky header when an anchor is followed.
       data-theme={tone === 'night' ? 'dark' : undefined}
+      // The landing header reads this to take the night palette over it.
+      data-band={tone === 'night' ? '' : undefined}
       className={cn(
         'scroll-mt-16',
         tone === 'surface' && 'bg-[color-mix(in_oklab,var(--foreground)_2.5%,var(--background))]',

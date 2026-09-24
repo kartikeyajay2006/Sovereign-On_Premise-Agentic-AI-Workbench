@@ -227,7 +227,7 @@ function clip(text: string, max: number): string {
 }
 function checkNote(name: string, detail: string): string {
   const counted = detail.match(/(\d+) of (\d+) material claim/)
-  if (name === 'source_verification' && counted) return `${counted[1]} of ${counted[2]} claims traced`
+  if (name === 'source_verification' && counted) return `${counted[1]} of ${counted[2]} traced`
   if (name === 'hallucination_check' && counted) return `${counted[1]} of ${counted[2]} traceable`
   if (/No numeric calculations/i.test(detail)) return 'none asserted'
   if (/No code was generated/i.test(detail)) return 'none generated'
@@ -338,7 +338,7 @@ export default function LandingPage() {
           The band takes the dark palette whatever the page's theme, and runs
           up under the header, which goes clear while it sits over it.
         */}
-        <div id="hero-band" data-theme="dark" data-dot-field-host className="ae-hero-band">
+        <div id="hero-band" data-theme="dark" data-band data-dot-field-host className="ae-hero-band">
           <DotField className="ae-hero-dots" />
           <div aria-hidden className="ae-hero-glow" />
           <div className="ae-shell pb-12 pt-16 text-center md:pb-16 md:pt-28">
@@ -528,24 +528,17 @@ export default function LandingPage() {
       <SectionShell id={RUN_IT.id} eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} lede={RUN_IT.lede}>
         <div className="ae-reveal grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12">
           <CommandBlock label="Terminal" lines={[...RUN_IT.commands]} wrap />
-          <div className="flex flex-col gap-5">
-            <ol className="m-0 flex list-none flex-col gap-4 p-0">
-              {RUN_IT.next.map((line, i) => (
-                <li key={line} className="flex gap-3.5">
-                  <span className="ae-step-n shrink-0">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="pt-0.5 text-[0.95rem] leading-[1.55] text-foreground-secondary">{line}</span>
-                </li>
-              ))}
-            </ol>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <LandingButton href={HERO.primary.href} variant="primary">
-                {HERO.primary.label}
-                <span className="ar" aria-hidden>
-                  →
-                </span>
-              </LandingButton>
-            </div>
-          </div>
+          {/* No button here: the footer's call to action is the next thing
+              on the page, and two of the same button a screen apart read as
+              the page not knowing it had already asked. */}
+          <ol className="m-0 flex list-none flex-col gap-4 p-0">
+            {RUN_IT.next.map((line, i) => (
+              <li key={line} className="flex gap-3.5">
+                <span className="ae-step-n shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                <span className="pt-0.5 text-[0.95rem] leading-[1.55] text-foreground-secondary">{line}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       </SectionShell>
     </>

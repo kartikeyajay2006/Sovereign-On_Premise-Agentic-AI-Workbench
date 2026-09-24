@@ -17,7 +17,7 @@ import { Wordmark } from './wordmark'
  */
 export function LandingFooter() {
   return (
-    <footer data-theme="dark" className="ae-footer">
+    <footer data-theme="dark" data-band className="ae-footer">
       <div className={`${SHELL} pt-24 md:pt-32`}>
         <div className="mx-auto max-w-[760px] text-center">
           <p className="ae-kicker m-0 justify-center">{FOOTER.cta.eyebrow}</p>

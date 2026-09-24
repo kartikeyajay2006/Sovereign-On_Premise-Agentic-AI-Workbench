@@ -31,20 +31,32 @@ export function LandingHeader() {
   const [overBand, setOverBand] = useState(true)
 
   useEffect(() => {
-    const band = document.getElementById('hero-band')
-    if (!band || typeof IntersectionObserver === 'undefined') {
+    // Every full-bleed night ground -- the hero's band, the night sections,
+    // the footer -- marks itself data-band. The header is dark over any of
+    // them: a pale bar over a night section read as a hole in the page.
+    const bands = Array.from(document.querySelectorAll<HTMLElement>('[data-band]'))
+    if (bands.length === 0 || typeof IntersectionObserver === 'undefined') {
       setOverBand(false)
       return
     }
     let io: IntersectionObserver | null = null
+    const under = new Set<Element>()
     const watch = () => {
       io?.disconnect()
+      under.clear()
       // The observed strip is the header's own 64px at the top of the window.
       const bottom = Math.max(0, window.innerHeight - 64)
-      io = new IntersectionObserver(([entry]) => setOverBand(entry.isIntersecting), {
-        rootMargin: `0px 0px -${bottom}px 0px`,
-      })
-      io.observe(band)
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) under.add(entry.target)
+            else under.delete(entry.target)
+          }
+          setOverBand(under.size > 0)
+        },
+        { rootMargin: `0px 0px -${bottom}px 0px` },
+      )
+      for (const band of bands) io.observe(band)
     }
     watch()
     window.addEventListener('resize', watch)
