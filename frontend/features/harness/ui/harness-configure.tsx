@@ -367,16 +367,19 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
       </div>
 
       <header className="flex flex-col gap-2 border-b border-line-default pb-6">
-        <Ledger>Configure · {definition.source}</Ledger>
+        <Ledger>Configure</Ledger>
         <h1 className="text-title font-medium tracking-[var(--ls-title)] text-foreground">
           {definition.name}
         </h1>
         <p className="max-w-[80ch] text-body text-foreground-secondary">{definition.description}</p>
-        <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-          v{definition.version} · sha256 {definition.sha256.slice(0, 16)} ·{' '}
+        <p
+          className="text-[12.5px] text-foreground-muted"
+          title={`${definition.source} v${definition.version} · sha256 ${definition.sha256}`}
+        >
+          v{definition.version} ·{' '}
           {definition.report_requires_approval
-            ? 'report released only after sign-off'
-            : 'report released when written'}
+            ? 'The report is released only after sign-off'
+            : 'The report is released when it is written'}
         </p>
       </header>
 

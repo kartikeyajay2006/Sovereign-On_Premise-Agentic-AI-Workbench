@@ -387,7 +387,8 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       <header className="flex flex-col gap-3 border-b border-line-default pb-6">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Ledger>Harness run</Ledger>
-          <CopyValue label="run id" value={run.id} />
+          {/* The whole id is what Copy copies; the first eight say which run. */}
+          <CopyValue label="run id" value={run.id} display={run.id.slice(0, 8)} />
           <RunStatusBadge status={run.status} />
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -409,12 +410,17 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
             )}
           </div>
         </div>
-        <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+        {/* Who, when and how long, in words; the definition it ran -- its
+            file, version and hash -- in the title, for whoever audits it. */}
+        <p
+          className="text-[12.5px] text-foreground-muted"
+          title={`${run.harness.source} v${run.harness.version} · sha256 ${run.harness.sha256}`}
+        >
           Started by {run.user_display_name} · {formatDateTime(run.created_at)} ·{' '}
           <span className="tabular">
             {active ? 'elapsed' : 'took'} {formatDuration(elapsed)}
           </span>{' '}
-          · {run.harness.source} v{run.harness.version} · sha256 {run.harness.sha256.slice(0, 12)}
+          · v{run.harness.version}
         </p>
 
         {confirmCancel && (
