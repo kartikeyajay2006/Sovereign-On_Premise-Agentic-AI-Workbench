@@ -39,6 +39,6 @@ flowchart LR
 
 | | | |
 |:--|:--:|--:|
-| [← 1.8 · Installation troubleshooting](../01-getting-started/08-install-troubleshooting.md) | [↑ The AEGIS Handbook](../README.md) | [2.1 · Runs →](01-runs.md) |
+| [← 1.9 · Install on an air-gapped host](../01-getting-started/09-offline-install.md) | [↑ The AEGIS Handbook](../README.md) | [2.1 · Runs →](01-runs.md) |
 
 <!-- nav:end -->
