@@ -375,11 +375,14 @@ class ConflictRecord(BaseModel):
     over a formula input withholds every figure that depends on it until a
     person resolves it; a `revision` conflict (a record written against a
     superseded procedure) is resolved automatically in favour of the revision
-    in force, and says so.
+    in force, and says so. A `fact` conflict (two sources state different
+    values for one attribute of one tag or clause, outside the formula
+    inputs) withholds every claim that takes one of the values until a
+    person resolves it.
     """
 
     id: str
-    kind: Literal["input", "revision"]
+    kind: Literal["input", "revision", "fact"]
     subject: str | None = None
     field: str
     label: str

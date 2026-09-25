@@ -523,7 +523,7 @@ export interface ConflictResolution {
 /** Two sources disagree about something a decision depends on. */
 export interface ConflictRecord {
   id: string
-  kind: 'input' | 'revision'
+  kind: 'input' | 'revision' | 'fact'
   subject: string | null
   field: string
   label: string
