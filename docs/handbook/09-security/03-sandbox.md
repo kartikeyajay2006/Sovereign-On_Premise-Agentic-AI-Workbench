@@ -65,7 +65,7 @@ If no limit mechanism works on a host, `execution_allowed` is false and code is 
 A `sitecustomize.py` is written into each workspace, so the interpreter loads it before user code:
 
 - `socket.socket`, **and** the C primitive `_socket.socket` it is built on, plus `socketpair`, are replaced with functions that raise `SovereignNetworkBlocked`, and each attempt is logged. Patching only `socket.socket` would leave `import _socket; _socket.socket().connect(…)` live.
-- `builtins.open` and `os.open` are replaced with guards that raise `SovereignFilesystemBlocked` for any **write** (modes `w`, `a`, `x`, `+`, or write flags) outside the workspace. Reads pass through unchanged, which is the gap described below.
+- `builtins.open` and `os.open` are replaced with guards that raise `SovereignFilesystemBlocked` for any **write** (modes `w`, `a`, `x`, `+`, or write flags) outside the workspace, and for any **read** outside the workspace and its read scope. The read scope is the Python installation (packages import their own files lazily) and, on Linux, the public data files the standard library itself lists: the timezone database (`zoneinfo.TZPATH`, `/etc/localtime`, `/etc/timezone`) and the MIME tables (`mimetypes.knownfiles`). pandas needs the first for timezones, and openpyxl reads the second at import. All of these are read-only.
 
 The result reports **network attempts blocked**, read back from the attempt log.
 
@@ -85,19 +85,18 @@ Concretely, verified on the demonstration host:
 | Write outside the workspace with `open()` or `os.open()` | ✅ Refused |
 | Open a socket, even with `_socket` | ✅ Refused |
 | `os.system`, `subprocess`, `getattr` tricks | ✅ Refused before running |
-| **Read** a host file, e.g. `Path('/etc/hostname').read_text()` | ❌ **Allowed** |
-| **List** host directories, e.g. `Path('/home').iterdir()` | ❌ **Allowed** |
-| **Read the workbench's own database**, `storage/workbench.db` | ❌ **Allowed**, even as `operator` |
+| **Read** a host file, e.g. `Path('/etc/hostname').read_text()` | ✅ Refused |
+| **Read the workbench's own database**, `storage/workbench.db` | ✅ Refused |
+| **List** host directories, e.g. `Path('/home').iterdir()` | ❌ **Allowed**: names only, not contents |
 
-The last one matters most. The database holds every run's content, including runs from other departments and above the reader's clearance, and live session tokens. Code submitted by the lowest-privilege role can read it and print it back. **Until reads are confined, do not expose the sandbox to users you do not trust with everything on the host.**
+Listing is the remaining leak: generated code can learn file and folder names on the host, though not what they contain. Session tokens are stored hashed, so even a leaked database would not leak live sessions. The shim is still interpreter-level: a native extension making raw syscalls is outside its reach.
 
 ## Closing the gap
 
 In order of effort:
 
-1. **Confine reads in the shim** the same way writes are: refuse `open` for reading, `Path.read_*`, `os.listdir`, `os.scandir` and `os.open` outside the workspace and the Python installation. Cheap, and it closes the demonstrated path, though an interpreter shim can in principle be bypassed.
-2. **Hash session tokens at rest**, so a leaked database does not leak live sessions.
-3. **Run each execution in a container** (rootless Podman or Docker) with `--network none`, a read-only root filesystem, a non-root user, `--cap-drop ALL`, `no-new-privileges`, CPU, memory, PID and time limits, and only the workspace mounted. That turns application-level containment into OS-enforced isolation. `config/app.yaml` already reserves `sandbox.runtime: docker` and its options, and the code reports *config requests 'docker', not implemented* rather than pretending. See `docs/RUNTIME-ENVIRONMENT.md`.
+1. **Confine listing in the shim** as reads are: refuse `os.listdir`, `os.scandir` and `os.walk` outside the read scope.
+2. **Run each execution in a container** (rootless Podman or Docker) with `--network none`, a read-only root filesystem, a non-root user, `--cap-drop ALL`, `no-new-privileges`, CPU, memory, PID and time limits, and only the workspace mounted. That turns application-level containment into OS-enforced isolation. `config/app.yaml` already reserves `sandbox.runtime: docker` and its options, and the code reports *config requests 'docker', not implemented* rather than pretending. See `docs/RUNTIME-ENVIRONMENT.md`.
 
 <!-- nav:start -->
 
