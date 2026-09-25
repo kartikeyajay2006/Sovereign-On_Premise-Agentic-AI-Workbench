@@ -189,6 +189,29 @@ def _needs_plan(profile: TaskProfile, files: list[StoredFile]) -> bool:
     )
 
 
+DATA_SUFFIXES = {".csv", ".xlsx", ".xls"}
+
+
+def _template_plan_reason(
+    profile: TaskProfile, files: list[StoredFile], min_confidence: float
+) -> str | None:
+    """Why the plan can come from the task shape, or None to ask the model.
+
+    The pipeline runs from the profile; a model plan's only effect on it is
+    adding code execution the classifier did not require. Where that cannot
+    happen, or would be a guess against a confident classification, the
+    model call is 40 seconds spent reproducing the template.
+    """
+    if profile.requires_code_execution:
+        return "code execution is already required"
+    if any(Path(stored.filename).suffix.lower() in DATA_SUFFIXES for stored in files):
+        # A spreadsheet may want code the classifier did not see a need for.
+        return None
+    if profile.confidence >= min_confidence:
+        return f"classified {profile.task_type.value} at confidence {profile.confidence:.2f}"
+    return None
+
+
 @dataclass(frozen=True)
 class VisualInput:
     path: Path
@@ -1120,9 +1143,14 @@ class AgentOrchestrator:
         user: User,
         *,
         extraction: dict[str, Any] | None = None,
+        template_reason: str | None = None,
     ) -> AgentPlan:
         assert task.profile is not None
         profile = task.profile
+        if template_reason is not None:
+            return await self._record_plan(
+                task, user, self._fallback_plan(profile), {}, source="template", reason=template_reason
+            )
         available = self.tools.available_for(user, profile.sensitivity)
         catalogue = "\n".join(
             f"- {entry['name']}: {entry['description']}"
@@ -1191,11 +1219,27 @@ class AgentOrchestrator:
                 )
             )
 
+        source = "model"
         if not steps:
             # A deterministic plan derived from the profile, used when the model
             # returns nothing usable. The workflow is never left undefined.
             steps = self._fallback_plan(profile)
+            source = "fallback"
+        return await self._record_plan(task, user, steps, parsed, source=source)
 
+    async def _record_plan(
+        self,
+        task: Task,
+        user: User,
+        steps: list[PlanStep],
+        parsed: dict[str, Any],
+        *,
+        source: str,
+        reason: str | None = None,
+    ) -> AgentPlan:
+        """Store, announce and audit a plan, whoever made it."""
+        assert task.profile is not None
+        profile = task.profile
         plan = AgentPlan(
             steps=steps[: profile.step_budget],
             expected_outputs=[str(item) for item in (parsed.get("expected_outputs") or [])],
@@ -1211,6 +1255,7 @@ class AgentOrchestrator:
                 "steps": [step.model_dump(mode="json") for step in plan.steps],
                 "expected_outputs": plan.expected_outputs,
                 "risks": plan.risks,
+                "source": source,
             },
         )
         self.audit.record(
@@ -1219,7 +1264,12 @@ class AgentOrchestrator:
             actor=user.username,
             actor_role=user.role,
             task_id=task.id,
-            detail={"step_count": len(plan.steps), "plan_version": plan.version},
+            detail={
+                "step_count": len(plan.steps),
+                "plan_version": plan.version,
+                "source": source,
+                **({"reason": reason} if reason else {}),
+            },
         )
         return plan
 
@@ -1472,10 +1522,23 @@ class AgentOrchestrator:
             needs_plan = _needs_plan(profile, task.files)
 
             if needs_plan:
-                await self._stage(
-                    task, TaskStatus.PLANNED, "Producing an execution plan", phase="planning"
+                template = _template_plan_reason(
+                    profile,
+                    task.files,
+                    float(self.config.settings.agent.get("template_plan_min_confidence", 0.6)),
                 )
-                task.plan = await self._plan(task, user, extraction=extraction)
+                await self._stage(
+                    task,
+                    TaskStatus.PLANNED,
+                    "Producing an execution plan"
+                    if template is None
+                    else f"Plan taken from the task shape: {template}",
+                    None if template is None else {"template": True},
+                    phase="planning",
+                )
+                task.plan = await self._plan(
+                    task, user, extraction=extraction, template_reason=template
+                )
                 planned_actions = {step.action for step in task.plan.steps}
             else:
                 # Said, not silently skipped. A stage that did not run must

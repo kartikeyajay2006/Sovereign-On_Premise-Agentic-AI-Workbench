@@ -11,6 +11,15 @@ A plan earns its cost only when the work branches. `_needs_plan` is true when th
 
 Otherwise planning is **skipped and says so**: *No plan required: a single retrieval step with no code, files or deliverable.* The decision is deliberately not keyed on the step budget, which is a ceiling the analyzer allows, not an estimate of what a task needs.
 
+### Who makes the plan
+
+The pipeline runs from the task profile. A model plan affects it in one way only: it can add code execution that the classifier did not require. So `_template_plan_reason` takes the plan from the task shape, meaning the same steps as the deterministic fallback plan with no model call (about 40 s on CPU), when:
+
+- code execution is already required, so the model has nothing to add, or
+- the classification confidence is at least `agent.template_plan_min_confidence` (0.6 in `config/app.yaml`) and no CSV or XLSX is attached.
+
+A spreadsheet or a low-confidence classification still asks the model. The transcript says which happened (*Plan taken from the task shape: code execution is already required*). `task.planned` and the `plan_created` audit record carry `source`, which is `template`, `model` or `fallback`.
+
 ## What a plan is
 
 The planning prompt gives the model the request, the profile, the attached files and the available tools, and asks for JSON only:

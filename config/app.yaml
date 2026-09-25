@@ -189,6 +189,12 @@ agent:
   default_step_budget: 8
   max_step_budget: 20
   max_replans: 2
+  # A model plan changes a run in one way only: it can add code execution
+  # the classifier did not ask for. When code is already required, or the
+  # classification is at least this confident and no spreadsheet is
+  # attached, the plan is taken from the task shape instead: the same steps,
+  # without a ~40 s model call. Set above 1.0 to always ask the model.
+  template_plan_min_confidence: 0.6
   step_timeout_seconds: 600
   # Stream partial model output to the UI over SSE.
   stream_tokens: true
