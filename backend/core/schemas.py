@@ -399,7 +399,7 @@ class ConflictResolveRequest(BaseModel):
 class IntegrityAssessment(BaseModel):
     """The asset-integrity decision a run's calculations add up to."""
 
-    kind: Literal["vessel", "piping"]
+    kind: Literal["vessel", "piping", "stated"]
     subject: str
     # `conflicted`: the evidence disagrees about an input, and no figure that
     # depends on it is stated until a person resolves the conflict.

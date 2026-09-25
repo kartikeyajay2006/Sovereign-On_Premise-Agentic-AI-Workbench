@@ -15,6 +15,7 @@ Asked for a corrosion rate, a 3B model once answered 0.8 mm/year where the evide
 | `extraction.py` | Reads inputs from evidence and remembers where: `readings table · row 'Shell course 2 (mid)' · column 2026`. Header fields, readings tables (skipping repeated headers and the vision model's JSON copy), survey CSVs and piping CML lists |
 | `assessment.py` | Chains the formulas per location and picks the **governing location by lowest remaining life**, not by the thinnest reading or the fastest rate |
 | `stage.py` | Registers the results as **C evidence**, tells the model the figures, and detects conflicts between sources |
+| `stated.py` | For a calculation whose values are written in the question itself ("12.0 to 9.4 mm over 4 years, t-min 6.0 mm"). The model only proposes which number is which variable. A value is bound only when the question writes that number with a unit of the right dimension, and the rest are refused by name. The request becomes **H evidence** that every input cites, and the registry computes the rate, remaining life and below-t-min check |
 
 A missing input gives **cannot calculate**, naming what is missing; a malformed one gives **refused**, saying why. Neither is estimated. When two sources disagree about an input, the assessment is **conflicted**, and nothing that depends on it is computed until a person chooses ([2.9](../02-concepts/09-conflicts.md)).
 
