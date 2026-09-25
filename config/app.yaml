@@ -221,6 +221,21 @@ vision_cache:
   enabled: true
   path: vision-cache
 
+# Read-only plant-data connectors (backend/connectors/). The demonstration
+# historian is SIMULATED, built by scripts/seed_historian.py; the OPC UA
+# simulator serves the same tags from it. Live OPC UA needs the optional
+# asyncua library and a declared endpoint; nothing here reaches a cloud service.
+connectors:
+  historian:
+    enabled: true
+    path: storage/historian.db
+    classification: confidential
+  opcua:
+    enabled: true
+    # simulator | live
+    mode: simulator
+    endpoint: ""
+
 sovereignty:
   monitor_enabled: true
   poll_interval_seconds: 2

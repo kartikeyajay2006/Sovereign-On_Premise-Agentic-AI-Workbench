@@ -62,6 +62,17 @@ tools:
     side_effects: read_only
     requires_approval: false
 
+  historian_read:
+    description: Read recorded values for a tag from the plant historian or OPC UA (read-only).
+    allowed_roles: [operator, engineer, reviewer, administrator]
+    max_data_classification: restricted
+    side_effects: read_only
+    requires_approval: false
+    constraints:
+      # No write, method call or subscription exists on any connector.
+      read_only_connectors: true
+      max_samples: 500
+
   document_generate:
     description: Produce a DOCX/XLSX/PPTX/PDF deliverable.
     allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]

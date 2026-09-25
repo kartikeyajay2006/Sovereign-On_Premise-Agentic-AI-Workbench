@@ -2554,6 +2554,12 @@ class AgentOrchestrator:
 
     async def _topology_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
         """Answer a P&ID question from the drawing's graph, as cited T evidence."""
+        # An attached drawing is read as a graph and answers first, with the
+        # authored graph as its cross-check rather than a silent substitute.
+        from backend.engineering.pid_extraction import topology_from_image
+
+        if await topology_from_image(self, task, user, ledger):
+            return
         try:
             result = get_drawing_library().question(task.prompt)
         except DrawingError as exc:

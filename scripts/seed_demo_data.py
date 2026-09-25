@@ -958,6 +958,13 @@ def main() -> int:
     print(f"  data     {write_thickness_csv().relative_to(ROOT)}")
     print(f"  data     {write_inspection_history_csv().relative_to(ROOT)}")
     print(f"  answers  {write_expected_answers().relative_to(ROOT)}")
+    from scripts.make_sample_pid_image import render as render_pid
+
+    print(f"  drawing  {render_pid().relative_to(ROOT)}")
+    from backend.connectors import historian_path
+    from backend.connectors.historian import build_simulated_historian
+
+    print(f"  historian {build_simulated_historian(historian_path())} (simulated)")
 
     failures = 0
     if not arguments.files_only:

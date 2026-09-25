@@ -212,6 +212,20 @@ class ToolRegistry:
             self._spreadsheet_analyze,
         )
         self.register(
+            "historian_read",
+            "Read recorded process values (pressure, temperature, level) for an instrument "
+            "tag, or every instrument on an equipment tag, from the plant historian or OPC UA. "
+            "Read-only; each value keeps its source timestamp and quality.",
+            {
+                "tag": "instrument tag (PT-2104) or equipment tag (V-2104)",
+                "source": "optional; historian (default) or opcua",
+                "start": "optional ISO 8601 start of the window",
+                "end": "optional ISO 8601 end of the window",
+                "limit": "optional; newest samples per tag, default 24, at most 500",
+            },
+            self._historian_read,
+        )
+        self.register(
             "document_generate",
             "Render a verified DOCX/XLSX/PPTX/MD deliverable with evidence citations "
             "and a provenance block.",
@@ -436,6 +450,89 @@ class ToolRegistry:
             "limits": outcome.limits.to_dict(),
         }
 
+    async def _historian_read(
+        self, arguments: dict[str, Any], context: ToolContext
+    ) -> dict[str, Any]:
+        from backend.connectors import ConnectorUnavailable, UnknownTag, get_connectors
+
+        tag = str(arguments.get("tag") or "").strip()
+        if not tag:
+            return {"__ok__": False, "__summary__": "no tag supplied", "__error__": "tag is required"}
+        source_name = str(arguments.get("source") or "historian").strip().lower()
+        connector = get_connectors().get(source_name)
+        if connector is None:
+            return {"__ok__": False, "__summary__": f"no connector '{source_name}' is enabled",
+                    "__error__": f"unknown or disabled source '{source_name}'"}
+        try:
+            start = _parse_instant(arguments.get("start"))
+            end = _parse_instant(arguments.get("end"))
+            limit = int(arguments.get("limit") or 24)
+        except ValueError as exc:
+            return {"__ok__": False, "__summary__": str(exc), "__error__": str(exc)}
+
+        section = self.config.settings.section("connectors") or {}
+        level = str((section.get("historian") or {}).get("classification") or "confidential")
+        if self.config.classification_rank(level) > self.config.classification_rank(
+            context.user.max_data_classification.value
+        ):
+            reason = f"historian data is {level}, above this user's clearance"
+            return {"__ok__": False, "__summary__": reason, "__error__": reason}
+
+        try:
+            tags = connector.tags_for(tag)
+            if not tags:
+                raise UnknownTag(f"{tag} is neither a tag nor equipment with tags in {connector.name}")
+            series = [(info, connector.read(info.tag, start=start, end=end, limit=limit)) for info in tags]
+        except (ConnectorUnavailable, UnknownTag) as exc:
+            # "Could not ask" is reported as a failure, never as an empty result.
+            return {"__ok__": False, "__summary__": str(exc), "__error__": str(exc),
+                    "connector": connector.describe()}
+
+        evidence = []
+        for index, (info, readings) in enumerate(series, start=1):
+            good = [r.value for r in readings if r.quality == "good" and r.value is not None]
+            window = f"{readings[0].timestamp} to {readings[-1].timestamp}" if readings else "no samples"
+            lines = [
+                f"{r.timestamp}  " + (f"{r.value:g} {r.unit}" if r.value is not None else "no value")
+                + f"  quality {r.quality}" + (f" ({r.quality_reason})" if r.quality_reason else "")
+                for r in readings
+            ]
+            evidence.append(EvidenceItem(
+                # M for measured plant data; the ledger renumbers on collection.
+                id=f"M{index}",
+                source_document=(f"{'Simulated ' if connector.simulated else ''}{connector.name} · "
+                                 f"{info.tag} ({info.description})"),
+                location=f"{info.tag} · {window}",
+                excerpt="\n".join(lines)[:4000] or "no samples recorded in the window",
+                extraction_method="historian_read",
+                extraction_model=connector.name,
+                extraction_data={
+                    "connector": connector.name,
+                    "simulated": connector.simulated,
+                    "tag": info.tag,
+                    "equipment": info.equipment,
+                    "measurement": info.measurement,
+                    "unit": info.unit,
+                    "readings": [r.as_dict() for r in readings],
+                    "quality_counts": {q: sum(1 for r in readings if r.quality == q)
+                                       for q in ("good", "uncertain", "bad")},
+                    # Computed from good-quality samples only; None when there are none.
+                    "good_min": min(good) if good else None,
+                    "good_max": max(good) if good else None,
+                    "latest": readings[-1].as_dict() if readings else None,
+                },
+                classification=Sensitivity(level),
+                kind="historian",
+            ).model_dump(mode="json"))
+        count = sum(len(readings) for _, readings in series)
+        return {
+            "__summary__": (f"read {count} sample(s) for {', '.join(i.tag for i, _ in series)} from "
+                            f"{connector.name}{' (simulated)' if connector.simulated else ''}"),
+            "connector": connector.describe(),
+            "tags": [info.as_dict() for info, _ in series],
+            "evidence": evidence,
+        }
+
     async def _document_generate(
         self, arguments: dict[str, Any], context: ToolContext
     ) -> dict[str, Any]:
@@ -472,6 +569,17 @@ class ToolRegistry:
             ),
             "deliverable": deliverable.model_dump(mode="json"),
         }
+
+
+def _parse_instant(value: Any) -> datetime | None:
+    """An ISO 8601 instant, read as UTC when it names no zone."""
+    if value in (None, ""):
+        return None
+    try:
+        moment = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"'{value}' is not an ISO 8601 date or time") from exc
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
 
 
 _registry: ToolRegistry | None = None
