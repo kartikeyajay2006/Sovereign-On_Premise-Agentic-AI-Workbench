@@ -214,6 +214,18 @@ sovereignty:
   # Local service ports the platform itself uses.
   known_local_ports: [8000, 3000, 11434, 5432, 6379]
   violation_action: record_and_alert
+  # The kernel-enforced layer: infrastructure/firewall/aegis.nft, a default-deny
+  # nftables output chain with named drop counters. Read back on Linux only;
+  # anywhere else, or when nft refuses, it is reported as not measurable, never
+  # as zero. Reading needs CAP_NET_ADMIN: run as root, or set nft_command to
+  # [sudo, -n, /usr/sbin/nft] with infrastructure/firewall/aegis-nft-read.sudoers.
+  firewall:
+    enabled: true
+    family: inet
+    table: aegis_egress
+    nft_command: [nft]
+    poll_interval_seconds: 10
+    timeout_seconds: 5
 
 audit:
   enabled: true

@@ -1,0 +1,19 @@
+# Lets the unprivileged AEGIS service account read the egress table and its
+# counters, and nothing else. Reading a ruleset needs CAP_NET_ADMIN, so without
+# this the API reports the firewall as "not measurable" rather than zero.
+#
+# Install (replace `aegis` with the service account, and check the nft path
+# with `command -v nft`):
+#
+#   sudo install -m 0440 infrastructure/firewall/aegis-nft-read.sudoers /etc/sudoers.d/aegis-nft-read
+#   sudo visudo -cf /etc/sudoers.d/aegis-nft-read
+#
+# then in config/app.yaml:
+#
+#   sovereignty:
+#     firewall:
+#       nft_command: [sudo, -n, /usr/sbin/nft]
+#
+# The command line is matched exactly, so the account cannot list, change or
+# delete anything else.
+aegis ALL=(root) NOPASSWD: /usr/sbin/nft -j list table inet aegis_egress

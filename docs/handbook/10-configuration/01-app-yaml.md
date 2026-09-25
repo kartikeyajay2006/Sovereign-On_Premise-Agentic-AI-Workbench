@@ -93,6 +93,10 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `allowed_cidrs` | `127.0.0.0/8`, `::1/128` | ✅ | Remote addresses that count as local |
 | `known_local_ports` | `8000, 3000, 11434, 5432, 6379` | ⚠️ | Not read |
 | `violation_action` | `record_and_alert` | ⚠️ | Not read; violations are always recorded and published |
+| `firewall.enabled` | `true` | ✅ | Read the nftables egress table back into the status |
+| `firewall.family`, `firewall.table` | `inet`, `aegis_egress` | ✅ | The table `infrastructure/firewall/aegis.nft` loads |
+| `firewall.nft_command` | `[nft]` | ✅ | Reading needs CAP_NET_ADMIN; `[sudo, -n, /usr/sbin/nft]` with `infrastructure/firewall/aegis-nft-read.sudoers` for an unprivileged service account |
+| `firewall.poll_interval_seconds`, `firewall.timeout_seconds` | `10`, `5` | ✅ | How often the counters are read, and how long `nft` may take |
 
 ## `audit`
 

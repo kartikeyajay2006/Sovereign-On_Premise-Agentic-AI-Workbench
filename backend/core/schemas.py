@@ -726,6 +726,36 @@ class NetworkConnection(BaseModel):
     reason: str
 
 
+class FirewallCounter(BaseModel):
+    packets: int
+    bytes: int
+
+
+class EgressFirewallStatus(BaseModel):
+    """The host egress firewall as read back from the kernel, or why it was not.
+
+    ``state`` is one of ``enforced`` (the table is loaded and its output chain
+    drops by default), ``not_default_deny`` (loaded, but the policy is not
+    drop), ``not_present`` (nft answered and the table is not loaded) or
+    ``not_measurable`` (not Linux, no nft, or nft refused). Every figure is
+    None unless it was read: a host that could not be asked reports no
+    counters, never zero.
+    """
+
+    state: Literal["enforced", "not_default_deny", "not_present", "not_measurable"]
+    measurable: bool
+    present: bool | None = None
+    reason: str | None = None
+    table: str
+    output_policy: str | None = None
+    denied_packets: int | None = None
+    denied_bytes: int | None = None
+    allowed_packets: int | None = None
+    counters: dict[str, FirewallCounter] = Field(default_factory=dict)
+    ruleset_sha256: str | None = None
+    read_at: datetime
+
+
 class SovereigntyStatus(BaseModel):
     sovereign: bool
     external_api_calls: int = 0
@@ -741,6 +771,9 @@ class SovereigntyStatus(BaseModel):
     monitor_active: bool = True
     monitor_error: str | None = None
     interfaces: dict[str, Any] = Field(default_factory=dict)
+    # The kernel-enforced layer underneath the monitor: the nftables egress
+    # table and its drop counters. None until the first read.
+    firewall: EgressFirewallStatus | None = None
 
 
 # ---------------------------------------------------------------- sse events
