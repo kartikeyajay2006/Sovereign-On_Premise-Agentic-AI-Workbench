@@ -57,7 +57,7 @@ Many tests here encode a specific failure that happened once, with the story in 
 - The **frontend** has no test suite and no lint script. `npx tsc --noEmit` and `npm run build` are the checks.
 - There is no **evaluation suite** measuring answer quality against `sample_data/expected-answers.json`. The headline scanned-report scenario can therefore regress without a failing test ([8.5](../08-verification/05-limits.md)).
 - There is no **adversarial suite** for prompt injection in documents.
-- `scripts/demo_e2e.py` needs a running API with models, so CI does not run it. That is how its scenario 5 went stale.
+- `scripts/demo_e2e.py` and `scripts/golden_demo.py` need a running API with models, so CI does not run them. That is how `demo_e2e.py`'s scenario 5 went stale; run `golden_demo.py` before a demonstration ([14.2](../14-demo-guide/02-rehearsal.md)). `tests/test_golden_demo.py` checks its judgement against a fake API.
 
 <!-- nav:start -->
 

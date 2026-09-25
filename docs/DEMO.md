@@ -32,6 +32,19 @@ embedding search could not see; `--allow-lexical` overrides that. Re-running
 is safe. A changed document replaces its earlier copy: same document code,
 new content. That includes copies uploaded through the interface.
 
+### Check the golden demos
+
+About an hour before judging, with the models warm:
+
+```powershell
+./.venv/Scripts/python.exe scripts/golden_demo.py --plan   # what it checks; calls nothing
+./.venv/Scripts/python.exe scripts/golden_demo.py          # ends FINAL STATUS: READY, or says what is not
+```
+
+It drives the three judged moments through the API and passes a check only on
+what the API returned; it creates two runs on the target. See
+[handbook 14.2](handbook/14-demo-guide/02-rehearsal.md#the-golden-demo-check).
+
 ### Demo accounts
 
 Password for every account: `workbench` (`config/app.yaml`, `security.seed_user_password`).
