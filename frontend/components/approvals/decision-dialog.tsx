@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/controls/button'
 import { Kbd } from '@/shared/ui/controls/kbd'
 import type { QueueItem } from './model'
 
-export type DecisionKind = 'approve' | 'reject'
+export type DecisionKind = 'approve' | 'reject' | 'revise'
 
 /**
  * The confirm step, and where the reviewer's note is written.
@@ -44,20 +44,23 @@ export function DecisionDialog({
   const noteRef = useRef<HTMLTextAreaElement | null>(null)
 
   const approve = kind === 'approve'
+  const revise = kind === 'revise'
   const needsNote = !approve
   const blank = note.trim().length === 0
 
-  const title = approve ? (filename ? 'Approve and release' : 'Approve') : 'Reject and return'
+  const title = approve ? (filename ? 'Approve and release' : 'Approve') : revise ? 'Request a revision' : 'Reject and return'
   const consequence = approve
     ? filename
       ? `Releases ${filename} to the submitter and records the decision against ${reviewer} in the audit chain.`
       : `This run produced no file, so nothing is released. The approval is recorded against ${reviewer} in the audit chain.`
-    : `Nothing is released. The run is marked rejected, and your reason is stored on it and in the audit chain against ${reviewer}.`
+    : revise
+      ? `Nothing is released and nothing is rejected: the run goes back to its submitter with your note, recorded against ${reviewer} in the audit chain.`
+      : `Nothing is released. The run is marked rejected, and your reason is stored on it and in the audit chain against ${reviewer}.`
 
   const submit = async () => {
     if (busy) return
     if (needsNote && blank) {
-      setError('Add the reason this run is being returned.')
+      setError(revise ? 'Say what should change.' : 'Add the reason this run is being returned.')
       noteRef.current?.focus()
       return
     }
@@ -84,13 +87,13 @@ export function DecisionDialog({
             Cancel
           </Button>
           <Button
-            variant={approve ? 'primary' : 'danger'}
+            variant={approve ? 'primary' : revise ? 'secondary' : 'danger'}
             size="md"
             busy={busy}
             busyLabel="Recording…"
             onClick={() => void submit()}
           >
-            {approve ? (filename ? 'Approve & release' : 'Approve') : 'Reject'}
+            {approve ? (filename ? 'Approve & release' : 'Approve') : revise ? 'Request revision' : 'Reject'}
           </Button>
         </>
       }
@@ -108,7 +111,7 @@ export function DecisionDialog({
         <label className="flex flex-col gap-2">
           <span className="flex items-baseline justify-between gap-3">
             <span className="text-ui font-medium text-foreground-secondary">
-              {needsNote ? 'Reason' : 'Note'}
+              {revise ? 'What should change' : needsNote ? 'Reason' : 'Note'}
             </span>
             <span className="text-ui text-foreground-muted">{needsNote ? 'required' : 'optional'}</span>
           </span>

@@ -7,6 +7,8 @@ These tests make sure neither mechanism quietly leaves the stream public.
 
 from __future__ import annotations
 
+import hashlib
+
 from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
@@ -174,7 +176,9 @@ class TestDeliverableDownload:
                     filename=filename,
                     format="md",
                     size_bytes=len(body),
-                    sha256="0" * 64,
+                    # The file's real hash: a download is refused when the
+                    # bytes on disk are not the recorded bytes.
+                    sha256=hashlib.sha256(body.encode("utf-8")).hexdigest(),
                     download_url=f"/api/deliverables/{task_id}/{filename}",
                     released=True,
                 )

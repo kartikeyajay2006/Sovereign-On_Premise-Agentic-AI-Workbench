@@ -9,6 +9,8 @@ python-multipart==0.0.20
 PyYAML==6.0.2
 httpx==0.28.1
 psutil==6.1.1
+# Ed25519 signatures over audit roots and proof certificates
+cryptography==44.0.0
 
 # Document understanding and deliverable generation
 pypdf==5.1.0

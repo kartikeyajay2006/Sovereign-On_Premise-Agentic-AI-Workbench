@@ -20,6 +20,9 @@ storage/workspaces/*
 storage/index/*
 storage/logs/*
 storage/reports/*
+# The host signing key never leaves the host; certificates are per-install.
+storage/keys/*
+storage/proofs/*
 storage/*.db
 storage/*.db-wal
 storage/*.db-shm

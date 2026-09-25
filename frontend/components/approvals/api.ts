@@ -32,11 +32,22 @@ export function readTask(id: string, signal?: AbortSignal) {
   return request<Task>(`/tasks/${encodeURIComponent(id)}`, { signal })
 }
 
-export function recordDecision(id: string, decision: 'approve' | 'reject', note: string) {
+export function recordDecision(
+  id: string,
+  decision: 'approve' | 'reject' | 'revise',
+  note: string,
+  reviewDigest: string | null = null,
+) {
   const comment = note.trim()
   return request<Task>(`/tasks/${encodeURIComponent(id)}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, comment: comment || null }),
+    body: JSON.stringify({
+      decision: decision === 'revise' ? 'request_revision' : decision,
+      comment: comment || null,
+      // The version the reviewer read; the service refuses a decision on
+      // a run that has changed since (proof/certificate.py review_digest).
+      review_digest: reviewDigest,
+    }),
   })
 }

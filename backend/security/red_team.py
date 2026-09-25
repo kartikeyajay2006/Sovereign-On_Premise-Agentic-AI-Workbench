@@ -294,6 +294,43 @@ class RedTeam:
         self._run("AUDIT-01", "integrity", "Rewrite the actor of one past audit event (on a copy)",
                   "the chain breaks at the edited event; the real chain stays valid", probe)
 
+        # The stronger attacker: edit a past event and recompute every chain
+        # hash after it. The chain verifies again; only a root signed before
+        # the edit can show it happened.
+        def rechained():
+            from backend.core.audit import GENESIS_HASH, AuditLog
+            from backend.proof.audit_roots import AuditSeal
+            from backend.proof.signer import get_signer
+
+            if self.audit_log_path is None or not self.audit_log_path.exists():
+                return None, {"reason": "no audit log on this host to copy"}
+            with tempfile.TemporaryDirectory() as scratch:
+                copy = Path(scratch) / "audit.jsonl"
+                shutil.copyfile(self.audit_log_path, copy)
+                log = AuditLog(path=copy)
+                seal = AuditSeal(log, get_signer(), path=Path(scratch) / "audit-roots.jsonl")
+                seal.seal(reason="red team: before the edit")
+                records = [json.loads(line) for line in copy.read_text().splitlines() if line.strip()]
+                target = len(records) // 2
+                records[target]["actor"] = "someone-else"
+                previous = GENESIS_HASH if target == 0 else records[target - 1]["hash"]
+                for record in records[target:]:
+                    record["prev_hash"] = previous
+                    body = {key: value for key, value in record.items() if key != "hash"}
+                    record["hash"] = log._digest(previous, body)
+                    previous = record["hash"]
+                copy.write_text("\n".join(json.dumps(record, default=str) for record in records) + "\n")
+                chain = AuditLog(path=copy).verify_chain()
+                sealed = AuditSeal(AuditLog(path=copy), get_signer(), path=Path(scratch) / "audit-roots.jsonl").verify()
+            detected = next((r for r in sealed["results"] if not r["valid"]), None)
+            return chain.valid and not sealed["valid"], {
+                "edited_event": target + 1, "chain_still_valid": chain.valid,
+                "seal_valid": sealed["valid"], "seal_problem": detected and detected["problem"],
+            }
+        self._run("AUDIT-02", "integrity",
+                  "Rewrite a past event and recompute every later chain hash (on a copy)",
+                  "the chain verifies, and the signed root still exposes the rewrite", rechained)
+
     # -- the whole suite ---------------------------------------------------
     def run(self) -> dict[str, Any]:
         started = datetime.now(timezone.utc)

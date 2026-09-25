@@ -17,7 +17,7 @@ import type { Task, TaskSummary } from '@/lib/types'
  *
  * (backend/agents/orchestrator.py:1116-1140, backend/api/task_service.py:514-540)
  */
-export type Decision = 'held' | 'approved' | 'rejected'
+export type Decision = 'held' | 'approved' | 'rejected' | 'returned'
 
 export interface QueueItem {
   id: string
@@ -38,6 +38,7 @@ export const SENSITIVITY_ORDER = ['normal', 'confidential', 'sensitive', 'restri
 export function decisionOf(task: Task): Decision {
   const status = String(task.status).toLowerCase()
   if (status === 'awaiting_approval') return 'held'
+  if (task.approval?.decision === 'revision_requested' || status === 'revision_requested') return 'returned'
   if (task.approval?.decision === 'rejected' || status === 'rejected') return 'rejected'
   return 'approved'
 }
@@ -60,7 +61,13 @@ export function fromSummary(summary: TaskSummary): QueueItem | null {
   const status = String(summary.status).toLowerCase()
   if (!summary.approval_required) return null
   const decision: Decision | null =
-    status === 'rejected' ? 'rejected' : status === 'delivered' || status === 'approved' ? 'approved' : null
+    status === 'rejected'
+      ? 'rejected'
+      : status === 'revision_requested'
+        ? 'returned'
+        : status === 'delivered' || status === 'approved'
+          ? 'approved'
+          : null
   if (!decision) return null
   return {
     id: summary.id,

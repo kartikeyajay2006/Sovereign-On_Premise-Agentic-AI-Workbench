@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import mimetypes
 import uuid
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ from backend.core.schemas import (
     User,
 )
 from backend.policy.gateway import get_policy_gateway
+from backend.proof.certificate import review_digest
 from backend.security.file_guard import inspect_upload
 from backend.security.injection import screen
 
@@ -245,6 +247,7 @@ class TaskService:
 
     # -- persistence -------------------------------------------------------
     def _persist(self, task: Task) -> None:
+        task.review_digest = review_digest(task)
         payload = task.model_dump(mode="json")
         existing = self.db.get_task(task.id)
         if existing is None:
@@ -558,6 +561,8 @@ class TaskService:
                 egress_before = _egress_reading()
                 task = await self.orchestrator.run(task, user, persist=self._persist)
                 self._persist(task)
+                if task.status == TaskStatus.DELIVERED:
+                    self._certify(task, user)
                 self.audit.record(
                     category="task",
                     action=f"finished:{task.status.value}",
@@ -647,7 +652,12 @@ class TaskService:
 
     # -- approval ----------------------------------------------------------
     async def decide_approval(
-        self, task_id: str, user: User, decision: str, comment: str | None
+        self,
+        task_id: str,
+        user: User,
+        decision: str,
+        comment: str | None,
+        review_digest_seen: str | None = None,
     ) -> Task:
         task = self.get_task(task_id)
         if task is None:
@@ -678,6 +688,18 @@ class TaskService:
                 "A different account holding approval.decide must decide it."
             )
 
+        # Bound to what the reviewer read. A resolution, a re-render or a
+        # re-run between opening the run and deciding it changes the digest,
+        # and the decision is refused rather than applied to an unseen version.
+        current = review_digest(task)
+        if review_digest_seen is not None and review_digest_seen != current:
+            raise TaskError(
+                "This run has changed since you opened it (its review digest is now "
+                f"{current[:12]}…, you reviewed {review_digest_seen[:12]}…). Reload it and review again."
+            )
+        if decision == "request_revision" and not (comment or "").strip():
+            raise TaskError("Say what should change: a revision request needs a note for the submitter.")
+
         approved = decision == "approve"
         # A release while sources still disagree would ship a decision nobody
         # made. Rejecting stays possible: it releases nothing.
@@ -690,12 +712,18 @@ class TaskService:
                 + ", ".join(f"{c.id} ({c.label})" for c in open_conflicts)
                 + " before approving: the decision it withholds has not been made."
             )
-        task.approval.decision = "approved" if approved else "rejected"
+        revise = decision == "request_revision"
+        task.approval.decision = "approved" if approved else "revision_requested" if revise else "rejected"
         task.approval.reviewer_id = user.id
         task.approval.reviewer_name = user.display_name
         task.approval.comment = comment
         task.approval.decided_at = datetime.now(timezone.utc)
-        task.status = TaskStatus.DELIVERED if approved else TaskStatus.REJECTED
+        task.approval.bound_digest = current
+        task.status = (
+            TaskStatus.DELIVERED if approved
+            else TaskStatus.REVISION_REQUESTED if revise
+            else TaskStatus.REJECTED
+        )
         task.updated_at = datetime.now(timezone.utc)
         task.completed_at = task.updated_at
 
@@ -705,13 +733,14 @@ class TaskService:
         self._persist(task)
         self.audit.record(
             category="approval",
-            action="approved" if approved else "rejected",
+            action=task.approval.decision,
             actor=user.username,
             actor_role=user.role,
             task_id=task.id,
             detail={
                 "reviewer": user.display_name,
                 "comment": comment,
+                "review_digest": current,
                 "deliverables_released": [d.filename for d in task.deliverables] if approved else [],
                 "evidence_presented": len(task.evidence),
             },
@@ -726,7 +755,41 @@ class TaskService:
                 "status": task.status.value,
             },
         )
+        self._certify(task, user)
         return task
+
+    def _certify(self, task: Task, user: User) -> dict | None:
+        """Issue and store the run's signed certificate. A failure is audited, never fatal."""
+        from backend.proof.audit_roots import get_audit_seal
+        from backend.proof.certificate import issue_certificate, write_certificate
+        from backend.proof.signer import get_signer
+
+        try:
+            certificate = issue_certificate(task, self.audit, get_audit_seal(), get_signer())
+            path = write_certificate(certificate, self.config.settings.storage_root / "proofs")
+        except Exception as exc:
+            self.audit.record(
+                category="proof", action="certificate_failed", actor=user.username, actor_role=user.role,
+                task_id=task.id, detail={"reason": f"{type(exc).__name__}: {exc}"[:300]},
+            )
+            return None
+        self.audit.record(
+            category="proof", action="certificate_issued", actor=user.username, actor_role=user.role,
+            task_id=task.id,
+            detail={"content_sha256": certificate["content_sha256"], "key_id": certificate["signature"]["key_id"],
+                    "audit_root": certificate["audit"]["root"]["merkle_root"], "path": path.name},
+        )
+        return certificate
+
+    def certificate(self, task: Task, user: User) -> dict:
+        """The stored certificate, issuing one for a run that finished before certificates existed."""
+        path = self.config.settings.storage_root / "proofs" / f"{task.id}.json"
+        if path.exists():
+            return json.loads(path.read_text())
+        issued = self._certify(task, user)
+        if issued is None:
+            raise TaskError("The certificate could not be issued; the audit log says why.")
+        return issued
 
 
     async def resolve_conflict(

@@ -749,7 +749,9 @@ export const AssistantTurn = memo(function AssistantTurn({
           <Release verdict={verdict} released={turn.releasedLive} className="-mx-3 -my-2 flex flex-col gap-3 px-3 py-2">
             {turn.outcome === 'rejected' && (
               <p className="border-l-2 border-critical-border pl-3 text-body text-foreground-secondary">
-                <span className="text-critical-text">Rejected at review</span>
+                <span className="text-critical-text">
+                  {turn.approval?.decision === 'revision_requested' ? 'Returned for revision' : 'Rejected at review'}
+                </span>
                 {turn.approval?.reviewerName ? ` by ${turn.approval.reviewerName}` : ''}
                 {turn.approval?.comment ? `: “${turn.approval.comment}”.` : '.'}
                 {turn.deliverable ? ' Its deliverable was not released.' : ''}

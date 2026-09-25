@@ -66,6 +66,9 @@ class TaskStatus(str, Enum):
     AWAITING_APPROVAL = "awaiting_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
+    # Sent back to its submitter with a reviewer's note: nothing released,
+    # and nothing rejected outright.
+    REVISION_REQUESTED = "revision_requested"
     DELIVERED = "delivered"
     FAILED = "failed"
     BLOCKED = "blocked"
@@ -514,16 +517,24 @@ class ApprovalRecord(BaseModel):
     required: bool
     reasons: list[str] = Field(default_factory=list)
     approver_roles: list[str] = Field(default_factory=list)
-    decision: Literal["pending", "approved", "rejected"] | None = None
+    decision: Literal["pending", "approved", "rejected", "revision_requested"] | None = None
     reviewer_id: str | None = None
     reviewer_name: str | None = None
     comment: str | None = None
     decided_at: datetime | None = None
+    # The review digest the decision was given against (proof/certificate.py):
+    # the answer, the deliverables' bytes, the calculation results and the
+    # conflict resolutions the reviewer saw, as one hash.
+    bound_digest: str | None = None
 
 
 class ApprovalDecisionRequest(BaseModel):
-    decision: Literal["approve", "reject"]
+    decision: Literal["approve", "reject", "request_revision"]
     comment: str | None = None
+    # The digest of the version the reviewer read. When given, a decision on
+    # a run that has changed since is refused rather than applied to a
+    # version nobody reviewed.
+    review_digest: str | None = Field(default=None, max_length=64)
 
 
 # --------------------------------------------------------------- deliverable
@@ -614,6 +625,8 @@ class Task(BaseModel):
     assessment: IntegrityAssessment | None = None
     # Disagreements between sources, and how each was settled.
     conflicts: list[ConflictRecord] = Field(default_factory=list)
+    # One hash over what a reviewer sees; an approval is bound to it.
+    review_digest: str | None = None
     policy_events: list[PolicyEvent] = Field(default_factory=list)
     answer: str | None = None
     error: str | None = None

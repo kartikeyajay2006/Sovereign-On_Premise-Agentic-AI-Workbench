@@ -17,6 +17,7 @@ export const DECISION_MARK: Record<
   held: { glyph: '⏸', label: 'Held', text: 'text-approval-text', rail: 'bg-approval', light: 'approval' },
   approved: { glyph: '✓', label: 'Approved', text: 'text-sovereign-text', rail: 'bg-sovereign', light: 'sovereign' },
   rejected: { glyph: '✕', label: 'Rejected', text: 'text-critical-text', rail: 'bg-critical', light: 'critical' },
+  returned: { glyph: '↩', label: 'Returned', text: 'text-approval-text', rail: 'bg-approval', light: 'approval' },
 }
 
 /**

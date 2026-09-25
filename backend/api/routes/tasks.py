@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Annotated
 
@@ -136,10 +137,31 @@ async def decide_approval(
 ) -> Task:
     try:
         return await get_task_service().decide_approval(
-            task_id, user, payload.decision, payload.comment
+            task_id, user, payload.decision, payload.comment, payload.review_digest
         )
     except TaskError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/tasks/{task_id}/certificate")
+def task_certificate(task_id: str, user: CurrentUser) -> dict:
+    """The run's signed certificate: what it relied on, by hash, under a signed audit root."""
+    service = get_task_service()
+    task = service.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    permissions = get_config().role_permissions(user.role)
+    if task.user_id != user.id and "task.read.all" not in permissions:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You may only read your own tasks")
+    if task.status.value not in ("delivered", "rejected", "revision_requested", "awaiting_approval"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A certificate is issued for a finished run; this one is {task.status.value}.",
+        )
+    try:
+        return service.certificate(task, user)
+    except TaskError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
 
 @router.post("/tasks/{task_id}/conflicts/{conflict_id}/resolve", response_model=Task)
@@ -206,6 +228,27 @@ def download_deliverable(task_id: str, filename: str, user: CurrentUser) -> File
 
     from backend.core.audit import get_audit_log
 
+    # The bytes served are the bytes recorded, certified and approved. A file
+    # changed on disk after it was generated is refused, and the refusal is
+    # audited, rather than handed out under the approval of another version.
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != deliverable.sha256:
+        get_audit_log().record(
+            category="deliverable",
+            action="integrity_failure",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task_id,
+            detail={"filename": filename, "recorded_sha256": deliverable.sha256, "actual_sha256": actual},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"'{filename}' has changed since it was generated: it hashes to {actual[:16]}…, "
+                f"not the recorded {deliverable.sha256[:16]}…. It was not served."
+            ),
+        )
+
     get_audit_log().record(
         category="deliverable",
         action="downloaded",
@@ -214,4 +257,4 @@ def download_deliverable(task_id: str, filename: str, user: CurrentUser) -> File
         task_id=task_id,
         detail={"filename": filename, "sha256": deliverable.sha256},
     )
-    return FileResponse(path, filename=filename)
+    return FileResponse(path, filename=filename, headers={"X-Content-SHA256": actual})

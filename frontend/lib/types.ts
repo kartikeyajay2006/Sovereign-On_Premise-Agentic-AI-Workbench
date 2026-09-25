@@ -10,6 +10,7 @@ export type TaskStatus =
   | 'awaiting_approval'
   | 'approved'
   | 'rejected'
+  | 'revision_requested'
   | 'delivered'
   | 'succeeded'
   | 'failed'
@@ -238,7 +239,9 @@ export interface ApprovalRecord {
   required: boolean
   reasons: string[]
   approver_roles: string[]
-  decision?: 'pending' | 'approved' | 'rejected' | null
+  decision?: 'pending' | 'approved' | 'rejected' | 'revision_requested' | null
+  /** The review digest the decision was given against. */
+  bound_digest?: string | null
   reviewer_id?: string | null
   reviewer_name?: string | null
   comment?: string | null
@@ -431,6 +434,8 @@ export interface Task {
   assessment?: IntegrityAssessment | null
   /** Disagreements between sources, and how each was settled. */
   conflicts?: ConflictRecord[]
+  /** One hash over what a reviewer sees; a decision is bound to it. */
+  review_digest?: string | null
   policy_events?: any[]
   answer?: string | null
   error?: string | null

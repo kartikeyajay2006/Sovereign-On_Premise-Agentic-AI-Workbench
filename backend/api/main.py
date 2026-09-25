@@ -22,7 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import engineering, harnesses, sandbox, skills, system, tasks
+from backend.api.routes import engineering, harnesses, proof, sandbox, skills, system, tasks
 from backend.api.task_service import get_task_service
 from backend.core.analyzer import get_task_analyzer
 from backend.core.audit import get_audit_log
@@ -95,6 +95,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 actor="system",
                 detail={"broken_at": chain.broken_at, "events": chain.events},
             )
+
+    # Sign the log's root as it stands at boot, so an edit made while the
+    # service was down is caught by the next seal check.
+    try:
+        from backend.proof.audit_roots import get_audit_seal
+
+        get_audit_seal().seal(reason="startup")
+    except Exception:  # a broken chain is refused a seal; the chain check above recorded it
+        pass
 
     audit.record(
         category="system",
@@ -171,6 +180,7 @@ def create_app() -> FastAPI:
     application.include_router(harnesses.router)
     application.include_router(skills.router)
     application.include_router(engineering.router)
+    application.include_router(proof.router)
 
     @application.exception_handler(NonLocalEndpointError)
     async def non_local_endpoint_handler(

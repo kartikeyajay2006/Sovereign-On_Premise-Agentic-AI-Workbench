@@ -64,6 +64,8 @@ export function outcomeFor(status: string): TurnOutcome {
     case 'awaiting_approval':
       return 'held'
     case 'rejected':
+    // Returned to its submitter: not released, and shown with the note.
+    case 'revision_requested':
       return 'rejected'
     // Its own outcome, not "denied": a run is blocked when no model could be
     // routed to a stage, which is as often a runtime that is not running as

@@ -174,7 +174,7 @@ export function ApprovalsView() {
   )
 
   const counts = useMemo(() => {
-    const c = { held: 0, approved: 0, rejected: 0 }
+    const c = { held: 0, approved: 0, rejected: 0, returned: 0 }
     for (const item of items) c[item.decision]++
     return c
   }, [items])
@@ -352,7 +352,9 @@ export function ApprovalsView() {
       before.slice(0, Math.max(0, index)).reverse().find((i) => i.decision === 'held') ??
       null
     try {
-      const task = await recordDecision(id, kind, note)
+      // Bound to the version on screen: a run that changed since is refused.
+      const seen = records.get(id) ?? items.find((i) => i.id === id)?.task ?? null
+      const task = await recordDecision(id, kind, note, seen?.review_digest ?? null)
       setRecords((m) => new Map(m).set(task.id, task))
       setDecidedHere((kept) => new Set(kept).add(task.id))
       setDialog(null)
@@ -370,11 +372,17 @@ export function ApprovalsView() {
                   : 'Recorded in the audit chain. There was no file to release.',
               tone: 'sovereign',
             }
-          : {
-              title: 'Rejected',
-              detail: 'Nothing was released. Your reason is on the run and in the audit chain.',
-              tone: 'default',
-            },
+          : kind === 'revise'
+            ? {
+                title: 'Returned for revision',
+                detail: 'Nothing was released. Your note went back to the submitter and into the audit chain.',
+                tone: 'default',
+              }
+            : {
+                title: 'Rejected',
+                detail: 'Nothing was released. Your reason is on the run and in the audit chain.',
+                tone: 'default',
+              },
       )
       if (nextHeld) {
         setSelectedId(nextHeld.id)
@@ -495,6 +503,7 @@ export function ApprovalsView() {
                     { value: 'held', label: 'Held', count: counts.held },
                     { value: 'approved', label: 'Approved', count: data?.runs ? counts.approved : null },
                     { value: 'rejected', label: 'Rejected', count: data?.runs ? counts.rejected : null },
+                    { value: 'returned', label: 'Returned', count: data?.runs ? counts.returned : null },
                     { value: 'all', label: 'All', count: items.length },
                   ]}
                 />
@@ -572,6 +581,7 @@ export function ApprovalsView() {
                     reviewer={reviewer}
                     onApprove={() => openDialog('approve')}
                     onReject={() => openDialog('reject')}
+                    onRevise={() => openDialog('revise')}
                     onBack={backToList}
                     onRetryDetail={() => setDetailAttempt((n) => n + 1)}
                     onTaskUpdated={(task) => setRecords((previous) => new Map(previous).set(task.id, task))}
@@ -630,7 +640,7 @@ function QueueEmpty({
     )
   }
   if (status === 'held') {
-    const decided = counts.approved + counts.rejected
+    const decided = counts.approved + counts.rejected + counts.returned
     return (
       <EmptyState
         title="Nothing is waiting for a decision"

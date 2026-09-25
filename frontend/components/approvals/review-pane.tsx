@@ -6,6 +6,7 @@ import type { EvidenceItem, Task, VerificationReport } from '@/lib/types'
 import { ClassificationTag } from '@/components/primitives'
 import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
+import { ProofPanel } from '@/components/evidence/proof-panel'
 import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
@@ -126,7 +127,7 @@ function DecisionRecord({ item, task }: { item: QueueItem; task: Task | null }) 
       <span aria-hidden className={cn('absolute inset-y-0 left-0 w-0.5', mark.rail)} />
       <p className={cn('flex flex-wrap items-center gap-x-2 text-body font-medium', mark.text)}>
         <span aria-hidden>{mark.glyph}</span>
-        {item.decision === 'approved' ? 'Approved' : 'Rejected'}
+        {item.decision === 'approved' ? 'Approved' : item.decision === 'returned' ? 'Returned for revision' : 'Rejected'}
         {approval && (
           <span className="font-normal text-foreground-secondary">
             by {approval.reviewer_name || 'an unrecorded reviewer'} · {stamp(approval.decided_at)}
@@ -392,6 +393,7 @@ export function ReviewPane({
   reviewer,
   onApprove,
   onReject,
+  onRevise,
   onBack,
   onRetryDetail,
   onTaskUpdated,
@@ -411,6 +413,8 @@ export function ReviewPane({
   reviewer: string
   onApprove: () => void
   onReject: () => void
+  /** Send the run back to its submitter with a note: nothing released, nothing rejected. */
+  onRevise?: () => void
   onBack: () => void
   onRetryDetail: () => void
   /** A conflict was resolved: the recomputed record replaces the one shown. */
@@ -480,6 +484,11 @@ export function ReviewPane({
               >
                 Reject
               </Button>
+              {onRevise && (
+                <Button variant="secondary" size="sm" ground="paper" disabled={!canDecide} onClick={onRevise}>
+                  Request revision
+                </Button>
+              )}
               <Button
                 variant="primary"
                 size="sm"
@@ -558,6 +567,7 @@ export function ReviewPane({
             />
             <Deliverable task={task} held={held} canInspect={canDecide} onCite={cite} />
             <Verification report={task.verification} onCite={cite} />
+            <ProofPanel key={item.id} taskId={item.id} />
             <Evidence taskId={item.id} items={task.evidence} focused={focusedEvidence} />
           </div>
         )}

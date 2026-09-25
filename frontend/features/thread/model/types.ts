@@ -188,7 +188,7 @@ export interface AssistantTurn {
   approval: {
     reasons: string[]
     approverRoles: string[]
-    decision: 'pending' | 'approved' | 'rejected' | null
+    decision: 'pending' | 'approved' | 'rejected' | 'revision_requested' | null
     reviewerName: string | null
     comment: string | null
   } | null
