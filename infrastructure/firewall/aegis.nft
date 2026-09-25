@@ -1,0 +1,71 @@
+#!/usr/sbin/nft -f
+# AEGIS default-deny egress.
+#
+# Host-wide: every packet this machine originates is dropped unless it goes to
+# loopback, answers a connection someone else opened to us, or goes to the
+# local model server. That covers the API and everything it spawns, and also
+# what the sovereignty monitor cannot see: Ollama, the Next.js server, and any
+# other program on the host.
+#
+# Every drop is counted in a named counter. The API reads them back with
+# `nft -j list table inet aegis_egress` and shows the kernel's own figures on
+# the Assurance screen; it never reports zero when it could not read them.
+#
+# Apply with infrastructure/firewall/apply.sh (root), remove with remove.sh.
+# Linux with nftables only. Not IPv4-only: the inet family covers IPv6 too.
+#
+# Consequences to plan for on the target host: DHCP renewals, NTP, package
+# updates and any outbound name lookup are dropped too. Use a static address
+# on an air-gapped host.
+
+# The model server. On the reference deployment Ollama listens on loopback,
+# which the lo rule already allows; set these (apply.sh does, from
+# AEGIS_MODEL_SERVER / AEGIS_MODEL_PORT) only when it runs on another host on
+# the plant LAN.
+define MODEL_SERVER = 127.0.0.1
+define MODEL_PORT = 11434
+
+# Declare-then-delete makes re-applying idempotent: the table is replaced
+# atomically in one transaction. Re-applying restarts every counter from zero.
+table inet aegis_egress
+delete table inet aegis_egress
+
+table inet aegis_egress {
+	# Counters named egress_denied_* are drops; egress_allowed_* are the one
+	# permitted off-loopback destination. The API classifies by that prefix.
+	# outbound DNS, dropped
+	counter egress_denied_dns { }
+	# other outbound IPv4, dropped
+	counter egress_denied_v4 { }
+	# other outbound IPv6, dropped
+	counter egress_denied_v6 { }
+	# outbound traffic of any other protocol family, dropped
+	counter egress_denied_other { }
+	# new connections to the model server
+	counter egress_allowed_model { }
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		# Loopback: the API, the console and a local Ollama talk here.
+		oif "lo" accept
+
+		# Replies on connections that were accepted inbound (an operator's
+		# browser on the plant LAN reaching the console). A connection this
+		# host tries to *open* is never established, so it cannot use this.
+		ct state established,related accept
+
+		# IPv6 neighbour discovery, without which inbound IPv6 on the LAN
+		# cannot be answered. Link-local only; it carries no payload out.
+		icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit } ip6 hoplimit 255 accept
+
+		# The model server, if it is not on loopback.
+		ip daddr $MODEL_SERVER tcp dport $MODEL_PORT ct state new counter name egress_allowed_model accept
+
+		# Everything else is counted, then dropped by the policy.
+		meta l4proto { tcp, udp } th dport 53 counter name egress_denied_dns drop
+		meta nfproto ipv4 counter name egress_denied_v4 drop
+		meta nfproto ipv6 counter name egress_denied_v6 drop
+		counter name egress_denied_other drop
+	}
+}

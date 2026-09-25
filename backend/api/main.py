@@ -118,6 +118,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         },
     )
 
+    # A configured container runtime is probed once at startup, off the event
+    # loop: a probe container is started with the production flags and must
+    # prove no network, a read-only root, non-root and no capabilities before
+    # the sandbox will use it. The verdict, pass or fail, goes on the record.
+    if str(config.settings.sandbox.get("runtime", "subprocess")).lower() in {"podman", "docker"}:
+        from backend.tools.sandbox import get_sandbox
+
+        sandbox = get_sandbox()
+        effective = await asyncio.to_thread(lambda: sandbox.runtime)
+        audit.record(
+            category="system",
+            action="sandbox_runtime_probe",
+            actor="system",
+            detail={"runtime": effective, "probe": sandbox.container_probe()},
+        )
+        print(f"[workbench] sandbox runtime: {effective}")
+
     created = get_identity_service().ensure_seed_users()
     if created:
         print(f"[workbench] seeded identities: {', '.join(created)}")

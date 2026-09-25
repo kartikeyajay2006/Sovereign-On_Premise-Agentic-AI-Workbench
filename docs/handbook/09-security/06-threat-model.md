@@ -60,11 +60,11 @@ Every row marked 🧪 is one of the attacks in `scripts/red_team.py`, run over H
 
 | # | Threat | Why it is still open | Severity |
 |---|---|---|---|
-| 1 | **Sandboxed code runs as the API's own user.** Containment is a validated interpreter with runtime shims and OS limits, not an operating-system boundary | A flaw in the shim would expose what that user can reach. A rootless container (`--network none`, read-only root, only the workspace mounted) removes the dependency on the shim | 🟠 High |
+| 1 | **With the default `subprocess` runtime, sandboxed code runs as the API's own user.** Containment is a validated interpreter with runtime shims and OS limits, not an operating-system boundary | A flaw in the shim would expose what that user can reach. `sandbox.runtime: podman` runs each execution in a rootless container (`--network none`, read-only root, only the workspace mounted) once a startup probe proves isolation on the host; not yet verified on a real Podman host ([9.3](03-sandbox.md#the-container-runtime)) | 🟠 High until a container host is verified |
 | 2 | **The seeded accounts share a demonstration password** (`workbench`) | By configuration, for the demonstration; change `security.seed_user_password` before first start anywhere real | 🟠 High outside a demo |
 | 3 | **The signing key lives on the host it signs for.** Someone with root and the key can rewrite the log *and* re-sign it | Copy the public key and seal roots off-host (GET `/api/proof/key`, GET `/api/audit/seals`); a hardware key would close it | 🟡 Medium |
 | 4 | **Injection screening is by pattern.** A novel phrasing can pass the screen | The structural guarantee does not depend on it: document text never selects a tool or changes a policy, and answers are verified and held | 🟡 Medium |
-| 5 | **Egress control is process-level.** The monitor observes connections; the host firewall is the operator's | Add a default-deny outbound rule for the service user | 🟡 Medium |
+| 5 | **Egress control is process-level unless the firewall is applied.** The monitor observes connections; `infrastructure/firewall/aegis.nft` enforces default-deny in the kernel, but only on a Linux host where an operator has applied it | Apply it with `infrastructure/firewall/apply.sh`; the Assurance data then carries its policy and drop counters, and elsewhere says *not measurable* ([9.4](04-sovereignty-monitor.md#the-host-firewall-underneath)) | 🟡 Medium until applied |
 | 6 | **A console started by hand binds every interface.** `scripts/run.sh` binds `127.0.0.1`; `next start` without `--hostname` does not | Use the run script, or firewall port 3000 | 🟢 Low |
 
 ## Closed since the first review
@@ -92,7 +92,8 @@ For anything beyond a single trusted machine:
 - [ ] `security.seed_user_password` changed before first start
 - [ ] Console started by `scripts/run.sh` (bound to `127.0.0.1`), or port 3000 firewalled
 - [ ] `storage/` readable only by the service account (`chmod 700`); `storage/keys/` holds the signing key
-- [ ] The API run as a dedicated, unprivileged user, with a default-deny outbound firewall rule
+- [ ] The API run as a dedicated, unprivileged user, with `infrastructure/firewall/apply.sh` applied and `GET /api/sovereignty` showing `firewall.state: enforced`
+- [ ] On Linux with Podman: the sandbox image built, `sandbox.runtime: podman`, and the startup probe's verdict read in `GET /api/sandbox/limits`
 - [ ] The public key (`GET /api/proof/key`) and the latest seal copied off-host after each session
 - [ ] `scripts/red_team.py` run after every upgrade, and its report kept
 
