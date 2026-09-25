@@ -117,7 +117,13 @@ task_types:
         - {match: "calculate", weight: 5}
         - {match: "compute", weight: 4}
         - {match: "how much", weight: 3}
-        - {match: "thickness", weight: 3}
+        # Not bare "thickness": it is a noun in record-keeping and lookup
+        # questions ("thickness measurements shall be recorded", "what minimum
+        # thickness applies"). The phrases that ask for arithmetic on it are
+        # signals; "minimum thickness" alone stays under the threshold.
+        - {match: "thickness loss", weight: 4}
+        - {match: "wall loss", weight: 4}
+        - {match: "minimum thickness", weight: 3}
         # Not "pressure": in this corpus it is almost always "pressure
         # vessel", a noun, and it tipped plain lookups ("the interval between
         # inspections of a pressure vessel") into calculations on a tie.

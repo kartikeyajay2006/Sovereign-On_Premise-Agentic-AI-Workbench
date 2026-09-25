@@ -41,6 +41,10 @@ def test_a_quantity_mentioned_in_a_lookup_is_not_a_calculation(prompt: str) -> N
         "Compute the average wall loss across the CMLs.",
         "What is the remaining life of V-2104?",
         "What is the corrosion rate at CML-03?",
+        # Arithmetic asked for in words, with no verb: the threshold left
+        # these short while bare "thickness" was their only signal.
+        "What is the thickness loss per year on CML-3 if it went from 12.0 mm to 9.4 mm over 4 years?",
+        "Is the wall loss on V-2104 below the minimum thickness?",
     ],
 )
 def test_a_request_to_compute_is_a_calculation(prompt: str) -> None:
