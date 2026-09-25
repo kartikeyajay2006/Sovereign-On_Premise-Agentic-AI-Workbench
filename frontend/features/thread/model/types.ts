@@ -74,6 +74,12 @@ export interface RunRequest {
   preferredModel: string | null
   /** The skill `prompt` goes through, or null for the prompt as typed. */
   skill: { id: string; name: string } | null
+  /**
+   * Set by Run again on a run the API has recorded: the request is then
+   * rebuilt server-side from that run, and the new run records it as its
+   * parent (POST /api/runs/{id}/rerun).
+   */
+  rerunOf?: string | null
 }
 
 /**

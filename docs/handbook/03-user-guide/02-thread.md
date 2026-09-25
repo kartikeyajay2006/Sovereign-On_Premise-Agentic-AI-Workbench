@@ -62,7 +62,8 @@ An answer has four parts.
 |---|---|
 | **Copy** | Copies the answer text |
 | **Copy with sources** | Copies the answer followed by its sources list, ready to paste into an email or report |
-| **Run again** | Re-submits the same request as a new run, useful after a failure or to compare |
+| **Run again** | Re-submits the same request as a new run (`POST /api/runs/{id}/rerun`): rebuilt from the record -- the prompt or skill input, the files, the format and the model choice -- and linked to this run as its parent. It meets every gate again under today's configuration |
+| **Compare** | Opens `/compare?b=<id>`: this run beside another, every difference named. For a re-run, the original is filled in as A |
 | **Proof** | Opens Proof Mode (`/proof?run=<id>`): the run's chain on one screen, request to signed certificate, each link read from the record or verified from the certificate ([9.9](../09-security/09-proof.md#proof-mode)) |
 
 ## The transcript

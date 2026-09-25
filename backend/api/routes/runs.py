@@ -1,4 +1,7 @@
-"""Read-only views over runs: Proof Mode and the measurements dashboard.
+"""Views over runs: Proof Mode, re-run and compare, and the measurements dashboard.
+
+Everything here reads, except POST /runs/{id}/rerun, which submits through
+the task service exactly as POST /tasks does.
 
 Kept apart from routes/tasks.py so its paths (/api/runs/...) never compete
 with /api/tasks/{task_id} for a literal segment.
@@ -6,17 +9,20 @@ with /api/tasks/{task_id} for a literal segment.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
-from backend.api.dependencies import CurrentUser
-from backend.api.task_service import get_task_service
+from backend.api.dependencies import CurrentUser, require_permission
+from backend.api.task_service import TaskError, get_task_service
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.database import get_database
 from backend.core.schemas import Task, User
+from backend.proof.compare import RunComparison, compare_runs
 from backend.proof.measurements import REPORT_NAME, Measurements, build_measurements
-from backend.proof.proof_view import ProofView, build_proof_view
+from backend.proof.proof_view import ProofView, build_proof_view, stored_certificate
 from backend.proof.signer import get_signer
 
 router = APIRouter(prefix="/api", tags=["runs"])
@@ -43,6 +49,32 @@ def run_proof(task_id: str, user: CurrentUser) -> ProofView:
         trusted_key_b64=get_signer().public_key_b64,
         audit=get_audit_log(),
         deliverables_dir=settings.path("deliverables"),
+    )
+
+
+# ---------------------------------------------------------- re-run, compare
+@router.post("/runs/{task_id}/rerun", response_model=Task, status_code=status.HTTP_202_ACCEPTED)
+async def rerun(
+    task_id: str,
+    user: Annotated[User, Depends(require_permission("task.create"))],
+) -> Task:
+    """Submit a finished run's request again, as a new run whose parent is this one."""
+    original = readable_task(task_id, user)
+    try:
+        return await get_task_service().rerun(original, user)
+    except TaskError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/runs/compare", response_model=RunComparison)
+def compare(a: str, b: str, user: CurrentUser) -> RunComparison:
+    """Two runs side by side, every material difference named."""
+    first, second = readable_task(a, user), readable_task(b, user)
+    root = get_config().settings.storage_root
+    return compare_runs(
+        first, second,
+        certificate_a=stored_certificate(first.id, root),
+        certificate_b=stored_certificate(second.id, root),
     )
 
 

@@ -607,6 +607,9 @@ class Task(BaseModel):
     # Set when the request came from a skill: the prompt above is the skill's
     # rendering, and this is what the person typed and which skill made it.
     skill: SkillInvocation | None = None
+    # The run this one re-ran (POST /api/runs/{id}/rerun), so the two can be
+    # compared and the new one never passes for an unrelated first attempt.
+    parent_task_id: str | None = None
     routing: list[RoutingDecision] = Field(default_factory=list)
     # One record per model call, in the order they ran. Persisted with the
     # task, so a run reopened later reports what it cost rather than only
@@ -658,6 +661,7 @@ class TaskSummary(BaseModel):
     # The skill the request went through, so a list can show "/clause" and
     # what was typed rather than the skill's whole rendering.
     skill: SkillInvocation | None = None
+    parent_task_id: str | None = None
 
 
 # ----------------------------------------------------------------- knowledge

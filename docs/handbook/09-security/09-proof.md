@@ -75,12 +75,25 @@ A link with nothing recorded is drawn empty, with the reason (*No formula applie
 
 The certificate link reads `storage/proofs/<task>.json` and verifies it with the same checks as `POST /api/proof/verify` (signature, trusted key, audit root, inclusion, chain, the log reproducing the root, each deliverable's bytes). Reading the view issues nothing and writes nothing to the audit log; a run with no stored certificate says so. When a certificate carries a `run.provenance` block (certificate format 2), each of its fields is listed; an older certificate simply has none.
 
+## Re-run and compare
+
+`POST /api/runs/{id}/rerun` submits a finished run's request again through the ordinary creation path, so it meets every gate afresh, and records the original as `parent_task_id` (and as `rerun_of` on the `task / received` audit event). `GET /api/runs/compare?a=&b=` (`backend/proof/compare.py`) and the **Compare** screen (`/compare?a=<run>&b=<run>`) set two runs side by side and name each difference:
+
+| Group | Compared |
+|---|---|
+| Configuration | The prompt (by hash), input files and skill (by hash), the requested model, the classification, the model for each stage and its runtime digest, the approval rule and reasons, the policy rules applied, the formula versions and hashes, and each field of the certificates' `run.provenance` block where one is stored |
+| Outcome | The evidence set (matched by source and excerpt hash, not by id), each figure and the recommendation, conflicts, verification and claim verdicts, checks whose result moved, approval, status, the answer (by hash, both texts shown), deliverables, run duration and model time |
+
+A property neither run recorded (a digest on a run older than digest recording; policy and prompt versions where no certificate carries provenance) reads *not recorded* rather than being treated as equal.
+
 ## Limits
 
 - The key lives on the host it signs for. Someone with root and the key can rewrite the log **and** re-sign it. Copy the public key and the seals off-host after each session; a hardware key would close this.
 - A certificate proves what the run recorded, not that what it recorded was right: that is verification's job.
 
 ## Tests
+
+`tests/test_rerun_compare.py`: a re-run linked to its parent through the ordinary path; a run in progress refused; the re-run API's permission and ownership checks; identical runs showing no difference; digest, formula, evidence, figure, verification and approval changes named; unrecorded digests said so; certified provenance compared; the compare API refusing a run the reader cannot see.
 
 `tests/test_proof_view.py`: the ten links in order and read from the record; a run with nothing recorded saying so on every link; a stored certificate verified and a tampered one failing; provenance shown only when present; another person's run refused.
 

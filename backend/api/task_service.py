@@ -99,6 +99,17 @@ class TaskError(RuntimeError):
     """Raised for task-level failures that map to a client error."""
 
 
+# A run in one of these is still being worked; it has no outcome to re-run.
+_ACTIVE_STATUSES = frozenset({
+    TaskStatus.RECEIVED.value,
+    TaskStatus.CLASSIFIED.value,
+    TaskStatus.PLANNED.value,
+    TaskStatus.RETRIEVING.value,
+    TaskStatus.EXECUTING.value,
+    TaskStatus.VERIFYING.value,
+})
+
+
 class TaskService:
     def __init__(self) -> None:
         self.config = get_config()
@@ -301,6 +312,7 @@ class TaskService:
                     approval_required=bool(task.approval and task.approval.required),
                     user_display_name=task.user_display_name,
                     skill=task.skill,
+                    parent_task_id=task.parent_task_id,
                 )
             )
         return summaries
@@ -323,6 +335,7 @@ class TaskService:
         deliverable_format: str | None = None,
         preferred_model: str | None = None,
         skill_id: str | None = None,
+        parent_task_id: str | None = None,
     ) -> Task:
         # A skill turns what was typed into the request. Everything below
         # then sees only that request, so a skill meets every gate a typed
@@ -374,6 +387,7 @@ class TaskService:
             profile=profile,
             preferred_model=preferred_model,
             skill=skill,
+            parent_task_id=parent_task_id,
         )
 
         required, reasons, approvers = self.gateway.approval_requirement(
@@ -400,6 +414,7 @@ class TaskService:
                 "preferred_model": preferred_model,
                 "skill": skill.id if skill else None,
                 "skill_sha256": skill.sha256 if skill else None,
+                "rerun_of": parent_task_id,
             },
         )
         self.audit.record(
@@ -436,6 +451,28 @@ class TaskService:
         await self._queue.put((task.id, user.id))
         await self._publish_queue()
         return task
+
+    async def rerun(self, original: Task, user: User) -> Task:
+        """Submit a finished run's request again, as a new run linked to it.
+
+        Goes through create_task like any request, so the re-run meets every
+        gate afresh -- file access, classification, approval rules, routing
+        -- under today's configuration. That is the point: comparing the two
+        runs shows what changed. A skill run is re-rendered from what was
+        typed, so a skill edited since shows up as a different hash.
+        """
+        if original.status.value in _ACTIVE_STATUSES:
+            raise TaskError("This run has not finished; re-run it once it has.")
+        requested_format = original.profile.deliverable_format if original.profile else None
+        return await self.create_task(
+            user,
+            original.skill.input if original.skill else original.prompt,
+            [stored.id for stored in original.files],
+            requested_format,
+            preferred_model=original.preferred_model,
+            skill_id=original.skill.id if original.skill else None,
+            parent_task_id=original.id,
+        )
 
     async def _publish_queue(self) -> None:
         """Announce the waiting line so nobody is left guessing."""

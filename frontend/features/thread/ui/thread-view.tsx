@@ -863,13 +863,15 @@ export function ThreadView() {
       setBusy(true)
 
       try {
-        const task = await api.createTask(
-          request.prompt,
-          request.fileIds,
-          request.format,
-          request.preferredModel,
-          request.skill?.id ?? null,
-        )
+        const task = request.rerunOf
+          ? await api.rerunTask(request.rerunOf)
+          : await api.createTask(
+              request.prompt,
+              request.fileIds,
+              request.format,
+              request.preferredModel,
+              request.skill?.id ?? null,
+            )
         // The API answered with a classified task, so that stage is done:
         // a measured fact, where leaving it pending let the end-of-run
         // sweep mark classification "skipped" on every run.
@@ -957,7 +959,10 @@ export function ThreadView() {
   const rerun = useCallback(
     (turnId: string) => {
       const turn = turnsRef.current.find((t) => t.id === turnId)
-      if (turn?.role === 'assistant' && turn.request) void dispatch(turn.request)
+      // A recorded run is re-run from its record, so the new run is linked
+      // to it and the two can be compared. A turn the API never accepted
+      // has no record, and is sent again as it was.
+      if (turn?.role === 'assistant' && turn.request) void dispatch({ ...turn.request, rerunOf: turn.taskId })
     },
     [dispatch],
   )
