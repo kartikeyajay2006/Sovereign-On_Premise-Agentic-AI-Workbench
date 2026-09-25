@@ -166,6 +166,7 @@ def _usage_record(
         stage=stage,
         model=descriptor.id,
         display_name=descriptor.display_name,
+        model_digest=descriptor.actual_digest,
         prompt_tokens=result.prompt_eval_count if result else None,
         output_tokens=result.eval_count if result else None,
         latency_ms=latency_ms,

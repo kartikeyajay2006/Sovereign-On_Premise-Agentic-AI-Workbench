@@ -188,6 +188,15 @@ export const api = {
     await request<void>(`/skills/${encodeURIComponent(skillId)}`, { method: 'DELETE' })
   },
 
+  /**
+   * Submit a finished run's request again. The API rebuilds it from the
+   * record -- prompt or skill input, files, format, model choice -- and the
+   * new run carries the original as its parent, so the two can be compared.
+   */
+  async rerunTask(taskId: string): Promise<Task> {
+    return request<Task>(`/runs/${encodeURIComponent(taskId)}/rerun`, { method: 'POST' })
+  },
+
   async cancelTask(taskId: string): Promise<Task> {
     return request<Task>(`/tasks/${taskId}/cancel`, { method: 'POST' })
   },

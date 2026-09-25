@@ -349,6 +349,8 @@ export interface ModelUsage {
   /** Registry id, e.g. "qwen2.5:3b". */
   model: string
   display_name: string | null
+  /** The digest the runtime reported for the model when it served the call. */
+  model_digest?: string | null
   prompt_tokens: number | null
   output_tokens: number | null
   /** Wall clock around the whole call, timed by the orchestrator. */
@@ -455,6 +457,8 @@ export interface Task {
   preferred_model: string | null
   /** Set when the request came from a skill: `prompt` is its rendering. */
   skill?: SkillInvocation | null
+  /** The run this one re-ran, when it was made by POST /api/runs/{id}/rerun. */
+  parent_task_id?: string | null
   routing: RoutingDecision[]
   /** One record per model call, in the order they ran. Persisted. */
   usage: ModelUsage[]
@@ -487,6 +491,7 @@ export interface TaskSummary {
   prompt: string
   /** The skill the request went through; `prompt` is then its rendering. */
   skill?: SkillInvocation | null
+  parent_task_id?: string | null
   status: TaskStatus
   task_type?: string | null
   sensitivity?: string | null
