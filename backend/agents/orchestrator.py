@@ -30,6 +30,7 @@ from backend.core.config import get_config
 from backend.core.events import get_event_bus
 from backend.engineering.stage import (
     as_deliverable_calculations,
+    authority_statement,
     assess_with_conflicts,
     conflict_records,
     decision_lines,
@@ -2737,6 +2738,11 @@ class AgentOrchestrator:
         calculations: list[dict[str, Any]],
     ) -> None:
         assert task.profile is not None
+        # The recommend/approve split comes from the severity formula
+        # (SOP-OPS-008), never from the model's draft.
+        authority = authority_statement(task.assessment) if task.assessment is not None else None
+        if authority:
+            content = {**content, "authority": authority}
         call = await self._call_tool(
             task,
             context,

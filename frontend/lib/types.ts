@@ -391,6 +391,11 @@ export interface IntegrityAssessment {
   severity_basis?: string | null
   required_action?: string | null
   approver?: string | null
+  /** SOP-OPS-008: who recommends and who approves; the workbench is neither. */
+  recommended_by?: string[]
+  approved_by?: string[]
+  /** At or below t-min: withdrawn, so next_due and interval_months are empty. */
+  withdraw_from_service?: boolean
   ffs_triggers: string[]
   next_due?: string | null
   interval_months?: number | null

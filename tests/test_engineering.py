@@ -252,3 +252,109 @@ class TestAssessment:
         assert assessment.remaining_life_years == pytest.approx(6.18)
         assert assessment.severity == "low"
         assert "could not be assessed" in assessment.severity_basis
+
+
+# ---------------------------------------------------- below t-min: V-2107
+# The fields and readings of scanned-inspection-report-V-2107, as
+# scripts/make_sample_inspection_report.py prints them on the scan.
+V2107_TRANSCRIPTION = """PLANT INSPECTION REPORT
+Report No.: INS-2026-0588
+Equipment Tag: V-2107
+Description: Amine Flash Drum
+Service Category: Corrosive (SOP-INS-014 Cl. 2.2)
+Design Pressure: 7.0 bar(g) Design Temp.: 90 deg C
+Material: SA-516 Gr.70 Carbon Steel In Service Since: 18 May 2011
+Nominal Thickness: 10.0 mm t-min: 6.0 mm (INS-014 Cl. 3.2)
+Date of Inspection: 18 May 2026 Previous Inspection: 18 May 2024
+ULTRASONIC THICKNESS READINGS (mm)
+Location | 2024 | 2026 | Min. Recorded
+Shell course 1 (liquid zone) | 7.1 | 5.8 | 5.8
+Shell course 2 (vapour zone) | 9.2 | 9.0 | 9.0
+Top head | 9.5 | 9.4 | 9.4
+Bottom head | 8.6 | 8.2 | 8.2
+Outlet nozzle N2 | 8.8 | 8.3 | 8.3
+Inlet nozzle N1 | 9.4 | 9.3 | 9.3
+"""
+
+
+class TestBelowTMin:
+    """A vessel already below t-min is withdrawn, not scheduled.
+
+    V-2107's governing remaining life is -0.31 years. The survey formula used
+    to halve the corrosive-service interval for "life below 4 years" and state
+    a thickness survey 12 months out -- a routine date for a vessel SOP-INS-014
+    Clause 3.3 takes out of service immediately.
+    """
+
+    @pytest.fixture(scope="class")
+    def v2107(self):
+        return assess_vessel(vessel_inputs(scan_evidence(V2107_TRANSCRIPTION)))
+
+    def test_v2107_matches_the_expected_answers(self, v2107) -> None:
+        _, assessment = v2107
+        expected = EXPECTED["vessels"]["V-2107"]
+        assert assessment.status == "calculated"
+        assert assessment.governing_location == expected["governing_location"]
+        assert assessment.governing_rate_mm_yr == pytest.approx(expected["governing_rate_mm_yr"])
+        assert assessment.remaining_life_years == pytest.approx(expected["governing_remaining_life_years"])
+        assert assessment.locations_below_t_min == expected["locations_below_t_min"]
+        assert assessment.severity == expected["severity"] == "high"
+        assert assessment.approver == expected["approver"]
+        assert len(assessment.ffs_triggers) == len(expected["ffs_triggers"]) == 3
+
+    def test_no_routine_interval_is_stated(self, v2107) -> None:
+        records, assessment = v2107
+        assert assessment.withdraw_from_service
+        assert assessment.next_due is None and assessment.interval_months is None
+        survey = next(r for r in records if r.formula_id == "schedule.vessel_thickness_survey")
+        assert survey.status == "calculated" and survey.formula_version == 2
+        assert output_value(survey, "due") is None
+        assert "12 months" not in survey.display
+
+    def test_the_sop_immediate_action_is_stated(self, v2107) -> None:
+        _, assessment = v2107
+        action = assessment.required_action
+        assert "Withdraw from service immediately (SOP-INS-014 Clause 3.3)" in action
+        assert "within 24 hours" in action and "Clause 5.1" in action
+        assert "SOP-INS-021 Clause 2.1" in action
+        assert "interim operation is not permitted" in action and "Clause 6.1" in action
+        assert "repair, re-rating or replacement" in action
+
+    def test_the_decision_lines_say_withdrawn_not_next_survey(self, v2107) -> None:
+        from backend.engineering.stage import decision_lines
+
+        records, assessment = v2107
+        text = "\n".join(decision_lines(assessment, records))
+        assert "below minimum thickness and is withdrawn from service" in text
+        assert "no routine inspection interval applies" in text
+        assert "Next thickness survey" not in text and "months after" not in text
+        assert "-0.31 years (at or below t-min now" in text
+
+    def test_recommend_and_approve_are_separate_roles(self, v2107) -> None:
+        from backend.engineering.stage import authority_statement
+
+        _, assessment = v2107
+        # SOP-OPS-008 Clause 2.3: the Inspection Engineer and Head of
+        # Inspection recommend; the Plant Manager approves.
+        assert assessment.recommended_by == ["Inspection Engineer", "Head of Inspection"]
+        assert assessment.approved_by == ["Plant Manager"]
+        statement = authority_statement(assessment)
+        assert "recommended by the Inspection Engineer and the Head of Inspection" in statement
+        assert "approved by the Plant Manager" in statement
+        assert "AEGIS prepares the recommendation only" in statement
+
+    def test_v2104_keeps_its_routine_interval(self) -> None:
+        _, assessment = assess_vessel(vessel_inputs(scan_evidence()))
+        assert not assessment.withdraw_from_service
+        assert assessment.recommended_by == ["Inspection Engineer"]
+        assert assessment.approved_by == ["Head of Inspection"]
+
+    def test_a_spent_piping_life_gets_no_negative_interval(self) -> None:
+        record = evaluate("schedule.piping_next_measurement", {
+            "remaining_life": q("-0.31 years"), "class_max_interval": q("10 years"),
+            "survey_date": BoundValue(date(2026, 5, 18)),
+        })
+        assert record.status == "calculated" and record.formula_version == 2
+        assert output_value(record, "interval_months") is None and output_value(record, "due") is None
+        assert output_value(record, "withdraw_from_service") is True
+        assert "SOP-INS-017 Clause 7.3" in record.display

@@ -416,6 +416,13 @@ class IntegrityAssessment(BaseModel):
     severity_basis: str | None = None
     required_action: str | None = None
     approver: str | None = None
+    # SOP-OPS-008 names who recommends a decision and who approves it. The
+    # workbench is neither: it prepares the recommendation for these people.
+    recommended_by: list[str] = Field(default_factory=list)
+    approved_by: list[str] = Field(default_factory=list)
+    # At or below t-min: the equipment is withdrawn (SOP-INS-014 Clause 3.3),
+    # so next_due and interval_months are deliberately empty.
+    withdraw_from_service: bool = False
     ffs_triggers: list[str] = Field(default_factory=list)
     next_due: str | None = None
     interval_months: int | None = None
