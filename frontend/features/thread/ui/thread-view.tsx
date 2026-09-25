@@ -82,6 +82,8 @@ function recordFields(task: Task) {
     deliverableContent: task.deliverable_content ?? null,
     assessment: task.assessment ?? null,
     calculations: task.calculations ?? [],
+    conflicts: task.conflicts ?? [],
+    claims: task.verification?.claims ?? [],
     denialReason: task.error || null,
     elapsedMs: task.duration_ms ?? null,
     usage: task.usage || [],
@@ -161,6 +163,8 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     deliverableContent: null,
     assessment: null,
     calculations: [],
+    conflicts: [],
+    claims: [],
     denialReason: null,
     error: null,
     startedAt: at,
@@ -531,9 +535,24 @@ export function ThreadView() {
           if (data.assessment) patchTask(id, (t) => ({ ...t, assessment: data.assessment }))
           return
 
+        // Sources that disagree, and any person's resolution of them.
+        case 'task.conflict':
+          patchTask(id, (t) => {
+            const conflicts = Array.isArray(data.conflicts) ? data.conflicts : t.conflicts
+            const human = data.evidence && !t.evidence.some((e) => e.id === data.evidence.id) ? [data.evidence] : []
+            return { ...t, conflicts, evidence: human.length ? [...t.evidence, ...human] : t.evidence }
+          })
+          return
+
         // The verification report arrives unwrapped.
         case 'task.verified':
-          if (Array.isArray(data.checks)) patchTask(id, (t) => ({ ...t, verification: data.checks }))
+          if (Array.isArray(data.checks)) {
+            patchTask(id, (t) => ({
+              ...t,
+              verification: data.checks,
+              claims: Array.isArray(data.claims) ? data.claims : t.claims,
+            }))
+          }
           return
 
         case 'task.cancelled':

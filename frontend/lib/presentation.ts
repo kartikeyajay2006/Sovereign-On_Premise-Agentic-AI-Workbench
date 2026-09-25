@@ -173,6 +173,8 @@ export const CHECK_WORDS: Record<string, string> = {
   page_citation_verification: 'Pages',
   document_verification: 'Document',
   hallucination_check: 'Grounding',
+  engineering_verification: 'Engineering',
+  claim_verification: 'Claims',
 }
 
 /** A check's name as a reader says it; an unknown one, with its underscores spaced. */

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Calculator, ChevronDown, CircleSlash } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { CalculationRecord, IntegrityAssessment } from '@/lib/types'
+import type { CalculationRecord, ConflictRecord, IntegrityAssessment } from '@/lib/types'
 
 /**
  * The asset-integrity decision, as the formula registry computed it.
@@ -121,10 +121,12 @@ function Records({ records, onCite }: { records: CalculationRecord[]; onCite: (i
 export function IntegrityCard({
   assessment,
   records,
+  conflicts = [],
   onCite,
 }: {
   assessment: IntegrityAssessment
   records: CalculationRecord[]
+  conflicts?: ConflictRecord[]
   onCite: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -135,6 +137,8 @@ export function IntegrityCard({
   const decisionId = records.find((record) => (record.subject || '').endsWith('· decision'))?.evidence_id
   const severity = (assessment.severity || '').toLowerCase()
   const cannot = assessment.status !== 'calculated'
+  const withheld = assessment.status === 'conflicted'
+  const disputed = conflicts.filter((c) => (assessment.conflicts ?? []).includes(c.id))
 
   return (
     <section
@@ -149,7 +153,7 @@ export function IntegrityCard({
             <Calculator className="h-4 w-4 text-foreground-secondary" aria-hidden />
           )}
           <span className="text-ui font-medium text-foreground">
-            {cannot ? 'Cannot calculate' : 'Integrity decision'} · {assessment.subject}
+            {withheld ? 'Decision withheld' : cannot ? 'Cannot calculate' : 'Integrity decision'} · {assessment.subject}
           </span>
         </span>
         <span className="font-mono text-meta text-foreground-muted">
@@ -157,7 +161,16 @@ export function IntegrityCard({
         </span>
       </header>
 
-      {cannot ? (
+      {withheld ? (
+        <p className="text-ui text-foreground">
+          The sources disagree about{' '}
+          <span className="font-medium">
+            {disputed.length ? disputed.map((c) => `${c.label} (${c.id})`).join(', ') : (assessment.conflicts ?? []).join(', ')}
+          </span>
+          . No rate, remaining life, severity or due date is computed until a reviewer chooses the value; the
+          formulas then recompute from that choice.
+        </p>
+      ) : cannot ? (
         <p className="text-ui text-foreground">
           The evidence is missing <span className="font-medium">{assessment.missing.join(', ') || 'required inputs'}</span>.
           No figure is estimated in its place.

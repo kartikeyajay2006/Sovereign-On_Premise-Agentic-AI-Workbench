@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from backend.core.schemas import EvidenceItem
-from backend.engineering.formulas import BoundValue
+from backend.engineering.formulas import BoundValue, service_category_key
 from backend.engineering.units import Quantity, UnitError, parse_quantity
 
 _DATE_FORMATS = ("%d %B %Y", "%d %b %Y", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%B %d, %Y")
@@ -64,6 +64,58 @@ def _bound_date(raw: str, item: EvidenceItem, locator: str, text: str, at: int) 
                       source_text=_line_of(text, at))
 
 
+# ---------------------------------------------------------------- conflicts
+@dataclass
+class InputConflict:
+    """Two or more sources give different values for one input."""
+
+    field: str
+    label: str
+    # "high": a formula reads it, so the decision is withheld until a person
+    # resolves it. "medium": no formula reads it; recorded and shown only.
+    impact: str
+    values: list[BoundValue]
+
+
+# Inputs no formula reads. A disagreement is still recorded and shown, but
+# does not by itself withhold the decision. (Report numbers are not compared
+# at all: two records of one vessel carry two numbers by design.)
+_RECORDED_ONLY = {"design_pressure"}
+
+_LABELS = {
+    "tag": "Equipment Tag",
+    "report_no": "Report No.",
+    "service_category": "Service Category",
+    "design_pressure": "Design Pressure",
+    "nominal": "Nominal Thickness",
+    "t_min": "t-min",
+    "current_date": "Date of Inspection",
+    "previous_date": "Previous Inspection",
+    "in_service_date": "In Service Since",
+    "years_between": "Years between inspections",
+    "years_in_service": "Years in service",
+    "cladding_damage_percent": "Cladding damage",
+}
+
+
+def _normal(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _comparable(name: str, bound: BoundValue) -> object:
+    """What two sources must agree on: the value, not how it was written."""
+    value = bound.value
+    if isinstance(value, Quantity):
+        return (value.dimension, round(value.value, 6))
+    if name == "service_category":
+        return service_category_key(str(value)) or _normal(str(value))
+    if isinstance(value, float):
+        return round(value, 6)
+    if isinstance(value, str):
+        return _normal(value)
+    return value
+
+
 # ------------------------------------------------------------------ vessels
 @dataclass
 class ReadingRow:
@@ -88,26 +140,105 @@ class VesselInputs:
     readings: list[ReadingRow] = field(default_factory=list)
     cladding_damage_percent: BoundValue | None = None
     source_evidence_ids: list[str] = field(default_factory=list)
+    # Where the plain-text fields (tag, report number) were read from.
+    text_sources: dict[str, BoundValue] = field(default_factory=dict)
+    conflicts: list[InputConflict] = field(default_factory=list)
+
+    _SCALARS = (
+        "service_category", "design_pressure", "nominal", "t_min", "in_service_date",
+        "previous_date", "current_date", "years_between", "years_in_service",
+        "cladding_damage_percent",
+    )
 
     @property
     def found(self) -> bool:
         """Enough to call this an inspection record at all."""
         return bool(self.readings) and (self.nominal is not None or self.t_min is not None)
 
+    @property
+    def blocking_conflicts(self) -> list[InputConflict]:
+        return [conflict for conflict in self.conflicts if conflict.impact == "high"]
+
+    def _dispute(self, name: str, label: str, mine: BoundValue, theirs: BoundValue) -> None:
+        for conflict in self.conflicts:
+            if conflict.field == name:
+                if all(_comparable(name, value) != _comparable(name, theirs) for value in conflict.values):
+                    conflict.values.append(theirs)
+                return
+        impact = "medium" if name in _RECORDED_ONLY else "high"
+        self.conflicts.append(InputConflict(name, label, impact, [mine, theirs]))
+
     def merge(self, other: "VesselInputs") -> None:
-        """Fill what is still missing from another piece of evidence."""
-        for name in (
-            "tag", "report_no", "service_category", "design_pressure", "nominal", "t_min",
-            "in_service_date", "previous_date", "current_date", "years_between",
-            "years_in_service", "cladding_damage_percent",
-        ):
-            if getattr(self, name) is None and getattr(other, name) is not None:
-                setattr(self, name, getattr(other, name))
-        if not self.readings and other.readings:
-            self.readings = other.readings
+        """Fill what is missing from another piece of evidence; record every disagreement.
+
+        This used to keep whichever source came first and drop the rest, so a
+        contractor's re-measurement that contradicted the scan changed nothing
+        and said nothing. The first value still stays in place, but a value
+        another source contradicts becomes a conflict, and the assessment
+        withholds everything that depends on it until a person decides.
+        """
+        for name in self._SCALARS:
+            mine, theirs = getattr(self, name), getattr(other, name)
+            if theirs is None:
+                continue
+            if mine is None:
+                setattr(self, name, theirs)
+            elif _comparable(name, mine) != _comparable(name, theirs):
+                self._dispute(name, _LABELS[name], mine, theirs)
+        for name in ("tag", "report_no"):
+            mine, theirs = getattr(self, name), getattr(other, name)
+            if theirs is None:
+                continue
+            if mine is None:
+                setattr(self, name, theirs)
+                if name in other.text_sources:
+                    self.text_sources[name] = other.text_sources[name]
+            elif name == "tag" and _normal(mine) != _normal(theirs):
+                self._dispute(
+                    name, _LABELS[name],
+                    self.text_sources.get(name) or BoundValue(mine, stated=mine),
+                    other.text_sources.get(name) or BoundValue(theirs, stated=theirs),
+                )
+        rows = {_normal(row.location): row for row in self.readings}
+        for row in other.readings:
+            key = _normal(row.location)
+            mine_row = rows.get(key)
+            if mine_row is None:
+                self.readings.append(row)
+                rows[key] = row
+                continue
+            for side in ("previous", "current"):
+                mine, theirs = getattr(mine_row, side), getattr(row, side)
+                if theirs is None:
+                    continue
+                if mine is None:
+                    setattr(mine_row, side, theirs)
+                elif _comparable("reading", mine) != _comparable("reading", theirs):
+                    self._dispute(reading_field(mine_row.location, side),
+                                  f"{mine_row.location} · {side} thickness", mine, theirs)
         for evidence_id in other.source_evidence_ids:
             if evidence_id not in self.source_evidence_ids:
                 self.source_evidence_ids.append(evidence_id)
+
+    def override(self, name: str, bound: BoundValue) -> None:
+        """Apply a person's resolution of a conflict over ``name``."""
+        if name.startswith("reading:"):
+            _, *location, side = name.split(":")
+            key = ":".join(location)
+            for row in self.readings:
+                if _normal(row.location) == key:
+                    setattr(row, side, bound)
+        elif name in ("tag", "report_no"):
+            setattr(self, name, str(bound.value))
+            self.text_sources[name] = bound
+        else:
+            setattr(self, name, bound)
+        self.conflicts = [conflict for conflict in self.conflicts if conflict.field != name]
+
+
+def reading_field(location: str, side: str) -> str:
+    """The conflict field name for one thickness reading."""
+    return f"reading:{_normal(location)}:{side}"
 
 
 _FIELD_PATTERNS: dict[str, tuple[str, str]] = {
@@ -157,6 +288,10 @@ def _readings_table(text: str, item: EvidenceItem) -> list[ReadingRow]:
     header_index = None
     years: list[str] = []
     for index, line in enumerate(lines):
+        # A structured copy of the table (the vision model emits one as JSON)
+        # is not the table's header line.
+        if line.lstrip().startswith(("{", "[")):
+            continue
         if re.search(r"\bLocation\b", line, re.IGNORECASE) and (
             len(_YEAR.findall(line)) >= 2 or re.search(r"previous|current", line, re.IGNORECASE)
         ):
@@ -186,6 +321,15 @@ def _readings_table(text: str, item: EvidenceItem) -> list[ReadingRow]:
             offset += len(line) + 1
             continue
         label = cells[0]
+        # A repeated header ("Location | 2022 | 2026") is not a location
+        # measured at 2022 mm and 2026 mm.
+        if label.casefold() in ("location", "locations", "point", "cml") or all(
+            _YEAR.fullmatch(number) for number in numbers[:2]
+        ):
+            if rows:
+                break
+            offset += len(line) + 1
+            continue
         first, second = (numbers[0], numbers[1]) if ascending else (numbers[1], numbers[0])
         rows.append(ReadingRow(
             location=label,
@@ -209,6 +353,8 @@ def vessel_inputs_from_text(text: str, item: EvidenceItem) -> VesselInputs:
         if kind == "text":
             if name in ("tag", "report_no"):
                 setattr(inputs, name, raw)
+                inputs.text_sources[name] = BoundValue(raw, stated=raw, evidence_id=item.id, locator=locator,
+                                                       source_text=_line_of(text, at))
             else:
                 setattr(inputs, name, BoundValue(raw, stated=raw, evidence_id=item.id, locator=locator,
                                                  source_text=_line_of(text, at)))
@@ -282,8 +428,19 @@ def vessel_inputs_from_csv(text: str, item: EvidenceItem) -> VesselInputs:
     return inputs
 
 
-def vessel_inputs(evidence: list[EvidenceItem]) -> VesselInputs | None:
-    """Merge vessel inputs across a run's file and visual evidence."""
+def vessel_inputs(
+    evidence: list[EvidenceItem], overrides: dict[str, BoundValue] | None = None
+) -> VesselInputs | None:
+    """Merge vessel inputs across a run's file and visual evidence.
+
+    ``overrides`` are resolved conflicts, keyed by conflict field: each
+    replaces the disputed value with the one a person chose, bound to the H
+    evidence that records the decision. A resolved equipment tag also decides
+    which records describe the equipment at all: a source naming another tag
+    is left out rather than merged into it.
+    """
+    overrides = overrides or {}
+    chosen_tag = overrides.get("tag")
     merged = VesselInputs()
     for item in evidence:
         if item.kind not in ("uploaded_file", "vision_extraction"):
@@ -293,7 +450,11 @@ def vessel_inputs(evidence: list[EvidenceItem]) -> VesselInputs | None:
             found = vessel_inputs_from_csv(text, item)
         else:
             found = vessel_inputs_from_text(text, item)
+        if chosen_tag is not None and found.tag and _normal(found.tag) != _normal(str(chosen_tag.value)):
+            continue
         merged.merge(found)
+    for name, bound in overrides.items():
+        merged.override(name, bound)
     return merged if merged.found else None
 
 

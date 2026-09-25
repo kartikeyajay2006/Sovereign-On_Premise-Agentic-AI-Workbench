@@ -156,6 +156,10 @@ export interface EvidenceItem {
   version?: string | null
   ingested_at?: string | null
   kind?: string
+  /** Procedure passages: the document code, and whether this revision is in force. */
+  document_code?: string | null
+  revision_status?: 'active' | 'superseded' | 'withdrawn' | string | null
+  superseded_by?: string | null
   // UI legacy aliases
   source?: string
   clause?: string
@@ -175,11 +179,29 @@ export interface VerificationCheck {
   ok?: boolean
 }
 
+export type ClaimVerdictValue =
+  | 'SUPPORTED'
+  | 'CALCULATED'
+  | 'CONFLICTED'
+  | 'UNSUPPORTED'
+  | 'REQUIRES_HUMAN_DECISION'
+
+/** One material statement in the answer, and why it stands or does not. */
+export interface ClaimVerdict {
+  id: string
+  text: string
+  kind: 'numerical' | 'engineering' | 'procedural' | 'recommendation' | 'factual'
+  verdict: ClaimVerdictValue
+  evidence_ids: string[]
+  reason: string
+}
+
 export interface VerificationReport {
   valid: boolean
   checks: VerificationCheck[]
   material_claims_total: number
   material_claims_supported: number
+  claims?: ClaimVerdict[]
   limitations: string[]
   completed_at: string
 }
@@ -353,7 +375,7 @@ export interface CalculationRecord {
 export interface IntegrityAssessment {
   kind: 'vessel' | 'piping'
   subject: string
-  status: 'calculated' | 'cannot_calculate'
+  status: 'calculated' | 'cannot_calculate' | 'conflicted'
   report?: string | null
   governing_location?: string | null
   governing_rate_mm_yr?: number | null
@@ -371,6 +393,8 @@ export interface IntegrityAssessment {
   interval_months?: number | null
   next_due_basis?: string | null
   missing: string[]
+  /** Unresolved conflicts (ids) withholding this decision. */
+  conflicts?: string[]
   evidence_ids: string[]
   source_evidence_ids: string[]
 }
@@ -405,6 +429,8 @@ export interface Task {
   calculations?: CalculationRecord[]
   /** The integrity decision those calculations add up to. */
   assessment?: IntegrityAssessment | null
+  /** Disagreements between sources, and how each was settled. */
+  conflicts?: ConflictRecord[]
   policy_events?: any[]
   answer?: string | null
   error?: string | null
@@ -454,6 +480,51 @@ export interface KnowledgeDocument {
   ingested_at: string
   media_type: string
   size_bytes: number
+  /** Document identity and revision control: one code, many revisions, one active. */
+  document_code?: string | null
+  revision_status?: 'active' | 'superseded' | 'withdrawn'
+  effective_date?: string | null
+  supersedes?: string | null
+  superseded_by?: string | null
+}
+
+/** One source's version of a disputed value. */
+export interface ConflictCandidate {
+  value: unknown
+  stated: string | null
+  unit: string | null
+  evidence_id: string | null
+  locator: string | null
+  source_document: string | null
+  source_text: string | null
+}
+
+export interface ConflictResolution {
+  candidate: number | null
+  value: unknown
+  unit: string | null
+  stated: string
+  reason: string
+  resolved_by: string
+  resolved_by_name: string
+  resolved_by_role: string
+  resolved_at: string
+  /** The H evidence item that records the decision. */
+  evidence_id: string
+}
+
+/** Two sources disagree about something a decision depends on. */
+export interface ConflictRecord {
+  id: string
+  kind: 'input' | 'revision'
+  subject: string | null
+  field: string
+  label: string
+  impact: 'high' | 'medium'
+  status: 'unresolved' | 'resolved' | 'auto_resolved'
+  candidates: ConflictCandidate[]
+  note: string | null
+  resolution: ConflictResolution | null
 }
 
 export interface KnowledgeSearchResponse {

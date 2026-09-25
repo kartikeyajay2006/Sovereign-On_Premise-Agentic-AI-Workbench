@@ -13,6 +13,7 @@ from backend.api.task_service import TaskError, get_task_service
 from backend.core.config import get_config
 from backend.core.schemas import (
     ApprovalDecisionRequest,
+    ConflictResolveRequest,
     PolicyDecision,
     StoredFile,
     Task,
@@ -136,6 +137,23 @@ async def decide_approval(
     try:
         return await get_task_service().decide_approval(
             task_id, user, payload.decision, payload.comment
+        )
+    except TaskError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/tasks/{task_id}/conflicts/{conflict_id}/resolve", response_model=Task)
+async def resolve_conflict(
+    task_id: str,
+    conflict_id: str,
+    payload: ConflictResolveRequest,
+    user: Annotated[User, Depends(require_permission("approval.decide"))],
+) -> Task:
+    """Choose between conflicting sources; the decision is recomputed from the choice."""
+    try:
+        return await get_task_service().resolve_conflict(
+            task_id, conflict_id, user,
+            candidate=payload.candidate, value=payload.value, reason=payload.reason,
         )
     except TaskError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

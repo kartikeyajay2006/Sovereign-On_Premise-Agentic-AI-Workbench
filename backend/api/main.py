@@ -75,6 +75,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     config = get_config()
     config.settings.ensure_directories()
     get_database()
+    # An index built before revision control has no document codes: settle
+    # which revision of each procedure is in force before anything retrieves.
+    try:
+        from backend.rag.knowledge_base import get_knowledge_base
+
+        get_knowledge_base().reconcile_revisions()
+    except Exception:  # an unreadable index is reported by retrieval, not here
+        pass
 
     audit = get_audit_log()
     if bool(config.settings.audit.get("verify_on_startup", True)):

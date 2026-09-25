@@ -183,7 +183,11 @@ class ToolRegistry:
             "knowledge_search",
             "Search the organisation's approved local knowledge base (SOPs, manuals, "
             "reports) and return cited passages.",
-            {"query": "what to search for", "top_k": "optional result count"},
+            {
+                "query": "what to search for",
+                "top_k": "optional result count",
+                "include_history": "optional; also search superseded revisions",
+            },
             self._knowledge_search,
         )
         self.register(
@@ -233,6 +237,7 @@ class ToolRegistry:
             top_k=arguments.get("top_k"),
             departments=departments,
             max_classification=context.user.max_data_classification.value,
+            include_history=bool(arguments.get("include_history")),
         )
         # Never hand back evidence above the user's clearance. The search has
         # already ranked only what the user is cleared for; this stays as the
@@ -289,7 +294,26 @@ class ToolRegistry:
 
         max_chars = int(arguments.get("max_chars") or 12000)
         text = parsed.full_text[:max_chars]
-        segments = parsed.segments if path.suffix.lower() == ".pdf" else parsed.segments[:6]
+        # Every section, whole, within one budget. Cutting each section at
+        # 800 characters and keeping the first six hid a contractor sheet's
+        # readings table from the formula registry, which then decided as if
+        # the sheet agreed with the plant scan -- and said nothing. What is
+        # past the budget is dropped and declared, on the item and here.
+        budget = int(self.config.settings.knowledge_base.get("file_evidence_budget_chars", 120_000))
+        pieces: list[tuple[Any, str, bool]] = []
+        for segment in parsed.segments:
+            if budget <= 0:
+                break
+            kept = segment.text[:budget]
+            pieces.append((segment, kept, len(kept) < len(segment.text)))
+            budget -= len(kept)
+        dropped = len(parsed.segments) - len(pieces) + sum(1 for *_, cut in pieces if cut)
+        warnings = list(parsed.warnings)
+        if dropped:
+            warnings.append(
+                f"'{stored.filename}' is longer than the evidence budget: {dropped} section(s) were cut or "
+                "left out, and figures in them cannot be used"
+            )
         return {
             "__summary__": (
                 f"read '{stored.filename}' ({parsed.parser}, {len(parsed.segments)} "
@@ -298,7 +322,7 @@ class ToolRegistry:
             "filename": stored.filename,
             "parser": parsed.parser,
             "page_count": parsed.page_count,
-            "warnings": parsed.warnings,
+            "warnings": warnings,
             "text": text,
             "truncated": len(parsed.full_text) > max_chars,
             "evidence": [
@@ -308,13 +332,14 @@ class ToolRegistry:
                     document_id=stored.id,
                     location=segment.location,
                     page_number=segment.page_number,
-                    excerpt=segment.text if segment.page_number is not None else segment.text[:800],
+                    excerpt=kept,
                     extraction_method="embedded_text" if segment.page_number is not None else parsed.parser,
+                    extraction_data={"truncated": True} if cut else None,
                     source_sha256=stored.sha256,
                     classification=stored.classification,
                     kind="uploaded_file",
                 ).model_dump(mode="json")
-                for index, segment in enumerate(segments, start=1)
+                for index, (segment, kept, cut) in enumerate(pieces, start=1)
             ],
         }
 

@@ -25,6 +25,8 @@ from typing import Any
 from backend.core.config import get_config
 from backend.core.schemas import (
     CalculationRecord,
+    ClaimVerdict,
+    ConflictRecord,
     EvidenceItem,
     IntegrityAssessment,
     SandboxResult,
@@ -48,7 +50,7 @@ LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 # extraction or a calculation read as no citation at all, so an answer drawn
 # from a scanned drawing counted as uncited and failed verification on evidence
 # it had in fact used.
-CITATION_PATTERN = re.compile(r"\[(?:[SFVCE])\d+\]")
+CITATION_PATTERN = re.compile(r"\[(?:[SFVCEH])\d+\]")
 # Anything the answer presents as a citation: a bracketed id of capitals and
 # digits, with dotted parts -- "[S1]", and also "[V2.1]", which the small model
 # writes when it borrows a clause number for an evidence id. Wider than
@@ -97,6 +99,69 @@ def _figures(text: str) -> set[str]:
         if has_unit or "." in digits or len(digits.replace(".", "")) >= 2:
             figures.add(re.match(r"-?\d+(?:\.\d+)?", number).group(0))
     return figures
+
+
+def _stated_conclusions(text: str) -> list[str]:
+    """Rates, remaining lives and severity bands an answer asserts."""
+    stated = [f"{match.group(1)} mm/year" for match in RATE_IN_TEXT.finditer(text or "")]
+    for sentence in SENTENCE_SPLIT.split(text or ""):
+        if re.search(r"remaining\s+life", sentence, re.IGNORECASE):
+            stated += [f"a remaining life of {m.group(1)} years" for m in LIFE_IN_TEXT.finditer(sentence)]
+        anchor = sentence.lower().find("severity")
+        if anchor >= 0:
+            bands = list(SEVERITY_WORD.finditer(sentence))
+            if bands:
+                band = min(bands, key=lambda m: abs(m.start() - anchor)).group(1)
+                stated.append(f"a {band.capitalize()} severity")
+    return list(dict.fromkeys(stated))
+
+
+# A disposition: only the approving authority named by the procedures takes
+# it. The answer may recommend one; it may not state one as settled.
+DECISION_CLAIM = re.compile(
+    r"\b(?:continued?\s+(?:in\s+)?(?:service|operation|operating)|continues\s+(?:in\s+)?(?:service|operation)"
+    r"|remains?\s+in\s+service|return(?:ed)?\s+to\s+service|fit\s+for\s+(?:continued\s+)?service"
+    r"|safe\s+to\s+(?:operate|continue)|(?:may|can|should)\s+(?:continue|operate|remain)"
+    r"|released?\s+for\s+service|extend(?:ed|ing)?\s+the\s+(?:inspection\s+)?interval|defer(?:red|ral)?)\b",
+    re.IGNORECASE,
+)
+ENGINEERING_CLAIM = re.compile(
+    r"\b(?:corrosion\s+rate|remaining\s+life|severity|governing|t-?min|minimum\s+(?:allowable\s+)?thickness"
+    r"|next\s+(?:thickness\s+survey|measurement|inspection)|metal\s+loss|fitness-for-service)\b",
+    re.IGNORECASE,
+)
+QUANTITY_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:mm|%|years?|months?|bar|mpa|psi|°c)", re.IGNORECASE)
+PROCEDURAL_CLAIM = re.compile(r"\b(?:shall|must|required|clause|approv\w*\s+authority|approving)\b", re.IGNORECASE)
+ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+# A sentence reporting that a conclusion is withheld, not asserting one.
+WITHHOLDING = re.compile(
+    r"\b(?:withh[eo]ld|cannot\s+be\s+(?:stated|calculated|determined|confirmed|assessed)"
+    r"|not\s+(?:be\s+)?(?:stated|calculated|determined)|pending|until\b.{0,60}\bresol\w*"
+    r"|disagree\w*|conflict\w*|discrepan\w*|inconsistent)\b",
+    re.IGNORECASE,
+)
+
+
+def _names_value(claim: str, stated: str | None) -> bool:
+    """Whether a claim states one candidate's value (by its figures, or its words)."""
+    if not stated:
+        return False
+    figures = _figures(stated)
+    if figures:
+        return bool(figures & _figures(claim))
+    return stated.casefold() in claim.casefold()
+
+
+def _claim_kind(claim: str) -> str:
+    if DECISION_CLAIM.search(claim):
+        return "recommendation"
+    if ENGINEERING_CLAIM.search(claim):
+        return "engineering"
+    if QUANTITY_CLAIM.search(claim):
+        return "numerical"
+    if PROCEDURAL_CLAIM.search(claim):
+        return "procedural"
+    return "factual"
 
 
 def _coerce_number(value: Any) -> float | None:
@@ -530,6 +595,23 @@ class VerificationEngine:
         check a wrong figure written as prose used to walk past.
         """
         decision = next((r.evidence_id for r in records if (r.subject or "").endswith("· decision")), None)
+        if assessment.status == "conflicted":
+            stated = _stated_conclusions(text)
+            disputed = ", ".join(assessment.conflicts) or "an input"
+            return VerificationCheck(
+                name="engineering_verification",
+                kind="calculation",
+                passed=not stated,
+                detail=(
+                    f"Conflicted: the sources disagree about {disputed}, yet the answer states "
+                    f"{'; '.join(stated[:3])}, which no formula could compute from conflicting inputs."
+                    if stated else
+                    f"Conflicted: the sources disagree about {disputed}. The answer withholds the "
+                    "conclusion instead of choosing between them."
+                ),
+                evidence_ids=list(assessment.source_evidence_ids),
+                warnings=stated[:5],
+            )
         if assessment.status != "calculated":
             stated = RATE_IN_TEXT.findall(text or "") or LIFE_IN_TEXT.findall(text or "")
             return VerificationCheck(
@@ -607,6 +689,166 @@ class VerificationEngine:
             ),
             evidence_ids=[i for i in [decision, *assessment.evidence_ids] if i],
             warnings=problems[:5],
+        )
+
+    # -- claims --------------------------------------------------------------
+    def claim_verdicts(
+        self,
+        text: str,
+        evidence: list[EvidenceItem],
+        *,
+        assessment: IntegrityAssessment | None = None,
+        records: list[CalculationRecord] | None = None,
+        conflicts: list[ConflictRecord] | None = None,
+    ) -> list[ClaimVerdict]:
+        """A verdict for every material claim, with the evidence it rests on.
+
+        The order of the rules is the order of authority. A claim touching a
+        disputed input is CONFLICTED whatever else supports it; a disposition
+        REQUIRES_HUMAN_DECISION however well argued; a figure the registry
+        computed is CALCULATED (or UNSUPPORTED if it disagrees with it); only
+        then is a claim SUPPORTED by a passage that carries it.
+        """
+        records = records or []
+        every_conflict = [c for c in conflicts or [] if c.kind == "input"]
+        open_conflicts = [c for c in every_conflict if c.status == "unresolved" and c.impact == "high"]
+        by_id = {item.id: item for item in evidence}
+        calculated = assessment is not None and assessment.status == "calculated"
+        computed: dict[float, str] = {}
+        if calculated:
+            for record in records:
+                if record.status != "calculated" or record.formula_id == "time.years_between":
+                    continue
+                for entry in record.outputs.values():
+                    value = entry.get("value") if isinstance(entry, dict) else None
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        computed.setdefault(round(float(value), 4), record.evidence_id or "")
+            for value in (assessment.local_metal_loss_percent, assessment.interval_months):
+                if isinstance(value, (int, float)):
+                    computed.setdefault(round(float(value), 4), assessment.evidence_ids[-1] if assessment.evidence_ids else "")
+        approver = (assessment.approver if assessment and assessment.approver else "the approving authority")
+
+        verdicts: list[ClaimVerdict] = []
+        for index, claim in enumerate(self.material_claims(text), start=1):
+            kind = _claim_kind(claim)
+            cited = [marker.strip("[]") for marker in CITATION_PATTERN.findall(claim)]
+            known_cited = [marker for marker in cited if marker in by_id]
+
+            def verdict(value: str, ids: list[str], reason: str) -> ClaimVerdict:
+                return ClaimVerdict(
+                    id=f"M{index}", text=claim[:400], kind=kind, verdict=value,
+                    evidence_ids=list(dict.fromkeys(i for i in ids if i)), reason=reason,
+                )
+
+            conclusions = _stated_conclusions(claim)
+            if every_conflict and WITHHOLDING.search(claim) and not conclusions:
+                # Reporting the disagreement is what the answer is meant to
+                # do; it is carried by the conflict's own sources, and by the
+                # resolution once there is one.
+                resolved = [c for c in every_conflict if c.resolution]
+                verdicts.append(verdict(
+                    "SUPPORTED",
+                    [candidate.evidence_id for c in every_conflict for candidate in c.candidates]
+                    + [c.resolution.evidence_id for c in resolved],
+                    f"Reports the disagreement recorded as {', '.join(c.id for c in every_conflict)}"
+                    + (f", since resolved by {', '.join(c.resolution.evidence_id for c in resolved)}." if resolved else "."),
+                ))
+                continue
+            conflicted_verdict: ClaimVerdict | None = None
+            for conflict in open_conflicts:
+                named = [c for c in conflict.candidates if _names_value(claim, c.stated)]
+                values = " vs ".join(f"{c.stated} [{c.evidence_id}]" for c in conflict.candidates)
+                ids = [c.evidence_id for c in conflict.candidates]
+                if conclusions and kind in ("engineering", "numerical", "recommendation"):
+                    conflicted_verdict = verdict(
+                        "CONFLICTED", ids,
+                        f"States {', '.join(conclusions[:2])}, which depends on {conflict.label}, and the "
+                        f"sources disagree about it ({values}); conflict {conflict.id} is unresolved.",
+                    )
+                elif len(named) == 1 and len(conflict.candidates) > 1:
+                    conflicted_verdict = verdict(
+                        "CONFLICTED", ids,
+                        f"Takes {named[0].stated} from {named[0].evidence_id} for {conflict.label}, although "
+                        f"the sources disagree ({values}); conflict {conflict.id} is unresolved.",
+                    )
+                elif len(named) > 1:
+                    conflicted_verdict = verdict(
+                        "SUPPORTED", ids, f"Reports both values of {conflict.label} recorded as {conflict.id}.",
+                    )
+                if conflicted_verdict is not None:
+                    break
+            if conflicted_verdict is not None:
+                verdicts.append(conflicted_verdict)
+                continue
+            if kind == "recommendation":
+                verdicts.append(verdict(
+                    "REQUIRES_HUMAN_DECISION", known_cited,
+                    f"A disposition is decided by {approver}; the workbench may recommend it but not settle it.",
+                ))
+                continue
+            if calculated and kind in ("engineering", "numerical", "procedural"):
+                contradiction = self.check_engineering(claim, assessment, records)
+                if not contradiction.passed:
+                    verdicts.append(verdict("UNSUPPORTED", list(assessment.evidence_ids[-1:]),
+                                            "Contradicts the formula registry: " + contradiction.detail))
+                    continue
+                figures = [float(f) for f in _figures(claim)]
+                matched = [(f, computed[round(f, 4)]) for f in figures if round(f, 4) in computed]
+                dated = bool(assessment.next_due and assessment.next_due in claim)
+                banded = bool(assessment.severity and re.search(
+                    rf"\bseverity\b.*\b{assessment.severity}\b|\b{assessment.severity}\b.*\bseverity\b",
+                    claim, re.IGNORECASE))
+                # The approving authority is an output of the severity
+                # formula (the SOP-OPS-008 matrix), not a passage to quote.
+                authority = (assessment.approver or "").split(" (")[0]
+                authorised = bool(authority and authority.lower() in claim.lower()
+                                  and re.search(r"approv", claim, re.IGNORECASE))
+                if matched or dated or banded or authorised:
+                    c_ids = [i for i in known_cited if i.startswith("C")] or [ident for _, ident in matched] \
+                        or list(assessment.evidence_ids[-1:])
+                    shown = ", ".join(f"{f:g}" for f, _ in matched)
+                    parts = [p for p in (shown, assessment.next_due if dated else "",
+                                         f"{assessment.severity.capitalize()} severity" if banded else "",
+                                         f"approving authority {authority}" if authorised else "") if p]
+                    verdicts.append(verdict(
+                        "CALCULATED", c_ids,
+                        f"{', '.join(parts)} computed by registered formulas from "
+                        f"{', '.join(assessment.source_evidence_ids) or 'the evidence'}, not by the model.",
+                    ))
+                    continue
+            ok, ids = self._claim_supported(claim, evidence)
+            if ok:
+                source = by_id.get(ids[0])
+                where = f"{source.source_document}{', ' + source.location if source and source.location else ''}" if source else ids[0]
+                verdicts.append(verdict("SUPPORTED", ids, f"Its figures or terms appear in {ids[0]} ({where})."))
+            else:
+                verdicts.append(verdict(
+                    "UNSUPPORTED", known_cited,
+                    (f"It cites {', '.join(known_cited)}, which does not carry it." if known_cited
+                     else "No retrieved or cited evidence carries it."),
+                ))
+        return verdicts
+
+    def check_claims(self, verdicts: list[ClaimVerdict]) -> VerificationCheck:
+        """High-impact claims may not stand unsupported or on disputed evidence."""
+        blocking = [
+            v for v in verdicts
+            if v.verdict == "CONFLICTED" or (v.verdict == "UNSUPPORTED" and v.kind == "engineering")
+        ]
+        counts: dict[str, int] = {}
+        for v in verdicts:
+            counts[v.verdict] = counts.get(v.verdict, 0) + 1
+        summary = ", ".join(f"{count} {name.lower().replace('_', ' ')}" for name, count in sorted(counts.items()))
+        return VerificationCheck(
+            name="claim_verification",
+            kind="source",
+            passed=not blocking,
+            detail=(
+                f"{len(verdicts)} material claim(s): {summary or 'none'}."
+                + (f" {len(blocking)} high-impact claim(s) stand on disputed or no evidence." if blocking else "")
+            ),
+            evidence_ids=sorted({i for v in verdicts for i in v.evidence_ids}),
+            warnings=[f"{v.id} {v.verdict}: {v.text[:120]} — {v.reason[:160]}" for v in blocking[:5]],
         )
 
     def check_code(self, result: SandboxResult | None) -> VerificationCheck:
@@ -700,23 +942,24 @@ class VerificationEngine:
         text: str,
         evidence: list[EvidenceItem],
         limitations: list[str] | None = None,
+        claims: list[ClaimVerdict] | None = None,
     ) -> VerificationReport:
-        claims = self.material_claims(text)
+        material = self.material_claims(text)
         supported = 0
-        for claim in claims:
+        for claim in material:
             ok, _ = self._claim_supported(claim, evidence)
             supported += int(ok)
 
         threshold = float(self._rules.get("min_supported_fraction", 0.6))
-        fraction = (supported / len(claims)) if claims else 1.0
+        fraction = (supported / len(material)) if material else 1.0
         hallucination = VerificationCheck(
             name="hallucination_check",
             kind="hallucination",
             passed=fraction >= threshold,
             detail=(
-                f"{supported} of {len(claims)} material claim(s) traceable to local "
+                f"{supported} of {len(material)} material claim(s) traceable to local "
                 f"evidence or independent computation."
-                if claims
+                if material
                 else "Output contains no unsupported material claims."
             ),
             warnings=(
@@ -734,8 +977,9 @@ class VerificationEngine:
         return VerificationReport(
             valid=all(check.passed for check in all_checks),
             checks=all_checks,
-            material_claims_total=len(claims),
+            material_claims_total=len(material),
             material_claims_supported=supported,
+            claims=list(claims or []),
             limitations=collected_limitations,
             completed_at=datetime.now(timezone.utc),
         )

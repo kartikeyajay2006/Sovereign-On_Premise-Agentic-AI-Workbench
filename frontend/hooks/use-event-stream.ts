@@ -89,6 +89,7 @@ export function useEventStream(options: EventStreamOptions = {}) {
       'task.code_retry',
       'task.sandbox_result',
       'task.calculation',
+      'task.conflict',
       'task.draft',
       'task.token',
       'task.answer',

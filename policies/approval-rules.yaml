@@ -33,6 +33,18 @@ approval_required_when:
       classification_confidence_below: 0.35
     approver_roles: [reviewer, administrator]
 
+  - name: unresolved_conflict
+    description: The sources disagree about an input the decision depends on; a person must choose before anything is released.
+    match:
+      unresolved_conflicts: true
+    approver_roles: [reviewer, administrator]
+
+  - name: human_decision
+    description: The answer states a disposition (continued service, return to service, deferral) that only the approving authority can take.
+    match:
+      decision_claims: true
+    approver_roles: [reviewer, administrator]
+
   - name: safety_recommendation
     description: Safety-related recommendations are never released unreviewed.
     match:
@@ -56,7 +68,13 @@ verification:
     # counted as a claim at all -- and an answer making three assertions was
     # reported as "1 of 1 material claims supported (100%)", which is a far
     # stronger statement than examining one sentence of three can justify.
-    - "\\[[SFVCE]\\d+\\]"
+    - "\\[[SFVCEH]\\d+\\]"
+    # An engineering conclusion or a disposition is material whether or not
+    # it carries a number. "Severity is Low." and "V-2104 may continue in
+    # service." carried none, cited nothing, and so were never examined --
+    # the two most consequential sentences an answer can contain.
+    - "\\b(severity|remaining life|corrosion rate|t-?min|fitness-for-service)\\b"
+    - "\\b(continued? (in )?(service|operation)|remains? in service|return(ed)? to service|fit for (continued )?service|safe to operate|may (continue|operate))\\b"
   min_evidence_per_material_claim: 1
   # Fraction of material claims that must be supported for the check to pass.
   min_supported_fraction: 0.6

@@ -280,9 +280,14 @@ class EvidenceItem(BaseModel):
     classification: Sensitivity = Sensitivity.NORMAL
     version: str | None = None
     ingested_at: datetime | None = None
-    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation"] = (
+    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human"] = (
         "knowledge_base"
     )
+    # For procedure passages: which document this revision belongs to, and
+    # whether it is the one in force.
+    document_code: str | None = None
+    revision_status: str | None = None
+    superseded_by: str | None = None
 
 
 # --------------------------------------------------------------- engineering
@@ -330,12 +335,72 @@ class CalculationRecord(BaseModel):
     evidence_id: str | None = None
 
 
+class ConflictCandidate(BaseModel):
+    """One source's version of a disputed value."""
+
+    value: Any = None
+    stated: str | None = None
+    unit: str | None = None
+    evidence_id: str | None = None
+    locator: str | None = None
+    source_document: str | None = None
+    source_text: str | None = None
+
+
+class ConflictResolution(BaseModel):
+    """A named person's decision between conflicting sources."""
+
+    # Index into the conflict's candidates, or None for a value entered by
+    # the resolver (a re-measurement, say), which `stated` then carries.
+    candidate: int | None = None
+    value: Any = None
+    unit: str | None = None
+    stated: str
+    reason: str
+    resolved_by: str
+    resolved_by_name: str
+    resolved_by_role: str
+    resolved_at: datetime
+    # The H evidence item that records the decision in the run's ledger.
+    evidence_id: str
+
+
+class ConflictRecord(BaseModel):
+    """Two sources disagree about something a decision depends on.
+
+    The workbench never chooses between them silently. An `input` conflict
+    over a formula input withholds every figure that depends on it until a
+    person resolves it; a `revision` conflict (a record written against a
+    superseded procedure) is resolved automatically in favour of the revision
+    in force, and says so.
+    """
+
+    id: str
+    kind: Literal["input", "revision"]
+    subject: str | None = None
+    field: str
+    label: str
+    impact: Literal["high", "medium"]
+    status: Literal["unresolved", "resolved", "auto_resolved"]
+    candidates: list[ConflictCandidate] = Field(default_factory=list)
+    note: str | None = None
+    resolution: ConflictResolution | None = None
+
+
+class ConflictResolveRequest(BaseModel):
+    candidate: int | None = Field(default=None, ge=0)
+    value: str | None = Field(default=None, max_length=120)
+    reason: str = Field(min_length=8, max_length=1000)
+
+
 class IntegrityAssessment(BaseModel):
     """The asset-integrity decision a run's calculations add up to."""
 
     kind: Literal["vessel", "piping"]
     subject: str
-    status: Literal["calculated", "cannot_calculate"]
+    # `conflicted`: the evidence disagrees about an input, and no figure that
+    # depends on it is stated until a person resolves the conflict.
+    status: Literal["calculated", "cannot_calculate", "conflicted"]
     report: str | None = None
     governing_location: str | None = None
     governing_rate_mm_yr: float | None = None
@@ -353,6 +418,8 @@ class IntegrityAssessment(BaseModel):
     interval_months: int | None = None
     next_due_basis: str | None = None
     missing: list[str] = Field(default_factory=list)
+    # Unresolved conflicts (ids) that withhold this decision.
+    conflicts: list[str] = Field(default_factory=list)
     # Every C evidence item this decision rests on, and the source evidence
     # its inputs were read from.
     evidence_ids: list[str] = Field(default_factory=list)
@@ -415,11 +482,29 @@ class VerificationCheck(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+ClaimVerdictValue = Literal[
+    "SUPPORTED", "CALCULATED", "CONFLICTED", "UNSUPPORTED", "REQUIRES_HUMAN_DECISION"
+]
+
+
+class ClaimVerdict(BaseModel):
+    """One material statement in the answer, and why it stands or does not."""
+
+    id: str
+    text: str
+    kind: Literal["numerical", "engineering", "procedural", "recommendation", "factual"]
+    verdict: ClaimVerdictValue
+    evidence_ids: list[str] = Field(default_factory=list)
+    reason: str
+
+
 class VerificationReport(BaseModel):
     valid: bool
     checks: list[VerificationCheck] = Field(default_factory=list)
     material_claims_total: int = 0
     material_claims_supported: int = 0
+    # Every material claim with its verdict and the evidence it rests on.
+    claims: list[ClaimVerdict] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     completed_at: datetime
 
@@ -527,6 +612,8 @@ class Task(BaseModel):
     # author these figures; it is told them.
     calculations: list[CalculationRecord] = Field(default_factory=list)
     assessment: IntegrityAssessment | None = None
+    # Disagreements between sources, and how each was settled.
+    conflicts: list[ConflictRecord] = Field(default_factory=list)
     policy_events: list[PolicyEvent] = Field(default_factory=list)
     answer: str | None = None
     error: str | None = None
@@ -565,12 +652,21 @@ class KnowledgeDocument(BaseModel):
     ingested_at: datetime
     media_type: str
     size_bytes: int
+    # Document identity and revision control: one code, many revisions,
+    # exactly one active.
+    document_code: str | None = None
+    revision_status: Literal["active", "superseded", "withdrawn"] = "active"
+    effective_date: str | None = None
+    supersedes: str | None = None
+    superseded_by: str | None = None
 
 
 class KnowledgeSearchRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int | None = None
     departments: list[str] | None = None
+    # Superseded revisions are left out unless history is asked for.
+    include_history: bool = False
 
 
 class KnowledgeSearchResponse(BaseModel):

@@ -33,10 +33,10 @@ const auditRange = audit.count > 0 && audit.first_sequence !== null && audit.las
 
 // Passages, and the first one the answer cites.
 const passages = run.evidence.filter((unit) => /^S\d+$/.test(unit.id))
-const markers = Array.from(new Set((run.answer.match(/\[[SFVCE]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
+const markers = Array.from(new Set((run.answer.match(/\[[SFVCEH]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
 const cited = markers.map((id) => run.evidence.find((unit) => unit.id === id)).filter((unit): unit is Unit => unit !== undefined)
 const first = cited[0] ?? null
-const answerText = run.answer.replace(/\s*\[[SFVCE]\d+\]\s*/g, ' ').trim()
+const answerText = run.answer.replace(/\s*\[[SFVCEH]\d+\]\s*/g, ' ').trim()
 
 // The clause the answer rests on: the first cited passage, split around the
 // phrase -- from the comma before it up to the figure the answer states.

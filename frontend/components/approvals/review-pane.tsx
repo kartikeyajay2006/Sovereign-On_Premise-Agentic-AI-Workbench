@@ -4,6 +4,8 @@ import { useState, type ReactNode, type RefObject } from 'react'
 import { ArrowLeft, Download } from 'lucide-react'
 import type { EvidenceItem, Task, VerificationReport } from '@/lib/types'
 import { ClassificationTag } from '@/components/primitives'
+import { ClaimList } from '@/components/evidence/claim-list'
+import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
@@ -84,8 +86,8 @@ function CitedText({
     <div className="flex flex-col gap-3">
       {paragraphs.map((paragraph, pi) => (
         <p key={pi} className="whitespace-pre-wrap text-answer leading-[var(--lh-answer)] text-foreground">
-          {paragraph.split(/(\[[SFVCE]\d+\])/g).map((part, i) => {
-            const match = part.match(/^\[([SFVCE]\d+)\]$/)
+          {paragraph.split(/(\[[SFVCEH]\d+\])/g).map((part, i) => {
+            const match = part.match(/^\[([SFVCEH]\d+)\]$/)
             if (!match) return <Inline key={i} text={part} />
             const id = match[1]
             if (!known.has(id)) {
@@ -184,7 +186,7 @@ function Deliverable({
   onCite: (id: string) => void
 }) {
   const known = new Set(task.evidence.map((e) => e.id))
-  const cited = (task.answer?.match(/\[[SFVCE]\d+\]/g) ?? []).length
+  const cited = (task.answer?.match(/\[[SFVCEH]\d+\]/g) ?? []).length
   return (
     <Section title="Deliverable" meta={cited > 0 ? `${cited} citation${cited === 1 ? '' : 's'}` : undefined}>
       {task.deliverables.length > 0 && (
@@ -248,7 +250,13 @@ function Deliverable({
   )
 }
 
-function Verification({ report }: { report: VerificationReport | null | undefined }) {
+function Verification({
+  report,
+  onCite,
+}: {
+  report: VerificationReport | null | undefined
+  onCite: (id: string) => void
+}) {
   if (!report) {
     return (
       <Section title="Verification">
@@ -297,6 +305,7 @@ function Verification({ report }: { report: VerificationReport | null | undefine
           )
         })}
       </ul>
+      <ClaimList claims={report.claims ?? []} onCite={onCite} defaultOpen />
       {report.limitations.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className={LEDGER_MUTED}>Limitations it states</p>
@@ -385,6 +394,7 @@ export function ReviewPane({
   onReject,
   onBack,
   onRetryDetail,
+  onTaskUpdated,
   headingId,
   bodyRef,
 }: {
@@ -403,6 +413,8 @@ export function ReviewPane({
   onReject: () => void
   onBack: () => void
   onRetryDetail: () => void
+  /** A conflict was resolved: the recomputed record replaces the one shown. */
+  onTaskUpdated?: (task: Task) => void
   headingId: string
   bodyRef: RefObject<HTMLDivElement | null>
 }) {
@@ -410,6 +422,8 @@ export function ReviewPane({
   const mark = DECISION_MARK[item.decision]
   const held = item.decision === 'held'
   const hasDocument = (task?.deliverables.length ?? item.deliverableCount) > 0
+  // The service refuses a release while sources still disagree.
+  const openConflicts = (task?.conflicts ?? []).filter((c) => c.status === 'unresolved' && c.impact === 'high')
 
   const cite = (id: string) => {
     setFocusedEvidence(id)
@@ -471,7 +485,7 @@ export function ReviewPane({
                 size="sm"
                 ground="paper"
                 shortcut="A"
-                disabled={!canDecide}
+                disabled={!canDecide || openConflicts.length > 0}
                 onClick={onApprove}
               >
                 {hasDocument ? 'Approve & release' : 'Approve'}
@@ -501,7 +515,13 @@ export function ReviewPane({
             decision from whoever submitted the task.
           </p>
         )}
-        {held && canDecide && !ownRun && (
+        {held && canDecide && !ownRun && openConflicts.length > 0 && (
+          <p className="mt-2 text-ui text-critical-text">
+            Resolve {openConflicts.map((c) => c.id).join(', ')} below before approving: the sources disagree,
+            and the decision they withhold has not been made.
+          </p>
+        )}
+        {held && canDecide && !ownRun && openConflicts.length === 0 && (
           <p className="mt-2 text-ui text-foreground-muted">
             Your decision is recorded against {reviewer} in the audit chain.
           </p>
@@ -529,8 +549,15 @@ export function ReviewPane({
         ) : (
           <div className="flex max-w-[860px] flex-col gap-8 pb-8">
             <HeldBecause task={task} />
+            <ConflictPanel
+              conflicts={task.conflicts ?? []}
+              taskId={item.id}
+              canResolve={held && canDecide && !ownRun}
+              onResolved={onTaskUpdated}
+              onCite={cite}
+            />
             <Deliverable task={task} held={held} canInspect={canDecide} onCite={cite} />
-            <Verification report={task.verification} />
+            <Verification report={task.verification} onCite={cite} />
             <Evidence taskId={item.id} items={task.evidence} focused={focusedEvidence} />
           </div>
         )}

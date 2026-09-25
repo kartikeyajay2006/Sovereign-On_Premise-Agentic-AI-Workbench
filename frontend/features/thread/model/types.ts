@@ -1,9 +1,11 @@
 import type {
-  Deliverable,
   CalculationRecord,
+  ClaimVerdict,
+  ConflictRecord,
+  Deliverable,
   DeliverableContent,
-  IntegrityAssessment,
   EvidenceItem,
+  IntegrityAssessment,
   ModelUsage,
   PipelineStage,
   VerificationCheck,
@@ -148,6 +150,10 @@ export interface AssistantTurn {
   /** Computed by the formula registry, never by the model. */
   assessment: IntegrityAssessment | null
   calculations: CalculationRecord[]
+  /** Where the sources disagree, and how each disagreement was settled. */
+  conflicts: ConflictRecord[]
+  /** Every material claim in the answer with its verdict. */
+  claims: ClaimVerdict[]
   /** Why the run was refused, when it was. */
   denialReason: string | null
   /** Surfaced rather than swallowed. */

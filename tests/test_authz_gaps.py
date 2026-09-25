@@ -47,7 +47,8 @@ class _RecordingKnowledgeBase:
         self.ceilings: list[str | None] = []
 
     async def search(
-        self, query, *, top_k=None, departments=None, min_score=None, max_classification=None
+        self, query, *, top_k=None, departments=None, min_score=None, max_classification=None,
+        include_history=False,
     ):
         self.calls.append(departments)
         self.ceilings.append(max_classification)

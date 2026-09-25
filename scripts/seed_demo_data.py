@@ -47,6 +47,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLES = ROOT / "sample_data"
 KNOWLEDGE_DIRS = (SAMPLES / "sop", SAMPLES / "records")
+# Superseded revisions, kept for audit history and indexed as superseded.
+ARCHIVE_DIR = SAMPLES / "sop" / "archive"
 POLICIES = ROOT / "policies"
 PIPING_REPORT = SAMPLES / "records" / "INS-2026-0522-P-2104-OVHD-01-thickness-survey.md"
 
@@ -163,13 +165,24 @@ def map_classification(raw: str, levels: set[str]) -> str | None:
     return first if first in levels else None
 
 
-def load_corpus() -> tuple[list[CorpusDocument], list[str]]:
+def load_corpus(
+    directories: tuple[Path, ...] = KNOWLEDGE_DIRS,
+    *,
+    current: list[CorpusDocument] | None = None,
+) -> tuple[list[CorpusDocument], list[str]]:
     """Every indexable document, with metadata from its own header.
 
     A document whose metadata does not map onto policy, or that is not marked
     SYNTHETIC, is reported as a problem and left out.
+
+    With ``current``, the directories hold archived revisions instead: each
+    must share its code with a document in force and carry a lower revision,
+    so that ingestion files it as superseded rather than as a rival.
     """
+    from backend.knowledge.revisions import revision_key
     from backend.rag.parsing import extract_title
+
+    in_force = {document.code: document for document in current or []}
 
     labels = _department_labels()
     levels = _classification_ids()
@@ -177,7 +190,7 @@ def load_corpus() -> tuple[list[CorpusDocument], list[str]]:
     problems: list[str] = []
     seen: dict[str, str] = {}
 
-    for directory in KNOWLEDGE_DIRS:
+    for directory in directories:
         for path in sorted(directory.glob("*.md")):
             text = path.read_text(encoding="utf-8")
             fields = header_fields(text)
@@ -193,6 +206,13 @@ def load_corpus() -> tuple[list[CorpusDocument], list[str]]:
                 found.append("no recognisable **Document:** code in its header")
             elif code in seen:
                 found.append(f"document code {code} is also used by {seen[code]}")
+            elif current is not None and code not in in_force:
+                found.append(f"archived revision of {code}, which is not in the corpus")
+            elif current is not None and revision_key(version) >= revision_key(in_force[code].version):
+                found.append(
+                    f"archived revision {version} is not below the revision in force "
+                    f"({in_force[code].version})"
+                )
             if not title.startswith(code):
                 found.append(f"title {title!r} does not begin with its document code")
             if "SYNTHETIC" not in fields.get("status", "").upper() or "SYNTHETIC DOCUMENT" not in text:
@@ -835,11 +855,19 @@ async def index_corpus(
             f"{record.chunk_count:>3} passages"
         )
         if replace_stale:
+            # Only an older copy of the same revision is stale. Another
+            # revision of the code is history: ingestion has already marked
+            # it superseded, and it stays for the record.
             for old in existing:
-                if old.id != record.id and _code_of(old.title) == document.code:
+                if (
+                    old.id != record.id
+                    and old.id not in indexed_ids
+                    and _code_of(old.title) == document.code
+                    and old.version == document.version
+                ):
                     knowledge_base.delete_document(old.id)
                     print(
-                        f"  removed  superseded {document.code} copy {old.id} "
+                        f"  removed  stale {document.code} copy {old.id} "
                         f"(version {old.version}, {old.chunk_count} passages, "
                         f"from {Path(old.source_path).name})"
                     )
@@ -902,9 +930,13 @@ def main() -> int:
     print("Checking the synthetic corpus\n")
     documents, problems = load_corpus()
     problems += check_references(documents)
+    archived, archive_problems = load_corpus((ARCHIVE_DIR,), current=documents)
+    problems += archive_problems
     warnings, sections = check_sections(documents)
     _print_corpus(documents, sections)
     print(f"\n  {len(documents)} documents, {sum(sections.values())} passages expected")
+    for document in archived:
+        print(f"  archive  {document.code} rev {document.version} (indexed as superseded)")
     for warning in warnings:
         print(f"  note     {warning}")
     for problem in problems:
@@ -932,12 +964,14 @@ def main() -> int:
         print("\nIndexing the corpus into the local knowledge base\n")
         failures = asyncio.run(
             index_corpus(
-                documents,
+                [*documents, *archived],
                 replace_stale=not arguments.keep_stale,
                 allow_lexical=arguments.allow_lexical,
             )
         )
-        print(f"\n{len(documents) - failures} of {len(documents)} document(s) indexed.")
+        total = len(documents) + len(archived)
+        print(f"\n{total - failures} of {total} document(s) indexed "
+              f"({len(archived)} archived revision(s) as superseded).")
         _print_visibility(retrieval_visibility(documents), len(documents))
 
     answers = expected_answers()

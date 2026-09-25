@@ -342,8 +342,15 @@ class PolicyGateway:
         *,
         prompt: str,
         verification_valid: bool | None = None,
+        unresolved_conflicts: int = 0,
+        decision_claims: int = 0,
     ) -> tuple[bool, list[str], list[str]]:
-        """Evaluate approval-rules.yaml; return (required, reasons, approver_roles)."""
+        """Evaluate approval-rules.yaml; return (required, reasons, approver_roles).
+
+        ``unresolved_conflicts`` counts high-impact disagreements between
+        sources that no person has settled; ``decision_claims`` counts claims
+        stating a disposition only an approving authority can take.
+        """
         required = False
         reasons: list[str] = []
         approvers: set[str] = set()
@@ -368,6 +375,10 @@ class PolicyGateway:
                     verification_valid is not None
                     and verification_valid == bool(match["verification_valid"])
                 )
+            elif "unresolved_conflicts" in match:
+                hit = (unresolved_conflicts > 0) == bool(match["unresolved_conflicts"])
+            elif "decision_claims" in match:
+                hit = (decision_claims > 0) == bool(match["decision_claims"])
             elif "classification_confidence_below" in match:
                 hit = profile.confidence < float(match["classification_confidence_below"])
             elif "prompt_contains_any" in match:

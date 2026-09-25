@@ -259,6 +259,7 @@ async def knowledge_search(
         top_k=payload.top_k,
         departments=departments,
         max_classification=user.max_data_classification.value,
+        include_history=payload.include_history,
     )
     clearance = config.classification_rank(user.max_data_classification.value)
     permitted = [

@@ -31,6 +31,7 @@ from backend.core.database import Database, get_database
 from backend.core.schemas import EvidenceItem, KnowledgeDocument, Sensitivity
 from backend.models_layer.client import InferenceError, get_inference_client
 from backend.models_layer.registry import get_model_registry
+from backend.knowledge.revisions import ACTIVE, DOC_CODE, parse_identity, resolve
 from backend.rag.parsing import ParsedDocument, extract_title, parse_document
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9][a-z0-9\-_/.]*")
@@ -173,13 +174,17 @@ class KnowledgeBase:
                 }
             )
 
+        resolved_title = (
+            title
+            or extract_title(path)
+            or path.stem.replace("_", " ").replace("-", " ").title()
+        )
+        identity = parse_identity("\n".join(segment.text for segment in parsed.segments[:3]), resolved_title)
+        if identity.revision and version in ("", "1.0"):
+            version = identity.revision
         record = {
             "id": document_id,
-            "title": (
-                title
-                or extract_title(path)
-                or path.stem.replace("_", " ").replace("-", " ").title()
-            ),
+            "title": resolved_title,
             "source_path": str(path),
             "department": department,
             "classification": classification.value,
@@ -189,9 +194,20 @@ class KnowledgeBase:
             "size_bytes": len(raw),
             "chunk_count": len(rows),
             "ingested_at": datetime.now(timezone.utc).isoformat(),
+            "document_code": identity.code,
+            "revision_status": "withdrawn" if identity.withdrawn else ACTIVE,
+            "effective_date": identity.effective_date,
+            "supersedes": identity.supersedes,
+            "superseded_by": None,
         }
         self.db.upsert_document(record)
         self.db.insert_chunks(rows)
+
+        # Which revision of each code is in force, now that one more exists.
+        self.reconcile_revisions()
+        stored = self.db.get_document(document_id) or {}
+        record["revision_status"] = stored.get("revision_status") or record["revision_status"]
+        record["superseded_by"] = stored.get("superseded_by")
 
         return KnowledgeDocument(
             id=document_id,
@@ -205,7 +221,39 @@ class KnowledgeBase:
             ingested_at=datetime.fromisoformat(record["ingested_at"]),
             media_type=parsed.media_type,
             size_bytes=len(raw),
+            document_code=identity.code,
+            revision_status=record["revision_status"],
+            effective_date=identity.effective_date,
+            supersedes=identity.supersedes,
+            superseded_by=record["superseded_by"],
         )
+
+    def reconcile_revisions(self) -> int:
+        """Give every indexed document an identity; settle which revision is in force.
+
+        Rows indexed before revision control carry no document code, so they
+        sat outside their own family: ingesting an archived revision beside
+        one made the archive the family's only member, and so "active". The
+        code is read from the title, which the corpus begins with, and every
+        family is resolved again. Returns how many documents changed.
+        """
+        rows = self.db.list_documents()
+        changed: set[str] = set()
+        for row in rows:
+            if not row.get("document_code"):
+                match = DOC_CODE.search(row.get("title") or "")
+                if match:
+                    self.db.set_document_code(row["id"], match.group(1))
+                    row["document_code"] = match.group(1)
+                    changed.add(row["id"])
+        for code in sorted({row["document_code"] for row in rows if row.get("document_code")}):
+            family = [row for row in rows if row.get("document_code") == code]
+            for doc_id, (status, superseded_by) in resolve(family).items():
+                row = next(r for r in family if r["id"] == doc_id)
+                if ((row.get("revision_status") or ACTIVE), row.get("superseded_by")) != (status, superseded_by):
+                    self.db.set_revision_status(doc_id, status, superseded_by)
+                    changed.add(doc_id)
+        return len(changed)
 
     # -- retrieval ---------------------------------------------------------
     def _to_evidence(
@@ -227,6 +275,9 @@ class KnowledgeBase:
                 else None
             ),
             kind="knowledge_base",
+            document_code=row.get("document_code"),
+            revision_status=row.get("revision_status") or ACTIVE,
+            superseded_by=row.get("superseded_by"),
         )
 
     @staticmethod
@@ -272,11 +323,17 @@ class KnowledgeBase:
         departments: list[str] | None = None,
         min_score: float | None = None,
         max_classification: str | None = None,
+        include_history: bool = False,
     ) -> tuple[list[EvidenceItem], Literal["embedding", "lexical"], int]:
         started = time.perf_counter()
         limit = int(top_k or self._kb_config.get("default_top_k", 6))
         floor = float(min_score if min_score is not None else self._kb_config.get("min_score", 0.15))
         rows = self.db.iter_chunks(departments)
+        # The instruction in force, unless history was asked for. Like
+        # clearance, this is applied before ranking: a superseded clause must
+        # not take a slot from the active one it was replaced by.
+        if not include_history:
+            rows = [row for row in rows if (row.get("revision_status") or ACTIVE) == ACTIVE]
         # Clearance is applied before ranking, not after. Filtering the top k
         # afterwards gave an operator three passages where an engineer got six,
         # because Restricted passages had taken the other slots and were then
@@ -336,6 +393,11 @@ class KnowledgeBase:
                     ingested_at=datetime.fromisoformat(row["ingested_at"]),
                     media_type=row["media_type"],
                     size_bytes=int(row["size_bytes"]),
+                    document_code=row.get("document_code"),
+                    revision_status=row.get("revision_status") or ACTIVE,
+                    effective_date=row.get("effective_date"),
+                    supersedes=row.get("supersedes"),
+                    superseded_by=row.get("superseded_by"),
                 )
             )
         return documents

@@ -135,9 +135,29 @@ class Database:
         finally:
             connection.close()
 
+    # Columns added after a table was first created. SQLite has no
+    # "ADD COLUMN IF NOT EXISTS", so each is added only when missing: an
+    # existing workbench database upgrades in place and nothing is dropped.
+    _ADDED_COLUMNS: dict[str, list[tuple[str, str]]] = {
+        "knowledge_documents": [
+            # Document identity is separate from the uploaded file: one code,
+            # many revisions, exactly one of them active.
+            ("document_code", "TEXT"),
+            ("revision_status", "TEXT NOT NULL DEFAULT 'active'"),
+            ("effective_date", "TEXT"),
+            ("supersedes", "TEXT"),
+            ("superseded_by", "TEXT"),
+        ],
+    }
+
     def _initialise(self) -> None:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            for table, columns in self._ADDED_COLUMNS.items():
+                present = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+                for name, definition in columns:
+                    if name not in present:
+                        connection.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
     # -- users -------------------------------------------------------------
     def count_users(self) -> int:
@@ -326,10 +346,12 @@ class Database:
                 """
                 INSERT INTO knowledge_documents
                     (id, title, source_path, department, classification, version,
-                     sha256, media_type, size_bytes, chunk_count, ingested_at)
+                     sha256, media_type, size_bytes, chunk_count, ingested_at,
+                     document_code, revision_status, effective_date, supersedes, superseded_by)
                 VALUES (:id, :title, :source_path, :department, :classification,
                         :version, :sha256, :media_type, :size_bytes, :chunk_count,
-                        :ingested_at)
+                        :ingested_at, :document_code, :revision_status, :effective_date,
+                        :supersedes, :superseded_by)
                 ON CONFLICT(id) DO UPDATE SET
                     title=excluded.title, source_path=excluded.source_path,
                     department=excluded.department,
@@ -337,10 +359,38 @@ class Database:
                     version=excluded.version, sha256=excluded.sha256,
                     media_type=excluded.media_type, size_bytes=excluded.size_bytes,
                     chunk_count=excluded.chunk_count,
-                    ingested_at=excluded.ingested_at
+                    ingested_at=excluded.ingested_at,
+                    document_code=excluded.document_code,
+                    revision_status=excluded.revision_status,
+                    effective_date=excluded.effective_date,
+                    supersedes=excluded.supersedes,
+                    superseded_by=excluded.superseded_by
                 """,
-                record,
+                {
+                    "document_code": None, "revision_status": "active", "effective_date": None,
+                    "supersedes": None, "superseded_by": None, **record,
+                },
             )
+
+    def set_revision_status(self, document_id: str, status: str, superseded_by: str | None) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE knowledge_documents SET revision_status = ?, superseded_by = ? WHERE id = ?",
+                (status, superseded_by, document_id),
+            )
+
+    def set_document_code(self, document_id: str, code: str) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE knowledge_documents SET document_code = ? WHERE id = ?", (code, document_id)
+            )
+
+    def documents_with_code(self, code: str) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM knowledge_documents WHERE document_code = ?", (code,)
+            ).fetchall()
+            return [dict(row) for row in rows]
 
     def delete_document_chunks(self, document_id: str) -> None:
         with self.connect() as connection:
@@ -388,7 +438,8 @@ class Database:
             SELECT c.id, c.document_id, c.ordinal, c.location, c.content,
                    c.embedding, c.embedding_model,
                    d.title, d.department, d.classification, d.version,
-                   d.ingested_at, d.source_path
+                   d.ingested_at, d.source_path, d.document_code, d.revision_status,
+                   d.effective_date, d.superseded_by
               FROM knowledge_chunks c
               JOIN knowledge_documents d ON d.id = c.document_id
         """

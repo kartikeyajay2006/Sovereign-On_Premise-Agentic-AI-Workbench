@@ -647,6 +647,17 @@ class TaskService:
             )
 
         approved = decision == "approve"
+        # A release while sources still disagree would ship a decision nobody
+        # made. Rejecting stays possible: it releases nothing.
+        open_conflicts = [
+            c for c in task.conflicts if c.status == "unresolved" and c.impact == "high"
+        ]
+        if approved and open_conflicts:
+            raise TaskError(
+                "Resolve "
+                + ", ".join(f"{c.id} ({c.label})" for c in open_conflicts)
+                + " before approving: the decision it withholds has not been made."
+            )
         task.approval.decision = "approved" if approved else "rejected"
         task.approval.reviewer_id = user.id
         task.approval.reviewer_name = user.display_name
@@ -683,6 +694,52 @@ class TaskService:
                 "status": task.status.value,
             },
         )
+        return task
+
+
+    async def resolve_conflict(
+        self,
+        task_id: str,
+        conflict_id: str,
+        user: User,
+        *,
+        candidate: int | None,
+        value: str | None,
+        reason: str,
+    ) -> Task:
+        """A person chooses between conflicting sources; the run recomputes.
+
+        Held to the same rules as an approval, because it decides what the
+        approval will release: the caller must hold approval.decide and an
+        approving role for the task, and may not have run the task.
+        """
+        task = self.get_task(task_id)
+        if task is None:
+            raise TaskError(f"Unknown task: {task_id}")
+        if task.status != TaskStatus.AWAITING_APPROVAL:
+            raise TaskError("Conflicts are resolved while the task is held for approval")
+        permission = self.gateway.check_permission(user, "approval.decide", task_id=task_id)
+        if permission.decision != PolicyDecision.ALLOW:
+            raise TaskError(permission.reason)
+        if task.approval and task.approval.approver_roles and user.role not in task.approval.approver_roles:
+            raise TaskError(
+                f"Role '{user.role}' is not an approving authority for this task "
+                f"(requires one of: {', '.join(task.approval.approver_roles)})"
+            )
+        if task.user_id == user.id:
+            raise TaskError(
+                "You ran this task, so you cannot resolve its conflicts. "
+                "A different account holding approval.decide must decide."
+            )
+        if (candidate is None) == (not (value or "").strip()):
+            raise TaskError("Choose exactly one: a candidate, or a value of your own")
+        try:
+            task = await self.orchestrator.resolve_conflict(
+                task, user, conflict_id, candidate=candidate, value=value, reason=reason.strip()
+            )
+        except ValueError as exc:
+            raise TaskError(str(exc)) from exc
+        self._persist(task)
         return task
 
 

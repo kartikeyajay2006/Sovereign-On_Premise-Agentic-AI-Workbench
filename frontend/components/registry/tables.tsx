@@ -68,6 +68,27 @@ const COLUMNS = cn(
  * that arrives needs a box of its own to move and to carry its light, which
  * a table row does not reliably have.
  */
+/**
+ * A revision that is not in force says so, and names what replaced it.
+ * Retrieval leaves superseded revisions out unless history is asked for.
+ */
+function RevisionMark({ document }: { document: KnowledgeDocument }) {
+  const status = document.revision_status ?? 'active'
+  if (status === 'active') return null
+  return (
+    <span
+      className={cn(
+        'font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
+        status === 'withdrawn' ? 'text-critical-text' : 'text-approval-text',
+      )}
+      title={document.superseded_by ? `Superseded by ${document.superseded_by}` : undefined}
+    >
+      {status}
+      {document.superseded_by ? ` · by ${document.superseded_by}` : ''}
+    </span>
+  )
+}
+
 export function DocumentsTable({ documents, emptyAction }: { documents: KnowledgeDocument[]; emptyAction?: ReactNode }) {
   return (
     <AppendScope>
@@ -93,6 +114,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                   <span className="min-w-0 text-body font-medium text-foreground">{d.title}</span>
                   <ClassificationTag level={d.classification} />
                 </div>
+                <RevisionMark document={d} />
                 <span className="truncate font-mono text-ledger text-foreground-muted" title={d.source_path}>
                   {shownPath(d.source_path)}
                 </span>
@@ -150,6 +172,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
                     <span className="block truncate font-mono text-ledger text-foreground-muted" title={d.source_path}>
                       {shownPath(d.source_path)} · v{d.version}
                     </span>
+                    <RevisionMark document={d} />
                   </div>
                   <div role="cell" className={cn(TD, 'truncate text-ui capitalize text-foreground-secondary')}>
                     {d.department}

@@ -574,6 +574,7 @@ export function ApprovalsView() {
                     onReject={() => openDialog('reject')}
                     onBack={backToList}
                     onRetryDetail={() => setDetailAttempt((n) => n + 1)}
+                    onTaskUpdated={(task) => setRecords((previous) => new Map(previous).set(task.id, task))}
                     headingId={headingId}
                     bodyRef={bodyRef}
                   />

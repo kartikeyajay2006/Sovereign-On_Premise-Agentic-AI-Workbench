@@ -8,40 +8,198 @@ not produce them.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from backend.core.schemas import (
     CalculationRecord,
+    ConflictCandidate,
+    ConflictRecord,
     EvidenceItem,
     IntegrityAssessment,
     Sensitivity,
 )
 from backend.engineering.assessment import assess_piping, assess_vessel
-from backend.engineering.extraction import piping_inputs, vessel_inputs
-from backend.engineering.formulas import output_value
+from backend.engineering.extraction import InputConflict, piping_inputs, vessel_inputs
+from backend.engineering.formulas import BoundValue, output_value
 
 _RANK = {Sensitivity.NORMAL: 0, Sensitivity.CONFIDENTIAL: 1, Sensitivity.SENSITIVE: 2, Sensitivity.RESTRICTED: 3}
 
 
-def assess_from_evidence(
-    evidence: list[EvidenceItem], *, include_retrieved: bool = False
-) -> tuple[list[CalculationRecord], IntegrityAssessment] | None:
+def assess_with_conflicts(
+    evidence: list[EvidenceItem],
+    *,
+    include_retrieved: bool = False,
+    overrides: dict[str, BoundValue] | None = None,
+) -> tuple[list[CalculationRecord], IntegrityAssessment, list[InputConflict]] | None:
     """A vessel assessment from attachments and scans, else a piping one.
 
     Retrieved knowledge-base passages are considered only for a request that
     is itself a calculation: a question that merely retrieves a survey record
     has not asked for its arithmetic.
+
+    Where the sources disagree about an input a formula reads, nothing is
+    calculated: the assessment is ``conflicted``, names the disputed inputs,
+    and waits for a person to choose. ``overrides`` carries those choices.
     """
-    vessel = vessel_inputs(evidence)
+    vessel = vessel_inputs(evidence, overrides)
     if vessel is not None:
-        return assess_vessel(vessel)
+        blocking = vessel.blocking_conflicts
+        if blocking:
+            assessment = IntegrityAssessment(
+                kind="vessel",
+                subject=vessel.tag or "vessel",
+                status="conflicted",
+                report=vessel.report_no,
+                conflicts=[conflict.field for conflict in blocking],
+                source_evidence_ids=list(vessel.source_evidence_ids),
+            )
+            return [], assessment, vessel.conflicts
+        records, assessment = assess_vessel(vessel)
+        return records, assessment, vessel.conflicts
     pool = [item for item in evidence if item.kind in ("uploaded_file", "vision_extraction")]
     if include_retrieved:
         pool += [item for item in evidence if item.kind == "knowledge_base"]
     piping = piping_inputs(pool)
     if piping is not None:
-        return assess_piping(piping)
+        records, assessment = assess_piping(piping)
+        return records, assessment, []
     return None
+
+
+def assess_from_evidence(
+    evidence: list[EvidenceItem], *, include_retrieved: bool = False
+) -> tuple[list[CalculationRecord], IntegrityAssessment] | None:
+    result = assess_with_conflicts(evidence, include_retrieved=include_retrieved)
+    return None if result is None else (result[0], result[1])
+
+
+# ---------------------------------------------------------------- conflicts
+def _candidate(bound: BoundValue, name: str, evidence: list[EvidenceItem]) -> ConflictCandidate:
+    recorded = bound.record(name)
+    source = next((item for item in evidence if item.id == bound.evidence_id), None)
+    return ConflictCandidate(
+        value=recorded.value,
+        stated=recorded.stated,
+        unit=recorded.unit,
+        evidence_id=bound.evidence_id,
+        locator=bound.locator,
+        source_document=source.source_document if source else None,
+        source_text=bound.source_text,
+    )
+
+
+def conflict_records(
+    conflicts: list[InputConflict],
+    subject: str | None,
+    evidence: list[EvidenceItem],
+    existing: list[ConflictRecord],
+) -> list[ConflictRecord]:
+    """The run's conflicts, old and new, each with a stable K identifier.
+
+    A conflict already on the task keeps its id and its resolution; one seen
+    for the first time is numbered after the last.
+    """
+    records = list(existing)
+    by_field = {record.field: record for record in records}
+    counter = max((int(record.id[1:]) for record in records if record.id[1:].isdigit()), default=0)
+    for conflict in conflicts:
+        if conflict.field in by_field:
+            continue
+        counter += 1
+        values = " vs ".join(value.stated or str(value.value) for value in conflict.values)
+        record = ConflictRecord(
+            id=f"K{counter}",
+            kind="input",
+            subject=subject,
+            field=conflict.field,
+            label=conflict.label,
+            impact="high" if conflict.impact == "high" else "medium",
+            status="unresolved",
+            candidates=[_candidate(value, conflict.field, evidence) for value in conflict.values],
+            note=(
+                f"The sources disagree on {conflict.label} ({values}). "
+                + (
+                    "Every figure that depends on it is withheld until a person chooses."
+                    if conflict.impact == "high"
+                    else "No formula reads it, so the decision is not withheld, but the record is inconsistent."
+                )
+            ),
+        )
+        records.append(record)
+        by_field[record.field] = record
+    return records
+
+
+_PROCEDURE_REVISION = re.compile(
+    r"\b(SOP-[A-Z]{3}-\d{3})\s*,?\s*Rev(?:ision)?\.?\s*(\d+(?:\.\d+)*)", re.IGNORECASE
+)
+
+
+def revision_conflicts(
+    evidence: list[EvidenceItem],
+    active: dict[str, tuple[str, str]],
+    existing: list[ConflictRecord],
+) -> list[ConflictRecord]:
+    """A record written against a procedure revision that is no longer in force.
+
+    ``active`` maps a document code to (revision in force, its title). The
+    conflict is resolved automatically in favour of the revision in force --
+    that is the rule, not a judgement -- and recorded so a reader sees that
+    the record and the procedure applied to it do not match.
+    """
+    records = list(existing)
+    seen = {record.field for record in records}
+    counter = max((int(record.id[1:]) for record in records if record.id[1:].isdigit()), default=0)
+    for item in evidence:
+        if item.kind not in ("uploaded_file", "vision_extraction"):
+            continue
+        for match in _PROCEDURE_REVISION.finditer(item.excerpt or ""):
+            code, cited = match.group(1).upper(), match.group(2)
+            if code not in active:
+                continue
+            current, title = active[code]
+            field = f"revision:{code}"
+            if cited == current or field in seen:
+                continue
+            seen.add(field)
+            counter += 1
+            in_force = next(
+                (e for e in evidence if e.kind == "knowledge_base" and e.document_code == code
+                 and (e.revision_status or "active") == "active"),
+                None,
+            )
+            records.append(ConflictRecord(
+                id=f"K{counter}",
+                kind="revision",
+                subject=code,
+                field=field,
+                label=f"{code} revision",
+                impact="medium",
+                status="auto_resolved",
+                candidates=[
+                    ConflictCandidate(
+                        value=cited, stated=f"{code} Rev {cited}", evidence_id=item.id,
+                        locator="procedure reference", source_document=item.source_document,
+                        source_text=match.group(0),
+                    ),
+                    ConflictCandidate(
+                        value=current, stated=f"{code} Rev {current} (in force)",
+                        evidence_id=in_force.id if in_force else None,
+                        locator="knowledge base · active revision", source_document=title,
+                    ),
+                ],
+                note=(
+                    f"{item.id} was written against {code} Rev {cited}, which is not the revision in "
+                    f"force. The assessment applies Rev {current}; the record's own conclusions under "
+                    f"Rev {cited} are not relied on."
+                ),
+            ))
+    return records
+
+
+def unresolved(conflicts: list[ConflictRecord]) -> list[ConflictRecord]:
+    return [record for record in conflicts if record.status == "unresolved" and record.impact == "high"]
 
 
 def _group(records: list[CalculationRecord]) -> list[tuple[str, list[CalculationRecord]]]:
@@ -105,10 +263,31 @@ def _location_id(assessment: IntegrityAssessment, records: list[CalculationRecor
     return next((r.evidence_id for r in records if r.subject == target and r.evidence_id), None)
 
 
-def prompt_block(assessment: IntegrityAssessment | None, records: list[CalculationRecord]) -> str:
+def prompt_block(
+    assessment: IntegrityAssessment | None,
+    records: list[CalculationRecord],
+    conflicts: list[ConflictRecord] | None = None,
+) -> str:
     """What the model is told. Figures stated here are the only ones it may use."""
+    conflicts_text = [
+        f"{record.label} ("
+        + " vs ".join(
+            f"{candidate.stated} in [{candidate.evidence_id}]" if candidate.evidence_id else str(candidate.stated)
+            for candidate in record.candidates
+        )
+        + f"; conflict {record.id})"
+        for record in unresolved(conflicts or [])
+    ]
     if assessment is None:
         return ""
+    if assessment.status == "conflicted":
+        return (
+            "\nDeterministic engineering: CONFLICTED for "
+            f"{assessment.subject}. The evidence disagrees about {', '.join(conflicts_text or assessment.conflicts)}. "
+            "No corrosion rate, remaining life, severity or due date can be stated until a person resolves "
+            "the conflict. Say that the sources disagree, name both values and their sources, say that the "
+            "conclusion is withheld pending a human resolution, and do not choose between them.\n"
+        )
     if assessment.status != "calculated":
         return (
             "\nDeterministic engineering: CANNOT CALCULATE for "
@@ -116,13 +295,33 @@ def prompt_block(assessment: IntegrityAssessment | None, records: list[Calculati
             "Say plainly that these figures cannot be calculated from the evidence provided, name what is "
             "missing, and do not estimate them.\n"
         )
-    decision = _decision_id(assessment, records)
-    governing = _location_id(assessment, records)
     lines = [
         "",
         "Deterministic engineering results. These were computed by registered formulas from the evidence, "
         "not by you. State these figures exactly as given, cite the bracketed identifier, and never "
         "recompute them, round them differently or add figures of your own.",
+        *decision_lines(assessment, records),
+    ]
+    for record in conflicts or []:
+        if record.kind == "revision":
+            lines.append(f"Procedure revision: {record.note}")
+    others = []
+    for record in records:
+        if record.formula_id == "integrity.remaining_life" and record.status == "calculated":
+            location = (record.subject or "").split(" · ", 1)[-1]
+            if location != assessment.governing_location:
+                life = output_value(record, "remaining_life")
+                others.append(f"{location} {life:g} years" if life is not None else f"{location} not limited")
+    if others:
+        lines.append("Remaining life at the other locations: " + "; ".join(others) + ".")
+    return "\n".join(lines) + "\n"
+
+
+def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRecord]) -> list[str]:
+    """The calculated decision as cited sentences, one per finding."""
+    decision = _decision_id(assessment, records)
+    governing = _location_id(assessment, records)
+    lines = [
         f"[{governing or decision}] {assessment.subject}: governing location {assessment.governing_location}; "
         f"governing corrosion rate {assessment.governing_rate_mm_yr:g} mm/year ({assessment.governing_rate_is} governs); "
         f"remaining life {assessment.remaining_life_years:g} years."
@@ -145,16 +344,7 @@ def prompt_block(assessment: IntegrityAssessment | None, records: list[Calculati
     if assessment.next_due:
         lines.append(f"[{decision}] Next {'thickness survey' if assessment.kind == 'vessel' else 'measurement'} "
                      f"due {assessment.next_due} ({assessment.next_due_basis}).")
-    others = []
-    for record in records:
-        if record.formula_id == "integrity.remaining_life" and record.status == "calculated":
-            location = (record.subject or "").split(" · ", 1)[-1]
-            if location != assessment.governing_location:
-                life = output_value(record, "remaining_life")
-                others.append(f"{location} {life:g} years" if life is not None else f"{location} not limited")
-    if others:
-        lines.append("Remaining life at the other locations: " + "; ".join(others) + ".")
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 def as_deliverable_calculations(records: list[CalculationRecord]) -> list[dict[str, Any]]:

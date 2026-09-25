@@ -205,7 +205,7 @@ export function declinedPreferences(choices: readonly ModelChoice[]): DeclinedPr
   return notes
 }
 
-const CITATION = /\[([SFVCE]\d+)\]/g
+const CITATION = /\[([SFVCEH]\d+)\]/g
 
 /**
  * The answer with every citation spelled out: "[S1]" becomes

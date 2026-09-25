@@ -30,13 +30,20 @@ from backend.core.config import get_config
 from backend.core.events import get_event_bus
 from backend.engineering.stage import (
     as_deliverable_calculations,
-    assess_from_evidence,
+    assess_with_conflicts,
+    conflict_records,
+    decision_lines,
     prompt_block,
     register_evidence,
+    revision_conflicts,
+    unresolved,
 )
+from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
 from backend.core.schemas import (
     AgentPlan,
     ApprovalRecord,
+    ConflictRecord,
+    ConflictResolution,
     EvidenceItem,
     ModelDescriptor,
     ModelUsage,
@@ -186,6 +193,89 @@ class VisualInput:
     page_number: int | None = None
 
 
+
+def _revision_note(item: EvidenceItem) -> str:
+    """Label a passage from a revision that is no longer in force.
+
+    Superseded passages reach the model only when the request asked for
+    history, and then they say so, so an old interval is never read as the
+    current one.
+    """
+    if item.revision_status and item.revision_status != "active":
+        replaced = f" by {item.superseded_by}" if item.superseded_by else ""
+        return f" [{item.revision_status.upper()}{replaced}; historical, not in force]"
+    return ""
+
+
+def _resolved_value(
+    conflict: ConflictRecord, candidate: int | None, value: str | None
+) -> tuple[Any, str | None, str, str | None]:
+    """(value, unit, as stated, source) for a resolution, validated against the conflict.
+
+    A candidate is taken as its source recorded it. A value entered by the
+    resolver -- a re-measurement, say -- must have the same kind as the
+    candidates: a thickness stays a length, a date a date.
+    """
+    if candidate is not None:
+        if candidate >= len(conflict.candidates):
+            raise ValueError(f"{conflict.id} has {len(conflict.candidates)} candidates; there is no #{candidate}")
+        chosen = conflict.candidates[candidate]
+        source = chosen.evidence_id + (f" ({chosen.locator})" if chosen.locator else "") if chosen.evidence_id else None
+        return chosen.value, chosen.unit, chosen.stated or str(chosen.value), source
+    if not value or not value.strip():
+        raise ValueError("Choose one of the candidates or enter the value to use")
+    text = value.strip()
+    unit = next((c.unit for c in conflict.candidates if c.unit), None)
+    if unit:
+        from backend.engineering.units import UnitError, parse_quantity
+
+        try:
+            quantity = parse_quantity(text, default_unit=unit)
+        except UnitError as exc:
+            raise ValueError(f"{text!r} is not a quantity: {exc}") from exc
+        expected = parse_quantity(f"1 {unit}")
+        if quantity.dimension != expected.dimension:
+            raise ValueError(f"{conflict.label} is measured in {unit}; {text!r} is a different kind of quantity")
+        return round(quantity.value, 6), quantity.unit or unit, text, "entered by the resolver"
+    samples = [c.value for c in conflict.candidates]
+    if any(isinstance(sample, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", sample) for sample in samples):
+        from backend.engineering.extraction import parse_date
+
+        parsed = parse_date(text)
+        if parsed is None:
+            raise ValueError(f"{text!r} is not a date")
+        return parsed.isoformat(), None, text, "entered by the resolver"
+    if any(isinstance(sample, (int, float)) and not isinstance(sample, bool) for sample in samples):
+        try:
+            return float(text.rstrip("%").strip()), None, text, "entered by the resolver"
+        except ValueError as exc:
+            raise ValueError(f"{text!r} is not a number") from exc
+    return text, None, text, "entered by the resolver"
+
+
+def _override_bound(conflict: ConflictRecord) -> "BoundValue":
+    """A resolution as a formula input, bound to its H evidence."""
+    from datetime import date as _date
+
+    from backend.engineering.formulas import BoundValue
+    from backend.engineering.units import Quantity
+
+    resolution = conflict.resolution
+    assert resolution is not None
+    value: Any = resolution.value
+    if resolution.unit and isinstance(value, (int, float)):
+        value = Quantity.of(float(value), resolution.unit)
+    elif isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        value = _date.fromisoformat(value)
+    return BoundValue(
+        value,
+        stated=resolution.stated,
+        evidence_id=resolution.evidence_id,
+        locator=f"human resolution {conflict.id}",
+        source_text=resolution.reason,
+    )
+
+
 class EvidenceLedger:
     """Owns evidence identity for one task run.
 
@@ -204,6 +294,7 @@ class EvidenceLedger:
         "uploaded_file": "F",
         "vision_extraction": "V",
         "computation": "C",
+        "human": "H",
     }
 
     def __init__(self, existing: list[EvidenceItem]) -> None:
@@ -1374,7 +1465,13 @@ class AgentOrchestrator:
                         for finding in extraction["findings"][:3]
                     )
                 call = await self._call_tool(
-                    task, context, "knowledge_search", {"query": query[:800]}
+                    task, context, "knowledge_search",
+                    {
+                        "query": query[:800],
+                        # Superseded revisions only when the request asks
+                        # about them; otherwise the instruction in force.
+                        "include_history": bool(HISTORY_REQUEST.search(task.prompt)),
+                    },
                 )
                 if call.ok:
                     retrieved = ledger.extend(
@@ -1415,7 +1512,9 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
-                    "No generated code: every requested figure was computed by registered formulas",
+                    "No generated code: the sources disagree, and no figure is computed until a person resolves it"
+                    if task.assessment is not None and task.assessment.status == "conflicted"
+                    else "No generated code: every requested figure was computed by registered formulas",
                     {"skipped": True},
                     phase="code_execution",
                 )
@@ -1476,11 +1575,16 @@ class AgentOrchestrator:
                     # engineering_verification below checks the answer against
                     # them, which is stronger than recomputing the model's own
                     # expressions, and saves a model call.
+                    conflicted = task.assessment is not None and task.assessment.status == "conflicted"
                     checks.append(VerificationCheck(
                         name="calculation_verification",
                         kind="calculation",
                         passed=True,
                         detail=(
+                            "No figure was calculated: the sources disagree about "
+                            f"{', '.join(c.id + ' ' + c.label for c in unresolved(task.conflicts))}, and the "
+                            "calculation is withheld until a person resolves it."
+                            if conflicted else
                             f"{sum(1 for r in task.calculations if r.status == 'calculated')} figure(s) were "
                             "computed by registered formulas from the evidence, not by the model."
                         ),
@@ -1529,6 +1633,14 @@ class AgentOrchestrator:
                     self.verifier.check_engineering(answer_text, task.assessment, task.calculations)
                 )
             checks.append(self.verifier.check_code(sandbox_result))
+            # Every material claim, one verdict each, against the same ledger
+            # the citations point into.
+            claims = self.verifier.claim_verdicts(
+                answer_text, evidence,
+                assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
+            )
+            if claims:
+                checks.append(self.verifier.check_claims(claims))
 
             # ---------------------------------------------- deliverable
             if profile.produces_deliverable:
@@ -1552,7 +1664,7 @@ class AgentOrchestrator:
                 self._mark_step(task, {"document_generate"}, "done")
 
             task.verification = self.verifier.compile_report(
-                checks, text=answer_text, evidence=evidence, limitations=limitations
+                checks, text=answer_text, evidence=evidence, limitations=limitations, claims=claims
             )
             await self._emit(
                 task,
@@ -1621,6 +1733,10 @@ class AgentOrchestrator:
                 profile,
                 prompt=task.prompt,
                 verification_valid=task.verification.valid,
+                unresolved_conflicts=len(unresolved(task.conflicts)),
+                decision_claims=sum(
+                    1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
+                ),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -1835,10 +1951,17 @@ class AgentOrchestrator:
         """
         if not task.files and profile.task_type != TaskType.CALCULATION:
             return False
-        result = assess_from_evidence(
+        known = {record.id for record in task.conflicts}
+        # A record written against a procedure revision that is no longer in
+        # force: resolved by rule in favour of the active revision, and shown.
+        task.conflicts = revision_conflicts(
+            ledger.items, self._active_revisions(ledger.items), task.conflicts
+        )
+        result = assess_with_conflicts(
             ledger.items, include_retrieved=profile.task_type == TaskType.CALCULATION
         )
         if result is None:
+            await self._announce_conflicts(task, user, known)
             if profile.task_type == TaskType.CALCULATION:
                 await self._stage(
                     task,
@@ -1848,16 +1971,24 @@ class AgentOrchestrator:
                     phase="engineering",
                 )
             return False
-        records, assessment = result
+        records, assessment, disputes = result
+        task.conflicts = conflict_records(disputes, assessment.subject, ledger.items, task.conflicts)
+        assessment.conflicts = [record.id for record in unresolved(task.conflicts)]
         await self._stage(
             task,
             TaskStatus.EXECUTING,
-            f"Computing {assessment.subject} with registered engineering formulas",
+            (
+                f"Sources disagree about {assessment.subject}: calculation withheld pending a human resolution"
+                if assessment.status == "conflicted"
+                else f"Computing {assessment.subject} with registered engineering formulas"
+            ),
             phase="engineering",
         )
-        register_evidence(records, assessment, ledger.items, ledger.add)
+        if records:
+            register_evidence(records, assessment, ledger.items, ledger.add)
         task.calculations = records
         task.assessment = assessment
+        await self._announce_conflicts(task, user, known)
         self._persist_evidence(task)
         self._checkpoint(task)
         calculated = [record for record in records if record.status == "calculated"]
@@ -1871,7 +2002,7 @@ class AgentOrchestrator:
         })
         self.audit.record(
             category="engineering",
-            action="assessed" if assessment.status == "calculated" else "cannot_calculate",
+            action={"calculated": "assessed", "conflicted": "withheld"}.get(assessment.status, "cannot_calculate"),
             actor=user.username,
             actor_role=user.role,
             task_id=task.id,
@@ -1883,12 +2014,284 @@ class AgentOrchestrator:
                 "remaining_life_years": assessment.remaining_life_years,
                 "severity": assessment.severity,
                 "missing": assessment.missing,
+                "conflicts": assessment.conflicts,
                 "formulas": sorted({f"{r.formula_id}@{r.formula_version}" for r in records}),
                 "result_hashes": [r.result_hash for r in calculated],
                 "inputs_from": assessment.source_evidence_ids,
             },
         )
-        return assessment.status == "calculated"
+        # The registry is the authority for a conflicted record too: no
+        # generated script may compute figures from inputs in dispute.
+        return assessment.status in ("calculated", "conflicted")
+
+    def _active_revisions(self, evidence: list[EvidenceItem]) -> dict[str, tuple[str, str]]:
+        """The revision in force of every procedure the run's files refer to."""
+        from backend.rag.knowledge_base import get_knowledge_base
+
+        codes = {
+            code
+            for item in evidence
+            if item.kind in ("uploaded_file", "vision_extraction")
+            for code in DOC_CODE.findall(item.excerpt or "")
+        }
+        active: dict[str, tuple[str, str]] = {}
+        database = get_knowledge_base().db
+        for code in sorted(codes):
+            for document in database.documents_with_code(code):
+                if (document.get("revision_status") or ACTIVE) == ACTIVE:
+                    active[code] = (str(document.get("version")), str(document.get("title")))
+        return active
+
+    async def _announce_conflicts(self, task: Task, user: User, known: set[str]) -> None:
+        """Publish and audit every conflict that was not on the task before."""
+        fresh = [record for record in task.conflicts if record.id not in known]
+        if not fresh:
+            return
+        self._checkpoint(task)
+        await self._emit(task, "task.conflict", {
+            "conflicts": [record.model_dump(mode="json") for record in task.conflicts],
+        })
+        for record in fresh:
+            self.audit.record(
+                category="evidence",
+                action="conflict_detected" if record.status == "unresolved" else "conflict_auto_resolved",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={
+                    "conflict": record.id,
+                    "kind": record.kind,
+                    "field": record.field,
+                    "impact": record.impact,
+                    "candidates": [
+                        {"stated": c.stated, "evidence_id": c.evidence_id, "locator": c.locator}
+                        for c in record.candidates
+                    ],
+                },
+            )
+
+    # -- human resolution ----------------------------------------------------
+    async def resolve_conflict(
+        self,
+        task: Task,
+        user: User,
+        conflict_id: str,
+        *,
+        candidate: int | None,
+        value: str | None,
+        reason: str,
+    ) -> Task:
+        """Record a person's choice between conflicting sources, and recompute.
+
+        The choice becomes H evidence naming who decided, what they accepted
+        over what, and why. Every resolved value is then fed back into the
+        same formulas as an input bound to that H item, so the decision that
+        follows is computed exactly as an undisputed one would be: the person
+        chooses the input, never the result.
+        """
+        conflict = next((c for c in task.conflicts if c.id == conflict_id), None)
+        if conflict is None:
+            raise ValueError(f"Unknown conflict: {conflict_id}")
+        if conflict.status != "unresolved":
+            raise ValueError(f"{conflict_id} is not open ({conflict.status})")
+        chosen_value, unit, stated, source = _resolved_value(conflict, candidate, value)
+
+        ledger = EvidenceLedger(task.evidence)
+        involved = [item for item in task.evidence
+                    if item.id in {c.evidence_id for c in conflict.candidates}]
+        classification = max(
+            (item.classification for item in involved),
+            key=lambda level: self.config.classification_rank(level.value),
+            default=Sensitivity.NORMAL,
+        )
+        others = "; ".join(
+            f"{c.stated} in {c.evidence_id}" for index, c in enumerate(conflict.candidates) if index != candidate
+        )
+        human = ledger.add(EvidenceItem(
+            id="pending",
+            kind="human",
+            source_document=f"Resolution by {user.display_name} ({user.role})",
+            location=f"{conflict.id} · {conflict.label}",
+            excerpt=(
+                f"{conflict.label}: accepted {stated}{f' from {source}' if source else ''}"
+                f" over {others}. Reason: {reason}"
+            )[:2000],
+            extraction_method="human decision",
+            extraction_data={"conflict": conflict.id, "field": conflict.field, "candidate": candidate},
+            classification=classification,
+        ))
+        conflict.status = "resolved"
+        conflict.resolution = ConflictResolution(
+            candidate=candidate,
+            value=chosen_value,
+            unit=unit,
+            stated=stated,
+            reason=reason,
+            resolved_by=user.username,
+            resolved_by_name=user.display_name,
+            resolved_by_role=user.role,
+            resolved_at=datetime.now(timezone.utc),
+            evidence_id=human.id,
+        )
+
+        overrides = {
+            c.field: _override_bound(c)
+            for c in task.conflicts
+            if c.kind == "input" and c.resolution is not None
+        }
+        profile = task.profile
+        result = assess_with_conflicts(
+            task.evidence,
+            include_retrieved=profile is not None and profile.task_type == TaskType.CALCULATION,
+            overrides=overrides,
+        )
+        addendum = [
+            f"**Human resolution [{human.id}].** {user.display_name} ({user.role}) resolved {conflict.id}, "
+            f"{conflict.label}: accepted {stated}{f' from {source}' if source else ''}. Reason: {reason}"
+        ]
+        if result is not None:
+            records, assessment, disputes = result
+            task.conflicts = conflict_records(disputes, assessment.subject, task.evidence, task.conflicts)
+            assessment.conflicts = [record.id for record in unresolved(task.conflicts)]
+            if records:
+                register_evidence(records, assessment, ledger.items, ledger.add)
+            task.calculations = records
+            task.assessment = assessment
+            if assessment.status == "calculated":
+                addendum.append("**Recomputed by the formula registry from the resolved inputs.**")
+                addendum.extend(decision_lines(assessment, records))
+            elif assessment.status == "conflicted":
+                addendum.append(
+                    "Still withheld: "
+                    + ", ".join(f"{c.id} {c.label}" for c in unresolved(task.conflicts))
+                    + " remain in dispute."
+                )
+            else:
+                addendum.append(
+                    f"Cannot calculate: missing {', '.join(assessment.missing) or 'required inputs'}."
+                )
+        task.answer = ((task.answer or "").rstrip() + "\n\n" + "\n\n".join(addendum)).strip()
+
+        self._reverify(task)
+        if task.approval is not None and not unresolved(task.conflicts):
+            task.approval.reasons = [
+                reason_text for reason_text in task.approval.reasons
+                if not reason_text.startswith("unresolved_conflict")
+            ]
+        await self._rerender_after_resolution(task, user, addendum)
+        task.updated_at = datetime.now(timezone.utc)
+        self._checkpoint(task)
+
+        await self._emit(task, "task.conflict", {
+            "conflicts": [record.model_dump(mode="json") for record in task.conflicts],
+            "resolved": conflict.id,
+            "evidence": human.model_dump(mode="json"),
+        })
+        if task.assessment is not None:
+            await self._emit(task, "task.calculation", {
+                "assessment": task.assessment.model_dump(mode="json"),
+                "calculated": sum(1 for r in task.calculations if r.status == "calculated"),
+            })
+        if task.verification is not None:
+            await self._emit(task, "task.verified", task.verification.model_dump(mode="json"))
+        self.audit.record(
+            category="evidence",
+            action="conflict_resolved",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={
+                "conflict": conflict.id,
+                "field": conflict.field,
+                "accepted": stated,
+                "from": source,
+                "over": others,
+                "reason": reason,
+                "evidence_id": human.id,
+                "assessment": task.assessment.status if task.assessment else None,
+                "result_hashes": [r.result_hash for r in task.calculations if r.result_hash],
+            },
+        )
+        return task
+
+    def _reverify(self, task: Task) -> None:
+        """Re-run the checks a resolution changes, keeping the rest as they were."""
+        if task.verification is None:
+            return
+        replaced = {"engineering_verification", "claim_verification", "calculation_verification",
+                    "hallucination_check"}
+        checks = [check for check in task.verification.checks if check.name not in replaced]
+        limitations = [
+            note for note in task.verification.limitations
+            if not any(note.startswith(f"{name}:") for name in replaced)
+        ]
+        answer = task.answer or ""
+        if task.assessment is not None:
+            checks.insert(0, VerificationCheck(
+                name="calculation_verification",
+                kind="calculation",
+                passed=True,
+                detail=(
+                    f"{sum(1 for r in task.calculations if r.status == 'calculated')} figure(s) were computed "
+                    "by registered formulas from the evidence and the human resolution, not by the model."
+                    if task.assessment.status == "calculated" else
+                    "No figure was calculated: the calculation is still withheld."
+                ),
+                evidence_ids=list(task.assessment.evidence_ids),
+            ))
+            checks.append(self.verifier.check_engineering(answer, task.assessment, task.calculations))
+        claims = self.verifier.claim_verdicts(
+            answer, task.evidence,
+            assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
+        )
+        if claims:
+            checks.append(self.verifier.check_claims(claims))
+        task.verification = self.verifier.compile_report(
+            checks, text=answer, evidence=task.evidence, limitations=limitations, claims=claims
+        )
+
+    async def _rerender_after_resolution(self, task: Task, user: User, addendum: list[str]) -> None:
+        """Replace the held deliverable with one that carries the resolution.
+
+        The file drafted while the inputs were in dispute says the decision
+        is withheld. Releasing it after a resolution would ship a document
+        that contradicts the run, so it is re-rendered, still unreleased,
+        with the resolution and the recomputed figures in it.
+        """
+        if not task.deliverable_content or task.profile is None:
+            return
+        content = dict(task.deliverable_content)
+        sections = [s for s in content.get("sections") or [] if s.get("heading") != "Human resolution"]
+        sections.append({
+            "heading": "Human resolution",
+            "body": addendum[0].replace("**", ""),
+            "bullets": [line.replace("**", "") for line in addendum[1:]],
+        })
+        content["sections"] = sections
+        task.deliverable_content = content
+        workspace = self.config.settings.path("workspaces") / task.id
+        workspace.mkdir(parents=True, exist_ok=True)
+        context = ToolContext(
+            user=user,
+            task_id=task.id,
+            sensitivity=task.profile.sensitivity,
+            files=task.files,
+            workspace=workspace,
+        )
+        held = [d for d in task.deliverables if not d.released]
+        task.deliverables = [d for d in task.deliverables if d.released]
+        await self._render_deliverable(
+            task, context, content, task.evidence, as_deliverable_calculations(task.calculations)
+        )
+        if held:
+            self.audit.record(
+                category="deliverable",
+                action="superseded",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={"replaced": [d.filename for d in held], "because": "conflict resolved"},
+            )
 
     async def _run_code_stage(
         self,
@@ -2030,7 +2433,7 @@ class AgentOrchestrator:
             # The extraction itself is page-labelled evidence now, cited by its
             # [V...] identifier; repeating it here as JSON would only cost tokens.
             extraction_block = "\nVisual content is recorded in the page-labelled evidence below.\n"
-        extraction_block += prompt_block(task.assessment, task.calculations)
+        extraction_block += prompt_block(task.assessment, task.calculations, task.conflicts)
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
                 "\nOutput of code executed in the secure sandbox:\n"
@@ -2049,6 +2452,7 @@ class AgentOrchestrator:
         evidence_block = "\n\n".join(
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
+            + _revision_note(item)
             + f"\n{item.excerpt[:400 if item.page_number is not None else 500]}"
             for item in [*page_items, *other_items]
         ) or "No local evidence was retrieved."
@@ -2100,6 +2504,7 @@ class AgentOrchestrator:
         evidence_block = "\n".join(
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
+            + _revision_note(item)
             + f": {item.excerpt[:250]}"
             for item in [*page_items, *other_items]
         ) or "No evidence available."

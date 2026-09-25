@@ -26,6 +26,12 @@ export interface KnowledgeDocument {
   ingested_at: string
   media_type: string
   size_bytes: number
+  /** Revision control: one document code, many revisions, exactly one active. */
+  document_code?: string | null
+  revision_status?: 'active' | 'superseded' | 'withdrawn'
+  effective_date?: string | null
+  supersedes?: string | null
+  superseded_by?: string | null
 }
 
 /** backend/core/schemas.py StoredFile */

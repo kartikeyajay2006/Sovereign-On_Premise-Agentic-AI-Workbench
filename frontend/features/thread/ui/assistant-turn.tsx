@@ -10,6 +10,8 @@ import type { AssistantTurn as AssistantTurnModel } from '../model/types'
 import { AegisLogo } from '@/components/aegis-logo'
 import { AnswerActions } from './answer-actions'
 import { IntegrityCard } from './integrity-card'
+import { ClaimList } from '@/components/evidence/claim-list'
+import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
 import { UsageFooter } from './usage-footer'
 
@@ -319,7 +321,7 @@ function AnswerProse({
   // The opening one is dropped from the display when the same id cites the
   // text after it, so nothing it supports goes uncited; the record keeps
   // the text as written.
-  const opening = text.match(/^\s*\[([SFVCE]\d+)\]\s*/)
+  const opening = text.match(/^\s*\[([SFVCEH]\d+)\]\s*/)
   const shown = opening && text.slice(opening[0].length).includes(`[${opening[1]}]`) ? text.slice(opening[0].length) : text
   // Full ink. This is the one thing on the screen the whole pipeline exists
   // to produce; it was set in secondary while the status rows above it were
@@ -354,7 +356,7 @@ function SourcesRow({
   onCite: (id: string) => void
   trace: string
 }) {
-  const ids = Array.from(new Set((text.match(/\[[SFVCE]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
+  const ids = Array.from(new Set((text.match(/\[[SFVCEH]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
   const cited = ids
     .map((id) => evidence.find((e) => e.id === id))
     .filter((e): e is EvidenceItem => e !== undefined)
@@ -820,9 +822,18 @@ export const AssistantTurn = memo(function AssistantTurn({
           model: every figure carries the C item that holds its formula,
           inputs and hash. Shown once the run has settled, beside the answer
           it constrains. */}
-      {turn.assessment && !running && (
-        <IntegrityCard assessment={turn.assessment} records={turn.calculations} onCite={cite} />
+      {turn.conflicts.length > 0 && !running && (
+        <ConflictPanel conflicts={turn.conflicts} taskId={turn.taskId ?? ''} onCite={cite} />
       )}
+      {turn.assessment && !running && (
+        <IntegrityCard
+          assessment={turn.assessment}
+          records={turn.calculations}
+          conflicts={turn.conflicts}
+          onCite={cite}
+        />
+      )}
+      {turn.claims.length > 0 && !running && <ClaimList claims={turn.claims} onCite={cite} />}
 
       {/* ── Zone 4 — the deliverable ──────────────────────────────────── */}
       {turn.deliverable && (
