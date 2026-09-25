@@ -32,6 +32,9 @@ storage/*.db-shm
 .env
 .env.local
 
+# Offline installer bundles (scripts/offline_bundle.py build)
+dist/
+
 # Frontend build output and vendored browser tooling
 frontend/.next/
 frontend/out/
