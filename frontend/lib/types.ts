@@ -436,6 +436,8 @@ export interface Task {
   conflicts?: ConflictRecord[]
   /** One hash over what a reviewer sees; a decision is bound to it. */
   review_digest?: string | null
+  /** A P&ID question answered from the drawing's graph. */
+  topology?: import('@/components/pid/api').TopologyResult | null
   policy_events?: any[]
   answer?: string | null
   error?: string | null

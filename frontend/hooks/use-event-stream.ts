@@ -90,6 +90,7 @@ export function useEventStream(options: EventStreamOptions = {}) {
       'task.sandbox_result',
       'task.calculation',
       'task.conflict',
+      'task.topology',
       'task.draft',
       'task.token',
       'task.answer',

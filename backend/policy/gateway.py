@@ -345,6 +345,7 @@ class PolicyGateway:
         unresolved_conflicts: int = 0,
         decision_claims: int = 0,
         instruction_like_evidence: int = 0,
+        isolation_plan: bool = False,
     ) -> tuple[bool, list[str], list[str]]:
         """Evaluate approval-rules.yaml; return (required, reasons, approver_roles).
 
@@ -380,6 +381,8 @@ class PolicyGateway:
                 hit = (unresolved_conflicts > 0) == bool(match["unresolved_conflicts"])
             elif "decision_claims" in match:
                 hit = (decision_claims > 0) == bool(match["decision_claims"])
+            elif "isolation_plan" in match:
+                hit = isolation_plan == bool(match["isolation_plan"])
             elif "instruction_like_evidence" in match:
                 hit = (instruction_like_evidence > 0) == bool(match["instruction_like_evidence"])
             elif "classification_confidence_below" in match:

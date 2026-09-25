@@ -50,7 +50,7 @@ LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 # extraction or a calculation read as no citation at all, so an answer drawn
 # from a scanned drawing counted as uncited and failed verification on evidence
 # it had in fact used.
-CITATION_PATTERN = re.compile(r"\[(?:[SFVCEH])\d+\]")
+CITATION_PATTERN = re.compile(r"\[(?:[SFVCEHT])\d+\]")
 # Anything the answer presents as a citation: a bracketed id of capitals and
 # digits, with dotted parts -- "[S1]", and also "[V2.1]", which the small model
 # writes when it borrows a clause number for an evidence id. Wider than
@@ -849,6 +849,37 @@ class VerificationEngine:
             ),
             evidence_ids=sorted({i for v in verdicts for i in v.evidence_ids}),
             warnings=[f"{v.id} {v.verdict}: {v.text[:120]} — {v.reason[:160]}" for v in blocking[:5]],
+        )
+
+    def check_topology(self, text: str, topology: dict[str, Any]) -> VerificationCheck:
+        """An isolation plan must name every branch, and every one that cannot be isolated.
+
+        Leaving a branch out is the dangerous error in an isolation plan: the
+        reader isolates what is listed and opens a vessel still connected to
+        what is not. A branch counts as named when its line number appears.
+        """
+        branches = topology.get("branches") or []
+        if topology.get("kind") != "isolation" or not branches:
+            return VerificationCheck(name="topology_verification", kind="source", passed=True,
+                                     detail="No isolation plan to check.")
+        missing = [b["line"] for b in branches if b["line"] not in (text or "")]
+        failing = [line for line in topology.get("non_compliant", []) if line in missing]
+        ident = topology.get("evidence_id")
+        return VerificationCheck(
+            name="topology_verification",
+            kind="source",
+            passed=not missing,
+            detail=(
+                f"The answer names all {len(branches)} branches of {topology.get('tag')} from {topology.get('drawing')}"
+                + (f", including the {len(topology.get('non_compliant', []))} that cannot be isolated as drawn."
+                   if topology.get("non_compliant") else ".")
+                if not missing else
+                f"The answer leaves out {len(missing)} of {len(branches)} branches ({', '.join(missing)})"
+                + (f", {len(failing)} of them not isolable as drawn ({', '.join(failing)})" if failing else "")
+                + "."
+            ),
+            evidence_ids=[ident] if ident else [],
+            warnings=[f"branch {line} is not named" for line in missing[:5]],
         )
 
     def check_code(self, result: SandboxResult | None) -> VerificationCheck:

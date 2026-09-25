@@ -154,6 +154,8 @@ export interface AssistantTurn {
   conflicts: ConflictRecord[]
   /** Every material claim in the answer with its verdict. */
   claims: ClaimVerdict[]
+  /** A P&ID question answered from the drawing's graph. */
+  topology: import('@/components/pid/api').TopologyResult | null
   /** Why the run was refused, when it was. */
   denialReason: string | null
   /** Surfaced rather than swallowed. */

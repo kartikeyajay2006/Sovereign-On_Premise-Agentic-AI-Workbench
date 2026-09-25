@@ -175,6 +175,7 @@ export const CHECK_WORDS: Record<string, string> = {
   hallucination_check: 'Grounding',
   engineering_verification: 'Engineering',
   claim_verification: 'Claims',
+  topology_verification: 'Isolation plan',
 }
 
 /** A check's name as a reader says it; an unknown one, with its underscores spaced. */

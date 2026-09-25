@@ -87,8 +87,8 @@ function CitedText({
     <div className="flex flex-col gap-3">
       {paragraphs.map((paragraph, pi) => (
         <p key={pi} className="whitespace-pre-wrap text-answer leading-[var(--lh-answer)] text-foreground">
-          {paragraph.split(/(\[[SFVCEH]\d+\])/g).map((part, i) => {
-            const match = part.match(/^\[([SFVCEH]\d+)\]$/)
+          {paragraph.split(/(\[[SFVCEHT]\d+\])/g).map((part, i) => {
+            const match = part.match(/^\[([SFVCEHT]\d+)\]$/)
             if (!match) return <Inline key={i} text={part} />
             const id = match[1]
             if (!known.has(id)) {
@@ -187,7 +187,7 @@ function Deliverable({
   onCite: (id: string) => void
 }) {
   const known = new Set(task.evidence.map((e) => e.id))
-  const cited = (task.answer?.match(/\[[SFVCEH]\d+\]/g) ?? []).length
+  const cited = (task.answer?.match(/\[[SFVCEHT]\d+\]/g) ?? []).length
   return (
     <Section title="Deliverable" meta={cited > 0 ? `${cited} citation${cited === 1 ? '' : 's'}` : undefined}>
       {task.deliverables.length > 0 && (

@@ -84,6 +84,7 @@ function recordFields(task: Task) {
     calculations: task.calculations ?? [],
     conflicts: task.conflicts ?? [],
     claims: task.verification?.claims ?? [],
+    topology: task.topology ?? null,
     denialReason: task.error || null,
     elapsedMs: task.duration_ms ?? null,
     usage: task.usage || [],
@@ -165,6 +166,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     calculations: [],
     conflicts: [],
     claims: [],
+    topology: null,
     denialReason: null,
     error: null,
     startedAt: at,
@@ -533,6 +535,11 @@ export function ThreadView() {
         // The integrity decision, as the formula registry computed it.
         case 'task.calculation':
           if (data.assessment) patchTask(id, (t) => ({ ...t, assessment: data.assessment }))
+          return
+
+        // A drawing question, answered from the P&ID graph.
+        case 'task.topology':
+          if (data.topology) patchTask(id, (t) => ({ ...t, topology: data.topology }))
           return
 
         // Sources that disagree, and any person's resolution of them.

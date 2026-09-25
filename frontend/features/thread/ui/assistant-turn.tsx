@@ -10,6 +10,7 @@ import type { AssistantTurn as AssistantTurnModel } from '../model/types'
 import { AegisLogo } from '@/components/aegis-logo'
 import { AnswerActions } from './answer-actions'
 import { IntegrityCard } from './integrity-card'
+import { TopologyCard } from './topology-card'
 import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
@@ -321,7 +322,7 @@ function AnswerProse({
   // The opening one is dropped from the display when the same id cites the
   // text after it, so nothing it supports goes uncited; the record keeps
   // the text as written.
-  const opening = text.match(/^\s*\[([SFVCEH]\d+)\]\s*/)
+  const opening = text.match(/^\s*\[([SFVCEHT]\d+)\]\s*/)
   const shown = opening && text.slice(opening[0].length).includes(`[${opening[1]}]`) ? text.slice(opening[0].length) : text
   // Full ink. This is the one thing on the screen the whole pipeline exists
   // to produce; it was set in secondary while the status rows above it were
@@ -356,7 +357,7 @@ function SourcesRow({
   onCite: (id: string) => void
   trace: string
 }) {
-  const ids = Array.from(new Set((text.match(/\[[SFVCEH]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
+  const ids = Array.from(new Set((text.match(/\[[SFVCEHT]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
   const cited = ids
     .map((id) => evidence.find((e) => e.id === id))
     .filter((e): e is EvidenceItem => e !== undefined)
@@ -835,6 +836,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           onCite={cite}
         />
       )}
+      {turn.topology && !running && <TopologyCard topology={turn.topology} onCite={cite} />}
       {turn.claims.length > 0 && !running && <ClaimList claims={turn.claims} onCite={cite} />}
 
       {/* ── Zone 4 — the deliverable ──────────────────────────────────── */}

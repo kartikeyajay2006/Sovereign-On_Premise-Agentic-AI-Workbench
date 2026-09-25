@@ -19,8 +19,8 @@ const answers = new Map<string, string>()
 function CitedAnswer({ text, known }: { text: string; known: Set<string> }) {
   return (
     <>
-      {text.split(/(\[[SFVCEH]\d+\])/g).map((part, index) => {
-        const marker = part.match(/^\[([SFVCEH]\d+)\]$/)
+      {text.split(/(\[[SFVCEHT]\d+\])/g).map((part, index) => {
+        const marker = part.match(/^\[([SFVCEHT]\d+)\]$/)
         if (!marker) return <span key={index}>{part}</span>
         const id = marker[1]
         return (

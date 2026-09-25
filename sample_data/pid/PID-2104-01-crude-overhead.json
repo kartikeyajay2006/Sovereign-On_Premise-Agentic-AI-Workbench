@@ -1,0 +1,642 @@
+{
+ "id": "PID-2104-01",
+ "title": "Crude overhead system: C-2101 overhead to V-2104 and its outlets",
+ "revision": "B",
+ "status": "SYNTHETIC",
+ "note": "Synthetic drawing for the AEGIS demonstration. Fictional plant; not for use on real equipment.",
+ "unit": "Crude Distillation Unit 21",
+ "department": "general",
+ "classification": "confidential",
+ "width": 1340,
+ "height": 580,
+ "nodes": [
+  {
+   "id": "C-2101",
+   "type": "column",
+   "x": 80,
+   "y": 250,
+   "label": "Crude column",
+   "service": "hydrocarbon"
+  },
+  {
+   "id": "WW-SUPPLY",
+   "type": "boundary",
+   "x": 200,
+   "y": 60,
+   "label": "Wash water supply (WW-21)"
+  },
+  {
+   "id": "GV-2107",
+   "type": "gate_valve",
+   "x": 280,
+   "y": 60,
+   "label": "GV-2107"
+  },
+  {
+   "id": "CV-2107",
+   "type": "check_valve",
+   "x": 350,
+   "y": 60,
+   "label": "CV-2107"
+  },
+  {
+   "id": "INJ-2104",
+   "type": "tee",
+   "x": 420,
+   "y": 140,
+   "label": "Wash-water injection point"
+  },
+  {
+   "id": "HDR-2105I",
+   "type": "tee",
+   "x": 520,
+   "y": 140,
+   "label": "Condenser inlet header"
+  },
+  {
+   "id": "GV-2105A1",
+   "type": "gate_valve",
+   "x": 590,
+   "y": 90,
+   "label": "GV-2105A1"
+  },
+  {
+   "id": "E-2105A",
+   "type": "exchanger",
+   "x": 670,
+   "y": 90,
+   "label": "Overhead condenser A",
+   "service": "hydrocarbon"
+  },
+  {
+   "id": "GV-2105A2",
+   "type": "gate_valve",
+   "x": 750,
+   "y": 90,
+   "label": "GV-2105A2"
+  },
+  {
+   "id": "GV-2105B1",
+   "type": "gate_valve",
+   "x": 590,
+   "y": 190,
+   "label": "GV-2105B1"
+  },
+  {
+   "id": "E-2105B",
+   "type": "exchanger",
+   "x": 670,
+   "y": 190,
+   "label": "Overhead condenser B",
+   "service": "hydrocarbon"
+  },
+  {
+   "id": "GV-2105B2",
+   "type": "gate_valve",
+   "x": 750,
+   "y": 190,
+   "label": "GV-2105B2"
+  },
+  {
+   "id": "HDR-2105O",
+   "type": "tee",
+   "x": 820,
+   "y": 140,
+   "label": "Condenser outlet header"
+  },
+  {
+   "id": "GV-2104-1",
+   "type": "gate_valve",
+   "x": 820,
+   "y": 230,
+   "label": "GV-2104-1"
+  },
+  {
+   "id": "BL-2104-1",
+   "type": "bleed",
+   "x": 820,
+   "y": 270,
+   "label": "Bleed"
+  },
+  {
+   "id": "GV-2104-2",
+   "type": "gate_valve",
+   "x": 820,
+   "y": 310,
+   "label": "GV-2104-2"
+  },
+  {
+   "id": "SB-2104-1",
+   "type": "spectacle_blind",
+   "x": 870,
+   "y": 340,
+   "label": "Spectacle blind (open)"
+  },
+  {
+   "id": "V-2104",
+   "type": "drum",
+   "x": 960,
+   "y": 360,
+   "label": "Crude overhead KO drum",
+   "service": "hydrocarbon"
+  },
+  {
+   "id": "SB-2104-2",
+   "type": "spectacle_blind",
+   "x": 1010,
+   "y": 290,
+   "label": "Spectacle blind (open)"
+  },
+  {
+   "id": "GV-2104-3",
+   "type": "gate_valve",
+   "x": 1060,
+   "y": 260,
+   "label": "GV-2104-3"
+  },
+  {
+   "id": "BL-2104-3",
+   "type": "bleed",
+   "x": 1110,
+   "y": 260,
+   "label": "Bleed"
+  },
+  {
+   "id": "GV-2104-4",
+   "type": "gate_valve",
+   "x": 1160,
+   "y": 260,
+   "label": "GV-2104-4"
+  },
+  {
+   "id": "PV-2104",
+   "type": "control_valve",
+   "x": 1220,
+   "y": 260,
+   "label": "PV-2104"
+  },
+  {
+   "id": "FG-01",
+   "type": "boundary",
+   "x": 1300,
+   "y": 260,
+   "label": "Off-gas to fuel gas KO"
+  },
+  {
+   "id": "GV-2104-8",
+   "type": "gate_valve",
+   "x": 960,
+   "y": 250,
+   "label": "GV-2104-8",
+   "car_sealed": "open"
+  },
+  {
+   "id": "PSV-2104A",
+   "type": "psv",
+   "x": 960,
+   "y": 190,
+   "label": "PSV-2104A set 10.5 bar(g)"
+  },
+  {
+   "id": "GV-2104-9",
+   "type": "gate_valve",
+   "x": 1040,
+   "y": 170,
+   "label": "GV-2104-9",
+   "car_sealed": "open"
+  },
+  {
+   "id": "FL-21",
+   "type": "boundary",
+   "x": 1120,
+   "y": 120,
+   "label": "Flare header FL-21"
+  },
+  {
+   "id": "SB-2104-3",
+   "type": "spectacle_blind",
+   "x": 960,
+   "y": 440,
+   "label": "Spectacle blind (open)"
+  },
+  {
+   "id": "GV-2104-5",
+   "type": "gate_valve",
+   "x": 900,
+   "y": 470,
+   "label": "GV-2104-5"
+  },
+  {
+   "id": "BL-2104-5",
+   "type": "bleed",
+   "x": 850,
+   "y": 470,
+   "label": "Bleed"
+  },
+  {
+   "id": "GV-2104-6",
+   "type": "gate_valve",
+   "x": 800,
+   "y": 470,
+   "label": "GV-2104-6"
+  },
+  {
+   "id": "HDR-2106S",
+   "type": "tee",
+   "x": 740,
+   "y": 470,
+   "label": "Pump suction header"
+  },
+  {
+   "id": "P-2106A",
+   "type": "pump",
+   "x": 680,
+   "y": 430,
+   "label": "Reflux/naphtha pump A",
+   "service": "hydrocarbon"
+  },
+  {
+   "id": "P-2106B",
+   "type": "pump",
+   "x": 680,
+   "y": 510,
+   "label": "Reflux/naphtha pump B",
+   "service": "hydrocarbon"
+  },
+  {
+   "id": "HDR-2106D",
+   "type": "tee",
+   "x": 600,
+   "y": 470,
+   "label": "Pump discharge header"
+  },
+  {
+   "id": "FV-2101",
+   "type": "control_valve",
+   "x": 400,
+   "y": 400,
+   "label": "Reflux flow control"
+  },
+  {
+   "id": "LV-2104A",
+   "type": "control_valve",
+   "x": 520,
+   "y": 540,
+   "label": "Naphtha level control"
+  },
+  {
+   "id": "ST-31",
+   "type": "boundary",
+   "x": 400,
+   "y": 540,
+   "label": "Naphtha to storage"
+  },
+  {
+   "id": "GV-2104-7",
+   "type": "gate_valve",
+   "x": 1040,
+   "y": 450,
+   "label": "Boot drain valve"
+  },
+  {
+   "id": "LV-2104B",
+   "type": "control_valve",
+   "x": 1120,
+   "y": 470,
+   "label": "Interface level control"
+  },
+  {
+   "id": "SWS-01",
+   "type": "boundary",
+   "x": 1220,
+   "y": 470,
+   "label": "Sour water to SWS"
+  },
+  {
+   "id": "PT-2104",
+   "type": "instrument",
+   "x": 1052,
+   "y": 345,
+   "label": "Drum pressure",
+   "measures": "V-2104"
+  },
+  {
+   "id": "LT-2104A",
+   "type": "instrument",
+   "x": 872,
+   "y": 398,
+   "label": "HC level",
+   "measures": "V-2104",
+   "controls": "LV-2104A"
+  },
+  {
+   "id": "LT-2104B",
+   "type": "instrument",
+   "x": 906,
+   "y": 424,
+   "label": "Interface level",
+   "measures": "V-2104",
+   "controls": "LV-2104B"
+  },
+  {
+   "id": "TT-2104",
+   "type": "instrument",
+   "x": 1094,
+   "y": 380,
+   "label": "Drum temperature",
+   "measures": "V-2104"
+  },
+  {
+   "id": "PT-2101",
+   "type": "instrument",
+   "x": 150,
+   "y": 170,
+   "label": "Column top pressure",
+   "measures": "C-2101",
+   "controls": "PV-2104"
+  },
+  {
+   "id": "FT-2101",
+   "type": "instrument",
+   "x": 330,
+   "y": 430,
+   "label": "Reflux flow",
+   "measures": "FV-2101",
+   "controls": "FV-2101"
+  },
+  {
+   "id": "TI-2105",
+   "type": "instrument",
+   "x": 820,
+   "y": 60,
+   "label": "Condenser outlet temperature",
+   "measures": "HDR-2105O"
+  }
+ ],
+ "edges": [
+  {
+   "from": "WW-SUPPLY",
+   "to": "GV-2107",
+   "line": "WW-2104-01",
+   "service": "water"
+  },
+  {
+   "from": "GV-2107",
+   "to": "CV-2107",
+   "line": "WW-2104-01",
+   "service": "water"
+  },
+  {
+   "from": "CV-2107",
+   "to": "INJ-2104",
+   "line": "WW-2104-01",
+   "service": "water"
+  },
+  {
+   "from": "C-2101",
+   "to": "INJ-2104",
+   "line": "P-2104-OVHD-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "INJ-2104",
+   "to": "HDR-2105I",
+   "line": "P-2104-OVHD-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2105I",
+   "to": "GV-2105A1",
+   "line": "P-2105-A-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2105A1",
+   "to": "E-2105A",
+   "line": "P-2105-A-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "E-2105A",
+   "to": "GV-2105A2",
+   "line": "P-2105-A-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2105A2",
+   "to": "HDR-2105O",
+   "line": "P-2105-A-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2105I",
+   "to": "GV-2105B1",
+   "line": "P-2105-B-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2105B1",
+   "to": "E-2105B",
+   "line": "P-2105-B-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "E-2105B",
+   "to": "GV-2105B2",
+   "line": "P-2105-B-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2105B2",
+   "to": "HDR-2105O",
+   "line": "P-2105-B-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2105O",
+   "to": "GV-2104-1",
+   "line": "P-2104-OVHD-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-1",
+   "to": "BL-2104-1",
+   "line": "P-2104-OVHD-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "BL-2104-1",
+   "to": "GV-2104-2",
+   "line": "P-2104-OVHD-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-2",
+   "to": "SB-2104-1",
+   "line": "P-2104-OVHD-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "SB-2104-1",
+   "to": "V-2104",
+   "line": "P-2104-OVHD-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "V-2104",
+   "to": "SB-2104-2",
+   "line": "P-2104-VAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "SB-2104-2",
+   "to": "GV-2104-3",
+   "line": "P-2104-VAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-3",
+   "to": "BL-2104-3",
+   "line": "P-2104-VAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "BL-2104-3",
+   "to": "GV-2104-4",
+   "line": "P-2104-VAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-4",
+   "to": "PV-2104",
+   "line": "P-2104-VAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "PV-2104",
+   "to": "FG-01",
+   "line": "P-2104-VAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "V-2104",
+   "to": "GV-2104-8",
+   "line": "P-2104-RV-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-8",
+   "to": "PSV-2104A",
+   "line": "P-2104-RV-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "PSV-2104A",
+   "to": "GV-2104-9",
+   "line": "P-2104-RV-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-9",
+   "to": "FL-21",
+   "line": "P-2104-RV-02",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "V-2104",
+   "to": "SB-2104-3",
+   "line": "P-2104-HC-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "SB-2104-3",
+   "to": "GV-2104-5",
+   "line": "P-2104-HC-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-5",
+   "to": "BL-2104-5",
+   "line": "P-2104-HC-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "BL-2104-5",
+   "to": "GV-2104-6",
+   "line": "P-2104-HC-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "GV-2104-6",
+   "to": "HDR-2106S",
+   "line": "P-2104-HC-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2106S",
+   "to": "P-2106A",
+   "line": "P-2106-S-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2106S",
+   "to": "P-2106B",
+   "line": "P-2106-S-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "P-2106A",
+   "to": "HDR-2106D",
+   "line": "P-2106-D-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "P-2106B",
+   "to": "HDR-2106D",
+   "line": "P-2106-D-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2106D",
+   "to": "FV-2101",
+   "line": "P-2101-RFX-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "FV-2101",
+   "to": "C-2101",
+   "line": "P-2101-RFX-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "HDR-2106D",
+   "to": "LV-2104A",
+   "line": "P-2104-NAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "LV-2104A",
+   "to": "ST-31",
+   "line": "P-2104-NAP-01",
+   "service": "hydrocarbon"
+  },
+  {
+   "from": "V-2104",
+   "to": "GV-2104-7",
+   "line": "P-2104-SW-01",
+   "service": "sour water"
+  },
+  {
+   "from": "GV-2104-7",
+   "to": "LV-2104B",
+   "line": "P-2104-SW-01",
+   "service": "sour water"
+  },
+  {
+   "from": "LV-2104B",
+   "to": "SWS-01",
+   "line": "P-2104-SW-01",
+   "service": "sour water"
+  }
+ ]
+}

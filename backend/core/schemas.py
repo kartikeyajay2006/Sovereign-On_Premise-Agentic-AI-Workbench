@@ -283,7 +283,7 @@ class EvidenceItem(BaseModel):
     classification: Sensitivity = Sensitivity.NORMAL
     version: str | None = None
     ingested_at: datetime | None = None
-    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human"] = (
+    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human", "topology"] = (
         "knowledge_base"
     )
     # For procedure passages: which document this revision belongs to, and
@@ -627,6 +627,9 @@ class Task(BaseModel):
     conflicts: list[ConflictRecord] = Field(default_factory=list)
     # One hash over what a reviewer sees; an approval is bound to it.
     review_digest: str | None = None
+    # A deterministic answer from a P&ID graph (engineering/pid.py): an
+    # isolation plan, a flow path, what is upstream or downstream.
+    topology: dict[str, Any] | None = None
     policy_events: list[PolicyEvent] = Field(default_factory=list)
     answer: str | None = None
     error: str | None = None

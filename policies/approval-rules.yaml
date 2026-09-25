@@ -51,6 +51,12 @@ approval_required_when:
       instruction_like_evidence: true
     approver_roles: [reviewer, administrator]
 
+  - name: isolation_plan
+    description: An isolation plan is signed off by an authorised person before anyone works to it (SOP-OPS-015).
+    match:
+      isolation_plan: true
+    approver_roles: [reviewer, administrator]
+
   - name: safety_recommendation
     description: Safety-related recommendations are never released unreviewed.
     match:
@@ -74,7 +80,7 @@ verification:
     # counted as a claim at all -- and an answer making three assertions was
     # reported as "1 of 1 material claims supported (100%)", which is a far
     # stronger statement than examining one sentence of three can justify.
-    - "\\[[SFVCEH]\\d+\\]"
+    - "\\[[SFVCEHT]\\d+\\]"
     # An engineering conclusion or a disposition is material whether or not
     # it carries a number. "Severity is Low." and "V-2104 may continue in
     # service." carried none, cited nothing, and so were never examined --

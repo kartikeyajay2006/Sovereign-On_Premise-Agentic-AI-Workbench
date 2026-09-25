@@ -14,9 +14,11 @@ import { IngestDialog } from './ingest-dialog'
 import { ModelEstate } from './model-estate'
 import { RetrievalTester } from './retrieval-tester'
 import { DocumentsTable, UploadsTable } from './tables'
+import { readDrawings } from '@/components/pid/api'
+import { DrawingExplorer } from '@/components/pid/drawing-explorer'
 
-type Tab = 'documents' | 'retrieval' | 'models' | 'formulas' | 'uploads'
-const TABS: Tab[] = ['documents', 'retrieval', 'models', 'formulas', 'uploads']
+type Tab = 'documents' | 'retrieval' | 'models' | 'formulas' | 'drawings' | 'uploads'
+const TABS: Tab[] = ['documents', 'retrieval', 'models', 'formulas', 'drawings', 'uploads']
 const ID = 'knowledge'
 
 /**
@@ -40,6 +42,7 @@ export function RegistryView() {
   const uploads = useReading((signal) => readUploads(signal), [])
   const models = useReading((signal) => readModels(signal), [], { enabled: modelsWanted })
   const formulas = useReading((signal) => readFormulas(signal), [])
+  const drawings = useReading((signal) => readDrawings(signal), [])
 
   useEffect(() => {
     const fromHash = window.location.hash.replace('#', '') as Tab
@@ -109,6 +112,7 @@ export function RegistryView() {
             { value: 'retrieval', label: 'Retrieval test' },
             { value: 'models', label: 'Models', count: models.data ? models.data[1].length : null },
             { value: 'formulas', label: 'Formulas', count: formulas.data?.length ?? null },
+            { value: 'drawings', label: 'Drawings', count: drawings.data?.length ?? null },
             { value: 'uploads', label: 'Uploads', count: uploads.data?.length ?? null },
           ]}
         />
@@ -143,6 +147,15 @@ export function RegistryView() {
               <ReadingLine what="the formula registry" source="GET /api/engineering/formulas" startedAt={formulas.startedAt} />
             ) : (
               <FormulaRegistry formulas={formulas.data} />
+            ))}
+
+          {tab === 'drawings' &&
+            (drawings.status === 'failed' && !drawings.data ? (
+              <FailureState failure={drawings.failure!} what="the drawings" retry={drawings.reload} />
+            ) : !drawings.data ? (
+              <ReadingLine what="the drawings" source="GET /api/pid" startedAt={drawings.startedAt} />
+            ) : (
+              <DrawingExplorer drawings={drawings.data} />
             ))}
 
           {tab === 'uploads' &&

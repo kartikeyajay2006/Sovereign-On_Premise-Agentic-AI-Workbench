@@ -39,6 +39,7 @@ from backend.engineering.stage import (
     unresolved,
 )
 from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
+from backend.engineering.pid import DrawingError, get_drawing_library, summary_lines
 from backend.security.injection import neutralise, screen
 from backend.core.schemas import (
     AgentPlan,
@@ -209,6 +210,46 @@ def _revision_note(item: EvidenceItem) -> str:
     return ""
 
 
+def _complete_topology(text: str, topology: dict[str, Any] | None) -> tuple[str, int]:
+    """Restore, from the graph, every isolation branch the answer left out.
+
+    Returns the answer and how many branches were restored. A small model
+    asked for an isolation plan returned its first branch and dropped the two
+    that cannot be isolated as drawn; an isolation plan with a branch missing
+    is worse than none, so the missing ones are added verbatim, cited, and
+    marked as added.
+    """
+    if not topology or topology.get("kind") != "isolation":
+        return text, 0
+    ident = topology.get("evidence_id")
+    missing = [b for b in topology.get("branches", []) if b["line"] not in (text or "")]
+    if not missing:
+        return text, 0
+    lines = [
+        f"- {'OK' if b['compliant'] else 'NOT PERMITTED'} {b['action']} [{b['clause']}] [{ident}]"
+        for b in missing
+    ]
+    addition = (
+        f"**From {topology.get('drawing')}, not stated in the answer above [{ident}]:**\n" + "\n".join(lines)
+    )
+    return ((text or "").rstrip() + "\n\n" + addition).strip(), len(missing)
+
+
+def _topology_block(task: Task) -> str:
+    """What the model is told about a drawing: the graph's answer, to state and cite, not redo."""
+    topology = task.topology
+    if not topology:
+        return ""
+    ident = topology.get("evidence_id")
+    return (
+        "\nP&ID results. These were computed by walking the drawing's graph, not by you. State them as "
+        f"given, cite [{ident}], name every isolation point and every branch that cannot be isolated as "
+        "drawn, and do not add valves, lines or instruments of your own.\n"
+        + "\n".join(f"[{ident}] {line}" for line in topology.get("lines", []))
+        + "\n"
+    )
+
+
 def _model_text(item: EvidenceItem) -> str:
     """An excerpt as the model may see it: instruction-like sentences withheld.
 
@@ -308,6 +349,7 @@ class EvidenceLedger:
         "vision_extraction": "V",
         "computation": "C",
         "human": "H",
+        "topology": "T",
     }
 
     def __init__(self, existing: list[EvidenceItem]) -> None:
@@ -1530,6 +1572,9 @@ class AgentOrchestrator:
             # life, severity and due date from it, each input bound to the
             # evidence cell it came from. The model is then told the figures.
             engineered = await self._engineering_stage(task, user, ledger, profile)
+            # A question about the plant's piping -- how to isolate a vessel,
+            # what feeds it -- is answered from the drawing's graph.
+            await self._topology_stage(task, user, ledger)
             # Document text is evidence, never instruction. Sentences in it
             # addressed to the model are kept for the reviewer and withheld
             # from every prompt from here on.
@@ -1572,6 +1617,13 @@ class AgentOrchestrator:
             )
             self._mark_step(task, {"reason", "analysis"}, "running")
             answer_text = await self._reason(task, user, evidence, extraction, sandbox_result)
+            answer_text, restored = _complete_topology(answer_text, task.topology)
+            if restored:
+                limitations.append(
+                    f"The model's answer named {len(task.topology['branches']) - restored} of "
+                    f"{len(task.topology['branches'])} isolation branches; the other {restored} were added "
+                    "from the drawing's graph."
+                )
             task.answer = answer_text
             self._mark_step(task, {"reason", "analysis"}, "done")
 
@@ -1667,6 +1719,8 @@ class AgentOrchestrator:
                     self.verifier.check_engineering(answer_text, task.assessment, task.calculations)
                 )
             checks.append(self.verifier.check_code(sandbox_result))
+            if task.topology:
+                checks.append(self.verifier.check_topology(answer_text, task.topology))
             # Every material claim, one verdict each, against the same ledger
             # the citations point into.
             claims = self.verifier.claim_verdicts(
@@ -1768,6 +1822,7 @@ class AgentOrchestrator:
                 prompt=task.prompt,
                 verification_valid=task.verification.valid,
                 unresolved_conflicts=len(unresolved(task.conflicts)),
+                isolation_plan=bool(task.topology and task.topology.get("kind") == "isolation"),
                 instruction_like_evidence=sum(
                     1 for item in task.evidence if (item.extraction_data or {}).get("instruction_like")
                 ),
@@ -2060,6 +2115,46 @@ class AgentOrchestrator:
         # The registry is the authority for a conflicted record too: no
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
+
+    async def _topology_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
+        """Answer a P&ID question from the drawing's graph, as cited T evidence."""
+        try:
+            result = get_drawing_library().question(task.prompt)
+        except DrawingError as exc:
+            await self._stage(task, TaskStatus.EXECUTING, f"Drawing could not be read: {exc}",
+                              {"skipped": True}, phase="engineering")
+            return
+        if result is None:
+            return
+        drawing = get_drawing_library().find(result.get("tag") or result.get("from") or "")
+        lines = summary_lines(result)
+        item = ledger.add(EvidenceItem(
+            id="pending",
+            source_document=f"{drawing.reference}: {drawing.title}" if drawing else result.get("drawing", "P&ID"),
+            location=f"{result['kind']} · {result.get('tag') or result.get('from')}",
+            excerpt="\n".join(lines)[:4000],
+            extraction_method="graph",
+            extraction_model="engineering/pid.py",
+            extraction_data={"kind": result["kind"], "elements": sorted({
+                e for b in result.get("branches", []) for e in b["elements"]} | set(result.get("close_and_lock", [])))},
+            classification=Sensitivity(drawing.meta.get("classification", "confidential")) if drawing else Sensitivity.CONFIDENTIAL,
+            kind="topology",
+        ))
+        task.topology = {**result, "evidence_id": item.id, "lines": lines}
+        self._persist_evidence(task)
+        await self._stage(
+            task, TaskStatus.EXECUTING,
+            f"Walked {result.get('drawing')} for the {result['kind']} of {result.get('tag') or result.get('from')}",
+            phase="engineering",
+        )
+        await self._emit(task, "task.topology", {"topology": task.topology})
+        self.audit.record(
+            category="engineering", action=f"topology_{result['kind']}", actor=user.username,
+            actor_role=user.role, task_id=task.id,
+            detail={"drawing": result.get("drawing"), "tag": result.get("tag") or result.get("from"),
+                    "compliant": result.get("compliant"), "non_compliant": result.get("non_compliant"),
+                    "evidence_id": item.id},
+        )
 
     async def _screen_evidence(self, task: Task, user: User) -> int:
         """Flag evidence carrying text addressed to the model. Returns how many items."""
@@ -2526,6 +2621,7 @@ class AgentOrchestrator:
             # [V...] identifier; repeating it here as JSON would only cost tokens.
             extraction_block = "\nVisual content is recorded in the page-labelled evidence below.\n"
         extraction_block += prompt_block(task.assessment, task.calculations, task.conflicts)
+        extraction_block += _topology_block(task)
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
                 "\nOutput of code executed in the secure sandbox:\n"
