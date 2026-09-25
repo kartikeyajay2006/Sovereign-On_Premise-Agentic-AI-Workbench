@@ -24,6 +24,7 @@ from itertools import groupby
 from pathlib import Path
 from typing import Any, Awaitable, Callable, TypeVar
 
+from backend.agents.code_extraction import extract_python
 from backend.agents.verifier import get_verification_engine
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
@@ -78,7 +79,6 @@ from backend.rag.parsing import inspect_pdf_pages
 from backend.tools.registry import ToolContext, get_tool_registry
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
-CODE_FENCE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
 JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 # A numeric result worth recomputing: a figure carrying a unit, or an explicit
@@ -2533,28 +2533,33 @@ class AgentOrchestrator:
             except (InferenceError, NoEligibleModelError):
                 return result
 
-            match = CODE_FENCE.search(text)
-            code = match.group(1).strip() if match else text.strip()
-            if not code:
-                return result
+            extraction = extract_python(text)
+            if extraction.code is None:
+                # Nothing that parses: say so to the model rather than spend a
+                # sandbox run on a syntax error it did not write.
+                problem = extraction.problem
+            else:
+                await self._emit(
+                    task,
+                    "task.code_generated",
+                    {"code": extraction.code, "attempt": attempt, "extraction": extraction.method},
+                )
+                call = await self._call_tool(
+                    task, context, "python_exec", {"code": extraction.code}
+                )
+                payload = call.output.get("result")
+                if not payload:
+                    return result
 
-            await self._emit(
-                task, "task.code_generated", {"code": code, "attempt": attempt}
-            )
-            call = await self._call_tool(task, context, "python_exec", {"code": code})
-            payload = call.output.get("result")
-            if not payload:
-                return result
+                result = SandboxResult(**payload)
+                if result.ok:
+                    break
 
-            result = SandboxResult(**payload)
-            if result.ok:
-                break
-
-            problem = (
-                "\n".join(result.static_violations)
-                if not result.static_validation_passed
-                else result.stderr.strip()[:800]
-            )
+                problem = (
+                    "\n".join(result.static_violations)
+                    if not result.static_validation_passed
+                    else result.stderr.strip()[:800]
+                )
             if not problem or attempt >= attempts:
                 break
 
