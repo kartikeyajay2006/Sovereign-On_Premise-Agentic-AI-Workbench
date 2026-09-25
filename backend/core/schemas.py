@@ -416,6 +416,13 @@ class IntegrityAssessment(BaseModel):
     severity_basis: str | None = None
     required_action: str | None = None
     approver: str | None = None
+    # SOP-OPS-008 names who recommends a decision and who approves it. The
+    # workbench is neither: it prepares the recommendation for these people.
+    recommended_by: list[str] = Field(default_factory=list)
+    approved_by: list[str] = Field(default_factory=list)
+    # At or below t-min: the equipment is withdrawn (SOP-INS-014 Clause 3.3),
+    # so next_due and interval_months are deliberately empty.
+    withdraw_from_service: bool = False
     ffs_triggers: list[str] = Field(default_factory=list)
     next_due: str | None = None
     interval_months: int | None = None
@@ -513,11 +520,42 @@ class VerificationReport(BaseModel):
 
 
 # ------------------------------------------------------------------ approval
+class RequiredSignature(BaseModel):
+    """One signature policy demands, in order (approval-rules.yaml `signatures`)."""
+
+    role: str
+    authority: str
+    # SOP-OPS-008 names who recommends and who approves; both sign.
+    capacity: Literal["recommends", "approves"]
+    clause: str | None = None
+    rule: str | None = None
+
+
+class ApprovalSignature(BaseModel):
+    """A signature given: who, in what capacity, against which version."""
+
+    role: str
+    authority: str
+    capacity: Literal["recommends", "approves"]
+    user_id: str
+    username: str
+    name: str
+    comment: str | None = None
+    signed_at: datetime
+    # A signature is for the version read. If the run changes, it is void.
+    review_digest: str
+
+
 class ApprovalRecord(BaseModel):
     required: bool
     reasons: list[str] = Field(default_factory=list)
     approver_roles: list[str] = Field(default_factory=list)
     decision: Literal["pending", "approved", "rejected", "revision_requested"] | None = None
+    # A High finding needs more than one signature (SOP-OPS-008 Clause 3.5).
+    # Until every one is given the run stays held, and the interface reads
+    # WAITING FOR SECOND AUTHORITY. Empty for a single-approver task.
+    required_signatures: list[RequiredSignature] = Field(default_factory=list)
+    signatures: list[ApprovalSignature] = Field(default_factory=list)
     reviewer_id: str | None = None
     reviewer_name: str | None = None
     comment: str | None = None

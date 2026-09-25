@@ -42,6 +42,18 @@ export const ROLES: Role[] = [
     capabilities: ['Approval queue', 'Release deliverables', 'Reject with notes'],
   },
   {
+    id: 'head_of_inspection',
+    label: 'Head of Inspection',
+    description: 'Recommends a High finding; the first of its two signatures (SOP-OPS-008).',
+    capabilities: ['Approval queue', 'Release deliverables', 'Reject with notes'],
+  },
+  {
+    id: 'plant_manager',
+    label: 'Plant Manager',
+    description: 'Approves a High finding after the Head of Inspection recommends it.',
+    capabilities: ['Approval queue', 'Release deliverables', 'Reject with notes'],
+  },
+  {
     id: 'auditor',
     label: 'Internal Auditor',
     description: 'Verifies the cryptographic audit chain and exports logs.',

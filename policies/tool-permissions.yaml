@@ -10,14 +10,14 @@ defaults:
 tools:
   knowledge_search:
     description: Semantic search over the approved local knowledge base.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: read_only
     requires_approval: false
 
   file_read:
     description: Read a file the requesting user is entitled to access.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: read_only
     requires_approval: false
@@ -28,7 +28,7 @@ tools:
 
   file_write:
     description: Write a generated artifact into the task workspace.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: write
     requires_approval: false
@@ -38,7 +38,7 @@ tools:
 
   python_exec:
     description: Execute generated Python inside the secure sandbox.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: execute
     requires_approval: false
@@ -48,7 +48,7 @@ tools:
 
   spreadsheet_analyze:
     description: Load and analyse an XLSX/CSV inside the sandbox.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: read_only
     requires_approval: false
@@ -57,14 +57,14 @@ tools:
 
   vision_extract:
     description: Extract text, layout and observations from a visual input.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: sensitive
     side_effects: read_only
     requires_approval: false
 
   document_generate:
     description: Produce a DOCX/XLSX/PPTX/PDF deliverable.
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: write
     requires_approval: false

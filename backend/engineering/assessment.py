@@ -19,7 +19,13 @@ from typing import Any
 
 from backend.core.schemas import CalculationRecord, IntegrityAssessment
 from backend.engineering.extraction import PipingInputs, VesselInputs
-from backend.engineering.formulas import BoundValue, as_bound, evaluate, output_value
+from backend.engineering.formulas import (
+    PIPING_BELOW_T_MIN_ACTION,
+    BoundValue,
+    as_bound,
+    evaluate,
+    output_value,
+)
 from backend.engineering.units import Quantity
 
 
@@ -170,7 +176,9 @@ def assess_vessel(inputs: VesselInputs) -> tuple[list[CalculationRecord], Integr
         survey = evaluate(
             "schedule.vessel_thickness_survey",
             {"inspection_date": inputs.current_date, "service_category": inputs.service_category,
-             "remaining_life": life_bound},
+             "remaining_life": life_bound,
+             "locations_below_t_min": BoundValue(below, stated=", ".join(below) or "none",
+                                                 locator="integrity.below_t_min at every location")},
             subject=decision,
         )
         records.append(survey)
@@ -188,12 +196,19 @@ def assess_vessel(inputs: VesselInputs) -> tuple[list[CalculationRecord], Integr
         assessment.severity_basis = output_value(severity, "basis")
         assessment.required_action = output_value(severity, "required_action")
         assessment.approver = output_value(severity, "approver")
+        assessment.recommended_by = list(output_value(severity, "recommended_by") or [])
+        assessment.approved_by = list(output_value(severity, "approved_by") or [])
     if ffs.status == "calculated":
         assessment.ffs_triggers = list(output_value(ffs, "triggers") or [])
     if survey is not None and survey.status == "calculated":
+        # Empty when the vessel is withdrawn: the basis then says why, and
+        # what the procedures require instead of a survey date.
+        assessment.withdraw_from_service = bool(output_value(survey, "withdraw_from_service"))
         assessment.next_due = output_value(survey, "due")
         assessment.interval_months = output_value(survey, "interval_months")
         assessment.next_due_basis = survey.display
+    if below:
+        assessment.withdraw_from_service = True
     return records, assessment
 
 
@@ -238,7 +253,12 @@ def assess_piping(inputs: PipingInputs) -> tuple[list[CalculationRecord], Integr
         )
         records.append(schedule)
         if schedule.status == "calculated":
+            assessment.withdraw_from_service = bool(output_value(schedule, "withdraw_from_service"))
             assessment.next_due = output_value(schedule, "due")
             assessment.interval_months = output_value(schedule, "interval_months")
             assessment.next_due_basis = schedule.display
+    if below:
+        assessment.withdraw_from_service = True
+    if assessment.withdraw_from_service:
+        assessment.required_action = PIPING_BELOW_T_MIN_ACTION
     return records, assessment

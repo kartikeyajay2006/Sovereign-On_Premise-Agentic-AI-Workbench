@@ -275,12 +275,55 @@ def service_category_key(text: str) -> str | None:
     return None
 
 
+# What the procedures require of equipment already at or below t-min. A
+# routine interval ("next survey in 12 months") is the wrong answer here: the
+# vessel is out of service, and the next step is an assessment, not a survey.
+VESSEL_BELOW_T_MIN_ACTION = (
+    "Withdraw from service immediately (SOP-INS-014 Clause 3.3) and in any case within 24 hours "
+    "(Clause 5.1); raise a Fitness-For-Service assessment while it is out of service (SOP-INS-021 "
+    "Clause 2.1); interim operation is not permitted, because it requires thickness at or above t-min "
+    "at every location (SOP-INS-021 Clause 6.1); it does not return to service without a repair, "
+    "re-rating or replacement accepted under SOP-INS-021 (Clauses 4.2 and 5)"
+)
+PIPING_BELOW_T_MIN_ACTION = (
+    "A CML at or below t-min is a High finding: withdraw the circuit from service within 24 hours "
+    "(SOP-INS-017 Clause 7.1; SOP-INS-014 Clause 5.1) and refer it for Fitness-For-Service assessment "
+    "(SOP-INS-017 Clause 7.3); no routine measurement interval applies"
+)
+
+
+def _at_or_below_t_min(life: float | None, below: list[str]) -> bool:
+    """A reading below t-min, or a remaining life already spent.
+
+    Remaining life at or below zero means the governing reading is at or under
+    t-min now; a reading can also be below t-min at a location whose rate is
+    not measurable, which is why the locations are read as well.
+    """
+    return bool(below) or (life is not None and life <= 0)
+
+
 def _vessel_survey(v: dict[str, Any]) -> dict[str, Any]:
     category = service_category_key(str(v["service_category"]))
     if category is None:
         raise ValueError(f"service category {v['service_category']!r} is not one of Clauses 2.1-2.4")
-    months = SURVEY_INTERVAL_MONTHS[category]
     life = v["remaining_life"].value if v.get("remaining_life") is not None else None
+    below = [str(item) for item in (v.get("locations_below_t_min") or [])]
+    if _at_or_below_t_min(life, below):
+        # Clauses 2.1-2.4 schedule vessels that are in service. One at or
+        # below t-min is withdrawn under Clause 3.3, so no interval is stated:
+        # a date here would read as permission to run until it.
+        why = (f"thickness below t-min at {', '.join(below)}" if below
+               else f"remaining life {_num(life)} years, so t-min is already reached")
+        return {
+            "interval_months": (None, "month"),
+            "halved": (False, None),
+            "due": (None, None),
+            "withdraw_from_service": (True, None),
+            "_display": (
+                f"No routine thickness survey is scheduled: {why}. {VESSEL_BELOW_T_MIN_ACTION}"
+            ),
+        }
+    months = SURVEY_INTERVAL_MONTHS[category]
     halved = life is not None and life < 4
     if halved:
         months //= 2
@@ -289,6 +332,7 @@ def _vessel_survey(v: dict[str, Any]) -> dict[str, Any]:
         "interval_months": (months, "month"),
         "halved": (halved, None),
         "due": (due.isoformat(), None),
+        "withdraw_from_service": (False, None),
         "_display": (
             f"{months} months after {v['inspection_date'].isoformat()} = {due.isoformat()} "
             f"({category} service" + (", halved because remaining life < 4 years (Clause 4.5)" if halved else "") + ")"
@@ -298,12 +342,22 @@ def _vessel_survey(v: dict[str, Any]) -> dict[str, Any]:
 
 def _piping_next(v: dict[str, Any]) -> dict[str, Any]:
     life = v["remaining_life"].value
+    if life <= 0:
+        # Half of a spent life is a negative interval, which floor() turned
+        # into a due date before the survey itself.
+        return {
+            "interval_months": (None, "month"),
+            "due": (None, None),
+            "withdraw_from_service": (True, None),
+            "_display": f"No measurement interval: remaining life {_num(life)} years. {PIPING_BELOW_T_MIN_ACTION}",
+        }
     class_max = v["class_max_interval"].value
     months = math.floor(min(life / 2, class_max) * 12)
     due = add_months(v["survey_date"], months)
     return {
         "interval_months": (months, "month"),
         "due": (due.isoformat(), None),
+        "withdraw_from_service": (False, None),
         "_display": f"floor(min({_num(life)} / 2, {_num(class_max)}) × 12) = {months} months after {v['survey_date'].isoformat()} = {due.isoformat()}",
     }
 
@@ -313,16 +367,26 @@ def _vessel_severity(v: dict[str, Any]) -> dict[str, Any]:
     life = v["remaining_life"].value if v.get("remaining_life") is not None else None
     cladding = v.get("cladding_damage_percent")
     cladding_value = float(cladding) if cladding is not None else None
+    # SOP-OPS-008 separates who recommends from who approves (Clauses 2.1 to
+    # 2.3). The authority is stated in that shape so no reader, and no model
+    # drafting from it, can collapse a recommendation into an approval.
     if below:
         severity = "high"
-        basis = f"SOP-INS-014 Clause 5.1: thickness below t-min at {', '.join(below)} (SOP-MNT-022 Clause 4.3 escalates a CUI site to High)"
-        action = "Withdraw from service within 24 hours (SOP-INS-014 Clauses 3.3 and 5.1)"
-        approver = "Head of Inspection + Plant Manager (SOP-INS-014 Clause 5.1)"
+        basis = (f"SOP-INS-014 Clause 5.1: thickness below t-min at {', '.join(below)} "
+                 "(SOP-MNT-022 Clause 4.3 escalates a CUI site to High)")
+        action = VESSEL_BELOW_T_MIN_ACTION
+        approver = (
+            "Head of Inspection + Plant Manager (SOP-INS-014 Clause 5.1): the Inspection Engineer and "
+            "Head of Inspection recommend, the Plant Manager approves (SOP-OPS-008 Clauses 2.3 and 3.5)"
+        )
+        recommended_by, approved_by = ["Inspection Engineer", "Head of Inspection"], ["Plant Manager"]
     elif life is not None and life < 4:
         severity = "medium"
         basis = "SOP-INS-014 Clause 5.2: remaining life below 4 years (and Clause 4.5)"
         action = "Repair within the current shutdown window (SOP-INS-014 Clause 5.2)"
-        approver = "Head of Inspection (SOP-INS-014 Clause 5.2; SOP-OPS-008 Clause 2.2)"
+        approver = ("Head of Inspection (SOP-INS-014 Clause 5.2; SOP-OPS-008 Clause 2.2): the Inspection "
+                    "Engineer recommends, the Head of Inspection approves")
+        recommended_by, approved_by = ["Inspection Engineer"], ["Head of Inspection"]
     elif cladding_value is not None and cladding_value > 20:
         severity = "medium"
         basis = (
@@ -330,7 +394,9 @@ def _vessel_severity(v: dict[str, Any]) -> dict[str, Any]:
             "section, a Medium finding under SOP-INS-014 Clause 5.2"
         )
         action = "Repair within the current shutdown window (SOP-INS-014 Clause 5.2)"
-        approver = "Head of Inspection (SOP-INS-014 Clause 5.2; SOP-OPS-008 Clause 2.2)"
+        approver = ("Head of Inspection (SOP-INS-014 Clause 5.2; SOP-OPS-008 Clause 2.2): the Inspection "
+                    "Engineer recommends, the Head of Inspection approves")
+        recommended_by, approved_by = ["Inspection Engineer"], ["Head of Inspection"]
     else:
         severity = "low"
         basis = "No High or Medium criterion of SOP-INS-014 Clauses 5.1-5.2 is met by the thickness data"
@@ -342,12 +408,16 @@ def _vessel_severity(v: dict[str, Any]) -> dict[str, Any]:
                 "breakdown, active external corrosion and CUI could not be assessed"
             )
         action = "Rectify within 6 months (SOP-INS-014 Clause 5.3)"
-        approver = "Inspection Engineer (SOP-INS-014 Clause 5.3)"
+        approver = ("Inspection Engineer (SOP-INS-014 Clause 5.3; SOP-OPS-008 Clause 2.1): approved by the "
+                    "Inspection Engineer, no recommendation required")
+        recommended_by, approved_by = [], ["Inspection Engineer"]
     return {
         "severity": (severity, None),
         "basis": (basis, None),
         "required_action": (action, None),
         "approver": (approver, None),
+        "recommended_by": (recommended_by, None),
+        "approved_by": (approved_by, None),
         "visual_findings_assessed": (cladding_value is not None, None),
         "_display": f"{severity.capitalize()}: {basis}",
     }
@@ -469,37 +539,40 @@ FORMULAS: dict[str, Formula] = {
             _pipe_t_min, ("t_pressure", "t_min"),
         ),
         Formula(
-            "schedule.vessel_thickness_survey", 1, "Next vessel thickness survey",
-            "SOP-INS-014 Clauses 2.1-2.4 and 4.5",
-            "due = inspection_date + interval(service category), halved when remaining life < 4 years",
+            "schedule.vessel_thickness_survey", 2, "Next vessel thickness survey",
+            "SOP-INS-014 Clauses 2.1-2.4, 3.3 and 4.5; SOP-INS-021 Clauses 2.1 and 6.1",
+            "due = inspection_date + interval(service category), halved when remaining life < 4 years; "
+            "no interval when a reading is below t-min or remaining life ≤ 0 (withdraw, Clause 3.3)",
             (
                 Parameter("inspection_date", "date", "date of this inspection"),
                 Parameter("service_category", "text", "service category on the equipment record"),
                 _q("remaining_life", TIME, "governing remaining life", optional=True),
+                Parameter("locations_below_t_min", "text", "locations whose reading is below t-min", optional=True),
             ),
-            _vessel_survey, ("interval_months", "halved", "due"),
+            _vessel_survey, ("interval_months", "halved", "due", "withdraw_from_service"),
         ),
         Formula(
-            "schedule.piping_next_measurement", 1, "Next piping thickness measurement",
-            "SOP-INS-017 Clause 6.1",
-            "months = floor(min(remaining_life / 2, class maximum) × 12); due = survey_date + months",
+            "schedule.piping_next_measurement", 2, "Next piping thickness measurement",
+            "SOP-INS-017 Clauses 6.1, 7.1 and 7.3",
+            "months = floor(min(remaining_life / 2, class maximum) × 12); due = survey_date + months; "
+            "no interval when remaining life ≤ 0 (High finding, withdraw and refer for FFS)",
             (
                 _q("remaining_life", TIME, "governing CML remaining life"),
                 _q("class_max_interval", TIME, "maximum interval for the circuit class"),
                 Parameter("survey_date", "date", "date of this survey"),
             ),
-            _piping_next, ("interval_months", "due"),
+            _piping_next, ("interval_months", "due", "withdraw_from_service"),
         ),
         Formula(
-            "severity.vessel_finding", 1, "Finding severity and approving authority",
-            "SOP-INS-014 Clauses 5.1-5.3; SOP-MNT-022 Clauses 4.1 and 4.3",
+            "severity.vessel_finding", 2, "Finding severity and approving authority",
+            "SOP-INS-014 Clauses 3.3 and 5.1-5.3; SOP-MNT-022 Clauses 4.1 and 4.3; SOP-OPS-008 Clauses 2.1-2.3",
             "High if any reading below t-min; Medium if remaining life < 4 years or cladding damage > 20%; else Low",
             (
                 Parameter("locations_below_t_min", "text", "locations whose reading is below t-min"),
                 _q("remaining_life", TIME, "governing remaining life", optional=True),
                 Parameter("cladding_damage_percent", "number", "cladding damage over the insulated section", optional=True),
             ),
-            _vessel_severity, ("severity", "basis", "required_action", "approver"),
+            _vessel_severity, ("severity", "basis", "required_action", "approver", "recommended_by", "approved_by"),
         ),
         Formula(
             "ffs.triggers", 1, "Fitness-For-Service triggers",

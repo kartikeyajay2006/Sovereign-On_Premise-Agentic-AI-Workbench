@@ -334,7 +334,8 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     lines = [
         f"[{governing or decision}] {assessment.subject}: {where}{rate_label} "
         f"{assessment.governing_rate_mm_yr:g} mm/year ({basis}); "
-        f"remaining life {assessment.remaining_life_years:g} years."
+        f"remaining life {assessment.remaining_life_years:g} years"
+        + (" (at or below t-min now, not a time left to run)." if assessment.remaining_life_years <= 0 else ".")
         if assessment.remaining_life_years is not None
         else f"[{governing or decision}] {assessment.subject}: {where}"
         "no measurable corrosion, so remaining life is not limited by corrosion.",
@@ -344,6 +345,9 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
             f"[{decision}] Severity {assessment.severity.capitalize()}. Basis: {assessment.severity_basis}. "
             f"Required action: {assessment.required_action}. Approving authority: {assessment.approver}."
         )
+    authority = authority_statement(assessment)
+    if authority:
+        lines.append(f"[{decision}] {authority}")
     if assessment.locations_below_t_min:
         lines.append(f"[{decision}] Below t-min: {', '.join(assessment.locations_below_t_min)}.")
     if assessment.ffs_triggers:
@@ -351,10 +355,39 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     elif assessment.kind == "vessel":
         lines.append(f"[{decision}] No Fitness-For-Service trigger applies "
                      f"(local metal loss {assessment.local_metal_loss_percent:g}% of nominal).")
-    if assessment.next_due:
+    if assessment.withdraw_from_service:
+        # Never a routine date for equipment that is out of service: "next
+        # survey in 12 months" read as permission to run for 12 months.
+        lines.append(
+            f"[{decision}] {assessment.subject} is below minimum thickness and is withdrawn from service; "
+            "no routine inspection interval applies. "
+            + (assessment.next_due_basis or f"Required action: {assessment.required_action}.")
+        )
+    elif assessment.next_due:
         lines.append(f"[{decision}] Next {'thickness survey' if assessment.kind == 'vessel' else 'measurement'} "
                      f"due {assessment.next_due} ({assessment.next_due_basis}).")
     return lines
+
+
+def authority_statement(assessment: IntegrityAssessment) -> str | None:
+    """Who recommends and who approves, and that the workbench is neither.
+
+    SOP-OPS-008 Clause 2 names a recommending officer and an approving
+    authority for each decision. A run that only said "approving authority:
+    Head of Inspection + Plant Manager" let an answer, or a reader, take the
+    recommendation the workbench drafts for the approval itself.
+    """
+    if not assessment.approved_by:
+        return None
+    recommend = (
+        f"recommended by the {' and the '.join(assessment.recommended_by)}"
+        if assessment.recommended_by else "no recommendation required"
+    )
+    return (
+        f"Under SOP-OPS-008 this finding is {recommend}, and approved by the "
+        f"{' and the '.join(assessment.approved_by)}. AEGIS prepares the recommendation only; "
+        "it takes effect when the approving authority signs it."
+    )
 
 
 def as_deliverable_calculations(records: list[CalculationRecord]) -> list[dict[str, Any]]:
@@ -367,6 +400,9 @@ def as_deliverable_calculations(records: list[CalculationRecord]) -> list[dict[s
         if primary is None:
             continue
         name, entry = primary
+        if entry.get("value") is None and output_value(record, "withdraw_from_service"):
+            # A withdrawn vessel has no interval; say so, not "None months".
+            entry = {"value": "none: withdrawn from service", "unit": ""}
         rows.append({
             "label": f"{record.title} — {record.subject}" if record.subject else record.title,
             "expression": record.display or record.expression,

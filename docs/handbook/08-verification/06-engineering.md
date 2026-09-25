@@ -19,6 +19,14 @@ Asked for a corrosion rate, a 3B model once answered 0.8 mm/year where the evide
 
 A missing input gives **cannot calculate**, naming what is missing; a malformed one gives **refused**, saying why. Neither is estimated. When two sources disagree about an input, the assessment is **conflicted**, and nothing that depends on it is computed until a person chooses ([2.9](../02-concepts/09-conflicts.md)).
 
+### Below t-min: withdrawn, not scheduled
+
+A vessel with a reading below t-min, or a governing remaining life at or below zero, gets **no routine interval**. V-2107 (shell course 1 at 5.8 mm against a t-min of 6.0 mm, remaining life −0.31 years) used to be told "next thickness survey in 12 months": the corrosive-service interval, halved for a life under 4 years. `schedule.vessel_thickness_survey@2` now returns no due date and `withdraw_from_service: true`, and the decision states the procedures' immediate action instead: withdraw from service immediately (SOP-INS-014 Clause 3.3), and in any case within 24 hours (Clause 5.1). An FFS assessment is raised while the vessel is out of service (SOP-INS-021 Clause 2.1). Interim operation is not permitted, because it needs thickness at or above t-min everywhere (Clause 6.1). No return to service without an accepted repair, re-rating or replacement. `schedule.piping_next_measurement@2` does the same for a piping CML whose life is spent (SOP-INS-017 Clauses 7.1 and 7.3), where it used to compute a negative interval.
+
+### Recommend is not approve
+
+`severity.vessel_finding@2` outputs who **recommends** and who **approves** under SOP-OPS-008 Clauses 2.1 to 2.3. For a High finding, the Inspection Engineer and Head of Inspection recommend and the Plant Manager approves. The decision lines and every generated deliverable carry this statement, taken from the formula and not from the model: *"AEGIS prepares the recommendation only; it takes effect when the approving authority signs it."* The approval gate enforces the signatures ([2.5](../02-concepts/05-approval.md)).
+
 The registry is browsable on the Knowledge screen's **Formulas** tab and over the API ([11.7](../11-api/07-engineering-proof.md)).
 
 ## engineering_verification

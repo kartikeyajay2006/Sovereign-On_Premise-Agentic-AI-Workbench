@@ -5,6 +5,7 @@ import { Modal } from '@/components/modal'
 import { ClassificationTag } from '@/components/primitives'
 import { Button } from '@/shared/ui/controls/button'
 import { Kbd } from '@/shared/ui/controls/kbd'
+import type { RequiredSignature } from '@/lib/types'
 import type { QueueItem } from './model'
 
 export type DecisionKind = 'approve' | 'reject' | 'revise'
@@ -25,6 +26,7 @@ export function DecisionDialog({
   kind,
   item,
   filename,
+  signature = null,
   reviewer,
   onCancel,
   onConfirm,
@@ -33,6 +35,8 @@ export function DecisionDialog({
   item: QueueItem
   /** The first deliverable's name, when the run produced a file. */
   filename: string | null
+  /** Set when approving gives one signature of several and releases nothing. */
+  signature?: RequiredSignature | null
   reviewer: string
   onCancel: () => void
   /** Resolves to an error message to show, or null once recorded. */
@@ -48,8 +52,14 @@ export function DecisionDialog({
   const needsNote = !approve
   const blank = note.trim().length === 0
 
-  const title = approve ? (filename ? 'Approve and release' : 'Approve') : revise ? 'Request a revision' : 'Reject and return'
-  const consequence = approve
+  // The first of two signatures on a High finding releases nothing.
+  const signing = approve && signature != null
+  const title = signing
+    ? `Sign as ${signature.authority}`
+    : approve ? (filename ? 'Approve and release' : 'Approve') : revise ? 'Request a revision' : 'Reject and return'
+  const consequence = signing
+    ? `Records your signature as the ${signature.authority}, who ${signature.capacity} this finding, against ${reviewer} in the audit chain. Nothing is released: the run waits for the second authority.`
+    : approve
     ? filename
       ? `Releases ${filename} to the submitter and records the decision against ${reviewer} in the audit chain.`
       : `This run produced no file, so nothing is released. The approval is recorded against ${reviewer} in the audit chain.`
@@ -93,7 +103,9 @@ export function DecisionDialog({
             busyLabel="Recording…"
             onClick={() => void submit()}
           >
-            {approve ? (filename ? 'Approve & release' : 'Approve') : revise ? 'Request revision' : 'Reject'}
+            {signing
+              ? 'Sign'
+              : approve ? (filename ? 'Approve & release' : 'Approve') : revise ? 'Request revision' : 'Reject'}
           </Button>
         </>
       }

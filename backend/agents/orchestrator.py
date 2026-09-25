@@ -32,6 +32,7 @@ from backend.core.config import get_config
 from backend.core.events import get_event_bus
 from backend.engineering.stage import (
     as_deliverable_calculations,
+    authority_statement,
     assess_with_conflicts,
     conflict_records,
     decision_lines,
@@ -2051,6 +2052,7 @@ class AgentOrchestrator:
                 decision_claims=sum(
                     1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
                 ),
+                severity=_calculated_severity(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -2065,6 +2067,9 @@ class AgentOrchestrator:
                 reasons=reasons,
                 approver_roles=approvers,
                 decision="pending" if required else None,
+                required_signatures=(
+                    self.gateway.required_signatures(_calculated_severity(task)) if required else []
+                ),
             )
 
             if required:
@@ -3023,6 +3028,11 @@ class AgentOrchestrator:
         calculations: list[dict[str, Any]],
     ) -> None:
         assert task.profile is not None
+        # The recommend/approve split comes from the severity formula
+        # (SOP-OPS-008), never from the model's draft.
+        authority = authority_statement(task.assessment) if task.assessment is not None else None
+        if authority:
+            content = {**content, "authority": authority}
         call = await self._call_tool(
             task,
             context,
@@ -3057,6 +3067,14 @@ class AgentOrchestrator:
                     "released": deliverable.released,
                 },
             )
+
+
+def _calculated_severity(task: Task) -> str | None:
+    """The severity the formula registry computed, never one a model wrote."""
+    assessment = task.assessment
+    if assessment is None or assessment.status != "calculated":
+        return None
+    return assessment.severity
 
 
 def _summarise(arguments: dict[str, Any]) -> dict[str, Any]:

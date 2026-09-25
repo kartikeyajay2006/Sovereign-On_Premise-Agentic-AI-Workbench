@@ -57,6 +57,30 @@ approval_required_when:
       isolation_plan: true
     approver_roles: [reviewer, administrator]
 
+  # A High finding is not released by one reviewer. SOP-INS-014 Clause 5.1
+  # names the Head of Inspection + Plant Manager, and SOP-OPS-008 Clauses 2.3
+  # and 3.5 say both sign: the Head of Inspection recommending, then the Plant
+  # Manager approving. `signatures` lists them in that order. Each must be a
+  # different person with that role, neither may be the one who ran the task,
+  # and each is bound to the review digest of the version signed; a change to
+  # the run voids the signatures already given. Where a rule with signatures
+  # matches, only its roles decide the task (SOP-OPS-008 Clause 3.1: the
+  # highest authority named applies).
+  - name: high_severity_finding
+    description: A High finding needs two signatures, the Head of Inspection recommending and the Plant Manager approving (SOP-INS-014 Clause 5.1; SOP-OPS-008 Clauses 2.3 and 3.5).
+    match:
+      severity_in: [high]
+    approver_roles: [head_of_inspection, plant_manager]
+    signatures:
+      - role: head_of_inspection
+        authority: Head of Inspection
+        capacity: recommends
+        clause: SOP-OPS-008 Clause 2.3
+      - role: plant_manager
+        authority: Plant Manager
+        capacity: approves
+        clause: SOP-OPS-008 Clause 2.3
+
   - name: safety_recommendation
     description: Safety-related recommendations are never released unreviewed.
     match:

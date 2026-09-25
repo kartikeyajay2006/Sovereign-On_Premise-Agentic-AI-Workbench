@@ -227,6 +227,12 @@ task:
 
     {calculations_block}
 
+    The workbench recommends; a named person approves (SOP-OPS-008). Write
+    "recommendation" as a recommendation to the approving authority, never
+    as a decision taken or an approval given. Where the results say the
+    equipment is below minimum thickness and withdrawn from service, do not
+    state a next inspection date or interval.
+
     Return a JSON object only, no prose, matching exactly:
     {{"title": "<document title>",
       "reference": "<document reference code>",

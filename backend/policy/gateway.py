@@ -346,16 +346,20 @@ class PolicyGateway:
         decision_claims: int = 0,
         instruction_like_evidence: int = 0,
         isolation_plan: bool = False,
+        severity: str | None = None,
     ) -> tuple[bool, list[str], list[str]]:
         """Evaluate approval-rules.yaml; return (required, reasons, approver_roles).
 
         ``unresolved_conflicts`` counts high-impact disagreements between
         sources that no person has settled; ``decision_claims`` counts claims
         stating a disposition only an approving authority can take.
+        ``severity`` is the computed severity of the run's finding; a rule
+        with ``signatures`` for it makes only those roles the deciders.
         """
         required = False
         reasons: list[str] = []
         approvers: set[str] = set()
+        signed_by: set[str] = set()
         lowered = prompt.lower()
 
         for rule in self.config.approval_rules.get("approval_required_when", []):
@@ -381,6 +385,8 @@ class PolicyGateway:
                 hit = (unresolved_conflicts > 0) == bool(match["unresolved_conflicts"])
             elif "decision_claims" in match:
                 hit = (decision_claims > 0) == bool(match["decision_claims"])
+            elif "severity_in" in match:
+                hit = bool(severity) and str(severity).lower() in [str(v).lower() for v in match["severity_in"]]
             elif "isolation_plan" in match:
                 hit = isolation_plan == bool(match["isolation_plan"])
             elif "instruction_like_evidence" in match:
@@ -394,6 +400,13 @@ class PolicyGateway:
                 required = True
                 reasons.append(f"{rule.get('name')}: {rule.get('description', '')}".strip())
                 approvers.update(rule.get("approver_roles") or [])
+                signed_by.update(str(s.get("role")) for s in rule.get("signatures") or [] if s.get("role"))
+
+        # The highest authority named applies (SOP-OPS-008 Clause 3.1). A
+        # High finding's signatories are its only deciders: a general
+        # reviewer releasing it alone would skip both of them.
+        if signed_by:
+            approvers = signed_by
 
         # A rule must not nominate a role that cannot act on it. Listing a
         # role here while access-control.yaml withholds 'approval.decide' from
@@ -412,6 +425,26 @@ class PolicyGateway:
             }
 
         return required, reasons, sorted(able)
+
+    def required_signatures(self, severity: str | None) -> list[dict[str, Any]]:
+        """The ordered signatures a finding of this severity needs, from policy.
+
+        Empty when no rule names signatures for it: one approval from an
+        approving role then decides the task, as before.
+        """
+        if not severity:
+            return []
+        wanted = str(severity).lower()
+        for rule in self.config.approval_rules.get("approval_required_when", []):
+            match = rule.get("match") or {}
+            if "severity_in" not in match or not rule.get("signatures"):
+                continue
+            if wanted in [str(v).lower() for v in match["severity_in"]]:
+                return [
+                    {**dict(signature), "rule": rule.get("name")}
+                    for signature in rule["signatures"]
+                ]
+        return []
 
     def controls_for(self, sensitivity: Sensitivity) -> dict[str, Any]:
         """The control set a classification level demands."""
