@@ -39,7 +39,7 @@ The whole body is hashed (`content_sha256`) and signed.
 
 | Field | Source |
 |---|---|
-| `models` | Each model that served the run, from its `model / inference_started` audit events: the runtime digest of the weights (`model_digest`, recorded since this version), the registry's integrity verdict, the stages it served, and how many calls it made. A vision extraction served from the cache ([7 · Agents](../07-agents/README.md)) counts as a cache hit under the model that originally produced it. A model audited with no digest carries `digest_note` instead of a guess. |
+| `models` | Each model that served the run, from its `model / inference_started` audit events: the runtime digest of the weights (`model_digest`, recorded since this version), the registry's integrity verdict, the stages it served, and how many calls it made. A vision extraction served from the cache ([6.2](../06-knowledge-and-retrieval/02-parsing-and-vision.md#the-vision-cache)) counts as a cache hit under the model that originally produced it. A model audited with no digest carries `digest_note` instead of a guess. |
 | `config` | The `proof / config_snapshot` event the task worker writes as a run starts: the SHA-256 of every `config/*.yaml`, `config/prompts/*.yaml` and `policies/*.yaml`, and the version each declares. A run started outside the worker, or before snapshots existed, says so (`recorded: null`). |
 | `policy_versions` | The `policy_version` of each policy file, from the snapshot. |
 | `prompt_library` | `prompts_version` and the SHA-256 of `config/prompts/prompts.yaml`, from the snapshot. |
