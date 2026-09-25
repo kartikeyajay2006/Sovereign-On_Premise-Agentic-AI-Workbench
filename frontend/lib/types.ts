@@ -376,7 +376,7 @@ export interface CalculationRecord {
 
 /** The asset-integrity decision a run's calculations add up to. */
 export interface IntegrityAssessment {
-  kind: 'vessel' | 'piping'
+  kind: 'vessel' | 'piping' | 'stated'
   subject: string
   status: 'calculated' | 'cannot_calculate' | 'conflicted'
   report?: string | null

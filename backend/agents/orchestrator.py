@@ -39,15 +39,18 @@ from backend.engineering.stage import (
     revision_conflicts,
     unresolved,
 )
+from backend.engineering.stated import assess_stated, bind_stated, extraction_request as stated_variables
 from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
 from backend.engineering.pid import DrawingError, get_drawing_library, summary_lines
 from backend.security.injection import neutralise, screen
 from backend.core.schemas import (
     AgentPlan,
     ApprovalRecord,
+    CalculationRecord,
     ConflictRecord,
     ConflictResolution,
     EvidenceItem,
+    IntegrityAssessment,
     ModelDescriptor,
     ModelUsage,
     PlanStep,
@@ -80,6 +83,11 @@ from backend.tools.registry import ToolContext, get_tool_registry
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
 JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+# A question about wall thickness or remaining life, whose values may be
+# written in the request itself rather than in an inspection record.
+STATED_SUBJECT = re.compile(
+    r"thick|wall loss|t[-_ ]?min|remaining life|corrosion rate|retirement", re.IGNORECASE
+)
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 # A numeric result worth recomputing: a figure carrying a unit, or an explicit
 # equality. Prose with no such assertion needs no calculation check.
@@ -2032,6 +2040,63 @@ class AgentOrchestrator:
             ):
                 step.status = status  # type: ignore[assignment]
 
+    async def _assess_stated(
+        self, task: Task, user: User, ledger: EvidenceLedger
+    ) -> tuple[list[CalculationRecord], IntegrityAssessment, list[Any]] | None:
+        """A remaining-life question whose values are written in the request.
+
+        The model only says which number is which variable; ``bind_stated``
+        keeps a value only when the question writes it with a unit of the
+        right dimension, and the registry computes. The request becomes H
+        evidence, so every input cites where it was read.
+        """
+        assert task.profile is not None
+        if not STATED_SUBJECT.search(task.prompt) or len(re.findall(r"\d", task.prompt)) < 2:
+            return None
+        try:
+            text, _ = await self._generate(
+                task,
+                user,
+                stage="verification",
+                system_prompt=self.config.system_prompt("reasoning"),
+                prompt=self.config.prompt(
+                    "task.identify_stated_inputs",
+                    question=task.prompt[:2000],
+                    variables=stated_variables(),
+                ),
+                format_json=True,
+            )
+        except (InferenceError, NoEligibleModelError):
+            return None
+        proposal = _parse_json(text) or {}
+        stated = bind_stated(task.prompt, proposal, None)
+        if not stated.bound:
+            return None
+        request = ledger.add(EvidenceItem(
+            id="pending",
+            kind="human",
+            source_document=f"Request by {user.display_name} ({user.role})",
+            location="values stated in the request",
+            excerpt=task.prompt[:2000],
+            extraction_method="stated in the request",
+            extraction_model="engineering/stated.py",
+            extraction_data={
+                "bound": {name: bound.stated for name, bound in stated.bound.items()},
+                "refused": stated.refused,
+            },
+            classification=task.profile.sensitivity,
+        ))
+        stated.source_evidence_id = request.id
+        for bound in stated.bound.values():
+            bound.evidence_id = request.id
+        assessed = assess_stated(stated)
+        if assessed is None:
+            return None
+        records, assessment = assessed
+        if stated.refused:
+            assessment.missing += [f"{name}: {why}" for name, why in stated.refused.items()]
+        return records, assessment, []
+
     async def _engineering_stage(
         self, task: Task, user: User, ledger: EvidenceLedger, profile: TaskProfile
     ) -> bool:
@@ -2052,6 +2117,8 @@ class AgentOrchestrator:
         result = assess_with_conflicts(
             ledger.items, include_retrieved=profile.task_type == TaskType.CALCULATION
         )
+        if result is None and profile.task_type == TaskType.CALCULATION:
+            result = await self._assess_stated(task, user, ledger)
         if result is None:
             await self._announce_conflicts(task, user, known)
             if profile.task_type == TaskType.CALCULATION:

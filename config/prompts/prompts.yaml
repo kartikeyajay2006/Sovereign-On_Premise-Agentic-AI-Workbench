@@ -198,6 +198,21 @@ task:
     Only include calculations where the text asserts a concrete numeric result.
     If there are none, return {{"calculations": []}}.
 
+  identify_stated_inputs: |
+    Say which values in this question are which variable. Do not calculate
+    anything: a formula registry does the arithmetic.
+
+    Question:
+    {question}
+
+    Variables:
+    {variables}
+
+    Return a JSON object only, one key per variable, each the value exactly
+    as the question writes it with its unit (for example "9.4 mm" or
+    "4 years"), or null when the question does not state it. Never derive,
+    convert or estimate a value.
+
   draft_deliverable: |
     Prepare the content for a formal {format} deliverable.
 

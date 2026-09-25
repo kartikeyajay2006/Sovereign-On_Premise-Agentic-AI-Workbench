@@ -307,7 +307,11 @@ def prompt_block(
             lines.append(f"Procedure revision: {record.note}")
     others = []
     for record in records:
-        if record.formula_id == "integrity.remaining_life" and record.status == "calculated":
+        if (
+            assessment.kind != "stated"
+            and record.formula_id == "integrity.remaining_life"
+            and record.status == "calculated"
+        ):
             location = (record.subject or "").split(" · ", 1)[-1]
             if location != assessment.governing_location:
                 life = output_value(record, "remaining_life")
@@ -321,12 +325,18 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     """The calculated decision as cited sentences, one per finding."""
     decision = _decision_id(assessment, records)
     governing = _location_id(assessment, records)
+    # Values stated in a question have no location to govern.
+    where = f"governing location {assessment.governing_location}; " if assessment.governing_location else ""
+    basis = (
+        "from the stated values" if assessment.kind == "stated" else f"{assessment.governing_rate_is} governs"
+    )
+    rate_label = "governing corrosion rate" if where else "corrosion rate"
     lines = [
-        f"[{governing or decision}] {assessment.subject}: governing location {assessment.governing_location}; "
-        f"governing corrosion rate {assessment.governing_rate_mm_yr:g} mm/year ({assessment.governing_rate_is} governs); "
+        f"[{governing or decision}] {assessment.subject}: {where}{rate_label} "
+        f"{assessment.governing_rate_mm_yr:g} mm/year ({basis}); "
         f"remaining life {assessment.remaining_life_years:g} years."
         if assessment.remaining_life_years is not None
-        else f"[{governing or decision}] {assessment.subject}: governing location {assessment.governing_location}; "
+        else f"[{governing or decision}] {assessment.subject}: {where}"
         "no measurable corrosion, so remaining life is not limited by corrosion.",
     ]
     if assessment.severity:
