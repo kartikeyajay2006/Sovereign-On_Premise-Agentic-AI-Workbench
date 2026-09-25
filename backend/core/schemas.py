@@ -283,7 +283,8 @@ class EvidenceItem(BaseModel):
     classification: Sensitivity = Sensitivity.NORMAL
     version: str | None = None
     ingested_at: datetime | None = None
-    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human", "topology"] = (
+    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human", "topology",
+                  "historian"] = (
         "knowledge_base"
     )
     # For procedure passages: which document this revision belongs to, and
