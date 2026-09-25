@@ -1,4 +1,11 @@
-export type RoleId = 'operator' | 'engineer' | 'reviewer' | 'auditor' | 'admin'
+export type RoleId =
+  | 'operator'
+  | 'engineer'
+  | 'reviewer'
+  | 'head_of_inspection'
+  | 'plant_manager'
+  | 'auditor'
+  | 'admin'
 
 export type TaskStatus =
   | 'received'
@@ -246,6 +253,30 @@ export interface ApprovalRecord {
   reviewer_name?: string | null
   comment?: string | null
   decided_at?: string | null
+  /** A High finding's signatures, in order (policies/approval-rules.yaml). */
+  required_signatures?: RequiredSignature[]
+  signatures?: ApprovalSignature[]
+}
+
+export interface RequiredSignature {
+  role: string
+  authority: string
+  capacity: 'recommends' | 'approves'
+  clause?: string | null
+  rule?: string | null
+}
+
+export interface ApprovalSignature {
+  role: string
+  authority: string
+  capacity: 'recommends' | 'approves'
+  user_id: string
+  username: string
+  name: string
+  comment?: string | null
+  signed_at: string
+  /** The version this signature was given on; a change voids it. */
+  review_digest: string
 }
 
 export interface PlanStep {

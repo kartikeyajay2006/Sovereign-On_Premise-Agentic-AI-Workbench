@@ -25,6 +25,8 @@ from backend.core.events import get_event_bus
 from backend.core.schemas import (
     SkillInvocation,
     ApprovalRecord,
+    ApprovalSignature,
+    RequiredSignature,
     InputType,
     PolicyDecision,
     Sensitivity,
@@ -668,6 +670,8 @@ class TaskService:
         permission = self.gateway.check_permission(user, "approval.decide", task_id=task_id)
         if permission.decision != PolicyDecision.ALLOW:
             raise TaskError(permission.reason)
+        current = review_digest(task)
+        plan = self._refresh_signatures(task, user, current)
         if task.approval.approver_roles and user.role not in task.approval.approver_roles:
             raise TaskError(
                 f"Role '{user.role}' is not an approving authority for this task "
@@ -691,7 +695,6 @@ class TaskService:
         # Bound to what the reviewer read. A resolution, a re-render or a
         # re-run between opening the run and deciding it changes the digest,
         # and the decision is refused rather than applied to an unseen version.
-        current = review_digest(task)
         if review_digest_seen is not None and review_digest_seen != current:
             raise TaskError(
                 "This run has changed since you opened it (its review digest is now "
@@ -712,6 +715,23 @@ class TaskService:
                 + ", ".join(f"{c.id} ({c.label})" for c in open_conflicts)
                 + " before approving: the decision it withholds has not been made."
             )
+        if approved and plan:
+            # One signature of several. It is recorded and audited; the run
+            # is released only by the last one.
+            if not self._sign(task, user, plan, comment, current):
+                self._persist(task)
+                waiting = plan[len(task.approval.signatures)]
+                await self.events.publish(
+                    "task.approval_signed",
+                    task_id=task.id,
+                    data={
+                        "signed_by": user.display_name,
+                        "signatures": [s.model_dump(mode="json") for s in task.approval.signatures],
+                        "awaiting": waiting.model_dump(mode="json"),
+                        "status": task.status.value,
+                    },
+                )
+                return task
         revise = decision == "request_revision"
         task.approval.decision = "approved" if approved else "revision_requested" if revise else "rejected"
         task.approval.reviewer_id = user.id
@@ -743,6 +763,11 @@ class TaskService:
                 "review_digest": current,
                 "deliverables_released": [d.filename for d in task.deliverables] if approved else [],
                 "evidence_presented": len(task.evidence),
+                "signatures": [
+                    {"authority": s.authority, "capacity": s.capacity, "username": s.username,
+                     "review_digest": s.review_digest}
+                    for s in task.approval.signatures
+                ],
             },
         )
         await self.events.publish(
@@ -757,6 +782,112 @@ class TaskService:
         )
         self._certify(task, user)
         return task
+
+    def _refresh_signatures(self, task: Task, user: User, current: str) -> list[RequiredSignature]:
+        """The signatures this run needs now, voiding any given to another version.
+
+        Read from policy against the run's computed severity at the moment of
+        deciding, not only at the gate: a conflict resolution can recompute
+        the finding while it is held, and a Medium that became High needs the
+        High signatures. A signature binds the digest it was given on; if the
+        run has changed since, every signature so far is void -- the Plant
+        Manager approves the recommendation the Head of Inspection signed,
+        not a later one -- and the voiding is audited.
+        """
+        approval = task.approval
+        assert approval is not None
+        severity = (
+            task.assessment.severity
+            if task.assessment is not None and task.assessment.status == "calculated" else None
+        )
+        if severity is not None:
+            approval.required_signatures = [
+                RequiredSignature(**signature) for signature in self.gateway.required_signatures(severity)
+            ]
+        plan = list(approval.required_signatures)
+        if plan:
+            approval.approver_roles = sorted({signature.role for signature in plan})
+        stale = [s for s in approval.signatures if s.review_digest != current]
+        if stale or (approval.signatures and not plan):
+            voided = approval.signatures
+            approval.signatures = []
+            self._persist(task)
+            self.audit.record(
+                category="approval",
+                action="signatures_voided",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={
+                    "reason": "the run changed after these signatures were given" if stale
+                    else "the finding no longer needs more than one signature",
+                    "voided": [
+                        {"authority": s.authority, "username": s.username, "review_digest": s.review_digest}
+                        for s in voided
+                    ],
+                    "review_digest": current,
+                },
+            )
+        return plan
+
+    def _sign(
+        self, task: Task, user: User, plan: list[RequiredSignature], comment: str | None, current: str
+    ) -> bool:
+        """Record the next signature; True when it was the last one needed.
+
+        The next signature is the next one in policy order, by a person who
+        has not signed this run: SOP-OPS-008 Clause 3.2 forbids approving a
+        recommendation one authored, so one account cannot fill both places.
+        """
+        approval = task.approval
+        assert approval is not None
+        given = approval.signatures
+        earlier = next((s for s in given if s.user_id == user.id), None)
+        if earlier is not None:
+            raise TaskError(
+                f"{user.display_name} has already signed this run as {earlier.authority} "
+                f"({earlier.capacity}). The same person cannot sign twice: an approver shall not "
+                "approve a recommendation they authored (SOP-OPS-008 Clause 3.2)."
+            )
+        if len(given) >= len(plan):
+            raise TaskError("Every required signature has already been given.")
+        needed = plan[len(given)]
+        if user.role != needed.role:
+            raise TaskError(
+                f"The next signature on this finding is the {needed.authority}'s, who "
+                f"{needed.capacity} it ({needed.clause or needed.rule}); role '{user.role}' cannot give it."
+            )
+        signature = ApprovalSignature(
+            role=user.role,
+            authority=needed.authority,
+            capacity=needed.capacity,
+            user_id=user.id,
+            username=user.username,
+            name=user.display_name,
+            comment=comment,
+            signed_at=datetime.now(timezone.utc),
+            review_digest=current,
+        )
+        given.append(signature)
+        complete = len(given) == len(plan)
+        task.updated_at = signature.signed_at
+        self.audit.record(
+            category="approval",
+            action="signature_recorded",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={
+                "authority": needed.authority,
+                "capacity": needed.capacity,
+                "clause": needed.clause,
+                "position": f"{len(given)} of {len(plan)}",
+                "comment": comment,
+                "review_digest": current,
+                "awaiting": None if complete else plan[len(given)].authority,
+            },
+        )
+        return complete
 
     def _certify(self, task: Task, user: User) -> dict | None:
         """Issue and store the run's signed certificate. A failure is audited, never fatal."""
@@ -834,6 +965,10 @@ class TaskService:
             )
         except ValueError as exc:
             raise TaskError(str(exc)) from exc
+        # The resolution changed what was signed: say so now, not only when
+        # the next signer tries.
+        if task.approval is not None:
+            self._refresh_signatures(task, user, review_digest(task))
         self._persist(task)
         return task
 

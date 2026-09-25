@@ -1830,6 +1830,7 @@ class AgentOrchestrator:
                 decision_claims=sum(
                     1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
                 ),
+                severity=_calculated_severity(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -1844,6 +1845,9 @@ class AgentOrchestrator:
                 reasons=reasons,
                 approver_roles=approvers,
                 decision="pending" if required else None,
+                required_signatures=(
+                    self.gateway.required_signatures(_calculated_severity(task)) if required else []
+                ),
             )
 
             if required:
@@ -2777,6 +2781,14 @@ class AgentOrchestrator:
                     "released": deliverable.released,
                 },
             )
+
+
+def _calculated_severity(task: Task) -> str | None:
+    """The severity the formula registry computed, never one a model wrote."""
+    assessment = task.assessment
+    if assessment is None or assessment.status != "calculated":
+        return None
+    return assessment.severity
 
 
 def _summarise(arguments: dict[str, Any]) -> dict[str, Any]:

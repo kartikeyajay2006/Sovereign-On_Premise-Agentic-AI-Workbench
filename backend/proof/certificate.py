@@ -97,7 +97,14 @@ def _body(task: Task) -> dict[str, Any]:
             {"required": task.approval.required, "decision": task.approval.decision,
              "reviewer_id": task.approval.reviewer_id,
              "decided_at": task.approval.decided_at.isoformat() if task.approval.decided_at else None,
-             "bound_digest": getattr(task.approval, "bound_digest", None)}
+             "bound_digest": getattr(task.approval, "bound_digest", None),
+             # Each signature of a multi-signature approval, with the digest
+             # it was given on (SOP-OPS-008 Clause 3.5).
+             "signatures": [
+                 {"authority": s.authority, "capacity": s.capacity, "user_id": s.user_id,
+                  "signed_at": s.signed_at.isoformat(), "review_digest": s.review_digest}
+                 for s in task.approval.signatures
+             ]}
             if task.approval else None
         ),
         "review_digest": review_digest(task),

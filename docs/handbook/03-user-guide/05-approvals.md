@@ -51,6 +51,8 @@ Approve or reject opens a dialog for an optional note. <kbd>Ctrl</kbd>/<kbd>⌘<
 - **Reject** marks it **Rejected**. Nothing is released.
 - **Request revision** sends it back to its submitter with your note, which is required. Nothing is released and nothing is rejected; the queue shows it as **Returned**.
 
+A **High** finding needs two signatures ([2.5](../02-concepts/05-approval.md#two-signatures-for-a-high-finding)). Sign in as `head_of_inspection` to recommend it: the button reads **Sign as Head of Inspection**, nothing is released, and the run shows **WAITING FOR SECOND AUTHORITY**. Then sign in as `plant_manager` and **Approve & release**. The **Signatures** section shows who has signed and when.
+
 Every decision is bound to the version you read. If the run changed while you had it open, because a conflict was resolved or a document re-rendered, the decision is refused with *This run has changed since you opened it*: reload and review what is there now.
 
 ### Resolving a conflict
