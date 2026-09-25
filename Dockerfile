@@ -17,9 +17,12 @@ COPY config ./config
 COPY policies ./policies
 COPY sample_data ./sample_data
 COPY scripts ./scripts
-COPY storage ./storage
 
-RUN mkdir -p storage/uploads storage/deliverables storage/index storage/logs storage/workspaces
+# storage/ is excluded from the build context (see .dockerignore): the image
+# carries empty directories, never a host's key, proofs or database.
+RUN mkdir -p storage/uploads storage/deliverables storage/index storage/logs storage/workspaces \
+    storage/keys storage/proofs storage/reports \
+    && chmod 700 storage/keys
 
 EXPOSE 8000
 

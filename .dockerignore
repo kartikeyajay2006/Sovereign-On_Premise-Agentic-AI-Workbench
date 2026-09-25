@@ -7,13 +7,9 @@ frontend/node_modules
 frontend/.next
 node_modules
 .next
-storage/*.db
-storage/*.db-*
-storage/uploads
-storage/deliverables
-storage/index
-storage/logs
-storage/workspaces
-!.gitkeep
+# Runtime state never enters an image: the signing key, proofs, reports,
+# the database and every upload stay on the host that made them. The
+# Dockerfile creates the empty directories instead.
+storage
 tests
 docs
