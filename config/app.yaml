@@ -91,7 +91,7 @@ knowledge_base:
 
 sandbox:
   enabled: true
-  runtime: subprocess           # subprocess | docker
+  runtime: subprocess           # subprocess | podman | docker
   timeout_seconds: 45
   max_memory_mb: 1024
   max_cpu_seconds: 30
@@ -102,10 +102,20 @@ sandbox:
   # workstation. Runaway forking is still contained.
   process_headroom: 64
   network_enabled: false
-  # Docker runtime options, used when runtime=docker.
-  docker_image: python:3.11-slim
-  docker_network: none
-  docker_read_only_rootfs: true
+  # Container runtime options, used when runtime is podman or docker. The
+  # runtime is used only when its binary exists AND a startup probe container
+  # proves no network, a read-only root, a non-root user, no capabilities and
+  # no-new-privileges on this host. Otherwise the reason is reported and
+  # container_fallback decides: subprocess (the sandbox above, labelled as a
+  # fallback) or refuse (no code runs). Network is always --network none and
+  # the root filesystem always read-only; neither is configurable.
+  container_image: localhost/aegis-sandbox:1   # built by infrastructure/sandbox/build.sh; never pulled
+  container_fallback: subprocess  # subprocess | refuse
+  container_require_rootless: true
+  container_cpus: 1.0
+  container_pids_limit: 64
+  container_tmpfs_mb: 64
+  container_probe_timeout_seconds: 90
   # Static validation: modules the generated code may never import.
   denied_imports:
     - socket

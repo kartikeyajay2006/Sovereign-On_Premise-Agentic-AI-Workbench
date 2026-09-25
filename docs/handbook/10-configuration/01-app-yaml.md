@@ -56,7 +56,7 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | Key | Default | | Meaning |
 |---|---|:--:|---|
 | `enabled` | `true` | ✅ | When false, no code runs |
-| `runtime` | `subprocess` | ✅ | Only `subprocess` is implemented. Any other value is reported as *config requests '…', not implemented* |
+| `runtime` | `subprocess` | ✅ | `subprocess`, `podman` or `docker`. A container runtime is used only when its binary exists and the startup probe proves isolation holds; see [9.3](../09-security/03-sandbox.md#the-container-runtime). Any other value is reported as *config requests '…', not implemented* |
 | `timeout_seconds` | `45` | ✅ | Wall-clock limit |
 | `max_memory_mb` | `1024` | ✅ | Address space (Linux), resident memory (macOS watchdog), or committed memory (Windows Job Object) |
 | `max_cpu_seconds` | `30` | ✅ | CPU time |
@@ -64,7 +64,11 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `max_written_file_bytes` | `26214400` | ✅ | Largest file the code may write |
 | `process_headroom` | `64` | ✅ | Processes allowed above the user's current count |
 | `network_enabled` | `false` | ✅ | Reported on the Sandbox screen. The shim blocks sockets regardless |
-| `docker_image`, `docker_network`, `docker_read_only_rootfs` | | ⚠️ | Reserved for a container runtime that is not implemented |
+| `container_image` | `localhost/aegis-sandbox:1` | ✅ | Built by `infrastructure/sandbox/build.sh`. Never pulled: a missing image fails the probe |
+| `container_fallback` | `subprocess` | ✅ | When the container runtime fails its probe: `subprocess` (labelled fallback) or `refuse`. Any other value means `refuse` |
+| `container_require_rootless` | `true` | ✅ | A runtime that is not rootless (or cannot say) fails the probe |
+| `container_cpus`, `container_pids_limit`, `container_tmpfs_mb` | `1.0`, `64`, `64` | ✅ | `--cpus`, `--pids-limit`, size of the `noexec` `/tmp` tmpfs |
+| `container_probe_timeout_seconds` | `90` | ✅ | Wall limit for the probe container |
 | `denied_imports` | 19 modules | ✅ | See [9.3](../09-security/03-sandbox.md#layer-1--static-validation) |
 | `denied_calls` | 12 names | ✅ | Including `open_host` |
 | `denied_attributes` | 5 dunders | ✅ | |
