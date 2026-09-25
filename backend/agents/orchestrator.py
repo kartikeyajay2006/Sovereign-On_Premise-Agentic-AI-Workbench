@@ -28,6 +28,12 @@ from backend.agents.verifier import get_verification_engine
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
+from backend.engineering.stage import (
+    as_deliverable_calculations,
+    assess_from_evidence,
+    prompt_block,
+    register_evidence,
+)
 from backend.core.schemas import (
     AgentPlan,
     ApprovalRecord,
@@ -1390,8 +1396,30 @@ class AgentOrchestrator:
                         )
                 self._mark_step(task, {"knowledge_search"}, "done")
 
+            # ------------------------------------ deterministic engineering
+            #
+            # Before any model writes arithmetic: if the evidence holds an
+            # inspection record, the registered formulas compute every rate,
+            # life, severity and due date from it, each input bound to the
+            # evidence cell it came from. The model is then told the figures.
+            engineered = await self._engineering_stage(task, user, ledger, profile)
+
             # ------------------------------------------ code execution
-            if profile.requires_code_execution or "python_exec" in planned_actions:
+            #
+            # A calculation the formulas have already answered needs no
+            # generated script: the registry is the authority, and a model's
+            # program would only be a second, less trustworthy opinion. An
+            # explicit request for code still gets code.
+            wants_code = profile.requires_code_execution or "python_exec" in planned_actions
+            if wants_code and engineered and profile.task_type != TaskType.CODING:
+                await self._stage(
+                    task,
+                    TaskStatus.EXECUTING,
+                    "No generated code: every requested figure was computed by registered formulas",
+                    {"skipped": True},
+                    phase="code_execution",
+                )
+            elif wants_code:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
@@ -1443,12 +1471,28 @@ class AgentOrchestrator:
 
             checked_calculations: list[dict[str, Any]] = []
             try:
-                calculations = await self._extract_calculations(task, user, answer_text)
-                calculation_check, checked_calculations = self.verifier.check_calculations(
-                    calculations,
-                    required=profile.task_type == TaskType.CALCULATION,
-                )
-                checks.append(calculation_check)
+                if engineered and profile.task_type != TaskType.CODING:
+                    # The figures came from the registry, not from the model;
+                    # engineering_verification below checks the answer against
+                    # them, which is stronger than recomputing the model's own
+                    # expressions, and saves a model call.
+                    checks.append(VerificationCheck(
+                        name="calculation_verification",
+                        kind="calculation",
+                        passed=True,
+                        detail=(
+                            f"{sum(1 for r in task.calculations if r.status == 'calculated')} figure(s) were "
+                            "computed by registered formulas from the evidence, not by the model."
+                        ),
+                        evidence_ids=list(task.assessment.evidence_ids) if task.assessment else [],
+                    ))
+                else:
+                    calculations = await self._extract_calculations(task, user, answer_text)
+                    calculation_check, checked_calculations = self.verifier.check_calculations(
+                        calculations,
+                        required=profile.task_type == TaskType.CALCULATION,
+                    )
+                    checks.append(calculation_check)
             except TaskCancelled:
                 # A stop is not a check that failed. Caught by the clause
                 # below it would have been filed in the verification report
@@ -1480,6 +1524,10 @@ class AgentOrchestrator:
                         )
                     )
 
+            if task.assessment is not None:
+                checks.append(
+                    self.verifier.check_engineering(answer_text, task.assessment, task.calculations)
+                )
             checks.append(self.verifier.check_code(sandbox_result))
 
             # ---------------------------------------------- deliverable
@@ -1492,7 +1540,8 @@ class AgentOrchestrator:
                 )
                 self._mark_step(task, {"document_generate"}, "running")
                 draft_content = await self._draft(
-                    task, user, answer_text, evidence, checked_calculations
+                    task, user, answer_text, evidence,
+                    [*as_deliverable_calculations(task.calculations), *checked_calculations],
                 )
                 # Persist the exact structured source that is handed to the
                 # renderer. The workbench can now offer an in-place reading
@@ -1592,7 +1641,10 @@ class AgentOrchestrator:
                 # The deliverable is rendered but held unreleased until a human
                 # decides. Draft content is carried on the task for the reviewer.
                 if draft_content is not None:
-                    await self._render_deliverable(task, context, draft_content, evidence, checked_calculations)
+                    await self._render_deliverable(
+                        task, context, draft_content, evidence,
+                        [*as_deliverable_calculations(task.calculations), *checked_calculations],
+                    )
                 await self._stage(
                     task,
                     TaskStatus.AWAITING_APPROVAL,
@@ -1609,7 +1661,10 @@ class AgentOrchestrator:
                 )
             else:
                 if draft_content is not None:
-                    await self._render_deliverable(task, context, draft_content, evidence, checked_calculations)
+                    await self._render_deliverable(
+                        task, context, draft_content, evidence,
+                        [*as_deliverable_calculations(task.calculations), *checked_calculations],
+                    )
                     for deliverable in task.deliverables:
                         deliverable.released = True
                 await self._stage(task, TaskStatus.DELIVERED, "Task complete")
@@ -1769,6 +1824,72 @@ class AgentOrchestrator:
             ):
                 step.status = status  # type: ignore[assignment]
 
+    async def _engineering_stage(
+        self, task: Task, user: User, ledger: EvidenceLedger, profile: TaskProfile
+    ) -> bool:
+        """Assess an inspection record with the formula registry, if there is one.
+
+        Returns True only when every figure was calculated. A record found but
+        incomplete produces a *cannot calculate* assessment that names what is
+        missing, which the model is told to state rather than estimate.
+        """
+        if not task.files and profile.task_type != TaskType.CALCULATION:
+            return False
+        result = assess_from_evidence(
+            ledger.items, include_retrieved=profile.task_type == TaskType.CALCULATION
+        )
+        if result is None:
+            if profile.task_type == TaskType.CALCULATION:
+                await self._stage(
+                    task,
+                    TaskStatus.EXECUTING,
+                    "No inspection record in the evidence for the formula registry to assess",
+                    {"skipped": True},
+                    phase="engineering",
+                )
+            return False
+        records, assessment = result
+        await self._stage(
+            task,
+            TaskStatus.EXECUTING,
+            f"Computing {assessment.subject} with registered engineering formulas",
+            phase="engineering",
+        )
+        register_evidence(records, assessment, ledger.items, ledger.add)
+        task.calculations = records
+        task.assessment = assessment
+        self._persist_evidence(task)
+        self._checkpoint(task)
+        calculated = [record for record in records if record.status == "calculated"]
+        await self._emit(task, "task.calculation", {
+            "assessment": assessment.model_dump(mode="json"),
+            "calculated": len(calculated),
+            "not_calculated": [
+                {"formula": record.formula_id, "subject": record.subject, "reason": record.reason}
+                for record in records if record.status != "calculated"
+            ],
+        })
+        self.audit.record(
+            category="engineering",
+            action="assessed" if assessment.status == "calculated" else "cannot_calculate",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={
+                "subject": assessment.subject,
+                "kind": assessment.kind,
+                "status": assessment.status,
+                "governing_location": assessment.governing_location,
+                "remaining_life_years": assessment.remaining_life_years,
+                "severity": assessment.severity,
+                "missing": assessment.missing,
+                "formulas": sorted({f"{r.formula_id}@{r.formula_version}" for r in records}),
+                "result_hashes": [r.result_hash for r in calculated],
+                "inputs_from": assessment.source_evidence_ids,
+            },
+        )
+        return assessment.status == "calculated"
+
     async def _run_code_stage(
         self,
         task: Task,
@@ -1909,6 +2030,7 @@ class AgentOrchestrator:
             # The extraction itself is page-labelled evidence now, cited by its
             # [V...] identifier; repeating it here as JSON would only cost tokens.
             extraction_block = "\nVisual content is recorded in the page-labelled evidence below.\n"
+        extraction_block += prompt_block(task.assessment, task.calculations)
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
                 "\nOutput of code executed in the secure sandbox:\n"

@@ -1,6 +1,8 @@
 import type {
   Deliverable,
+  CalculationRecord,
   DeliverableContent,
+  IntegrityAssessment,
   EvidenceItem,
   ModelUsage,
   PipelineStage,
@@ -143,6 +145,9 @@ export interface AssistantTurn {
   deliverable: (Deliverable & { sizeKb: number }) | null
   /** The structured source rendered into `deliverable`, retained for reading in place. */
   deliverableContent: DeliverableContent | null
+  /** Computed by the formula registry, never by the model. */
+  assessment: IntegrityAssessment | null
+  calculations: CalculationRecord[]
   /** Why the run was refused, when it was. */
   denialReason: string | null
   /** Surfaced rather than swallowed. */

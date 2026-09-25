@@ -285,6 +285,80 @@ class EvidenceItem(BaseModel):
     )
 
 
+# --------------------------------------------------------------- engineering
+class CalculationInput(BaseModel):
+    """One formula input and the exact place it was read from."""
+
+    name: str
+    # As written in the source ("11.6", "6.0 mm (INS-014 Cl. 3.2)").
+    stated: str | None = None
+    # Normalised: a number in `unit`, an ISO date, text, a list or a flag.
+    value: Any = None
+    unit: str | None = None
+    evidence_id: str | None = None
+    # Where inside that evidence: "readings table · row 'Shell course 2 (mid)' · column 2026".
+    locator: str | None = None
+    source_text: str | None = None
+
+
+class CalculationRecord(BaseModel):
+    """One evaluation of a registered formula, calculated or not.
+
+    `status` is `calculated`, `cannot_calculate` (an input is missing: named
+    in `missing`) or `refused` (an input is malformed, e.g. a pressure where a
+    thickness belongs: stated in `reason`). The hashes make the record
+    reproducible: the same formula version on the same inputs always yields
+    the same `result_hash`.
+    """
+
+    formula_id: str
+    formula_version: int
+    title: str
+    clause: str | None = None
+    expression: str
+    subject: str | None = None
+    status: Literal["calculated", "cannot_calculate", "refused"]
+    inputs: list[CalculationInput] = Field(default_factory=list)
+    outputs: dict[str, Any] = Field(default_factory=dict)
+    display: str | None = None
+    missing: list[str] = Field(default_factory=list)
+    reason: str | None = None
+    formula_hash: str
+    input_hash: str | None = None
+    result_hash: str | None = None
+    # The C evidence item that carries this record in the run's ledger.
+    evidence_id: str | None = None
+
+
+class IntegrityAssessment(BaseModel):
+    """The asset-integrity decision a run's calculations add up to."""
+
+    kind: Literal["vessel", "piping"]
+    subject: str
+    status: Literal["calculated", "cannot_calculate"]
+    report: str | None = None
+    governing_location: str | None = None
+    governing_rate_mm_yr: float | None = None
+    governing_rate_is: str | None = None
+    remaining_life_years: float | None = None
+    t_min_mm: float | None = None
+    locations_below_t_min: list[str] = Field(default_factory=list)
+    local_metal_loss_percent: float | None = None
+    severity: str | None = None
+    severity_basis: str | None = None
+    required_action: str | None = None
+    approver: str | None = None
+    ffs_triggers: list[str] = Field(default_factory=list)
+    next_due: str | None = None
+    interval_months: int | None = None
+    next_due_basis: str | None = None
+    missing: list[str] = Field(default_factory=list)
+    # Every C evidence item this decision rests on, and the source evidence
+    # its inputs were read from.
+    evidence_ids: list[str] = Field(default_factory=list)
+    source_evidence_ids: list[str] = Field(default_factory=list)
+
+
 # --------------------------------------------------------------------- tools
 class ToolCall(BaseModel):
     id: str
@@ -448,6 +522,11 @@ class Task(BaseModel):
     # a reload. It is not an alternate, unverified answer: the normal answer
     # and verification report remain the run's authority.
     deliverable_content: dict[str, Any] | None = None
+    # Deterministic engineering: every registered-formula evaluation this run
+    # made, and the integrity decision they add up to. The model does not
+    # author these figures; it is told them.
+    calculations: list[CalculationRecord] = Field(default_factory=list)
+    assessment: IntegrityAssessment | None = None
     policy_events: list[PolicyEvent] = Field(default_factory=list)
     answer: str | None = None
     error: str | None = None

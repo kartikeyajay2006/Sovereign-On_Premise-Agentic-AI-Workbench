@@ -106,6 +106,13 @@ task_types:
         - {match: "unit test", weight: 3}
       produces_deliverable: true
     calculation:
+      # A calculation always runs code and fails verification without a
+      # recomputable expression, so it must be something the request asks to
+      # compute. A single quantity noun ("thickness", "how much", "flow rate",
+      # weight 3) is too weak: "what minimum thickness applies?" is a lookup.
+      # A verb ("calculate", "compute") or a derived quantity ("corrosion
+      # rate", "remaining life") clears the bar on its own.
+      min_score: 4
       patterns:
         - {match: "calculate", weight: 5}
         - {match: "compute", weight: 4}

@@ -355,3 +355,25 @@ class TestVerificationEngine:
         )
         assert not check.passed
         assert any("citation" in warning for warning in check.warnings)
+
+    def test_citations_in_bullets_and_findings_count(self, engine) -> None:
+        # The live V-2104 approval note cited [C5] and [C10] in its bullets
+        # and findings, which the rendered note prints, and was still failed
+        # for having "no inline citations" because only bodies were read.
+        evidence = [
+            EvidenceItem(id="C5", source_document="registry", excerpt="0.55", classification=Sensitivity.NORMAL)
+        ]
+        check = engine.check_document(
+            {
+                "title": "Approval note",
+                "sections": [{
+                    "heading": "Corrosion",
+                    "body": "The governing location is Shell course 2 (mid).",
+                    "bullets": ["[C5] governing corrosion rate 0.55 mm/year"],
+                }],
+                "findings": [{"description": "Medium", "severity": "Medium", "reference": "[C10]"}],
+                "recommendation": "Repair in the shutdown window",
+            },
+            evidence,
+        )
+        assert check.passed, check.warnings

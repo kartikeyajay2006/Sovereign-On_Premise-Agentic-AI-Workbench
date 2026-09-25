@@ -24,7 +24,9 @@ from typing import Any
 
 from backend.core.config import get_config
 from backend.core.schemas import (
+    CalculationRecord,
     EvidenceItem,
+    IntegrityAssessment,
     SandboxResult,
     VerificationCheck,
     VerificationReport,
@@ -32,6 +34,10 @@ from backend.core.schemas import (
 from backend.tools.sandbox import get_sandbox
 
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+# Figures an answer states, for comparison with the formula registry.
+RATE_IN_TEXT = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*(?:/|per)\s*(?:yr|year|y)\b", re.IGNORECASE)
+LIFE_IN_TEXT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b", re.IGNORECASE)
+SEVERITY_WORD = re.compile(r"\b(high|medium|low|severe|critical|moderate|minor|major)\b", re.IGNORECASE)
 # A model asked for a number will sometimes answer "19.9 mm" or "about 6.2".
 # Verification reads model output, which is untrusted input, so the figure is
 # recovered rather than assumed.
@@ -508,6 +514,101 @@ class VerificationEngine:
         )
 
     # -- code --------------------------------------------------------------
+    # -- deterministic engineering -----------------------------------------
+    def check_engineering(
+        self,
+        text: str,
+        assessment: IntegrityAssessment,
+        records: list[CalculationRecord],
+    ) -> VerificationCheck:
+        """Every rate, life and severity the answer states must be the registry's.
+
+        The formula registry computed these figures from the evidence. An
+        answer that states a different corrosion rate, a remaining life no
+        formula produced, or a severity band other than the computed one is
+        contradicting the calculation, whatever its citations say. This is the
+        check a wrong figure written as prose used to walk past.
+        """
+        decision = next((r.evidence_id for r in records if (r.subject or "").endswith("· decision")), None)
+        if assessment.status != "calculated":
+            stated = RATE_IN_TEXT.findall(text or "") or LIFE_IN_TEXT.findall(text or "")
+            return VerificationCheck(
+                name="engineering_verification",
+                kind="calculation",
+                passed=not stated,
+                detail=(
+                    f"Cannot calculate: missing {', '.join(assessment.missing)}. The answer states figures "
+                    "the evidence cannot support." if stated else
+                    f"Cannot calculate: missing {', '.join(assessment.missing)}. The answer states no figure "
+                    "in their place."
+                ),
+                evidence_ids=list(assessment.evidence_ids),
+            )
+
+        rates = sorted({round(float(v["value"]), 6) for r in records if r.status == "calculated"
+                        for k, v in r.outputs.items() if v.get("unit") == "mm/year" and v.get("value") is not None})
+        lives = sorted({round(float(v["value"]), 4) for r in records if r.status == "calculated"
+                        for k, v in r.outputs.items() if k == "remaining_life" and v.get("value") is not None})
+        years_known = sorted({round(float(i.value), 4) for r in records for i in r.inputs
+                              if i.unit == "year" and isinstance(i.value, (int, float))}
+                             | {round(float(v["value"]), 4) for r in records for k, v in r.outputs.items()
+                                if v.get("unit") == "year" and v.get("value") is not None})
+
+        def close(value: float, known: list[float]) -> bool:
+            return any(abs(value - k) <= max(0.005, abs(k) * 0.01) for k in known)
+
+        problems: list[str] = []
+        for match in RATE_IN_TEXT.finditer(text or ""):
+            value = float(match.group(1))
+            if not close(value, rates):
+                problems.append(
+                    f"the answer states {value:g} mm/year, but the formula registry computed "
+                    f"{assessment.governing_rate_mm_yr:g} mm/year at the governing location "
+                    f"({assessment.governing_location})"
+                )
+        for sentence in SENTENCE_SPLIT.split(text or ""):
+            if not re.search(r"remaining\s+life|life\s+of", sentence, re.IGNORECASE):
+                continue
+            for match in LIFE_IN_TEXT.finditer(sentence):
+                value = float(match.group(1))
+                if not close(value, lives) and not close(value, years_known):
+                    problems.append(
+                        f"the answer states a remaining life of {value:g} years; the registry computed "
+                        f"{assessment.remaining_life_years:g} years at {assessment.governing_location}"
+                        if assessment.remaining_life_years is not None
+                        else f"the answer states a remaining life of {value:g} years that no formula produced"
+                    )
+        if assessment.severity:
+            for sentence in SENTENCE_SPLIT.split(text or ""):
+                anchor = sentence.lower().find("severity")
+                bands = list(SEVERITY_WORD.finditer(sentence))
+                if anchor < 0 or not bands:
+                    continue
+                # The band the sentence assigns is the one nearest the word
+                # "severity": "a Medium severity finding, not High" says Medium.
+                band = min(bands, key=lambda m: abs(m.start() - anchor)).group(1)
+                if band.lower() != assessment.severity.lower():
+                    problems.append(
+                        f"the answer classifies the finding as {band}, but the severity computed under "
+                        f"the procedures is {assessment.severity.capitalize()} ({assessment.severity_basis})"
+                    )
+        problems = list(dict.fromkeys(problems))
+        return VerificationCheck(
+            name="engineering_verification",
+            kind="calculation",
+            passed=not problems,
+            detail=(
+                "Every rate, remaining life and severity the answer states matches the formula registry "
+                f"({assessment.governing_location}: {assessment.governing_rate_mm_yr:g} mm/year, "
+                + (f"{assessment.remaining_life_years:g} years" if assessment.remaining_life_years is not None
+                   else "not limited by corrosion")
+                + (f", {assessment.severity.capitalize()}" if assessment.severity else "") + ")."
+                if not problems else "; ".join(problems[:4]) + "."
+            ),
+            evidence_ids=[i for i in [decision, *assessment.evidence_ids] if i],
+            warnings=problems[:5],
+        )
+
     def check_code(self, result: SandboxResult | None) -> VerificationCheck:
         if result is None:
             return VerificationCheck(
@@ -561,9 +662,17 @@ class VerificationEngine:
         sections = content.get("sections") or []
         if not sections:
             problems.append("document has no body sections")
+        # Everything the rendered note prints: bodies, bullets, the summary
+        # and each finding's reference. Reading bodies alone failed a note
+        # whose citations sat in its bullets and findings.
         body_text = " ".join(
-            str(section.get("body", "")) for section in sections
-        ) + " " + str(content.get("summary") or "")
+            " ".join([str(section.get("body", "")), *map(str, section.get("bullets") or [])])
+            for section in sections
+        ) + " " + str(content.get("summary") or "") + " " + " ".join(
+            str(finding.get("reference") or "") + " " + str(finding.get("description") or "")
+            for finding in content.get("findings") or []
+            if isinstance(finding, dict)
+        )
         if evidence and not CITATION_PATTERN.search(body_text):
             problems.append(
                 "evidence was retrieved but the draft contains no inline citations"

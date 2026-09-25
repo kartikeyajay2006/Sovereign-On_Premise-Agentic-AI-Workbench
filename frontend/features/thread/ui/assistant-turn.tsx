@@ -9,6 +9,7 @@ import type { DeliverableContent, EvidenceItem, ModelDescriptor } from '@/lib/ty
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
 import { AegisLogo } from '@/components/aegis-logo'
 import { AnswerActions } from './answer-actions'
+import { IntegrityCard } from './integrity-card'
 import { RunTranscript, citeLabel } from './run-transcript'
 import { UsageFooter } from './usage-footer'
 
@@ -813,6 +814,15 @@ export const AssistantTurn = memo(function AssistantTurn({
           </div>
         )}
       </DimScope>
+
+      {/* ── Zone 3½ — the integrity decision ──────────────────────────
+          Computed by the formula registry from the evidence, not by the
+          model: every figure carries the C item that holds its formula,
+          inputs and hash. Shown once the run has settled, beside the answer
+          it constrains. */}
+      {turn.assessment && !running && (
+        <IntegrityCard assessment={turn.assessment} records={turn.calculations} onCite={cite} />
+      )}
 
       {/* ── Zone 4 — the deliverable ──────────────────────────────────── */}
       {turn.deliverable && (

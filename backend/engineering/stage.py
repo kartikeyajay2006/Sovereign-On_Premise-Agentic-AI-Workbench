@@ -1,0 +1,178 @@
+"""The engineering stage of a run, kept out of the orchestrator's body.
+
+It finds an inspection record in the run's evidence, assesses it with the
+registered formulas, turns the records into citable ``C`` evidence, and
+writes the block the model is shown. The model is told the figures; it does
+not produce them.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from backend.core.schemas import (
+    CalculationRecord,
+    EvidenceItem,
+    IntegrityAssessment,
+    Sensitivity,
+)
+from backend.engineering.assessment import assess_piping, assess_vessel
+from backend.engineering.extraction import piping_inputs, vessel_inputs
+from backend.engineering.formulas import output_value
+
+_RANK = {Sensitivity.NORMAL: 0, Sensitivity.CONFIDENTIAL: 1, Sensitivity.SENSITIVE: 2, Sensitivity.RESTRICTED: 3}
+
+
+def assess_from_evidence(
+    evidence: list[EvidenceItem], *, include_retrieved: bool = False
+) -> tuple[list[CalculationRecord], IntegrityAssessment] | None:
+    """A vessel assessment from attachments and scans, else a piping one.
+
+    Retrieved knowledge-base passages are considered only for a request that
+    is itself a calculation: a question that merely retrieves a survey record
+    has not asked for its arithmetic.
+    """
+    vessel = vessel_inputs(evidence)
+    if vessel is not None:
+        return assess_vessel(vessel)
+    pool = [item for item in evidence if item.kind in ("uploaded_file", "vision_extraction")]
+    if include_retrieved:
+        pool += [item for item in evidence if item.kind == "knowledge_base"]
+    piping = piping_inputs(pool)
+    if piping is not None:
+        return assess_piping(piping)
+    return None
+
+
+def _group(records: list[CalculationRecord]) -> list[tuple[str, list[CalculationRecord]]]:
+    groups: dict[str, list[CalculationRecord]] = {}
+    for record in records:
+        groups.setdefault(record.subject or "calculation", []).append(record)
+    # The decision last, after the per-location work it summarises.
+    return sorted(groups.items(), key=lambda pair: pair[0].endswith("· decision"))
+
+
+def register_evidence(
+    records: list[CalculationRecord],
+    assessment: IntegrityAssessment,
+    evidence: list[EvidenceItem],
+    add: Callable[[EvidenceItem], EvidenceItem],
+) -> list[str]:
+    """One C item per subject; every record learns which C item carries it."""
+    sources = [item for item in evidence if item.id in set(assessment.source_evidence_ids)]
+    classification = max(
+        (item.classification for item in sources), key=lambda level: _RANK.get(level, 0),
+        default=Sensitivity.NORMAL,
+    )
+    ids: list[str] = []
+    for subject, group in _group(records):
+        lines = []
+        for record in group:
+            if record.status == "calculated":
+                lines.append(f"{record.title}: {record.display}")
+            else:
+                lines.append(f"{record.title}: {record.reason}")
+        item = add(EvidenceItem(
+            id="pending",
+            source_document="formula registry",
+            location=subject,
+            excerpt="; ".join(lines)[:2000],
+            extraction_method="formula",
+            extraction_model=", ".join(sorted({f"{r.formula_id}@{r.formula_version}" for r in group})),
+            extraction_data={
+                "result_hashes": [r.result_hash for r in group if r.result_hash],
+                "inputs_from": sorted({i.evidence_id for r in group for i in r.inputs if i.evidence_id}),
+            },
+            classification=classification,
+            kind="computation",
+        ))
+        for record in group:
+            record.evidence_id = item.id
+        ids.append(item.id)
+    assessment.evidence_ids = ids
+    return ids
+
+
+def _decision_id(assessment: IntegrityAssessment, records: list[CalculationRecord]) -> str | None:
+    for record in records:
+        if (record.subject or "").endswith("· decision") and record.evidence_id:
+            return record.evidence_id
+    return assessment.evidence_ids[-1] if assessment.evidence_ids else None
+
+
+def _location_id(assessment: IntegrityAssessment, records: list[CalculationRecord]) -> str | None:
+    target = f"{assessment.subject} · {assessment.governing_location}"
+    return next((r.evidence_id for r in records if r.subject == target and r.evidence_id), None)
+
+
+def prompt_block(assessment: IntegrityAssessment | None, records: list[CalculationRecord]) -> str:
+    """What the model is told. Figures stated here are the only ones it may use."""
+    if assessment is None:
+        return ""
+    if assessment.status != "calculated":
+        return (
+            "\nDeterministic engineering: CANNOT CALCULATE for "
+            f"{assessment.subject}. Missing from the evidence: {', '.join(assessment.missing) or 'required inputs'}. "
+            "Say plainly that these figures cannot be calculated from the evidence provided, name what is "
+            "missing, and do not estimate them.\n"
+        )
+    decision = _decision_id(assessment, records)
+    governing = _location_id(assessment, records)
+    lines = [
+        "",
+        "Deterministic engineering results. These were computed by registered formulas from the evidence, "
+        "not by you. State these figures exactly as given, cite the bracketed identifier, and never "
+        "recompute them, round them differently or add figures of your own.",
+        f"[{governing or decision}] {assessment.subject}: governing location {assessment.governing_location}; "
+        f"governing corrosion rate {assessment.governing_rate_mm_yr:g} mm/year ({assessment.governing_rate_is} governs); "
+        f"remaining life {assessment.remaining_life_years:g} years."
+        if assessment.remaining_life_years is not None
+        else f"[{governing or decision}] {assessment.subject}: governing location {assessment.governing_location}; "
+        "no measurable corrosion, so remaining life is not limited by corrosion.",
+    ]
+    if assessment.severity:
+        lines.append(
+            f"[{decision}] Severity {assessment.severity.capitalize()}. Basis: {assessment.severity_basis}. "
+            f"Required action: {assessment.required_action}. Approving authority: {assessment.approver}."
+        )
+    if assessment.locations_below_t_min:
+        lines.append(f"[{decision}] Below t-min: {', '.join(assessment.locations_below_t_min)}.")
+    if assessment.ffs_triggers:
+        lines.append(f"[{decision}] Fitness-For-Service triggers: {'; '.join(assessment.ffs_triggers)}.")
+    elif assessment.kind == "vessel":
+        lines.append(f"[{decision}] No Fitness-For-Service trigger applies "
+                     f"(local metal loss {assessment.local_metal_loss_percent:g}% of nominal).")
+    if assessment.next_due:
+        lines.append(f"[{decision}] Next {'thickness survey' if assessment.kind == 'vessel' else 'measurement'} "
+                     f"due {assessment.next_due} ({assessment.next_due_basis}).")
+    others = []
+    for record in records:
+        if record.formula_id == "integrity.remaining_life" and record.status == "calculated":
+            location = (record.subject or "").split(" · ", 1)[-1]
+            if location != assessment.governing_location:
+                life = output_value(record, "remaining_life")
+                others.append(f"{location} {life:g} years" if life is not None else f"{location} not limited")
+    if others:
+        lines.append("Remaining life at the other locations: " + "; ".join(others) + ".")
+    return "\n".join(lines) + "\n"
+
+
+def as_deliverable_calculations(records: list[CalculationRecord]) -> list[dict[str, Any]]:
+    """The shape the document renderer's Calculations section reads."""
+    rows: list[dict[str, Any]] = []
+    for record in records:
+        if record.status != "calculated" or record.formula_id in ("integrity.below_t_min", "time.years_between"):
+            continue
+        primary = next(iter(record.outputs.items()), None)
+        if primary is None:
+            continue
+        name, entry = primary
+        rows.append({
+            "label": f"{record.title} — {record.subject}" if record.subject else record.title,
+            "expression": record.display or record.expression,
+            "recomputed": entry.get("value"),
+            "units": entry.get("unit") or "",
+            "matched": True,
+            "source": f"{record.formula_id}@{record.formula_version} [{record.evidence_id}]",
+        })
+    return rows

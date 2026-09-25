@@ -165,3 +165,20 @@ export function ingest(
   form.append('version', fields.version)
   return request<KnowledgeDocument>('/knowledge/documents', { method: 'POST', body: form })
 }
+
+/** One registered engineering formula, as GET /api/engineering/formulas lists it. */
+export interface FormulaEntry {
+  id: string
+  version: number
+  key: string
+  title: string
+  clause: string
+  expression: string
+  inputs: { name: string; kind: string; dimension: string | null; description: string; optional: boolean }[]
+  outputs: string[]
+  source_sha256: string
+}
+
+export function readFormulas(signal?: AbortSignal) {
+  return request<FormulaEntry[]>('/engineering/formulas', { signal })
+}

@@ -80,6 +80,8 @@ function recordFields(task: Task) {
     verification: task.verification?.checks || [],
     deliverable: first ? { ...first, sizeKb: Math.round(first.size_bytes / 1024) } : null,
     deliverableContent: task.deliverable_content ?? null,
+    assessment: task.assessment ?? null,
+    calculations: task.calculations ?? [],
     denialReason: task.error || null,
     elapsedMs: task.duration_ms ?? null,
     usage: task.usage || [],
@@ -157,6 +159,8 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     verification: [],
     deliverable: null,
     deliverableContent: null,
+    assessment: null,
+    calculations: [],
     denialReason: null,
     error: null,
     startedAt: at,
@@ -520,6 +524,11 @@ export function ThreadView() {
               return fresh.length ? { ...t, evidence: [...t.evidence, ...fresh] } : t
             })
           }
+          return
+
+        // The integrity decision, as the formula registry computed it.
+        case 'task.calculation':
+          if (data.assessment) patchTask(id, (t) => ({ ...t, assessment: data.assessment }))
           return
 
         // The verification report arrives unwrapped.

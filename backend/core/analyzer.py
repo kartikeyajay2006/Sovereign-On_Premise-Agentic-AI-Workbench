@@ -81,7 +81,11 @@ class TaskAnalyzer:
                         dimension="", value=name, score=round(score, 2), matched=matched
                     )
                 )
-            if score > best_score:
+            # A class may demand a minimum signal before it can win. The signal
+            # is still reported above, so a transcript shows that "thickness"
+            # was seen and judged too weak to make a lookup a calculation.
+            threshold = float(definition.get("min_score", 0))
+            if score > best_score and score >= threshold:
                 best_name, best_score = name, score
 
         return best_name, best_score, signals

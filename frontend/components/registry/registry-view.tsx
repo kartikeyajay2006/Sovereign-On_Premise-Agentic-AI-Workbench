@@ -8,14 +8,15 @@ import { useToast } from '@/components/toast'
 import { Button } from '@/shared/ui/controls/button'
 import { Tabs, tabPanelProps } from '@/shared/ui/controls/tabs'
 import { FailureState, ReadingLine, clockTime, useReading } from '@/shared/ui/data/reading'
-import { readDocuments, readModels, readUploads } from './api'
+import { readDocuments, readFormulas, readModels, readUploads } from './api'
+import { FormulaRegistry } from './formula-registry'
 import { IngestDialog } from './ingest-dialog'
 import { ModelEstate } from './model-estate'
 import { RetrievalTester } from './retrieval-tester'
 import { DocumentsTable, UploadsTable } from './tables'
 
-type Tab = 'documents' | 'retrieval' | 'models' | 'uploads'
-const TABS: Tab[] = ['documents', 'retrieval', 'models', 'uploads']
+type Tab = 'documents' | 'retrieval' | 'models' | 'formulas' | 'uploads'
+const TABS: Tab[] = ['documents', 'retrieval', 'models', 'formulas', 'uploads']
 const ID = 'knowledge'
 
 /**
@@ -38,6 +39,7 @@ export function RegistryView() {
   const documents = useReading((signal) => readDocuments(signal), [])
   const uploads = useReading((signal) => readUploads(signal), [])
   const models = useReading((signal) => readModels(signal), [], { enabled: modelsWanted })
+  const formulas = useReading((signal) => readFormulas(signal), [])
 
   useEffect(() => {
     const fromHash = window.location.hash.replace('#', '') as Tab
@@ -106,6 +108,7 @@ export function RegistryView() {
             { value: 'documents', label: 'Documents', count: docs?.length ?? null },
             { value: 'retrieval', label: 'Retrieval test' },
             { value: 'models', label: 'Models', count: models.data ? models.data[1].length : null },
+            { value: 'formulas', label: 'Formulas', count: formulas.data?.length ?? null },
             { value: 'uploads', label: 'Uploads', count: uploads.data?.length ?? null },
           ]}
         />
@@ -131,6 +134,15 @@ export function RegistryView() {
               <ReadingLine what="the model registry" source="GET /api/models/status" startedAt={models.startedAt} />
             ) : (
               <ModelEstate status={models.data[0]} models={models.data[1]} />
+            ))}
+
+          {tab === 'formulas' &&
+            (formulas.status === 'failed' && !formulas.data ? (
+              <FailureState failure={formulas.failure!} what="the formula registry" retry={formulas.reload} />
+            ) : !formulas.data ? (
+              <ReadingLine what="the formula registry" source="GET /api/engineering/formulas" startedAt={formulas.startedAt} />
+            ) : (
+              <FormulaRegistry formulas={formulas.data} />
             ))}
 
           {tab === 'uploads' &&

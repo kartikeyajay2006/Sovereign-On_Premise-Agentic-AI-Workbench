@@ -87,7 +87,7 @@ export const DEFAULT_PIPELINE: PipelineStage[] = [
   stage('plan', '02', 'Plan'),
   stage('read', '03', 'Read'),
   stage('retrieve', '04', 'Retrieve'),
-  stage('sandbox', '05', 'Sandbox'),
+  stage('sandbox', '05', 'Compute'),
   stage('draft', '06', 'Draft'),
   stage('verify', '07', 'Verify'),
 ]

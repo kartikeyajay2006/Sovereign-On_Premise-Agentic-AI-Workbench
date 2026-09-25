@@ -318,6 +318,63 @@ export interface ModelUsage {
   started_at: string
 }
 
+/** One registered-formula input and exactly where it was read from. */
+export interface CalculationInput {
+  name: string
+  stated?: string | null
+  value?: unknown
+  unit?: string | null
+  evidence_id?: string | null
+  locator?: string | null
+  source_text?: string | null
+}
+
+/** One evaluation of a registered engineering formula. */
+export interface CalculationRecord {
+  formula_id: string
+  formula_version: number
+  title: string
+  clause?: string | null
+  expression: string
+  subject?: string | null
+  status: 'calculated' | 'cannot_calculate' | 'refused'
+  inputs: CalculationInput[]
+  outputs: Record<string, { value: unknown; unit: string | null }>
+  display?: string | null
+  missing: string[]
+  reason?: string | null
+  formula_hash: string
+  input_hash?: string | null
+  result_hash?: string | null
+  evidence_id?: string | null
+}
+
+/** The asset-integrity decision a run's calculations add up to. */
+export interface IntegrityAssessment {
+  kind: 'vessel' | 'piping'
+  subject: string
+  status: 'calculated' | 'cannot_calculate'
+  report?: string | null
+  governing_location?: string | null
+  governing_rate_mm_yr?: number | null
+  governing_rate_is?: string | null
+  remaining_life_years?: number | null
+  t_min_mm?: number | null
+  locations_below_t_min: string[]
+  local_metal_loss_percent?: number | null
+  severity?: string | null
+  severity_basis?: string | null
+  required_action?: string | null
+  approver?: string | null
+  ffs_triggers: string[]
+  next_due?: string | null
+  interval_months?: number | null
+  next_due_basis?: string | null
+  missing: string[]
+  evidence_ids: string[]
+  source_evidence_ids: string[]
+}
+
 export interface Task {
   id: string
   prompt: string
@@ -344,6 +401,10 @@ export interface Task {
   approval?: ApprovalRecord | null
   deliverables: Deliverable[]
   deliverable_content?: DeliverableContent | null
+  /** Every registered-formula evaluation this run made. */
+  calculations?: CalculationRecord[]
+  /** The integrity decision those calculations add up to. */
+  assessment?: IntegrityAssessment | null
   policy_events?: any[]
   answer?: string | null
   error?: string | null

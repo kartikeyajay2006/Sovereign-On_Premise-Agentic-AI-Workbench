@@ -24,6 +24,7 @@ export const PHASE_TO_STAGE: Record<string, string> = {
   planning: 'plan',
   retrieval: 'retrieve',
   code_execution: 'sandbox',
+  engineering: 'sandbox',
   reasoning: 'draft',
   verification: 'verify',
   deliverable: 'draft',
@@ -246,7 +247,7 @@ export function stagesFromTask(
     plan: Boolean(task.plan),
     read: (task.files || []).length > 0 || usage.some((u) => u.stage === 'vision_extraction'),
     retrieve: tools.includes('knowledge_search'),
-    sandbox: tools.includes('python_exec'),
+    sandbox: tools.includes('python_exec') || (task.calculations || []).length > 0,
     draft: Boolean(task.answer),
     verify: Boolean(task.verification),
   }
