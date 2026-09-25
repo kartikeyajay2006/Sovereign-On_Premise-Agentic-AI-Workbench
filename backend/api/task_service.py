@@ -36,6 +36,8 @@ from backend.core.schemas import (
 )
 from backend.policy.gateway import get_policy_gateway
 from backend.proof.certificate import review_digest
+from backend.security import dlp
+from backend.security.dlp import readable_text
 from backend.security.file_guard import inspect_upload
 from backend.security.injection import screen
 
@@ -181,13 +183,6 @@ class TaskService:
                 f"'{Path(filename).name}' was refused at quarantine: " + "; ".join(verdict.reasons)
             )
         notes.extend(verdict.notes)
-        if verdict.detected == "text":
-            findings = screen(payload[:2_000_000].decode("utf-8", errors="replace"))
-            if findings:
-                notes.append(
-                    f"contains {len(findings)} instruction-like sentence(s) ({findings[0].label}); "
-                    "they are kept as evidence and withheld from the model"
-                )
         file_id = str(uuid.uuid4())
         safe_name = Path(filename).name
         target_dir = self.config.settings.path("uploads") / user.id
@@ -200,6 +195,63 @@ class TaskService:
             target.unlink(missing_ok=True)
             raise TaskError(confinement.reason)
 
+        # What the file says, read once and screened twice: for sentences
+        # addressed to the model, and for what it carries (policies/dlp.yaml).
+        # Documents are read with the retrieval parsers, so what is screened
+        # is what a model would later be shown.
+        text = readable_text(target, payload, verdict.detected)
+        if text:
+            findings = screen(text[:2_000_000])
+            if findings:
+                notes.append(
+                    f"contains {len(findings)} instruction-like sentence(s) ({findings[0].label}); "
+                    "they are kept as evidence and withheld from the model"
+                )
+        content = dlp.scan(text, "upload").beyond((classification or Sensitivity.NORMAL).value) if text else None
+        dlp_detail: dict[str, Any] = (
+            {"scanned": True, "truncated": content.truncated,
+             "findings": [finding.record() for finding in content.findings]}
+            if content is not None
+            else {"scanned": False, "reason": "no extractable text" if verdict.detected in {"text", "pdf", "ooxml"}
+                  else f"{verdict.detected} content carries no text until it is read as evidence"}
+        )
+        if content is not None and content.action == "block":
+            target.unlink(missing_ok=True)
+            reasons = [
+                f"it contains {content.summary()}, which policies/dlp.yaml does not admit "
+                f"({', '.join(sorted({f.detector for f in content.acting('block')}))})"
+            ]
+            self.audit.record(
+                category="file",
+                action="quarantined",
+                actor=user.username,
+                actor_role=user.role,
+                detail={
+                    "filename": Path(filename).name,
+                    "sha256": digest,
+                    "size_bytes": len(payload),
+                    "detected": verdict.detected,
+                    "reasons": reasons,
+                    "dlp": dlp_detail,
+                },
+            )
+            raise TaskError(f"'{Path(filename).name}' was refused at quarantine: " + "; ".join(reasons))
+
+        declared = classification or Sensitivity.NORMAL
+        effective = declared
+        if content is not None and content.findings:
+            floor = content.floor
+            raised = floor is not None and self.config.classification_rank(floor) > self.config.classification_rank(
+                declared.value
+            )
+            if raised:
+                effective = Sensitivity(floor)
+            notes.append(
+                f"content scanning found {content.summary()}"
+                + (f"; classified {effective.value} (declared {declared.value})" if raised else "")
+                + ("; the first part of the file was scanned" if content.truncated else "")
+            )
+
         media_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
         stored = StoredFile(
             id=file_id,
@@ -209,7 +261,7 @@ class TaskService:
             size_bytes=len(payload),
             sha256=digest,
             input_type=self._input_type_for(safe_name),
-            classification=classification or Sensitivity.NORMAL,
+            classification=effective,
             owner_id=user.id,
             department=user.department,
             quarantine_passed=True,
@@ -232,6 +284,8 @@ class TaskService:
                 "quarantine_passed": True,
                 "detected": verdict.detected,
                 "notes": notes,
+                "classification": effective.value,
+                "dlp": dlp_detail,
             },
         )
         return stored

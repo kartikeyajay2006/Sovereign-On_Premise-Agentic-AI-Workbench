@@ -1,6 +1,6 @@
 # 10.6 · Policy files
 
-Four files in `policies/`, each with `policy_version: 1`.
+Five files in `policies/`, each with `policy_version: 1`.
 
 ## `access-control.yaml`
 
@@ -28,6 +28,7 @@ Four files in `policies/`, each with `policy_version: 1`.
 | `match.verification_valid` | ✅ | Hold when verification failed (`false`) |
 | `match.classification_confidence_below` | ✅ | Hold when the analyzer's confidence is below this |
 | `match.prompt_contains_any` | ✅ | Hold when the request contains any of these words |
+| `match.dlp_findings` | ✅ | Hold when content scanning found a value whose policy is `require_approval`, or blocked the answer or the deliverable |
 | `requires_deliverable` | ✅ | Apply the rule only when there is something to release |
 | `approver_roles` | ✅ | Who may decide |
 
@@ -52,6 +53,20 @@ See [8.4 Thresholds](../08-verification/04-thresholds.md): `material_claim_patte
 | `levels[].controls.redact_in_logs` | ⚠️ | Not read: audit records are not redacted |
 | `escalation_rules` | ⚠️ | Not read. Escalation from evidence is implemented directly in the orchestrator |
 | `egress.allowed_destinations`, `loopback_only`, `monitored_ports` | ⚠️ | Not read. Egress is governed by `sovereignty.allowed_cidrs` in `app.yaml` |
+
+## `dlp.yaml`
+
+Content scanning; see [9.10](../09-security/10-content-scanning.md). Validated at first use: an unknown detector, a missing one, or an action a boundary cannot take stops the scan with a configuration error.
+
+| Key | | Meaning |
+|---|:--:|---|
+| `detectors.<id>.actions.upload` | ✅ | `allow` or `block` |
+| `detectors.<id>.actions.prompt`, `.answer`, `.deliverable` | ✅ | `allow`, `redact`, `require_approval` or `block` |
+| `detectors.<id>.raises_to` | ✅ | The classification a finding imposes; `marked` (markings only) for the level the marking asserts; `null` for none |
+| `detectors.<id>.enabled` | ✅ | `false` turns a detector off; it must still be declared |
+| `detectors.<id>.category`, `description` | ✅ | Recorded with each finding / descriptive |
+| `classification_markers` | ✅ | Marking as written → the level it asserts |
+| `max_scan_chars` | ✅ | How much of a text is scanned |
 
 ## `tool-permissions.yaml`
 

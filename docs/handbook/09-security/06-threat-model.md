@@ -47,6 +47,8 @@ Every row marked 🧪 is one of the attacks in `scripts/red_team.py`, run over H
 | A PDF that runs JavaScript, launches a program or hides either in a compressed stream 🧪 | ✅ Refused at upload | [9.7 · Ingestion guard](07-ingestion-guard.md) |
 | An Office file with a macro, DDE field or remote template; an archive bomb; a renamed executable 🧪 | ✅ Refused at upload | Type read from bytes; package structure inspected |
 | A document telling the model to ignore its instructions 🧪 | ✅ Flagged, withheld, held | Kept as evidence; replaced in every prompt by a marker; the run is held (`untrusted_instructions`) |
+| A credential, private key, Aadhaar or PAN number in an uploaded document | ✅ Found, redacted or refused | A private key is refused at upload; other secrets and identifiers are redacted from every prompt, answer and deliverable, and raise the file and run ([9.10](10-content-scanning.md)) |
+| A document uploaded below the classification its own header states | ✅ Raised | The marking is read at upload and ingestion; the file is stored at the level it asserts |
 | Path traversal in a download or upload | ✅ Blocked | `check_path_confinement` resolves and confines |
 | A deliverable edited on disk after approval | ✅ Refused | Re-hashed on every download; a mismatch is a 409 and an audit event |
 | A wrong corrosion rate, remaining life or severity in an answer | ✅ Caught | Figures computed by the formula registry; `engineering_verification` fails an answer that disagrees |
@@ -66,6 +68,7 @@ Every row marked 🧪 is one of the attacks in `scripts/red_team.py`, run over H
 | 4 | **Injection screening is by pattern.** A novel phrasing can pass the screen | The structural guarantee does not depend on it: document text never selects a tool or changes a policy, and answers are verified and held | 🟡 Medium |
 | 5 | **Egress control is process-level.** The monitor observes connections; the host firewall is the operator's | Add a default-deny outbound rule for the service user | 🟡 Medium |
 | 6 | **A console started by hand binds every interface.** `scripts/run.sh` binds `127.0.0.1`; `next start` without `--hostname` does not | Use the run script, or firewall port 3000 | 🟢 Low |
+| 7 | **Content scanning is by pattern, checksum and structure.** A secret in a format with no detector passes | Every answer is still verified and, where policy says, held; add a detector and a `policies/dlp.yaml` entry for any format the site uses | 🟡 Medium |
 
 ## Closed since the first review
 

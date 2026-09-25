@@ -346,12 +346,15 @@ class PolicyGateway:
         decision_claims: int = 0,
         instruction_like_evidence: int = 0,
         isolation_plan: bool = False,
+        dlp_findings: int = 0,
     ) -> tuple[bool, list[str], list[str]]:
         """Evaluate approval-rules.yaml; return (required, reasons, approver_roles).
 
         ``unresolved_conflicts`` counts high-impact disagreements between
         sources that no person has settled; ``decision_claims`` counts claims
-        stating a disposition only an approving authority can take.
+        stating a disposition only an approving authority can take;
+        ``dlp_findings`` counts values content scanning found whose policy
+        (policies/dlp.yaml) is to hold or withhold rather than pass or redact.
         """
         required = False
         reasons: list[str] = []
@@ -383,6 +386,8 @@ class PolicyGateway:
                 hit = (decision_claims > 0) == bool(match["decision_claims"])
             elif "isolation_plan" in match:
                 hit = isolation_plan == bool(match["isolation_plan"])
+            elif "dlp_findings" in match:
+                hit = (dlp_findings > 0) == bool(match["dlp_findings"])
             elif "instruction_like_evidence" in match:
                 hit = (instruction_like_evidence > 0) == bool(match["instruction_like_evidence"])
             elif "classification_confidence_below" in match:

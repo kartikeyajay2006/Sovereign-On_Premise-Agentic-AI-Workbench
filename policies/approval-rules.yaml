@@ -51,6 +51,12 @@ approval_required_when:
       instruction_like_evidence: true
     approver_roles: [reviewer, administrator]
 
+  - name: sensitive_content
+    description: Content scanning found a value whose policy is to hold the run or withhold the content (policies/dlp.yaml); a person decides what is released.
+    match:
+      dlp_findings: true
+    approver_roles: [reviewer, administrator]
+
   - name: isolation_plan
     description: An isolation plan is signed off by an authorised person before anyone works to it (SOP-OPS-015).
     match:

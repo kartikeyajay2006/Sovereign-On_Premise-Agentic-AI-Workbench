@@ -80,6 +80,6 @@ A reviewer can also **request a revision**: nothing is released and nothing is r
 
 | | | |
 |:--|:--:|--:|
-| [← 9.8 · Red team](08-red-team.md) | [↑ 09 · Security and governance](README.md) | [10 · Configuration reference →](../10-configuration/README.md) |
+| [← 9.8 · Red team](08-red-team.md) | [↑ 09 · Security and governance](README.md) | [9.10 · Content scanning →](10-content-scanning.md) |
 
 <!-- nav:end -->
