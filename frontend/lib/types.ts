@@ -559,7 +559,7 @@ export interface ConflictResolution {
 /** Two sources disagree about something a decision depends on. */
 export interface ConflictRecord {
   id: string
-  kind: 'input' | 'revision'
+  kind: 'input' | 'revision' | 'fact'
   subject: string | null
   field: string
   label: string
@@ -572,7 +572,7 @@ export interface ConflictRecord {
 
 export interface KnowledgeSearchResponse {
   query: string
-  retrieval_mode: 'embedding' | 'lexical'
+  retrieval_mode: 'hybrid' | 'lexical'
   results: EvidenceItem[]
   took_ms: number
 }
@@ -773,7 +773,7 @@ export interface SystemHealth {
   models_available: number
   knowledge_documents: number
   knowledge_chunks: number
-  retrieval_mode: 'embedding' | 'lexical' | 'unavailable'
+  retrieval_mode: 'hybrid' | 'lexical' | 'unavailable'
   sandbox_runtime: string
   sandbox_ready: boolean
   audit_chain_valid: boolean

@@ -43,6 +43,7 @@ from backend.engineering.stage import (
 )
 from backend.engineering.stated import assess_stated, bind_stated, extraction_request as stated_variables
 from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
+from backend.engineering.facts import fact_block, fact_conflicts
 from backend.engineering.pid import DrawingError, get_drawing_library, summary_lines
 from backend.security.injection import neutralise, screen
 from backend.core.schemas import (
@@ -1798,6 +1799,9 @@ class AgentOrchestrator:
             # A question about the plant's piping -- how to isolate a vessel,
             # what feeds it -- is answered from the drawing's graph.
             await self._topology_stage(task, user, ledger)
+            # Two sources stating different values for one attribute of one
+            # tag or clause, outside the formula inputs: a fact conflict.
+            await self._fact_stage(task, user, ledger)
             # Document text is evidence, never instruction. Sentences in it
             # addressed to the model are kept for the reviewer and withheld
             # from every prompt from here on.
@@ -2351,7 +2355,7 @@ class AgentOrchestrator:
             return False
         records, assessment, disputes = result
         task.conflicts = conflict_records(disputes, assessment.subject, ledger.items, task.conflicts)
-        assessment.conflicts = [record.id for record in unresolved(task.conflicts)]
+        assessment.conflicts = [record.id for record in unresolved(task.conflicts) if record.kind == "input"]
         await self._stage(
             task,
             TaskStatus.EXECUTING,
@@ -2401,6 +2405,30 @@ class AgentOrchestrator:
         # The registry is the authority for a conflicted record too: no
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
+
+    async def _fact_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
+        """Record where the sources contradict each other about a stated fact.
+
+        Extraction is deterministic (tags, clauses, quantities, dates), so no
+        model decides what disagrees. A contradiction becomes a ``fact``
+        conflict: announced and audited like an input conflict, told to the
+        model, and every claim that takes one side is CONFLICTED until a
+        person resolves it.
+        """
+        known = {record.id for record in task.conflicts}
+        task.conflicts = fact_conflicts(ledger.items, task.conflicts)
+        fresh = [record for record in task.conflicts if record.id not in known]
+        if not fresh:
+            return
+        await self._stage(
+            task,
+            TaskStatus.EXECUTING,
+            "Sources contradict each other on "
+            + ", ".join(record.label for record in fresh)
+            + ": held for a human resolution",
+            phase="engineering",
+        )
+        await self._announce_conflicts(task, user, known)
 
     async def _topology_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
         """Answer a P&ID question from the drawing's graph, as cited T evidence."""
@@ -2619,7 +2647,7 @@ class AgentOrchestrator:
         if result is not None:
             records, assessment, disputes = result
             task.conflicts = conflict_records(disputes, assessment.subject, task.evidence, task.conflicts)
-            assessment.conflicts = [record.id for record in unresolved(task.conflicts)]
+            assessment.conflicts = [record.id for record in unresolved(task.conflicts) if record.kind == "input"]
             if records:
                 register_evidence(records, assessment, ledger.items, ledger.add)
             task.calculations = records
@@ -2912,6 +2940,7 @@ class AgentOrchestrator:
             # [V...] identifier; repeating it here as JSON would only cost tokens.
             extraction_block = "\nVisual content is recorded in the page-labelled evidence below.\n"
         extraction_block += prompt_block(task.assessment, task.calculations, task.conflicts)
+        extraction_block += fact_block(task.conflicts)
         extraction_block += _topology_block(task)
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (

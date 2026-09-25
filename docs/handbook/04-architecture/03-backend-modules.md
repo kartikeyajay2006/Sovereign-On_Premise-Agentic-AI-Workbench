@@ -66,7 +66,7 @@ The orchestrator is about 2,100 lines. The roadmap splits it into typed stages w
 | File | Owns |
 |---|---|
 | `parsing.py` | Parsers for Markdown and text, PDF (per page), DOCX, XLSX, CSV and PPTX; PDF page inspection and rasterisation; Tesseract OCR |
-| `knowledge_base.py` | Ingestion, chunking, embedding, storage, and search (cosine similarity or BM25) with clearance applied before ranking |
+| `knowledge_base.py` | Ingestion, chunking, embedding, storage, and search (cosine and BM25 fused by Reciprocal Rank Fusion, or BM25 alone) with clearance applied before ranking |
 
 ## `tools/`
 

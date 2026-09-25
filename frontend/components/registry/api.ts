@@ -71,7 +71,7 @@ export interface Passage {
 /** backend/core/schemas.py KnowledgeSearchResponse */
 export interface SearchResponse {
   query: string
-  retrieval_mode: 'embedding' | 'lexical'
+  retrieval_mode: 'hybrid' | 'lexical'
   results: Passage[]
   /** Measured by the service around the search, query embedding included. */
   took_ms: number

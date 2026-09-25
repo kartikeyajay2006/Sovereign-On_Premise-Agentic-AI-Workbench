@@ -48,7 +48,8 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `embedding_model_role` | `embedding` | ⚠️ | Not read; the embedding model is found by its registry role |
 | `lexical_fallback_enabled` | `true` | ✅ | Use BM25 when no embedding model is installed |
 | `default_top_k` | `6` | ✅ | Passages returned per search |
-| `min_score` | `0.15` | ✅ | Floor below which passages are dropped |
+| `min_score` | `0.15` | ✅ | Floor below which a passage is left out of a ranking, on that ranker's own scale |
+| `rrf_k` | `60` | ✅ | Reciprocal Rank Fusion constant: each ranking contributes `1 / (rrf_k + rank)` |
 | `supported_ingest_extensions` | `.txt .md .pdf .docx .csv .xlsx` | ⚠️ | Not read; the parsers decide what can be ingested |
 
 ## `sandbox`

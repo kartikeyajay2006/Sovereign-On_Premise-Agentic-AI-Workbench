@@ -276,7 +276,9 @@ def prompt_block(
             for candidate in record.candidates
         )
         + f"; conflict {record.id})"
-        for record in unresolved(conflicts or [])
+        # Fact conflicts are told to the model by facts.fact_block, not here:
+        # they do not withhold the calculation.
+        for record in unresolved(conflicts or []) if record.kind == "input"
     ]
     if assessment is None:
         return ""

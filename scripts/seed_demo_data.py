@@ -823,7 +823,7 @@ async def index_corpus(
 
     knowledge_base = get_knowledge_base()
     mode = await knowledge_base.retrieval_mode()
-    if mode != "embedding" and not allow_lexical:
+    if mode != "hybrid" and not allow_lexical:
         print(
             "\nNo embedding model is available, so passages would be stored without "
             "vectors.\nWhile other documents carry vectors, embedding search cannot see "
@@ -872,7 +872,7 @@ async def index_corpus(
                         f"from {Path(old.source_path).name})"
                     )
 
-    if mode == "embedding" and indexed_ids:
+    if mode == "hybrid" and indexed_ids:
         missing = [
             row for row in knowledge_base.db.iter_chunks()
             if row["document_id"] in indexed_ids and not row.get("embedding")

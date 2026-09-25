@@ -86,7 +86,11 @@ knowledge_base:
   # retriever (BM25-style). Real retrieval, lower quality — never a stub.
   lexical_fallback_enabled: true
   default_top_k: 6
+  # Applied to each ranker on its own scale (cosine; BM25 over the best match).
   min_score: 0.15
+  # With an embedding model, the vector and BM25 rankings are fused by
+  # Reciprocal Rank Fusion: score = sum of 1 / (rrf_k + rank).
+  rrf_k: 60
   supported_ingest_extensions: [.txt, .md, .pdf, .docx, .csv, .xlsx]
 
 sandbox:

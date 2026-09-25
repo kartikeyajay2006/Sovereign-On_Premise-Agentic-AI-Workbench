@@ -375,11 +375,14 @@ class ConflictRecord(BaseModel):
     over a formula input withholds every figure that depends on it until a
     person resolves it; a `revision` conflict (a record written against a
     superseded procedure) is resolved automatically in favour of the revision
-    in force, and says so.
+    in force, and says so. A `fact` conflict (two sources state different
+    values for one attribute of one tag or clause, outside the formula
+    inputs) withholds every claim that takes one of the values until a
+    person resolves it.
     """
 
     id: str
-    kind: Literal["input", "revision"]
+    kind: Literal["input", "revision", "fact"]
     subject: str | None = None
     field: str
     label: str
@@ -725,7 +728,7 @@ class KnowledgeSearchRequest(BaseModel):
 
 class KnowledgeSearchResponse(BaseModel):
     query: str
-    retrieval_mode: Literal["embedding", "lexical"]
+    retrieval_mode: Literal["hybrid", "lexical"]
     results: list[EvidenceItem]
     took_ms: int
 
@@ -831,7 +834,7 @@ class SystemHealth(BaseModel):
     models_available: int
     knowledge_documents: int
     knowledge_chunks: int
-    retrieval_mode: Literal["embedding", "lexical", "unavailable"]
+    retrieval_mode: Literal["hybrid", "lexical", "unavailable"]
     sandbox_runtime: str
     sandbox_ready: bool
     audit_chain_valid: bool
