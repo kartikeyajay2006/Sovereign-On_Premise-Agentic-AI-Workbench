@@ -558,11 +558,12 @@ class TaskService:
                 user = identity.get_user(user_id)
                 if task is None or user is None:
                     continue
+                self._snapshot_config(task, user)
                 egress_before = _egress_reading()
                 task = await self.orchestrator.run(task, user, persist=self._persist)
                 self._persist(task)
-                if task.status == TaskStatus.DELIVERED:
-                    self._certify(task, user)
+                # Recorded before the certificate is issued: the egress
+                # reading in this record is what the certificate reports.
                 self.audit.record(
                     category="task",
                     action=f"finished:{task.status.value}",
@@ -579,6 +580,8 @@ class TaskService:
                         "egress": _egress_over_run(egress_before, _egress_reading()),
                     },
                 )
+                if task.status == TaskStatus.DELIVERED:
+                    self._certify(task, user)
             except Exception as exc:  # a worker must never die silently
                 await self.events.publish(
                     "task.failed",
@@ -757,6 +760,28 @@ class TaskService:
         )
         self._certify(task, user)
         return task
+
+    def _snapshot_config(self, task: Task, user: User) -> None:
+        """Record the config and policy the run starts under, for its certificate.
+
+        Hashed now rather than when the certificate is issued, which can be
+        days later after a review: a file edited in between must not be
+        certified as what governed this run. A failure is audited, never fatal.
+        """
+        from backend.proof.provenance import CONFIG_SNAPSHOT_ACTION, config_snapshot
+
+        try:
+            detail = config_snapshot()
+        except Exception as exc:
+            self.audit.record(
+                category="proof", action="config_snapshot_failed", actor=user.username,
+                actor_role=user.role, task_id=task.id, detail={"reason": f"{type(exc).__name__}: {exc}"[:300]},
+            )
+            return
+        self.audit.record(
+            category="proof", action=CONFIG_SNAPSHOT_ACTION, actor=user.username,
+            actor_role=user.role, task_id=task.id, detail=detail,
+        )
 
     def _certify(self, task: Task, user: User) -> dict | None:
         """Issue and store the run's signed certificate. A failure is audited, never fatal."""

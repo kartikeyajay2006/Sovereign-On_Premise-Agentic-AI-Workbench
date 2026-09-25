@@ -26,6 +26,7 @@ from typing import Any, Awaitable, Callable, TypeVar
 
 from backend.agents.code_extraction import extract_python
 from backend.agents.verifier import get_verification_engine
+from backend.agents.vision_cache import VisionCache, identity as vision_cache_identity
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
@@ -686,6 +687,10 @@ class AgentOrchestrator:
                 "stage": stage,
                 "model": descriptor.id,
                 "model_version": descriptor.quantization,
+                # The runtime's digest of the weights that answer, so the run
+                # certificate pins an artifact rather than a re-pullable name.
+                "model_digest": descriptor.actual_digest,
+                "integrity": descriptor.integrity,
                 "routing_reason": decision.reason,
                 "provider": descriptor.provider,
                 "memory_admission": admission,
@@ -1043,12 +1048,17 @@ class AgentOrchestrator:
                 f"Vision extraction left pages empty in {batch[0].source.filename}; retrying individually"
             )
 
+        cache_marker = extraction.get("_vision_cache") if isinstance(extraction, dict) else None
         ordered: list[dict[str, Any]] = []
         for item in batch:
             number = item.page_number
             assert number is not None
             reported = source_pages[number]
             page = {**reported, "page_number": number}
+            if cache_marker:
+                # Read earlier by the same weights with the same prompt; the
+                # evidence says so, and names when.
+                page["vision_cache"] = cache_marker
             unlabelled = page.pop("_unlabelled", False)
             if unlabelled:
                 page["model_reported_page_number"] = None
@@ -1131,12 +1141,14 @@ class AgentOrchestrator:
                 observations.append(("transcribed content", str(extraction["transcription"])[:1500]))
         if not observations:
             observations.append(("transcribed content", raw[:1500]))
+        cache_marker = extraction.get("_vision_cache") if isinstance(extraction, dict) else None
         added_ids: list[str] = []
         for location, content in observations:
             added = ledger.add(EvidenceItem(
                 id="pending", source_document=item.source.filename,
                 document_id=item.source.id, location=location,
                 excerpt=content, extraction_method="vision", extraction_model=model_id,
+                extraction_data={"vision_cache": cache_marker} if cache_marker else None,
                 source_sha256=item.source.sha256,
                 classification=task.profile.sensitivity, kind="vision_extraction",
             ))
@@ -1331,8 +1343,14 @@ class AgentOrchestrator:
         return steps
 
     async def _vision_extraction(
-        self, task: Task, user: User, batch: list[VisualInput]
+        self, task: Task, user: User, batch: list[VisualInput], *, refresh: bool = False,
     ) -> tuple[dict[str, Any] | None, str, str]:
+        """Read one batch of images with the vision model, or from the cache.
+
+        `refresh` skips the cache look-up (the fresh reading still replaces
+        the entry): a retry after a reading failed validation must ask the
+        model again, not be handed the same cached answer.
+        """
         if batch[0].page_number is not None:
             labels = "; ".join(
                 f"image {index} = page {item.page_number}"
@@ -1351,17 +1369,150 @@ class AgentOrchestrator:
             )
         else:
             prompt = self.config.prompt("task.vision_extract", prompt=task.prompt)
+        system_prompt = self.config.system_prompt("vision")
+        images = [item.path for item in batch]
+
+        cached = await self._vision_cache_lookup(task, user, images, system_prompt, prompt, refresh=refresh)
+        if cached is not None and cached[0] == "hit":
+            entry, marker = cached[1], cached[2]
+            parsed = _parse_json(entry["text"])
+            if isinstance(parsed, dict):
+                parsed["_vision_cache"] = marker
+            # The model that produced the reading, not whatever is loaded now.
+            return parsed, entry["text"], str(entry["model"])
+
         text, decision = await self._generate(
             task,
             user,
             stage="vision_extraction",
-            system_prompt=self.config.system_prompt("vision"),
+            system_prompt=system_prompt,
             prompt=prompt,
-            images=[item.path for item in batch],
+            images=images,
             format_json=True,
         )
+        if cached is not None and cached[0] == "miss":
+            self._vision_cache_store(task, user, cached[1], cached[2], text, decision)
         parsed = _parse_json(text)
         return parsed, text, decision.selected_model or "unknown"
+
+    def _vision_cache(self) -> VisionCache | None:
+        settings = self.config.settings.get("vision_cache") or {}
+        if not settings.get("enabled", True):
+            return None
+        path = Path(str(settings.get("path") or "vision-cache"))
+        return VisionCache(path if path.is_absolute() else self.config.settings.storage_root / path)
+
+    async def _vision_route(self, task: Task) -> tuple[RoutingDecision, Any] | None:
+        """The model a vision call would be routed to, without making the call.
+
+        Routed the way `_generate` routes it, so the key names the weights
+        that would read the page. None when routing cannot say: the call then
+        goes to `_generate`, which reports the failure properly.
+        """
+        assert task.profile is not None
+        try:
+            decision = await self.router.route(
+                task.profile, stage="vision_extraction", extra_capabilities=["vision"],
+                preferred_model=task.preferred_model,
+            )
+            if not decision.selected_model:
+                return None
+            return decision, await self.router.resolve_descriptor(decision)
+        except Exception:
+            return None
+
+    async def _vision_cache_lookup(
+        self, task: Task, user: User, images: list[Path], system_prompt: str, prompt: str,
+        *, refresh: bool = False,
+    ) -> tuple[str, Any, Any] | None:
+        """("hit", entry, marker), ("miss", cache, identity), or None when not cacheable.
+
+        A hit is admitted exactly as a model call would be -- the routing
+        decision recorded, the model policy checked against this run's
+        classification -- because a cache must never be a way to read a page
+        the run could not have sent to that model. Only the inference is
+        skipped, and the audit says so.
+        """
+        cache = self._vision_cache()
+        if cache is None:
+            return None
+        routed = await self._vision_route(task)
+        if routed is None:
+            return None
+        decision, descriptor = routed
+        digest = getattr(descriptor, "actual_digest", None)
+        if not digest:
+            # No runtime digest, nothing to prove the weights are the same.
+            return None
+        ident = vision_cache_identity(
+            images, digest, self.config.prompts.get("prompts_version"), system_prompt, prompt,
+        )
+        entry = None if refresh else cache.get(ident)
+        if entry is None:
+            return "miss", cache, (ident, descriptor)
+
+        assert task.profile is not None
+        task.routing.append(decision)
+        self._checkpoint(task)
+        policy_event = self.gateway.check_model(
+            user, descriptor.id, approved_classifications=descriptor.approved_classifications,
+            registered=descriptor.registered, sensitivity=task.profile.sensitivity, task_id=task.id,
+        )
+        task.policy_events.append(policy_event)
+        if policy_event.decision != PolicyDecision.ALLOW:
+            raise NoEligibleModelError(policy_event.reason)
+        marker = {"hit": True, "key": ident.key, "extracted_at": entry["extracted_at"],
+                  "extracted_for_task": entry.get("extracted_for_task"), "model_digest": digest}
+        self.audit.record(
+            category="model",
+            action="vision_cache_hit",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={
+                "stage": "vision_extraction",
+                "model": entry["model"],
+                "model_digest": digest,
+                "integrity": descriptor.integrity,
+                "cache_key": ident.key,
+                "original_extracted_at": entry["extracted_at"],
+                "original_task_id": entry.get("extracted_for_task"),
+                "prompts_version": ident.prompts_version,
+                "image_sha256": list(ident.image_sha256),
+                "local_only": True,
+            },
+        )
+        await self._emit(task, "task.vision_cache_hit", {
+            "model": entry["model"], "key": ident.key, "extracted_at": entry["extracted_at"],
+            "images": len(images),
+        })
+        return "hit", entry, marker
+
+    def _vision_cache_store(
+        self, task: Task, user: User, cache: VisionCache, pending: tuple[Any, Any],
+        text: str, decision: RoutingDecision,
+    ) -> None:
+        """Keep a fresh reading, when it came from the weights the key names."""
+        ident, descriptor = pending
+        if decision.selected_model != descriptor.id:
+            # Routed to another model between the look-up and the call: the
+            # key's digest is not this reading's, so it is not stored.
+            return
+        try:
+            cache.put(ident, text=text, model=descriptor.id, task_id=task.id)
+        except OSError as exc:
+            # A full disk costs the next run time, never this run its reading.
+            self.audit.record(
+                category="model", action="vision_cache_store_failed", actor=user.username,
+                actor_role=user.role, task_id=task.id,
+                detail={"cache_key": ident.key, "reason": f"{type(exc).__name__}: {exc}"[:300]},
+            )
+            return
+        self.audit.record(
+            category="model", action="vision_cache_stored", actor=user.username,
+            actor_role=user.role, task_id=task.id,
+            detail={"model": descriptor.id, "model_digest": ident.model_digest, "cache_key": ident.key},
+        )
 
     async def _extract_pdf_batch(
         self, task: Task, user: User, ledger: EvidenceLedger,
@@ -1375,7 +1526,7 @@ class AgentOrchestrator:
                 # A small vision model is not deterministic: one malformed
                 # answer about one page is asked again once before the run
                 # is failed on it.
-                parsed, _, model_id = await self._vision_extraction(task, user, batch)
+                parsed, _, model_id = await self._vision_extraction(task, user, batch, refresh=True)
                 return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
             # Do not discard a whole batch because its page labels or count
             # were ambiguous. Single-image calls have an unambiguous source.

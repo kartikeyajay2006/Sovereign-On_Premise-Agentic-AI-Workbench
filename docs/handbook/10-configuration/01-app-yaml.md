@@ -84,6 +84,13 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `step_timeout_seconds` | `600` | ⚠️ | Not read; model calls are bounded by `inference.request_timeout_seconds` |
 | `stream_tokens` | `true` | ⚠️ | Not read; answers always stream |
 
+## `vision_cache`
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `enabled` | `true` | ✅ | Reuse a vision reading of the same image by the same model weights with the same prompt ([6.2](../06-knowledge-and-retrieval/02-parsing-and-vision.md#the-vision-cache)). Tests run with it off (`SOVEREIGN_VISION_CACHE__ENABLED=false` in `tests/conftest.py`) |
+| `path` | `vision-cache` | ✅ | Where entries are kept. A relative path is under `storage.root`, so the default is `storage/vision-cache` |
+
 ## `sovereignty`
 
 | Key | Default | | Meaning |

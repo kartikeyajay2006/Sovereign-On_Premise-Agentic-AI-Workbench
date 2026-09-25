@@ -209,6 +209,14 @@ agent:
   # Stream partial model output to the UI over SSE.
   stream_tokens: true
 
+# Reuse a vision extraction when the same image is shown to the same model
+# weights (runtime digest) with the same prompt. Every reuse is audited as
+# model/vision_cache_hit and marked on the evidence. A model with no runtime
+# digest is never cached. A relative path is under storage.root.
+vision_cache:
+  enabled: true
+  path: vision-cache
+
 sovereignty:
   monitor_enabled: true
   poll_interval_seconds: 2

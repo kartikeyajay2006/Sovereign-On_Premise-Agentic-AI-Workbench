@@ -356,7 +356,10 @@ class ToolRegistry:
             if path.exists() and path.suffix.lower() in {".csv", ".xlsx", ".xls", ".json", ".txt"}:
                 input_files[stored.filename] = path
 
-        result = self.sandbox.execute(code, input_files=input_files)
+        # The detailed form, so the limits actually applied (and the mechanism
+        # that applied them) are kept with the call for the run certificate.
+        outcome = self.sandbox.execute_detailed(code, input_files=input_files)
+        result = outcome.result
         summary = (
             f"sandbox exit {result.exit_code} in {result.duration_ms}ms"
             if result.static_validation_passed
@@ -367,6 +370,7 @@ class ToolRegistry:
             "__summary__": summary,
             "__error__": None if result.ok else (result.stderr[:500] or "execution failed"),
             "result": result.model_dump(mode="json"),
+            "limits": outcome.limits.to_dict(),
             "stdout": result.stdout,
             "stderr": result.stderr,
             "exit_code": result.exit_code,
@@ -415,7 +419,8 @@ class ToolRegistry:
             "    print('NUMERIC SUMMARY:')\n"
             "    print(numeric.describe().to_string())\n"
         )
-        result = self.sandbox.execute(code, input_files={stored.filename: Path(stored.stored_path)})
+        outcome = self.sandbox.execute_detailed(code, input_files={stored.filename: Path(stored.stored_path)})
+        result = outcome.result
         return {
             "__ok__": result.ok,
             "__summary__": (
@@ -427,6 +432,8 @@ class ToolRegistry:
             "filename": stored.filename,
             "stdout": result.stdout,
             "stderr": result.stderr,
+            "result": result.model_dump(mode="json"),
+            "limits": outcome.limits.to_dict(),
         }
 
     async def _document_generate(
