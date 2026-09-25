@@ -73,3 +73,78 @@ class TestWhenPlanningIsWorthIt:
             uploaded_at="2026-09-23T00:00:00Z",
         )
         assert _needs_plan(_profile(), [stored]) is True
+
+
+# ------------------------------------------------ plans from the task shape
+def _stored(tmp_path, filename: str):
+    from backend.core.schemas import StoredFile
+
+    return StoredFile(
+        id="f1", filename=filename, stored_path=str(tmp_path / filename),
+        media_type="application/octet-stream", size_bytes=1024, sha256="0" * 64,
+        input_type="document", classification="normal", owner_id="u1",
+        department="inspection", quarantine_passed=True, uploaded_at="2026-09-23T00:00:00Z",
+    )
+
+
+class TestWhenThePlanComesFromTheTaskShape:
+    """A model plan's one effect on a run is adding code the profile lacks."""
+
+    def test_required_code_needs_no_model_plan_even_when_unsure(self):
+        from backend.agents.orchestrator import _template_plan_reason
+
+        profile = _profile(task_type="calculation", requires_code_execution=True, confidence=0.2)
+        assert _template_plan_reason(profile, [], 0.6) == "code execution is already required"
+
+    def test_a_confident_deliverable_needs_no_model_plan(self):
+        from backend.agents.orchestrator import _template_plan_reason
+
+        profile = _profile(task_type="document_generation", produces_deliverable=True, confidence=1.0)
+        assert "confidence 1.00" in _template_plan_reason(profile, [], 0.6)
+
+    def test_an_unsure_classification_still_asks_the_model(self):
+        from backend.agents.orchestrator import _template_plan_reason
+
+        profile = _profile(task_type="analysis", produces_deliverable=True, confidence=0.38)
+        assert _template_plan_reason(profile, [], 0.6) is None
+
+    def test_a_spreadsheet_still_asks_the_model(self, tmp_path):
+        """It may want code the classifier did not see a need for."""
+        from backend.agents.orchestrator import _template_plan_reason
+
+        profile = _profile(task_type="analysis", confidence=1.0)
+        assert _template_plan_reason(profile, [_stored(tmp_path, "cml.xlsx")], 0.6) is None
+        assert _template_plan_reason(profile, [_stored(tmp_path, "report.pdf")], 0.6) is not None
+
+
+async def test_a_template_plan_makes_no_model_call(monkeypatch):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from backend.agents.orchestrator import AgentOrchestrator
+    from backend.core.schemas import Task, TaskStatus, User
+
+    now = datetime.now(timezone.utc)
+    profile = _profile(task_type="calculation", requires_code_execution=True, requires_retrieval=False)
+    task = Task(id="plan-test", prompt="Remaining life?", status=TaskStatus.CLASSIFIED,
+                user_id="u1", created_at=now, updated_at=now, profile=profile)
+    user = User(id="u1", username="engineer", display_name="Engineer", role="engineer", department="inspection")
+
+    agent = AgentOrchestrator()
+    events, audits = [], []
+
+    async def no_model(*_args, **_kwargs):
+        raise AssertionError("a template plan must not call the model")
+
+    async def record(_task, event, data=None):
+        events.append((event, data))
+
+    monkeypatch.setattr(agent, "_generate", no_model)
+    monkeypatch.setattr(agent, "_emit", record)
+    monkeypatch.setattr(agent, "audit", SimpleNamespace(record=lambda **kw: audits.append(kw)))
+
+    plan = await agent._plan(task, user, template_reason="code execution is already required")
+    assert [step.action for step in plan.steps] == ["python_exec", "reason"]
+    assert events[-1][0] == "task.planned" and events[-1][1]["source"] == "template"
+    assert audits[-1]["detail"]["source"] == "template"
+    assert audits[-1]["detail"]["reason"] == "code execution is already required"
