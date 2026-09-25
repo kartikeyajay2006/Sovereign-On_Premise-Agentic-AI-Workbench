@@ -57,7 +57,7 @@ Results show:
 
 | Readout | Meaning |
 |---|---|
-| **Mode** | `embedding` (semantic similarity) or `lexical` (the BM25 fallback), with what its scores mean |
+| **Mode** | `hybrid` (embedding and BM25 rankings fused by RRF) or `lexical` (the BM25 fallback), with what its scores mean |
 | **Passages** | How many came back |
 | **Service** | Time the API measured around the search, including embedding the query |
 | **Round trip** | Time your browser measured: request, proxy, service and response |

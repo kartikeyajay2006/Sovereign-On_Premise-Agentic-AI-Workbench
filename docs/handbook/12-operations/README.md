@@ -24,7 +24,7 @@ python scripts/audit_tool.py verify
 | API and console | Both listening |
 | `inference_reachable` | `true` |
 | `models_available` | At least a reasoning model and the embedding model |
-| `retrieval_mode` | `embedding` |
+| `retrieval_mode` | `hybrid` |
 | `sandbox_ready` | `true` |
 | `audit_chain_valid` | `true`, and the tool prints the head hash |
 | `sovereignty_ok` | `true`, external calls 0 |

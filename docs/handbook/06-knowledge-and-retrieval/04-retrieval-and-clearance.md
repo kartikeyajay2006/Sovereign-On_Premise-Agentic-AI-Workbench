@@ -21,8 +21,8 @@ The run's prompt, plus the descriptions of the first three visual findings when 
 flowchart LR
     A[All passages] --> D{Department<br/>isolation}
     D -- "own dept or general<br/>(or override role)" --> C{Classification<br/>≤ your ceiling}
-    C --> R[Rank<br/>cosine or BM25]
-    R --> F[Drop below min_score 0.15]
+    C --> R[Rank<br/>cosine + BM25, fused by RRF]
+    R --> F[Floor 0.15 per ranker]
     F --> K[Top k = 6]
     K --> X{Second check:<br/>≤ your ceiling}
     X --> E[S1…S6 evidence]
@@ -33,8 +33,8 @@ flowchart LR
 
 1. **Department isolation.** Unless your role is an override role (reviewer, auditor, administrator), only passages from **your department** and **general** documents are considered.
 2. **Classification ceiling.** Passages above your role's maximum classification are removed.
-3. **Rank** what is left.
-4. **Floor.** Scores below `knowledge_base.min_score` (0.15) are dropped.
+3. **Rank** what is left, by each ranker.
+4. **Floor.** A passage scoring below `knowledge_base.min_score` (0.15) on a ranker's own scale is left out of that ranking; the rankings that remain are fused.
 5. **Top k.** The best `default_top_k` (6) are kept.
 6. **Second check.** The tool filters the results against your ceiling once more, as an independent guard.
 
@@ -46,13 +46,28 @@ The Documents list on the Knowledge screen applies the same two rules, so a pers
 
 ## Ranking
 
-### Embedding mode
+### Hybrid mode (with an embedding model)
 
-The query is embedded, and every candidate passage with a vector is scored by **cosine similarity**. Passages with a score of zero or less are ignored. Scores run from 0 to 1; on the demonstration corpus, good matches score about 0.65–0.80.
+Two rankers run over the same candidates, and their rankings are fused:
+
+1. **Vector.** The query is embedded, and every candidate with a vector is scored by **cosine similarity**. Passages below the 0.15 floor are left out of this ranking.
+2. **Lexical.** Every candidate is scored by BM25 (below), divided by the best match; passages below 0.15 on that scale are left out of this ranking.
+3. **Reciprocal Rank Fusion.** Each passage earns `1 / (k + rank)` from every ranking it appears in, with `k = knowledge_base.rrf_k` (60). Ties go to the passage with the better single rank, then to a fixed order of document and position, so the same query over the same index always gives the same order.
+
+Why fuse: embeddings find a paraphrase, and BM25 finds an exact identifier. "SOP-INS-014 Clause 4.4" is a single rare term to BM25, but to an embedding every clause of that procedure looks alike. A passage one ranker misses and the other puts first still reaches the results.
+
+The `score` shown is the fused score over the most a passage can earn (first in both rankings, `2 / (k + 1)`), so 1.000 means first in both. It ranks the passages; it does not measure similarity. Each result also carries its ranks in `extraction_data.retrieval`:
+
+```json
+{"mode": "hybrid", "vector_rank": 4, "vector_similarity": 0.196,
+ "lexical_rank": 1, "lexical_score": 1.0, "fused_score": 0.032018, "rrf_k": 60}
+```
+
+A rank of `null` means that ranker did not put the passage above the floor.
 
 ### Lexical mode (BM25)
 
-Used when there is no embedding model, when no candidate has a vector, or when embedding the query fails.
+Used when there is no embedding model, when no candidate has a vector, when embedding the query fails, or when no passage clears the floor by cosine. The search reports `retrieval_mode: "lexical"`, and every result says so: `vector_rank`, `vector_similarity` and `fused_score` are `null`, with a note that BM25 alone was used.
 
 ```text
 score(passage) = Σ over query terms t:
@@ -62,7 +77,7 @@ idf(t) = ln(1 + (N − df + 0.5) / (df + 0.5))
 k1 = 1.5,  b = 0.75
 ```
 
-Tokens are lowercase runs of letters, digits and `-_/.`, so `sop-ins-014`, `p-2104` and `6.0` survive as single terms. BM25 scores are not bounded to 0–1; the same 0.15 floor applies.
+Tokens are lowercase runs of letters, digits and `-_/.`, so `sop-ins-014`, `p-2104` and `6.0` survive as single terms. Raw BM25 scores are not bounded, so each is divided by the best match's: the top result is 1.0 by construction, and the 0.15 floor applies on that scale.
 
 ## What a result carries
 
@@ -70,7 +85,7 @@ Each result becomes an `S` evidence item with the passage text, document title, 
 
 ## Known limits
 
-- Retrieval is **one mode at a time**: dense *or* lexical, not both merged, and there is no re-ranker. A hybrid retriever (BM25 and embeddings in parallel, merged and re-ranked) is on the roadmap.
+- There is **no re-ranker** after the fusion: RRF uses ranks only, not a model's judgement of each passage.
 - **Revisions are not tracked.** Two versions of a procedure can both be retrieved if both were uploaded. See [6.1](01-ingestion.md#superseded-versions).
 - **Scale.** Similarity is computed in Python over every candidate passage. That is fast for thousands of passages and slow for millions. The single-host design assumes the former.
 

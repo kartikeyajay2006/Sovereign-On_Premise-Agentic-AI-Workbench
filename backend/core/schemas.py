@@ -687,7 +687,7 @@ class KnowledgeSearchRequest(BaseModel):
 
 class KnowledgeSearchResponse(BaseModel):
     query: str
-    retrieval_mode: Literal["embedding", "lexical"]
+    retrieval_mode: Literal["hybrid", "lexical"]
     results: list[EvidenceItem]
     took_ms: int
 
@@ -760,7 +760,7 @@ class SystemHealth(BaseModel):
     models_available: int
     knowledge_documents: int
     knowledge_chunks: int
-    retrieval_mode: Literal["embedding", "lexical", "unavailable"]
+    retrieval_mode: Literal["hybrid", "lexical", "unavailable"]
     sandbox_runtime: str
     sandbox_ready: bool
     audit_chain_valid: bool

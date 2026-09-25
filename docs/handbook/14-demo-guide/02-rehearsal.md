@@ -7,7 +7,7 @@
 - [ ] **One API process**: `pgrep -af "uvicorn backend.api.main"` shows exactly one
 - [ ] **Ollama** answers; `ollama list` shows `qwen2.5:3b`, `qwen2.5vl:3b`, `nomic-embed-text`
 - [ ] `./scripts/run.sh --status`: all three ✓
-- [ ] `GET /api/health`: `inference_reachable`, `retrieval_mode: embedding`, `sandbox_ready`, `audit_chain_valid`, `sovereignty_ok` all good
+- [ ] `GET /api/health`: `inference_reachable`, `retrieval_mode: hybrid`, `sandbox_ready`, `audit_chain_valid`, `sovereignty_ok` all good
 - [ ] **Corpus** seeded: 15 documents, 207 passages
 - [ ] **Warm** the model: ask one short question as `engineer`
 - [ ] **Pre-run** every scenario you will show, and the scanned-report task; open the latter in a tab

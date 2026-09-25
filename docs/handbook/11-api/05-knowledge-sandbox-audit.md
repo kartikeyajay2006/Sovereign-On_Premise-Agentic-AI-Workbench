@@ -18,7 +18,7 @@ curl -s -X POST http://127.0.0.1:8000/api/knowledge/search -H "Authorization: Be
   | jq '{retrieval_mode, took_ms, results: [.results[] | {id, source_document, location, score}]}'
 ```
 
-The response carries `retrieval_mode` (`embedding` or `lexical`), `took_ms`, and `results` as evidence items.
+The response carries `retrieval_mode` (`hybrid` or `lexical`), `took_ms`, and `results` as evidence items.
 
 ### Ingest
 
