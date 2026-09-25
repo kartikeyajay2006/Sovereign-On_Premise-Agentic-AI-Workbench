@@ -604,6 +604,30 @@ _READABLE_ROOTS = tuple(
 )
 
 
+def _system_data_paths():
+    # Public, read-only data the standard library itself goes looking for on
+    # Linux: the timezone database (zoneinfo, dateutil, pandas) and the MIME
+    # tables (mimetypes, which openpyxl initialises at import). The lists are
+    # the stdlib's own, so nothing here is a path this guard invented.
+    paths = ["/etc/localtime", "/etc/timezone"]
+    try:
+        import zoneinfo
+
+        paths.extend(zoneinfo.TZPATH)
+    except Exception:
+        pass
+    try:
+        import mimetypes
+
+        paths.extend(mimetypes.knownfiles)
+    except Exception:
+        pass
+    return tuple(sorted({os.path.realpath(p) for p in paths if os.path.isabs(p)}))
+
+
+_READABLE_SYSTEM_PATHS = _system_data_paths() if os.name == "posix" else ()
+
+
 def _record(target):
     try:
         with _REAL_OPEN(_ATTEMPT_LOG, "a", encoding="utf-8") as handle:
@@ -670,7 +694,10 @@ def _within_read_scope(path):
         return False
     if _within_workspace(resolved):
         return True
-    return any(resolved == root or resolved.startswith(root + os.sep) for root in _READABLE_ROOTS)
+    return any(
+        resolved == root or resolved.startswith(root + os.sep)
+        for root in _READABLE_ROOTS + _READABLE_SYSTEM_PATHS
+    )
 
 
 def _path_text(path):

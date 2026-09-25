@@ -64,6 +64,13 @@ class TestWindowsContainment:
         assert result.exit_code == 0
         assert "0.6500" in result.stdout
 
+    def test_pandas_and_openpyxl_run_with_timezones(self, sandbox: Sandbox) -> None:
+        from tests.test_security import LIBRARY_PROGRAM
+
+        result = sandbox.execute(LIBRARY_PROGRAM)
+        assert result.ok, result.stderr
+        assert "LIBRARIES_OK 3" in result.stdout
+
     def test_memory_bomb_is_refused_at_the_cap(self, sandbox: Sandbox) -> None:
         # Allocate well past the 1 GB configured cap. The per-process committed
         # memory cap refuses the commit, so the process fails rather than the

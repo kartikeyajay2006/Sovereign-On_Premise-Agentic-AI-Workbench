@@ -205,6 +205,41 @@ class TestSandboxContainment:
         assert "READ" not in result.stdout
         assert "SovereignFilesystemBlocked" in result.stderr
 
+    def test_pandas_and_openpyxl_run_with_timezones(self, sandbox: Sandbox) -> None:
+        # openpyxl reads the MIME tables at import, and timezone handling reads
+        # the zoneinfo database: both live under /etc and /usr/share on Linux,
+        # and refusing them failed ordinary spreadsheet work at import.
+        result = sandbox.execute(LIBRARY_PROGRAM)
+        assert result.ok, result.stderr
+        assert "LIBRARIES_OK 3" in result.stdout
+
+    def test_system_data_is_readable_but_its_neighbours_are_not(self, sandbox: Sandbox) -> None:
+        result = sandbox.execute(
+            "import os\n"
+            "known = [p for p in ('/etc/mime.types', '/etc/localtime') if os.path.isfile(p)]\n"
+            "for p in known:\n"
+            "    open(p, 'rb').read(64)\n"
+            "print('DATA_READ', len(known))\n"
+            "open('/etc/passwd').read()\n"
+            "print('PASSWD_READ')"
+        )
+        assert "DATA_READ" in result.stdout
+        assert "PASSWD_READ" not in result.stdout
+        assert "SovereignFilesystemBlocked" in result.stderr
+
+
+# The spreadsheet work generated code is told it can do: pandas with a
+# timezone, written to and read back from XLSX, all inside the workspace.
+LIBRARY_PROGRAM = (
+    "import pandas as pd\n"
+    "import openpyxl\n"
+    "df = pd.DataFrame({'tag': ['V-2107', 'V-2108'], 't_mm': [9.4, 11.2]})\n"
+    "df['when'] = pd.to_datetime(['2025-01-01', '2025-06-01']).tz_localize('Asia/Kolkata')\n"
+    "df['when'] = df['when'].dt.tz_localize(None)\n"
+    "df.to_excel('readings.xlsx', index=False)\n"
+    "print('LIBRARIES_OK', openpyxl.load_workbook('readings.xlsx').active.max_row)\n"
+)
+
 
 # ------------------------------------------------------------- policy gateway
 class TestPolicyGateway:
