@@ -126,6 +126,35 @@ task:
 
     Message: {prompt}
 
+  # Reading a P&ID image as a graph (backend/engineering/pid_extraction.py).
+  # What comes back is a proposal: every tag, type and connection is checked
+  # before it is queried, and low-confidence items are held for review.
+  pid_extract: |
+    This image is a piping and instrumentation diagram (P&ID). Read it as a
+    graph. List only what you can see; never add an element that is not
+    drawn, and never guess a tag you cannot read.
+
+    Return a JSON object only, no prose, matching exactly:
+    {{"drawing": {{"number": "<drawing number from the title block, or null>",
+                  "title": "<title, or null>", "revision": "<revision, or null>"}},
+      "elements": [{{"tag": "<tag exactly as printed, e.g. V-2104>",
+                     "type": "<one of: {types}>",
+                     "label": "<description printed beside it, or null>",
+                     "bbox": [x1, y1, x2, y2],
+                     "confidence": <0 to 1>,
+                     "measures": "<for an instrument: the tag it measures, or null>",
+                     "controls": "<for an instrument: the valve it acts on, or null>",
+                     "car_sealed": "<'open' if marked CSO, else null>"}}],
+      "lines": [{{"from": "<upstream tag>", "to": "<downstream tag>",
+                  "line": "<line number printed on it, or null>",
+                  "service": "<hydrocarbon | water | sour water | steam | other, or null>",
+                  "bbox": [x1, y1, x2, y2], "confidence": <0 to 1>}}]}}
+
+    bbox is in image pixels. "from" and "to" follow the flow arrow. A line
+    that passes through a valve is two connections: into the valve and out
+    of it. Confidence is how sure you are of the tag and its type.
+    User's request about this drawing: {prompt}
+
   vision_extract_pages: |
     Transcribe every supplied page of the same industrial PDF independently.
     Read all visible text on every image, even if it seems unrelated to a
