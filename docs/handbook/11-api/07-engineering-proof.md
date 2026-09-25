@@ -38,6 +38,7 @@ curl -s -X POST http://127.0.0.1:8000/api/engineering/evaluate -H "Authorization
 | GET | `/api/proof/key` | signed in | `{algorithm, key_id, public_key}` |
 | GET | `/api/tasks/{id}/certificate` | the submitter, or `task.read.all` | The run's signed certificate (issued on first request for runs that finished earlier) |
 | POST | `/api/proof/verify` | signed in | A certificate as the body → each check, against this host's key, log and deliverables |
+| GET | `/api/runs/{id}/proof` | the submitter, or `task.read.all` | Proof Mode: the run's ten links (request, classification, policy, model routing, evidence, formula, claim, verification, approval, signed certificate), each with `tone`, `summary`, `facts` and `entries`, or `empty` with the reason. The stored certificate is verified read-only; nothing is issued or audited |
 | POST | `/api/audit/seal` | `audit.read.all` | Seal the log now; 409 if the chain is broken |
 | GET | `/api/audit/seals` | `audit.read.all` | Every seal checked, and the chain |
 

@@ -925,6 +925,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               approverRoles={turn.approval?.approverRoles ?? []}
               reasons={turn.approval?.reasons ?? []}
               canReview={canReview}
+              taskId={turn.taskId}
             />
           )}
           {/* Only what the reader did not expect -- a model request that was

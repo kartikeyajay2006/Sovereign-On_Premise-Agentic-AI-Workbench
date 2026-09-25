@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Check, Copy, Quote, RotateCcw } from 'lucide-react'
+import { ArrowUpRight, Check, Copy, FileCheck2, Quote, RotateCcw } from 'lucide-react'
 import type { EvidenceItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { expandCitations } from '../model/usage'
@@ -74,6 +74,7 @@ export const AnswerActions = memo(function AnswerActions({
   approverRoles,
   reasons = [],
   canReview,
+  taskId = null,
 }: {
   /** The verified answer, or null when there is none to copy. */
   answer: string | null
@@ -93,6 +94,8 @@ export const AnswerActions = memo(function AnswerActions({
   reasons?: string[]
   /** Whether this person can open the approval queue at all. */
   canReview: boolean
+  /** The run's id, once the API has issued one: Proof Mode opens by it. */
+  taskId?: string | null
 }) {
   const [copied, setCopied] = useState<CopyState>('idle')
 
@@ -119,7 +122,7 @@ export const AnswerActions = memo(function AnswerActions({
     setCopied(copyBySelection(text) ? kind : 'blocked')
   }
 
-  if (!answer && !onRerun && !held) return null
+  if (!answer && !onRerun && !held && !taskId) return null
 
   return (
     <div className="flex flex-wrap items-center gap-1" aria-label="Answer actions">
@@ -156,6 +159,17 @@ export const AnswerActions = memo(function AnswerActions({
           <RotateCcw className="size-3.5" aria-hidden />
           Run again
         </button>
+      )}
+
+      {taskId && (
+        <Link
+          href={`/proof?run=${taskId}`}
+          className={ACTION}
+          title="The run's chain on one screen: request, policy, models, evidence, formulas, claims, approval and certificate"
+        >
+          <FileCheck2 className="size-3.5" aria-hidden />
+          Proof
+        </Link>
       )}
 
       {held && (

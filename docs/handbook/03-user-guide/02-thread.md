@@ -63,6 +63,7 @@ An answer has four parts.
 | **Copy** | Copies the answer text |
 | **Copy with sources** | Copies the answer followed by its sources list, ready to paste into an email or report |
 | **Run again** | Re-submits the same request as a new run, useful after a failure or to compare |
+| **Proof** | Opens Proof Mode (`/proof?run=<id>`): the run's chain on one screen, request to signed certificate, each link read from the record or verified from the certificate ([9.9](../09-security/09-proof.md#proof-mode)) |
 
 ## The transcript
 

@@ -229,6 +229,11 @@ class ModelUsage(BaseModel):
     #: The registry id that served the call, e.g. ``qwen2.5:3b``.
     model: str
     display_name: str | None = None
+    #: The digest the runtime reported for that model when it served the
+    #: call. A name can be re-pulled to different weights; this cannot, so
+    #: it is what Proof Mode and run comparison name. None when the runtime
+    #: reported none, and on runs recorded before it was kept.
+    model_digest: str | None = None
     #: Tokens the runtime reports for the prompt (``prompt_eval_count``).
     prompt_tokens: int | None = None
     #: Tokens the runtime reports generating (``eval_count``). Includes any
