@@ -2159,7 +2159,6 @@ class AgentOrchestrator:
                     1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
                 ),
                 severity=_calculated_severity(task),
-
                 dlp_findings=_dlp_holds(task),
             )
             # The gate's own reason says only that sensitive or restricted

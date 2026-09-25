@@ -347,7 +347,6 @@ class PolicyGateway:
         instruction_like_evidence: int = 0,
         isolation_plan: bool = False,
         severity: str | None = None,
-
         dlp_findings: int = 0,
     ) -> tuple[bool, list[str], list[str]]:
         """Evaluate approval-rules.yaml; return (required, reasons, approver_roles).
