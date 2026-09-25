@@ -19,6 +19,7 @@ storage/deliverables/*
 storage/workspaces/*
 storage/index/*
 storage/logs/*
+storage/reports/*
 storage/*.db
 storage/*.db-wal
 storage/*.db-shm

@@ -45,6 +45,12 @@ approval_required_when:
       decision_claims: true
     approver_roles: [reviewer, administrator]
 
+  - name: untrusted_instructions
+    description: Evidence contains text addressed to the model; it was withheld from the model, and a person reviews the run.
+    match:
+      instruction_like_evidence: true
+    approver_roles: [reviewer, administrator]
+
   - name: safety_recommendation
     description: Safety-related recommendations are never released unreviewed.
     match:

@@ -239,6 +239,18 @@ def test_verification_is_rerun_after_the_resolution() -> None:
     assert any(claim.verdict == "CALCULATED" for claim in task.verification.claims)
 
 
+def test_a_reason_the_resolution_answered_leaves_the_approval() -> None:
+    # Live: the withheld answer failed claim_verification, the run was held
+    # for it, and after the resolution every check passed -- but the
+    # approval still said "verification_failure".
+    task, orchestrator = _run()
+    task.verification = get_verification_engine().compile_report([], text=task.answer, evidence=task.evidence)
+    task.approval.reasons.append("verification_failure: Failed verification cannot be auto-delivered.")
+    _resolve(task, orchestrator, candidate=0)
+    assert task.verification.valid
+    assert [reason.split(":")[0] for reason in task.approval.reasons] == ["released_deliverable"]
+
+
 def test_a_conflict_cannot_be_resolved_twice() -> None:
     task, orchestrator = _run()
     _resolve(task, orchestrator, candidate=0)

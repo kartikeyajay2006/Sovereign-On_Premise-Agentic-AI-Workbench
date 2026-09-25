@@ -34,6 +34,8 @@ from backend.core.schemas import (
     User,
 )
 from backend.policy.gateway import get_policy_gateway
+from backend.security.file_guard import inspect_upload
+from backend.security.injection import screen
 
 
 def _egress_reading() -> dict[str, Any] | None:
@@ -156,6 +158,34 @@ class TaskService:
             raise TaskError("File is empty")
 
         digest = hashlib.sha256(payload).hexdigest()
+        # What the file is and what it carries, from its bytes. A refusal is
+        # audited with its reasons and nothing is written to storage.
+        verdict = inspect_upload(filename, payload)
+        if not verdict.accepted:
+            self.audit.record(
+                category="file",
+                action="quarantined",
+                actor=user.username,
+                actor_role=user.role,
+                detail={
+                    "filename": Path(filename).name,
+                    "sha256": digest,
+                    "size_bytes": len(payload),
+                    "detected": verdict.detected,
+                    "reasons": verdict.reasons,
+                },
+            )
+            raise TaskError(
+                f"'{Path(filename).name}' was refused at quarantine: " + "; ".join(verdict.reasons)
+            )
+        notes.extend(verdict.notes)
+        if verdict.detected == "text":
+            findings = screen(payload[:2_000_000].decode("utf-8", errors="replace"))
+            if findings:
+                notes.append(
+                    f"contains {len(findings)} instruction-like sentence(s) ({findings[0].label}); "
+                    "they are kept as evidence and withheld from the model"
+                )
         file_id = str(uuid.uuid4())
         safe_name = Path(filename).name
         target_dir = self.config.settings.path("uploads") / user.id
@@ -198,6 +228,8 @@ class TaskService:
                 "size_bytes": len(payload),
                 "input_type": stored.input_type.value,
                 "quarantine_passed": True,
+                "detected": verdict.detected,
+                "notes": notes,
             },
         )
         return stored

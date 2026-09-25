@@ -307,11 +307,17 @@ def scenario_sovereignty(client: Client) -> None:
 
     Console.step("Sandbox isolation self-test (adversarial)")
     result = client.get("/api/sovereignty/sandbox-test")
-    (Console.ok if result["static_layer_blocks_network_import"] else Console.fail)(
-        "static layer blocks network imports before execution"
-    )
-    (Console.ok if result["runtime_layer_blocks_socket"] else Console.fail)(
-        "runtime layer blocks sockets even when static validation is bypassed"
+    # The report is a list of named checks, each run against this host. It
+    # used to be two booleans, and this scenario still read them: a KeyError
+    # ended the demo at the one step meant to prove containment.
+    if not result.get("assessable", True):
+        Console.fail(f"containment not assessable on this host: {result.get('reason') or 'no backend'}")
+    for check in result.get("checks", []):
+        (Console.ok if check.get("passed") else Console.fail)(check.get("name", "unnamed check"))
+        if check.get("detail"):
+            Console.detail(str(check["detail"])[:120])
+    (Console.ok if result.get("all_passed") else Console.fail)(
+        f"{result.get('overall', 'no verdict')} (backend: {result.get('backend', 'unknown')})"
     )
 
     Console.step("Audit chain integrity")

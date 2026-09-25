@@ -19,6 +19,11 @@ cd "$ROOT"
 
 API_PORT="${API_PORT:-8000}"
 WEB_PORT="${WEB_PORT:-3000}"
+# The console binds to this host only. `next start` listens on every
+# interface by default, which put the console -- and, through its API proxy,
+# the API -- on the network of whatever host ran the demo. Set WEB_HOST=0.0.0.0
+# deliberately to serve other machines on a trusted network.
+WEB_HOST="${WEB_HOST:-127.0.0.1}"
 LOG_DIR="${LOG_DIR:-$ROOT/storage/logs}"
 API_LOG="$LOG_DIR/api.log"
 WEB_LOG="$LOG_DIR/web.log"
@@ -152,14 +157,14 @@ wait_for "http://127.0.0.1:$API_PORT/" "API" || { tail -20 "$API_LOG"; exit 1; }
 
 step "Starting the web console"
 if [ "${1:-}" = "--dev" ]; then
-  (cd frontend && setsid nohup npm run dev >"$WEB_LOG" 2>&1 </dev/null &)
+  (cd frontend && setsid nohup npm run dev -- --hostname "$WEB_HOST" --port "$WEB_PORT" >"$WEB_LOG" 2>&1 </dev/null &)
 else
-  (cd frontend && setsid nohup npm run start >"$WEB_LOG" 2>&1 </dev/null &)
+  (cd frontend && setsid nohup npm run start -- --hostname "$WEB_HOST" --port "$WEB_PORT" >"$WEB_LOG" 2>&1 </dev/null &)
 fi
 wait_for "http://127.0.0.1:$WEB_PORT/" "web console" || { tail -20 "$WEB_LOG"; exit 1; }
 
 echo
-echo "  Open ${GREEN}http://localhost:$WEB_PORT${RESET}"
+echo "  Open ${GREEN}http://localhost:$WEB_PORT${RESET}  ${DIM}(bound to $WEB_HOST)${RESET}"
 echo "  ${DIM}Sign in as 'engineer' with the password 'workbench'.${RESET}"
 echo "  ${DIM}API log: $API_LOG${RESET}"
 echo "  ${DIM}Web log: $WEB_LOG${RESET}"

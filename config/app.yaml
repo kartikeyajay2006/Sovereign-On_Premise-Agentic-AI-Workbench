@@ -227,3 +227,11 @@ security:
   # unset, which invalidates sessions on restart.
   secret_key: ""
   seed_user_password: workbench
+  # Failed sign-ins within the window. An account is locked after
+  # login_max_failures; a client address is locked only after failing across
+  # login_spray_accounts different accounts (every browser behind the
+  # console's proxy shares 127.0.0.1, so one person's typos must not lock all).
+  login_max_failures: 5
+  login_spray_accounts: 10
+  login_window_seconds: 300
+  login_lockout_seconds: 300

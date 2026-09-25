@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any, AsyncIterator
@@ -14,6 +15,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     Response,
     UploadFile,
     status,
@@ -22,6 +24,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from backend.api.dependencies import CurrentUser, SessionToken, require_permission
 from backend.api.task_service import get_task_service
+from backend.security.throttle import get_login_throttle
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
@@ -91,15 +94,33 @@ def _set_session_cookie(response: Response, session: Session) -> None:
 
 
 @router.post("/auth/login", response_model=Session)
-def login(payload: LoginRequest, response: Response) -> Session:
+def login(payload: LoginRequest, request: Request, response: Response) -> Session:
+    throttle = get_login_throttle()
+    client = request.client.host if request.client else "unknown"
+    wait = throttle.locked_for(payload.username, client)
+    if wait > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed sign-ins. Try again in {math.ceil(wait)} seconds.",
+            headers={"Retry-After": str(math.ceil(wait))},
+        )
     try:
         session = get_identity_service().authenticate(payload.username, payload.password)
+        throttle.succeeded(payload.username, client)
         # EventSource cannot attach an Authorization header. Keep the browser
         # session in an HttpOnly same-site cookie as well, so the SSE endpoint
         # receives the same authenticated identity as the rest of the UI.
         _set_session_cookie(response, session)
         return session
     except AuthenticationError as exc:
+        imposed = throttle.failed(payload.username, client)
+        if imposed:
+            get_audit_log().record(
+                category="auth",
+                action="login_throttled",
+                actor=payload.username[:64],
+                detail={"client": client, "lockout_seconds": imposed},
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
         ) from exc
@@ -138,8 +159,18 @@ def current_user(user: CurrentUser) -> User:
 
 @router.get("/auth/directory", response_model=list[User])
 def directory() -> list[User]:
-    """Seeded demo identities, so a reviewer can see which roles exist."""
-    return get_identity_service().list_users()
+    """Seeded demo identities, so a reviewer can see which roles exist.
+
+    Unauthenticated by design -- the sign-in screen shows it -- so it lists
+    only the demonstration accounts policy seeds. It returned every account,
+    which told anyone who could reach the port each real user's name, role,
+    department and clearance.
+    """
+    seeded = {
+        str(seed.get("username"))
+        for seed in get_config().access_control.get("seed_users", [])
+    }
+    return [user for user in get_identity_service().list_users() if user.username in seeded]
 
 
 # -------------------------------------------------------------------- models

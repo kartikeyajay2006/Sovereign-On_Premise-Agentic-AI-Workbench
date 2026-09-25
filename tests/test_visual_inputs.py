@@ -442,3 +442,50 @@ async def test_complete_scanned_task_uses_page_twenty_citation(
     assert next(check for check in completed.verification.checks if check.name == "page_citation_verification").passed
     supported, ids = VerificationEngine._claim_supported(completed.answer, completed.evidence)
     assert supported and ids == ["V20"]
+
+
+# A live V-2104 run failed outright because qwen2.5vl returned its one page
+# without a page number. One image can only be one page: an absent label, or
+# a number written as a string, is not the ambiguity the strict check exists
+# for. A wrong label still is (test_invalid_single_page_label_fails).
+@pytest.mark.parametrize("label", [None, "absent", "20"])
+def test_a_single_page_without_a_usable_label_is_that_page(
+    twenty_page_scan: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, label,
+) -> None:
+    stored = _stored(twenty_page_scan, "file-a")
+    task = _task([stored])
+    agent = AgentOrchestrator()
+    monkeypatch.setattr(agent.audit, "record", lambda **kwargs: None)
+    last = agent._visual_inputs(task, tmp_path / "work", [])[-1]
+    page = {"transcription": "PAGE 20 VALUE 140"}
+    if label != "absent":
+        page["page_number"] = label
+    recorded = agent._record_pdf_batch(task, EvidenceLedger(task.evidence), [last], {"pages": [page]}, "vision", [])
+    assert [item["page_number"] for item in recorded] == [20]
+    assert task.evidence[0].page_number == 20 and task.evidence[0].excerpt == "PAGE 20 VALUE 140"
+
+
+@pytest.mark.asyncio
+async def test_a_single_page_that_fails_validation_is_asked_once_more(
+    twenty_page_scan: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = _stored(twenty_page_scan, "file-a")
+    task = _task([stored])
+    user = User(id="user-1", username="engineer", display_name="Engineer", role="engineer", department="inspection")
+    agent = AgentOrchestrator()
+    monkeypatch.setattr(agent.audit, "record", lambda **kwargs: None)
+    last = agent._visual_inputs(task, tmp_path / "work", [])[-1]
+    answers = iter([
+        {"pages": [{"page_number": 7, "transcription": "a page it did not see"}]},
+        {"pages": [{"page_number": 20, "transcription": "PAGE 20 VALUE 140"}]},
+    ])
+    calls: list[int] = []
+
+    async def fake_generate(_task, _user, **kwargs):
+        calls.append(len(kwargs["images"]))
+        return json.dumps(next(answers)), SimpleNamespace(selected_model="local-vision")
+
+    monkeypatch.setattr(agent, "_generate", fake_generate)
+    pages = await agent._extract_pdf_batch(task, user, EvidenceLedger(task.evidence), [last], [])
+    assert calls == [1, 1]
+    assert [page["page_number"] for page in pages] == [20]

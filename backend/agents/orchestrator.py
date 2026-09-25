@@ -39,6 +39,7 @@ from backend.engineering.stage import (
     unresolved,
 )
 from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
+from backend.security.injection import neutralise, screen
 from backend.core.schemas import (
     AgentPlan,
     ApprovalRecord,
@@ -49,6 +50,7 @@ from backend.core.schemas import (
     ModelUsage,
     PlanStep,
     PolicyDecision,
+    PolicyEvent,
     RoutingDecision,
     SandboxResult,
     Sensitivity,
@@ -205,6 +207,17 @@ def _revision_note(item: EvidenceItem) -> str:
         replaced = f" by {item.superseded_by}" if item.superseded_by else ""
         return f" [{item.revision_status.upper()}{replaced}; historical, not in force]"
     return ""
+
+
+def _model_text(item: EvidenceItem) -> str:
+    """An excerpt as the model may see it: instruction-like sentences withheld.
+
+    The sentences stay on the evidence item, whole, for a reviewer; the model
+    is shown a marker saying what kind of instruction was removed.
+    """
+    if (item.extraction_data or {}).get("instruction_like"):
+        return neutralise(item.excerpt or "")
+    return item.excerpt or ""
 
 
 def _resolved_value(
@@ -917,8 +930,18 @@ class AgentOrchestrator:
             raise InferenceError(f"Vision extraction omitted pages of {batch[0].source.filename}: expected {expected}")
         by_number: dict[int, dict[str, Any]] = {}
         for page in pages:
-            if not isinstance(page, dict) or type(page.get("page_number")) is not int:
+            if not isinstance(page, dict):
                 raise InferenceError(f"Vision extraction returned an unlabelled page for {batch[0].source.filename}")
+            label = page.get("page_number")
+            if isinstance(label, str) and label.strip().isdigit():
+                page = {**page, "page_number": int(label.strip())}
+            elif type(label) is not int:
+                # One image can only be one page. An absent label on a
+                # single-page call is not the ambiguity this check exists
+                # for; in a batch it is, and the batch is retried page by page.
+                if len(batch) != 1:
+                    raise InferenceError(f"Vision extraction returned an unlabelled page for {batch[0].source.filename}")
+                page = {**page, "page_number": expected[0], "_unlabelled": True}
             number = page["page_number"]
             if number in by_number:
                 raise InferenceError(f"Vision extraction returned page {number} twice for {batch[0].source.filename}")
@@ -953,7 +976,10 @@ class AgentOrchestrator:
             assert number is not None
             reported = source_pages[number]
             page = {**reported, "page_number": number}
-            if reported["page_number"] != number:
+            unlabelled = page.pop("_unlabelled", False)
+            if unlabelled:
+                page["model_reported_page_number"] = None
+            elif reported["page_number"] != number:
                 page["model_reported_page_number"] = reported["page_number"]
             parts: list[str] = []
             for field in page.get("fields") or []:
@@ -1246,7 +1272,11 @@ class AgentOrchestrator:
             return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
         except InferenceError:
             if len(batch) == 1:
-                raise
+                # A small vision model is not deterministic: one malformed
+                # answer about one page is asked again once before the run
+                # is failed on it.
+                parsed, _, model_id = await self._vision_extraction(task, user, batch)
+                return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
             # Do not discard a whole batch because its page labels or count
             # were ambiguous. Single-image calls have an unambiguous source.
             recovered: list[dict[str, Any]] = []
@@ -1500,6 +1530,10 @@ class AgentOrchestrator:
             # life, severity and due date from it, each input bound to the
             # evidence cell it came from. The model is then told the figures.
             engineered = await self._engineering_stage(task, user, ledger, profile)
+            # Document text is evidence, never instruction. Sentences in it
+            # addressed to the model are kept for the reviewer and withheld
+            # from every prompt from here on.
+            await self._screen_evidence(task, user)
 
             # ------------------------------------------ code execution
             #
@@ -1734,6 +1768,9 @@ class AgentOrchestrator:
                 prompt=task.prompt,
                 verification_valid=task.verification.valid,
                 unresolved_conflicts=len(unresolved(task.conflicts)),
+                instruction_like_evidence=sum(
+                    1 for item in task.evidence if (item.extraction_data or {}).get("instruction_like")
+                ),
                 decision_claims=sum(
                     1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
                 ),
@@ -2024,6 +2061,55 @@ class AgentOrchestrator:
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
 
+    async def _screen_evidence(self, task: Task, user: User) -> int:
+        """Flag evidence carrying text addressed to the model. Returns how many items."""
+        flagged = 0
+        for item in task.evidence:
+            data = dict(item.extraction_data or {})
+            if item.kind in ("computation", "human") or "instruction_like" in data:
+                continue
+            findings = screen(item.excerpt or "")
+            if not findings:
+                continue
+            data["instruction_like"] = [
+                {"label": finding.label, "sentence": finding.sentence[:400]} for finding in findings
+            ]
+            item.extraction_data = data
+            flagged += 1
+            reason = (
+                f"{item.id} ({item.source_document}) contains text addressed to the model "
+                f"({findings[0].label}). It is kept as evidence for review and withheld from every prompt."
+            )
+            task.policy_events.append(PolicyEvent(
+                subject=item.id,
+                action="evidence.instruction_like",
+                decision=PolicyDecision.REQUIRE_APPROVAL,
+                reason=reason,
+                rule="approval-rules.yaml:untrusted_instructions",
+                at=datetime.now(timezone.utc),
+            ))
+            self.audit.record(
+                category="security",
+                action="instruction_like_content",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={
+                    "evidence_id": item.id,
+                    "source": item.source_document,
+                    "findings": [{"label": f.label, "sentence": f.sentence[:200]} for f in findings],
+                },
+            )
+            await self._emit(task, "task.policy", {
+                "subject": item.id,
+                "decision": "require_approval",
+                "reason": reason,
+                "findings": data["instruction_like"],
+            })
+        if flagged:
+            self._checkpoint(task)
+        return flagged
+
     def _active_revisions(self, evidence: list[EvidenceItem]) -> dict[str, tuple[str, str]]:
         """The revision in force of every procedure the run's files refer to."""
         from backend.rag.knowledge_base import get_knowledge_base
@@ -2173,10 +2259,16 @@ class AgentOrchestrator:
         task.answer = ((task.answer or "").rstrip() + "\n\n" + "\n\n".join(addendum)).strip()
 
         self._reverify(task)
-        if task.approval is not None and not unresolved(task.conflicts):
+        # Reasons the resolution has answered leave the approval; the rest
+        # (a deliverable to release, a classification) still stand.
+        answered: tuple[str, ...] = ()
+        if not unresolved(task.conflicts):
+            answered += ("unresolved_conflict",)
+        if task.verification is not None and task.verification.valid:
+            answered += ("verification_failure",)
+        if task.approval is not None and answered:
             task.approval.reasons = [
-                reason_text for reason_text in task.approval.reasons
-                if not reason_text.startswith("unresolved_conflict")
+                reason_text for reason_text in task.approval.reasons if not reason_text.startswith(answered)
             ]
         await self._rerender_after_resolution(task, user, addendum)
         task.updated_at = datetime.now(timezone.utc)
@@ -2315,7 +2407,7 @@ class AgentOrchestrator:
             if call.ok:
                 context_lines.append("Spreadsheet structure:\n" + call.output.get("stdout", "")[:2000])
         for item in ledger.items[:4]:
-            context_lines.append(f"[{item.id}] {item.excerpt[:400]}")
+            context_lines.append(f"[{item.id}] {_model_text(item)[:400]}")
 
         prompt = self.config.prompt(
             "task.generate_code",
@@ -2453,7 +2545,7 @@ class AgentOrchestrator:
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
             + _revision_note(item)
-            + f"\n{item.excerpt[:400 if item.page_number is not None else 500]}"
+            + f"\n{_model_text(item)[:400 if item.page_number is not None else 500]}"
             for item in [*page_items, *other_items]
         ) or "No local evidence was retrieved."
 
@@ -2505,7 +2597,7 @@ class AgentOrchestrator:
             f"[{item.id}] {item.source_document}"
             + (f", {item.location}" if item.location else "")
             + _revision_note(item)
-            + f": {item.excerpt[:250]}"
+            + f": {_model_text(item)[:250]}"
             for item in [*page_items, *other_items]
         ) or "No evidence available."
 
