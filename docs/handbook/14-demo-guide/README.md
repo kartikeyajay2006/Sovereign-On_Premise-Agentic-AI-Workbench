@@ -9,9 +9,15 @@
 
 The full scripted demonstration, with thirteen scenarios and the correct answer and clause citations for each, is **[`docs/DEMO.md`](../../DEMO.md)**. This section is the short version for a live, timed slot.
 
-## Choose reliable moments
+## The three judged moments
 
-Everything below was run on a CPU-only laptop while this handbook was written:
+| Moment | What to show | Time on a CPU laptop |
+|---|---|---|
+| **1. Can V-2104 continue operating?** | Attach `scanned-inspection-report-V-2104.pdf`, ask for the corrosion rate, remaining life and severity. The figures come from the formula registry, not the model: Shell course 2 (mid), 0.55 mm/year, 6.18 years, Medium, Head of Inspection, next survey 2028-02-18. Open the integrity card's fold: every input names its table cell, every result its hash. Then ask *"How do we isolate V-2104 for confined space entry?"*: the drawing answers, branch by branch, and marks the sheet | Scan ~6 min (pre-record it); isolation ~1 min |
+| **2. The workbench refuses to guess** | Attach the scan **and** `sample_data/conflict/V-2104-contractor-field-sheet.md`. The readings disagree (9.4 vs 9.9 mm): the decision is withheld, the run held, approve refused, and the submitter cannot resolve it. A reviewer chooses, with a reason; the formulas recompute; then approve succeeds. Show the certificate verifying | ~5.5 min (pre-record the run; resolve and approve live) |
+| **3. Attack the controls** | `scripts/red_team.py`: 31 attacks, each a measurement, ending *31 of 31 held* and a hashed report. Then AUDIT-02 in words: rewrite history and recompute the chain; the chain is fooled, the signed root is not | ~1 min |
+
+## Other reliable moments
 
 | Moment | Time | Reliability |
 |---|---|---|
@@ -19,12 +25,12 @@ Everything below was run on a CPU-only laptop while this handbook was written:
 | Cladding question, **held** because a Restricted memo was retrieved | ~20 s | ✅ Correct, held for the right reason |
 | Reviewer releases it; own-run approval refused | seconds | ✅ Deterministic |
 | Same question as `operator` vs `engineer` (department isolation) | ~20 s each | ✅ Deterministic filtering |
-| Sandbox attacks and the 7/7 self-test | ~30 s | ✅ Deterministic |
-| Audit chain verified on the server and in the browser | seconds | ✅ Deterministic |
+| A superseded revision: *"What did SOP-INS-014 Rev 4.1 require?"* against the plain question | ~20 s each | ✅ Deterministic filtering |
+| Sandbox attacks and the containment self-test | ~30 s | ✅ Deterministic |
+| Audit chain verified; a certificate verified offline with `scripts/verify_certificate.py` | seconds | ✅ Deterministic |
 | SOP question sweep harness, three questions | ~1–2 min | ✅ 3/3 traced |
-| Scanned report → approval note | 4–10 min | ⚠️ **Not reliable on a 3B CPU model**: figures can be wrong ([8.5](../08-verification/05-limits.md)) |
 
-Lead with the reliable moments. Show the scanned-report run **pre-recorded**, and say what it demonstrates: per-page vision, the held DOCX and its hash, and a reviewer checking figures against the source. Do not present its figures as verified until the calculation fixes in [8.5](../08-verification/05-limits.md#the-fixes) are in.
+The scanned-report run is now **correct** on the 3B model, because the model is told the figures rather than asked for them ([8.6](../08-verification/06-engineering.md)). It is still **slow** on a CPU (the vision stage alone takes three to four minutes), so run it before the slot and open it from the thread's history. A small vision model occasionally returns a malformed page; the run asks again once before failing.
 
 <!-- nav:start -->
 

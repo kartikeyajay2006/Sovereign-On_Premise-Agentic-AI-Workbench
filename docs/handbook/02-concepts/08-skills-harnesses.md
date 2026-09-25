@@ -92,6 +92,6 @@ Report files are served only if they still match their recorded hash.
 
 | | | |
 |:--|:--:|--:|
-| [← 2.7 · Sovereignty](07-sovereignty.md) | [↑ 02 · Core concepts](README.md) | [03 · Using the workbench →](../03-user-guide/README.md) |
+| [← 2.7 · Sovereignty](07-sovereignty.md) | [↑ 02 · Core concepts](README.md) | [2.9 · Conflicts and human resolution →](09-conflicts.md) |
 
 <!-- nav:end -->

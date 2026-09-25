@@ -36,6 +36,7 @@ Below 1024 px wide, the sidebar becomes a sheet behind a menu button in a slim t
 | [3.8 Sandbox](08-sandbox.md) | Run code under the host's limits | Everyone who creates tasks |
 | [3.9 Audit](09-audit.md) | The hash-chained record | Everyone; reviewers, auditors and administrators see all of it |
 | [3.10 Keyboard and themes](10-keyboard.md) | Shortcuts, command palette, light and dark | Everyone |
+| [3.11 Drawings](11-drawings.md) | P&ID isolation plans, flow and paths, answered from the graph | Everyone |
 
 <!-- nav:start -->
 
@@ -43,6 +44,6 @@ Below 1024 px wide, the sidebar becomes a sheet behind a menu button in a slim t
 
 | | | |
 |:--|:--:|--:|
-| [← 2.8 · Skills and harnesses](../02-concepts/08-skills-harnesses.md) | [↑ The AEGIS Handbook](../README.md) | [3.1 · Signing in and roles →](01-sign-in.md) |
+| [← 2.9 · Conflicts and human resolution](../02-concepts/09-conflicts.md) | [↑ The AEGIS Handbook](../README.md) | [3.1 · Signing in and roles →](01-sign-in.md) |
 
 <!-- nav:end -->

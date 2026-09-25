@@ -78,14 +78,18 @@ Clearance limits retrieval, the Documents list, and which runs' content a role m
 | Expiry | An expired session is deleted when next presented |
 | Sign-out | `POST /api/auth/logout` deletes it |
 
+## Sign-in throttling and sessions
+
+- **Throttling** (`backend/security/throttle.py`). An account that fails five sign-ins within five minutes is refused for five minutes (HTTP 429 with `Retry-After`), whoever asks. A client address is locked only when it fails against ten different accounts, the pattern of one password sprayed across all of them; it is not locked for failing on one account, because behind the console's proxy every browser arrives from `127.0.0.1`. Each lockout is audited (`auth / login_throttled`). Settings: `security.login_max_failures`, `login_spray_accounts`, `login_window_seconds`, `login_lockout_seconds`.
+- **Sessions** are stored and looked up by `sha256(token)`; the raw token exists only in the client.
+- **The directory** (`GET /api/auth/directory`, unauthenticated for the sign-in screen) lists only the accounts seeded from policy.
+
 ## Not implemented yet
 
-- **Login throttling and lockout.** Failed sign-ins are audited (`security / login_failed`) but not rate-limited.
-- **Hashed session tokens** at rest.
 - **Enterprise identity** (LDAP / Active Directory, OIDC, MFA).
 - **Department-wide task and deliverable visibility** for engineers, as noted in the table.
 
-See the prioritised list in [9.6](06-threat-model.md#fix-list).
+See what is still open in [9.6](06-threat-model.md#what-does-not-hold-yet).
 
 <!-- nav:start -->
 

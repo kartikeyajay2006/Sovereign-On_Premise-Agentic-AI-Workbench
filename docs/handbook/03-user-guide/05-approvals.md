@@ -15,7 +15,7 @@ Two filters sit above the list:
 
 | Filter | Options |
 |---|---|
-| Status | **Held** (waiting), **Approved**, **Rejected**, **All**, each with its count |
+| Status | **Held** (waiting), **Approved**, **Rejected**, **Returned** (sent back for revision), **All**, each with its count |
 | Class | **Any class**, or one classification, e.g. *normal*, *restricted* |
 
 Each item shows: **Held**, its class, how long it has waited, the request, the run ID, who submitted it, and whether it has an attached file.
@@ -28,8 +28,10 @@ Select an item and the right-hand pane shows everything needed to decide, in the
 |---|---|
 | **Header** | Status, class, run ID, the request, who submitted it and when, how long it ran, its task type. *Your decision is recorded against [you] in the audit chain.* |
 | **Held because** | Every approval rule that matched, in plain language, and which roles may decide |
+| **Conflicting sources** | When the run's sources disagree: each conflict with both values side by side, their evidence and where in it, and, for an open one, the form to resolve it ([2.9](../02-concepts/09-conflicts.md)) |
 | **Deliverable** | The answer with its citation chips, and any document the run would release, with its hash |
-| **Verification** | *N of M checks passed*, then every check (Sources, Citations, Pages, Calculations, Code, Document) with its detail |
+| **Verification** | *N of M checks passed*, then every check (Sources, Citations, Pages, Calculations, Engineering, Claims, Isolation plan, Code, Document) with its detail, and every material claim with its verdict and the evidence it rests on |
+| **Signed proof** | **Verify this run**: the run's certificate checked against this host's key, the sealed audit log and the deliverable bytes, each check listed; the certificate to download for offline checking ([9.9](../09-security/09-proof.md)) |
 | **Limitations it states** | Anything the run itself flagged: no passages found, a check that could not complete, an unreadable page |
 
 ## Deciding
@@ -45,8 +47,15 @@ Select an item and the right-hand pane shows everything needed to decide, in the
 
 Approve or reject opens a dialog for an optional note. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> confirms. The note is stored on the run and in the audit record; a decision without one shows *No note was recorded with this decision.*
 
-- **Approve** marks the run **Delivered** and releases its documents to the requester.
+- **Approve** marks the run **Delivered** and releases its documents to the requester. It is refused while a conflict is open.
 - **Reject** marks it **Rejected**. Nothing is released.
+- **Request revision** sends it back to its submitter with your note, which is required. Nothing is released and nothing is rejected; the queue shows it as **Returned**.
+
+Every decision is bound to the version you read. If the run changed while you had it open, because a conflict was resolved or a document re-rendered, the decision is refused with *This run has changed since you opened it*: reload and review what is there now.
+
+### Resolving a conflict
+
+Choose one of the candidate values, or **A re-measured value** and type it with its unit, then write why that value governs. **Resolve and recompute** records your choice as H evidence under your name, recomputes every figure from it with the same formulas, adds the resolution to the answer, re-runs verification and re-renders the held document. You cannot resolve a run you submitted.
 
 ## When you cannot decide
 
@@ -55,13 +64,15 @@ Approve or reject opens a dialog for an optional note. <kbd>Ctrl</kbd>/<kbd>⌘<
 | *You ran this task, so you cannot approve or reject it.* | Separation of duties: nobody decides their own work, whatever their role |
 | *Role '…' is not an approving authority for this task* | The matching rules name other approver roles |
 | *This task is not awaiting approval* | Someone else decided it first |
+| *Resolve K2 (…) before approving* | A high-impact conflict is still open |
+| *This run has changed since you opened it* | The version you reviewed is not the version there now |
 
 ## A good review
 
 > [!TIP]
 > 1. Read **Held because** first. It tells you what the policy is worried about.
 > 2. Open every citation chip, and check that the passage says what the sentence claims. Verification checks that the words and figures match; only you can check that the *meaning* does.
-> 3. For any figure, find the inputs in the evidence and redo the arithmetic, or open the run's transcript to see the code that computed it.
+> 3. For any figure, open the integrity card's fold: every formula, every input with the table cell it came from, every result hash. Check the inputs against the scan; the arithmetic is the registry's.
 > 4. Write the reason in the note. *"Figures match the UT survey; severity per SOP-MNT-022 §4.1"* is worth far more in an audit than a bare approval.
 
 <!-- nav:start -->

@@ -80,6 +80,14 @@ The model estate of this host: what the registry declares, what the runtime has 
 
 Each model row shows its display name, role, parameters, quantisation, context window, capabilities, the classifications it is **cleared for**, and whether it is **available**, **unavailable** (declared, not installed) or **unregistered** (installed, not declared, and refused).
 
+## Formulas
+
+The engineering formula registry: every formula with its version, the clause it implements, its expression, its inputs with units, and the hash of its source. These are the formulas that compute a run's figures before the model writes ([8.6](../08-verification/06-engineering.md)).
+
+## Drawings
+
+P&IDs held as graphs, and the questions they answer: isolation plans, flow, paths, instruments. See [3.11 · Drawings](11-drawings.md).
+
 ## Uploads
 
 Files you have attached to runs: name, size, classification, when, and SHA-256. Uploads are always readable by their uploader. Other people can read them only under the department rules.

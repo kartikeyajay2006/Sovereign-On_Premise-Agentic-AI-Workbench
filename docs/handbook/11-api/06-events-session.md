@@ -83,6 +83,6 @@ curl -s $BASE/api/sovereignty -H "Authorization: Bearer $R" | jq '{sovereign, ex
 
 | | | |
 |:--|:--:|--:|
-| [← 11.5 · Knowledge, sandbox, audit and sovereignty](05-knowledge-sandbox-audit.md) | [↑ 11 · API reference](README.md) | [12 · Operations →](../12-operations/README.md) |
+| [← 11.5 · Knowledge, sandbox, audit and sovereignty](05-knowledge-sandbox-audit.md) | [↑ 11 · API reference](README.md) | [11.7 · Engineering, conflicts, drawings and proof →](07-engineering-proof.md) |
 
 <!-- nav:end -->

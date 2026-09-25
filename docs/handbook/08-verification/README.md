@@ -10,11 +10,12 @@ The verification engine is `backend/agents/verifier.py`. It reads model output a
 
 | Page | Covers |
 |---|---|
-| [8.1 The checks](01-checks.md) | All seven checks: what each tests, how, and what its pass and fail messages say |
+| [8.1 The checks](01-checks.md) | The general checks: what each tests, how, and what its pass and fail messages say |
 | [8.2 Material claims](02-claims.md) | Which sentences count as claims, and exactly how a claim is traced to evidence |
 | [8.3 Calculations](03-calculations.md) | How asserted figures are extracted and recomputed in the sandbox |
 | [8.4 Thresholds](04-thresholds.md) | Every tunable setting, and what moving it does |
-| [8.5 What verification cannot catch](05-limits.md) | A real wrong answer that passed every check, why, and the fixes |
+| [8.5 What verification cannot catch](05-limits.md) | A real wrong answer that passed every check, why, and the fixes that closed it |
+| [8.6 Engineering verification](06-engineering.md) | The formula registry, `engineering_verification`, claim verdicts, and the isolation-plan check |
 
 ## In one table
 
@@ -26,6 +27,9 @@ The verification engine is `backend/agents/verifier.py`. It reads model output a
 | **calculation_verification** | A computed figure does not recompute within 1 %, or recomputation could not complete |
 | **code_verification** | Generated code was refused by static validation, exited non-zero, or timed out |
 | **document_verification** | A drafted document has no title, no sections, no inline citations despite evidence, or no recommendation |
+| **engineering_verification** | A rate, remaining life or severity in the answer differs from the formula registry; or the answer states a figure the evidence cannot support (missing or conflicting inputs) |
+| **claim_verification** | An engineering claim is UNSUPPORTED, or any claim rests on an unresolved conflict |
+| **topology_verification** | An isolation plan leaves out a branch of the equipment it isolates |
 | **hallucination_check** | Overall, fewer than 60 % of material claims are traceable to evidence or computation |
 
 A run is **valid** only when every check passes. An invalid run is never delivered automatically: `verification_failure` holds it for a reviewer.

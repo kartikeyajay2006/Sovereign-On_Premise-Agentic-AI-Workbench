@@ -33,8 +33,8 @@ Everything here was written from the source code, configuration and policy files
 | ✅ **A reviewer or auditor** | [Approval](02-concepts/05-approval.md) and [Audit](02-concepts/06-audit.md) | [Approvals screen](03-user-guide/05-approvals.md) → [Audit screen](03-user-guide/09-audit.md) |
 | 🛠️ **An engineer** extending the system | [Architecture](04-architecture/README.md) | [Agents](07-agents/README.md) → [Verification](08-verification/README.md) → [Development](13-development/README.md) |
 | 🖥️ **An operator** running it on a host | [Installation](01-getting-started/03-install-linux-macos.md) | [Configuration](10-configuration/README.md) → [Operations](12-operations/README.md) |
-| 🔐 **A security reviewer** | [Security and governance](09-security/README.md) | [Threat model](09-security/06-threat-model.md) → [Sandbox](09-security/03-sandbox.md) |
-| 🏆 **A judge or evaluator** | [Demo guide](14-demo-guide/README.md) | [Verification](08-verification/README.md) → [Known limits](08-verification/05-limits.md) |
+| 🔐 **A security reviewer** | [Security and governance](09-security/README.md) | [Threat model](09-security/06-threat-model.md) → [Red team](09-security/08-red-team.md) → [Signed proof](09-security/09-proof.md) |
+| 🏆 **A judge or evaluator** | [Demo guide](14-demo-guide/README.md) | [Engineering verification](08-verification/06-engineering.md) → [Conflicts](02-concepts/09-conflicts.md) → [Red team](09-security/08-red-team.md) |
 
 ---
 
@@ -45,8 +45,8 @@ Everything here was written from the source code, configuration and policy files
 | # | Section | What it covers |
 |---|---|---|
 | 01 | **[Getting started](01-getting-started/README.md)** | What AEGIS is, requirements, installation on Linux, macOS and Windows, models, seeding the corpus, running, your first hour, installation troubleshooting |
-| 02 | **[Core concepts](02-concepts/README.md)** | Runs, evidence and citations, classification and clearance, verification, approval, the audit chain, sovereignty, skills and harnesses |
-| 03 | **[Using the workbench](03-user-guide/README.md)** | Every screen: sign-in, Thread, Skills, Harnesses, Approvals, Knowledge, Assurance, Sandbox, Audit, keyboard shortcuts |
+| 02 | **[Core concepts](02-concepts/README.md)** | Runs, evidence and citations, classification and clearance, verification, approval, the audit chain, sovereignty, skills and harnesses, conflicts and human resolution |
+| 03 | **[Using the workbench](03-user-guide/README.md)** | Every screen: sign-in, Thread, Skills, Harnesses, Approvals, Knowledge, Assurance, Sandbox, Audit, keyboard shortcuts, P&ID drawings |
 
 ### Part II · Understand it
 
@@ -54,15 +54,15 @@ Everything here was written from the source code, configuration and policy files
 |---|---|---|
 | 04 | **[Architecture](04-architecture/README.md)** | System overview, the life of a request, backend modules, the frontend, the data model, the live event stream |
 | 05 | **[Models and routing](05-models-and-routing/README.md)** | The model registry, how a model is chosen for each stage, memory residency, the Ollama client, adding a model |
-| 06 | **[Knowledge and retrieval](06-knowledge-and-retrieval/README.md)** | Ingestion, per-page PDF reading and vision, chunking and embedding, retrieval and clearance, writing a corpus |
+| 06 | **[Knowledge and retrieval](06-knowledge-and-retrieval/README.md)** | Ingestion, per-page PDF reading and vision, chunking and embedding, retrieval and clearance, writing a corpus, revision control |
 | 07 | **[Agents and orchestration](07-agents/README.md)** | The task analyzer, the orchestrator's stages, planning, the tool registry, deliverables |
-| 08 | **[Verification](08-verification/README.md)** | Every check, how claims are found and traced, how figures are recomputed, thresholds, and what verification cannot catch |
+| 08 | **[Verification](08-verification/README.md)** | Every check, how claims are found and traced, how figures are recomputed, thresholds, what verification could not catch, and the deterministic formula registry that closed it |
 
 ### Part III · Run it safely
 
 | # | Section | What it covers |
 |---|---|---|
-| 09 | **[Security and governance](09-security/README.md)** | Roles and permissions, the policy gateway, the sandbox on each OS, the sovereignty monitor, the audit log, the threat model |
+| 09 | **[Security and governance](09-security/README.md)** | Roles and permissions, the policy gateway, the sandbox on each OS, the sovereignty monitor, the audit log, the threat model, the ingestion guard, the red team, signed proof |
 | 10 | **[Configuration reference](10-configuration/README.md)** | Every setting in `config/` and `policies/`, and how to override them with environment variables |
 | 11 | **[API reference](11-api/README.md)** | Every HTTP endpoint, its permission, its request and response, and the Server-Sent Events stream |
 | 12 | **[Operations](12-operations/README.md)** | The run script, logs and storage, the audit tool, backup and restore, performance tuning, runtime troubleshooting |

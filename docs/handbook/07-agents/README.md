@@ -22,6 +22,6 @@ AEGIS's "agent" is a **fixed sequence of stages** whose shape adapts to the requ
 
 | | | |
 |:--|:--:|--:|
-| [← 6.5 · Writing a corpus](../06-knowledge-and-retrieval/05-corpus-authoring.md) | [↑ The AEGIS Handbook](../README.md) | [7.1 · The task analyzer →](01-analyzer.md) |
+| [← 6.6 · Revision control](../06-knowledge-and-retrieval/06-revisions.md) | [↑ The AEGIS Handbook](../README.md) | [7.1 · The task analyzer →](01-analyzer.md) |
 
 <!-- nav:end -->

@@ -79,7 +79,7 @@ Every execution is audited as `security / sandbox_execute`, alongside the `polic
 It is a subprocess of the API under three layers: static validation of the source, OS resource limits, and a runtime shim that makes network calls and writes outside the workspace raise. It is **not** a container or virtual machine.
 
 > [!WARNING]
-> Code in the sandbox runs as the same operating-system user as the API. Writes outside the workspace are refused, but **reads are not confined**: sandboxed code can read files the API user can read, including the workbench's own database. Do not treat the sandbox as a boundary against a hostile user until code runs in a container. [9.3 The sandbox](../09-security/03-sandbox.md) sets out exactly what each layer stops.
+> Code in the sandbox runs as the same operating-system user as the API. Reads and writes outside the workspace are refused by the runtime shim (red team SANDBOX-01 and SANDBOX-02 read `/etc/passwd` and the workbench database, and were refused), but that is a shim, not an operating-system boundary: until code runs in a container, a flaw in the shim would expose what the API user can reach. [9.3 The sandbox](../09-security/03-sandbox.md) sets out exactly what each layer stops.
 
 <!-- nav:start -->
 

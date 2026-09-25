@@ -14,6 +14,7 @@ Every screen, setting and API endpoint in AEGIS is an expression of a small numb
 | [2.6 The audit chain](06-audit.md) | Every step is appended to a log in which each record seals the one before it |
 | [2.7 Sovereignty](07-sovereignty.md) | Nothing leaves the host, and the host measures that rather than asserting it |
 | [2.8 Skills and harnesses](08-skills-harnesses.md) | Saved instructions, and jobs made of many governed runs |
+| [2.9 Conflicts and human resolution](09-conflicts.md) | Disagreeing sources become conflict objects; a reviewer chooses; the formulas recompute |
 
 ## The principle underneath
 

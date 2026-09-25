@@ -31,6 +31,6 @@ These run through every page of this section.
 
 | | | |
 |:--|:--:|--:|
-| [← 3.10 · Keyboard and themes](../03-user-guide/10-keyboard.md) | [↑ The AEGIS Handbook](../README.md) | [4.1 · System overview →](01-system-overview.md) |
+| [← 3.11 · Drawings](../03-user-guide/11-drawings.md) | [↑ The AEGIS Handbook](../README.md) | [4.1 · System overview →](01-system-overview.md) |
 
 <!-- nav:end -->

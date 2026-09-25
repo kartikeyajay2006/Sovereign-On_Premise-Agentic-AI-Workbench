@@ -2,6 +2,9 @@
 
 This page describes a real run on the demonstration corpus in which the answer was **wrong** and **every check passed**. It is the most important page in this section, because knowing exactly where a control stops is what makes it trustworthy.
 
+> [!NOTE]
+> **This gap is closed.** The same request now runs its figures through the deterministic formula registry ([8.6](06-engineering.md)), and the model is told them rather than asked for them. On the real model the run answers Shell course 2 (mid), 0.55 mm/year, 6.18 years, Medium, next survey 2028-02-18, and `engineering_verification` fails an answer that states anything else, including this page's 0.8 mm/year and "Severe". The run is kept here because it is why the registry exists.
+
 ## The run
 
 **Request** (as `engineer`, attaching `scanned-inspection-report-V-2104.png`, output Word):
@@ -68,21 +71,22 @@ Vision, by contrast, **worked**. The page transcription (`V4`) read the nominal 
 
 ## The fixes
 
-In order of effort:
+All five are in place. As they were planned, in order of effort:
 
-1. **Require code for every calculation.** Add `calculation` to `code_execution.always_for_task_types`, so a calculation always runs in the sandbox, with or without a data file. One line of configuration.
-2. **Fail when a requested calculation was not made.** When the task type is `calculation` and nothing was recomputed, *calculation_verification* should fail with *a calculation was requested but none was computed*, rather than pass with *nothing to recompute*.
-3. **Trace each claim to the evidence it cites**, not to any evidence in the run.
-4. **A deterministic engineering calculation engine.** A versioned registry of formulas (corrosion rate, remaining life, next inspection date), each with unit-aware inputs bound to evidence IDs (for example: t-previous 11.6 mm and t-current 9.4 mm from the thickness table in `V4`, 4.0 years between the inspection dates in its header), executed deterministically and recorded as calculation evidence. Verification then recomputes *from the evidence*, and the same inputs always produce the same answer.
-5. **Check against expected answers.** For the demonstration corpus, `sample_data/expected-answers.json` already holds the correct figures. An automated evaluation run over the golden scenarios before every demonstration would have caught this before a judge did.
+1. ✅ **Require code for every calculation.** Add `calculation` to `code_execution.always_for_task_types`, so a calculation always runs in the sandbox, with or without a data file. One line of configuration.
+2. ✅ **Fail when a requested calculation was not made.** When the task type is `calculation` and nothing was recomputed, *calculation_verification* should fail with *a calculation was requested but none was computed*, rather than pass with *nothing to recompute*.
+3. ✅ **Trace each claim to the evidence it cites**, not to any evidence in the run; and give every claim a verdict ([8.6](06-engineering.md#claim-verdicts)).
+4. ✅ **A deterministic engineering calculation engine.** Built as `backend/engineering/`; see [8.6](06-engineering.md). A versioned registry of formulas (corrosion rate, remaining life, next inspection date), each with unit-aware inputs bound to evidence IDs (for example: t-previous 11.6 mm and t-current 9.4 mm from the thickness table in `V4`, 4.0 years between the inspection dates in its header), executed deterministically and recorded as calculation evidence. Verification then recomputes *from the evidence*, and the same inputs always produce the same answer.
+5. ✅ **Check against expected answers.** `tests/test_engineering.py` holds the registry to them. For the demonstration corpus, `sample_data/expected-answers.json` already holds the correct figures. An automated evaluation run over the golden scenarios before every demonstration would have caught this before a judge did.
 
 ## Other known limits
 
 | Limit | Consequence |
 |---|---|
 | Lexical claim tracing | A claim can match evidence it contradicts. See [8.2](02-claims.md) |
-| No contradiction detection | Two sources that disagree (18 bar vs 16 bar, an active and a superseded procedure) are not flagged |
-| No unit checking | A pressure added to a thickness is not refused |
+| ~~No contradiction detection~~ | Closed: disagreeing sources become conflict objects that withhold the decision ([2.9](../02-concepts/09-conflicts.md)); superseded procedures are filtered and labelled ([6.6](../06-knowledge-and-retrieval/06-revisions.md)) |
+| ~~No unit checking~~ | Closed: the registry's quantities carry dimensions, and a pressure where a thickness belongs is refused |
+| Extraction is pattern-based | The registry reads inputs from the report's labelled fields and readings table; a layout it does not recognise yields *cannot calculate*, never a guess |
 | Small models | A 3B model on a CPU drafts thin documents and misreads tables. The design holds such output; it cannot make it correct |
 
 <!-- nav:start -->
@@ -91,6 +95,6 @@ In order of effort:
 
 | | | |
 |:--|:--:|--:|
-| [← 8.4 · Thresholds](04-thresholds.md) | [↑ 08 · Verification](README.md) | [09 · Security and governance →](../09-security/README.md) |
+| [← 8.4 · Thresholds](04-thresholds.md) | [↑ 08 · Verification](README.md) | [8.6 · Engineering verification →](06-engineering.md) |
 
 <!-- nav:end -->

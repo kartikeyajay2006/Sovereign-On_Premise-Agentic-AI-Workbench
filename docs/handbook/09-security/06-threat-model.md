@@ -26,66 +26,75 @@ This page states what AEGIS protects, against whom, what holds, and what does no
 
 ## What holds
 
+Every row marked 🧪 is one of the attacks in `scripts/red_team.py`, run over HTTP against a live host; its report, with each observation and a SHA-256 over the results, is written to `storage/reports/`. The last live run held 31 of 31. See [9.8 · Red team](08-red-team.md).
+
 | Threat | Result | How |
 |---|---|---|
-| Operator retrieves a Restricted passage | ✅ Blocked | Clearance applied before ranking; checked twice |
+| Operator retrieves a Restricted passage 🧪 | ✅ Blocked | Clearance applied before ranking; departments narrowed, never widened |
 | Operator sees that a Restricted document exists | ✅ Blocked | Documents list filtered by the same rules |
 | Reviewer approves their own run | ✅ Blocked | Separation of duties by account |
-| Auditor creates a task | ✅ Blocked | No `task.create` |
-| Model routed to an unapproved or unregistered model | ✅ Blocked | Router hard gates; registry |
+| Auditor creates a task or runs a calculation 🧪 | ✅ Blocked | No `task.create` |
+| Operator approves, engineer resolves a conflict 🧪 | ✅ Blocked | `approval.decide`, and never the account that ran the task |
+| A forged or missing session token 🧪 | ✅ Refused | Sessions are looked up by `sha256(token)`; nothing plaintext is stored |
+| Password guessing 🧪 | ✅ Throttled | An account locks after 5 failures in 5 minutes; a client that fails across 10 accounts locks too |
+| Enumerating accounts from the sign-in screen 🧪 | ✅ Blocked | `/api/auth/directory` lists only the seeded demonstration accounts |
+| Model routed to an unapproved or unregistered model | ✅ Blocked | Router hard gates; the registry pins each model to its approved digest |
 | Inference pointed at a remote server | ✅ Blocked | Loopback-only client, HTTP 503 |
-| Generated code opens a socket | ✅ Blocked | Denied imports and the `_socket` shim |
-| Generated code runs `os.system`, `subprocess`, `getattr` tricks | ✅ Blocked | Static validation |
+| Generated code opens a socket, resolves a name, fetches a URL, spawns curl 🧪 | ✅ Blocked | Static validation first; with it bypassed, the runtime shim still denies sockets and processes |
+| Generated code reads `/etc/passwd` or the workbench database 🧪 | ✅ Blocked | Runtime read confinement to the workspace and the interpreter |
 | Generated code writes outside its workspace | ✅ Blocked | Write guard on `open` and `os.open` |
 | Fork bomb, memory bomb, infinite loop | ✅ Contained | `RLIMIT_NPROC`, `RLIMIT_AS` (or watchdog / Job Object), `RLIMIT_CPU`, wall timeout |
+| A PDF that runs JavaScript, launches a program or hides either in a compressed stream 🧪 | ✅ Refused at upload | [9.7 · Ingestion guard](07-ingestion-guard.md) |
+| An Office file with a macro, DDE field or remote template; an archive bomb; a renamed executable 🧪 | ✅ Refused at upload | Type read from bytes; package structure inspected |
+| A document telling the model to ignore its instructions 🧪 | ✅ Flagged, withheld, held | Kept as evidence; replaced in every prompt by a marker; the run is held (`untrusted_instructions`) |
 | Path traversal in a download or upload | ✅ Blocked | `check_path_confinement` resolves and confines |
-| A fabricated citation | ✅ Caught | Citation verification |
-| An edited audit record | ✅ Detected | Hash chain, verified on server and in browser |
+| A deliverable edited on disk after approval | ✅ Refused | Re-hashed on every download; a mismatch is a 409 and an audit event |
+| A wrong corrosion rate, remaining life or severity in an answer | ✅ Caught | Figures computed by the formula registry; `engineering_verification` fails an answer that disagrees |
+| Two sources disagreeing about an input | ✅ Held | A conflict object withholds every dependent figure until a reviewer chooses |
+| A fabricated citation | ✅ Caught | Citation verification; claim verdicts |
+| An edited audit record 🧪 | ✅ Detected | Hash chain, verified on server and in browser |
+| A rewritten history with every later hash recomputed 🧪 | ✅ Detected | Signed Merkle roots: the chain is fooled, the signed root is not ([9.9](09-proof.md)) |
 | Browser loading a third-party script | ✅ Blocked | CSP `default-src 'self'` |
 
 ## What does not hold, yet
 
-| # | Threat | Demonstrated | Severity |
+| # | Threat | Why it is still open | Severity |
 |---|---|---|---|
-| 1 | **Sandboxed code reads host files**, including `storage/workbench.db`, as any role that can create tasks | Operator payload read the 1.1 MB database and `config/app.yaml` and printed them back | 🔴 Critical |
-| 2 | **Session tokens are stored in plaintext**, so (1) yields live sessions, including a reviewer's, which defeats separation of duties | Token column is the raw token | 🔴 Critical |
-| 3 | **The API is reachable from the network through the console.** `next start` binds every interface and proxies `/api/*`, so port 8000's loopback binding is bypassed via port 3000 | `http://<LAN-IP>:3000/api/health` answered from another interface | 🟠 High |
-| 4 | **Shared default password and open self-registration.** Every seeded account, including `admin`, uses `workbench`; anyone who reaches the API can register an operator | By configuration | 🟠 High |
-| 5 | **No login throttling or lockout** | Failures are audited, not limited | 🟠 High |
-| 6 | **A wrong calculation can pass verification** when no code ran | A scanned-report run gave 0.8 mm/y instead of 0.55 and passed 7/7 (see [8.5](../08-verification/05-limits.md)) | 🟠 High (integrity) |
-| 7 | **No prompt-injection screening** of document content | By design review | 🟡 Medium |
-| 8 | **Uploads are not screened** by magic bytes, archive structure or macros | By design review | 🟡 Medium |
-| 9 | **Model digests are not pinned** | By design review | 🟡 Medium |
-| 10 | **The audit chain is not signed** (full rewrite possible with file access) | By design review | 🟡 Medium |
-| 11 | **The user directory is public.** `GET /api/auth/directory` lists every account's username, role and department without sign-in | Returned all users unauthenticated | 🟡 Medium |
+| 1 | **Sandboxed code runs as the API's own user.** Containment is a validated interpreter with runtime shims and OS limits, not an operating-system boundary | A flaw in the shim would expose what that user can reach. A rootless container (`--network none`, read-only root, only the workspace mounted) removes the dependency on the shim | 🟠 High |
+| 2 | **The seeded accounts share a demonstration password** (`workbench`) | By configuration, for the demonstration; change `security.seed_user_password` before first start anywhere real | 🟠 High outside a demo |
+| 3 | **The signing key lives on the host it signs for.** Someone with root and the key can rewrite the log *and* re-sign it | Copy the public key and seal roots off-host (GET `/api/proof/key`, GET `/api/audit/seals`); a hardware key would close it | 🟡 Medium |
+| 4 | **Injection screening is by pattern.** A novel phrasing can pass the screen | The structural guarantee does not depend on it: document text never selects a tool or changes a policy, and answers are verified and held | 🟡 Medium |
+| 5 | **Egress control is process-level.** The monitor observes connections; the host firewall is the operator's | Add a default-deny outbound rule for the service user | 🟡 Medium |
+| 6 | **A console started by hand binds every interface.** `scripts/run.sh` binds `127.0.0.1`; `next start` without `--hostname` does not | Use the run script, or firewall port 3000 | 🟢 Low |
 
-## Fix list
+## Closed since the first review
 
-In the order to do them, with effort:
+The first review of this build demonstrated eleven gaps. Nine are closed; each row names the change and, where it is measured, the red-team attack that shows it.
 
-| Order | Fix | Closes | Effort |
-|:--:|---|---|---|
-| 1 | Bind the console to loopback: `next start -H 127.0.0.1` in `scripts/run.sh` and docs; or firewall port 3000 | 3 | Minutes |
-| 2 | Set `security.self_registration_enabled: false` by default; require a changed seed password outside demo mode; return only the seeded demo accounts from `/api/auth/directory`, or require sign-in | 4, 11 | Minutes |
-| 3 | Store `sha256(token)` in `sessions` and look sessions up by hash | 2 | An hour |
-| 4 | Confine **reads** in the sandbox shim to the workspace and the Python installation | 1 (practically) | Hours |
-| 5 | Add `calculation` to `code_execution.always_for_task_types`; fail calculation verification when a calculation was requested and none computed | 6 | Hours |
-| 6 | Throttle failed sign-ins per account and address; lock after repeated failures | 5 | Hours |
-| 7 | Run sandbox code in a rootless container (`--network none`, read-only root, non-root, `--cap-drop ALL`, only the workspace mounted) | 1 (structurally) | Days |
-| 8 | Screen uploads (magic bytes, archives, macros); flag injection-like content in evidence and keep it out of tool decisions | 7, 8 | Days |
-| 9 | Pin approved model digests; sign audit Merkle roots with Ed25519 | 9, 10 | Days |
+| Was | Closed by | Measured by |
+|---|---|---|
+| Sandboxed code read host files, including the database | Runtime read confinement | SANDBOX-01, SANDBOX-02 |
+| Session tokens stored in plaintext | Sessions stored and looked up by hash | PRIV-05 |
+| Console exposed the API on every interface | `run.sh` binds the console to `127.0.0.1` (`WEB_HOST` to override) | — |
+| Open self-registration | `self_registration_enabled: false` by default | — |
+| No login throttling | Account lockout and password-spray lockout | AUTH-01 |
+| A wrong calculation could pass | Deterministic formula registry and `engineering_verification`; a requested calculation fails closed without one | tests/test_engineering_pipeline.py |
+| No prompt-injection screening | Evidence screening, withholding and a hold | INJECT-01 |
+| Uploads not screened | Upload quarantine by bytes and structure | UPLOAD-01 to UPLOAD-12 |
+| Model digests not pinned | The registry approves models at a digest | — |
+| The audit chain was not signed | Ed25519-signed Merkle roots, per-run certificates | AUDIT-02 |
+| The user directory was public | Seeded demonstration accounts only | AUTH-02 |
 
 ## Deployment checklist
 
-Until items 1–4 are done, deploy on **a single trusted machine** for demonstration, or behind an operating-system boundary:
+For anything beyond a single trusted machine:
 
-- [ ] Console bound to `127.0.0.1`, or port 3000 firewalled
 - [ ] `security.seed_user_password` changed before first start
-- [ ] `security.self_registration_enabled: false`
-- [ ] `storage/` readable only by the service account (`chmod 700`)
-- [ ] The API run as a dedicated, unprivileged user
-- [ ] Host firewall permitting only loopback for that user
-- [ ] Audit head hash recorded off-host after each session
+- [ ] Console started by `scripts/run.sh` (bound to `127.0.0.1`), or port 3000 firewalled
+- [ ] `storage/` readable only by the service account (`chmod 700`); `storage/keys/` holds the signing key
+- [ ] The API run as a dedicated, unprivileged user, with a default-deny outbound firewall rule
+- [ ] The public key (`GET /api/proof/key`) and the latest seal copied off-host after each session
+- [ ] `scripts/red_team.py` run after every upgrade, and its report kept
 
 <!-- nav:start -->
 
@@ -93,6 +102,6 @@ Until items 1–4 are done, deploy on **a single trusted machine** for demonstra
 
 | | | |
 |:--|:--:|--:|
-| [← 9.5 · The audit log](05-audit-log.md) | [↑ 09 · Security and governance](README.md) | [10 · Configuration reference →](../10-configuration/README.md) |
+| [← 9.5 · The audit log](05-audit-log.md) | [↑ 09 · Security and governance](README.md) | [9.7 · Ingestion guard →](07-ingestion-guard.md) |
 
 <!-- nav:end -->

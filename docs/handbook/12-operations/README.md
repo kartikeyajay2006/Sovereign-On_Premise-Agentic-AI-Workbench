@@ -36,6 +36,6 @@ python scripts/audit_tool.py verify
 
 | | | |
 |:--|:--:|--:|
-| [← 11.6 · The event stream and a worked session](../11-api/06-events-session.md) | [↑ The AEGIS Handbook](../README.md) | [12.1 · Running the services →](01-run-script.md) |
+| [← 11.7 · Engineering, conflicts, drawings and proof](../11-api/07-engineering-proof.md) | [↑ The AEGIS Handbook](../README.md) | [12.1 · Running the services →](01-run-script.md) |
 
 <!-- nav:end -->

@@ -72,6 +72,6 @@ Then use **Knowledge → Retrieval test** with the questions your users will act
 
 | | | |
 |:--|:--:|--:|
-| [← 6.4 · Retrieval and clearance](04-retrieval-and-clearance.md) | [↑ 06 · Knowledge and retrieval](README.md) | [07 · Agents and orchestration →](../07-agents/README.md) |
+| [← 6.4 · Retrieval and clearance](04-retrieval-and-clearance.md) | [↑ 06 · Knowledge and retrieval](README.md) | [6.6 · Revision control →](06-revisions.md) |
 
 <!-- nav:end -->

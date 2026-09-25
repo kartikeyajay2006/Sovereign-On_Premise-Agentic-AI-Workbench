@@ -168,21 +168,28 @@ Three processes on one host: the **Next.js console** (`:3000`), the **FastAPI** 
 | ⚡ | **Skills** | Saved, hashed request templates called with `/`; five built in |
 | 🧪 | **Harnesses** | Governed multi-run jobs (question sweep, requirements register, obligation coverage) with one hashed report |
 | 📦 | **Sandbox** | AST validation + POSIX rlimits / macOS watchdog / **probed** Windows Job Object + socket and write shim |
-| ✅ | **Verification** | Claims traced, citations resolved, page citations matched, figures recomputed in the sandbox, code and document checks |
+| 🧮 | **Engineering engine** | Unit-aware, versioned, clause-cited formulas compute corrosion rate, remaining life, severity and the next survey **before the model writes**; every input bound to its table cell, every result hashed; *cannot calculate* when an input is missing |
+| ✅ | **Verification** | Claim verdicts (calculated · supported · conflicted · unsupported · human decision), engineering, citation, page, calculation, code, document and isolation-plan checks |
+| ⚖️ | **Conflicts** | Disagreeing sources become conflict objects that withhold the decision; a reviewer chooses, the choice is evidence, the formulas recompute |
+| 📚 | **Revision control** | One document code, one revision in force; superseded revisions retrieved only on request, and labelled |
+| 🗺️ | **P&ID topology** | Isolation plans judged branch by branch against the lockout procedure, flow up and down, paths, affected loops; the sheet marked |
 | 🚦 | **Policy gateway** | Default deny for permissions, tools, models and paths; every decision audited **with the rule that made it** |
-| 👩‍⚖️ | **Human approval** | Five rules; separation of duties by account, for every role |
+| 👩‍⚖️ | **Human approval** | Nine rules; separation of duties by account; decisions bound to the version reviewed; request-revision |
 | 📄 | **Deliverables** | DOCX, XLSX, PPTX, Markdown, rendered locally, hashed, withheld until released |
-| 🔗 | **Tamper-evident audit** | Append-only JSONL, SHA-256 chain, cross-process locked, verified on the server **and in the browser** |
+| 🔗 | **Tamper-evident audit** | Append-only SHA-256 chain, verified on the server **and in the browser**, sealed with **Ed25519-signed Merkle roots** |
+| 🧾 | **Signed proof** | A certificate per run binding its evidence, calculations, approval and deliverable bytes, verifiable **offline** with the public key |
+| 🛡️ | **Ingestion guard** | Uploads judged by their bytes: PDF JavaScript, Office macros, remote templates, archive bombs refused; injected instructions withheld from the model |
+| 🎯 | **Red team** | 31 attacks run against a live host, each a measurement, with a hashed report |
 | 📡 | **Sovereignty monitor** | Samples the workbench's own connections every 2 s; reports "cannot observe" rather than a false zero |
 | 📈 | **Usage telemetry** | Tokens, load, prompt and generation time, first-token time, context window, done reason, per model call |
-| 🔴 | **Live trace** | 32 Server-Sent Event types across tasks, harnesses and sovereignty |
-| 👥 | **Access control** | Five roles, 22 permissions, inheritance, departments, clearance ceilings |
+| 🔴 | **Live trace** | 36 Server-Sent Event types across tasks, harnesses and sovereignty |
+| 👥 | **Access control** | Five roles, 22 permissions, inheritance, departments, clearance ceilings, hashed sessions, sign-in throttling |
 
 <div align="center">
 
-| 🐍 16,400 lines of Python | ⚛️ 24,400 lines of TypeScript | 🧪 435 tests | 📚 101-page handbook |
+| 🐍 25,600 lines of Python | ⚛️ 26,300 lines of TypeScript | 🧪 621 tests | 📚 109-page handbook |
 |:--:|:--:|:--:|:--:|
-| **🔴 32** live event types | **🛡️ 22** permissions · 5 roles | **🚫 10** hard-denied actions | **📑 15** documents · 207 passages |
+| **🔴 36** live event types | **🛡️ 22** permissions · 5 roles | **🎯 31 / 31** attacks held | **📑 15** documents · 207 passages |
 
 </div>
 
@@ -204,15 +211,20 @@ MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  
 - A run's classification **rises to the highest class of the evidence it used**, and never falls.
 - Generated code is statically validated (imports, calls, `getattr` tricks, process escapes), then runs under OS limits: `setrlimit` on Linux, a memory watchdog on macOS, a probed **Job Object** on Windows. If the host cannot prove its limits hold, code is **refused**.
 - Sockets, including the raw `_socket` primitive, raise inside the sandbox, and writes outside its workspace are refused.
-- Approval is separated from execution: **nobody approves their own run**.
-- The audit log is append-only and hash-chained, with an OS-level lock on every write.
+- Sandboxed code cannot read outside its workspace either: `/etc/passwd` and the workbench database are refused at runtime.
+- Approval is separated from execution: **nobody approves their own run**, and a decision applies only to the version that was reviewed.
+- Uploads are judged by their bytes, not their names; document text addressed to the model is withheld from it and holds the run.
+- Sessions are stored by hash; sign-in guessing locks the account.
+- The audit log is append-only and hash-chained, and its Merkle root is **signed**, so a rewritten history is caught even when every hash was recomputed.
+- Every control above is attacked by `scripts/red_team.py`; the last live run held **31 of 31**, and the report records what was observed, not that it passed.
 
 **⚠️ What this is not, stated plainly**
 
-- The sandbox is **application-level isolation in a subprocess**, not a container or VM, and it runs as the API's user. It blocks network, process escapes and writes, **but not reads** of files that user can read. Container isolation is the next step.
-- Verification is **lexical**: it proves citations resolve and arithmetic is consistent, not that the right formula met the right inputs.
+- The sandbox is **application-level isolation in a subprocess**, not a container or VM, and it runs as the API's user. Its shims block network, process escapes, and reads and writes outside the workspace; a flaw in a shim is not stopped by an operating-system boundary. Container isolation is the next step.
+- Engineering figures are deterministic; other claims are traced **lexically**: a passage that carries a claim's terms supports it, which is not the same as entailing it.
+- The signing key lives on the host it signs for. Copy the public key and the seals off-host.
 
-Every control, every gap, and a prioritised fix list: **[Threat model](docs/handbook/09-security/06-threat-model.md)**.
+Every control, what is measured, and what is still open: **[Threat model](docs/handbook/09-security/06-threat-model.md)** · **[Red team](docs/handbook/09-security/08-red-team.md)** · **[Signed proof](docs/handbook/09-security/09-proof.md)**.
 
 ---
 
@@ -226,6 +238,7 @@ Every control, every gap, and a prioritised fix list: **[Threat model](docs/hand
 | **Storage** | ![SQLite](https://img.shields.io/badge/-SQLite_WAL-003b57?logo=sqlite&logoColor=white) runs, users, sessions, skills, harness runs, passages and vectors |
 | **Documents** | PyMuPDF · pypdf · Tesseract OCR · python-docx · openpyxl · python-pptx · Pillow |
 | **Execution** | Python subprocess · AST validation · POSIX rlimits · macOS watchdog · Windows Job Object |
+| **Proof** | Ed25519 (`cryptography`) · RFC 6962 Merkle trees · SHA-256 |
 | **Transport** | REST · Server-Sent Events |
 
 ---
@@ -337,16 +350,19 @@ Also: the scripted **[demo with correct answers](docs/DEMO.md)** · **[use cases
 - [x] DOCX, XLSX, PPTX and Markdown deliverables, hashed and held
 - [x] Skills, harnesses, live trace, usage telemetry
 - [x] Full handbook and brand kit
+- [x] Console bound to loopback; self-registration off; hashed session tokens; sign-in throttling; model digests pinned
+- [x] Read confinement in the sandbox
+- [x] Deterministic, unit-aware engineering formulas with evidence-bound inputs; fail closed when a requested calculation was not computed
+- [x] Claim verdicts; conflict objects with human resolution; revision-aware retrieval
+- [x] Prompt-injection screening of evidence; upload quarantine by bytes and structure
+- [x] Ed25519-signed Merkle roots; per-run certificates; digest-bound approval; deliverables re-hashed on download
+- [x] A measured red-team suite; P&ID topology with isolation plans against the lockout procedure
 
-**🔜 Next: hardening** ([why, in order](docs/handbook/09-security/06-threat-model.md#fix-list))
+**🔜 Next** ([what is still open, and why](docs/handbook/09-security/06-threat-model.md#what-does-not-hold-yet))
 
-- [ ] Console bound to loopback by default; self-registration off; hashed session tokens; login throttling
-- [ ] Read confinement in the sandbox, then a rootless container runtime (`--network none`, read-only, non-root)
-- [ ] Deterministic, unit-aware engineering formulas with evidence-bound inputs; fail when a requested calculation was not computed
-- [ ] Claim tracing to the cited evidence; contradiction detection; revision-aware retrieval
-- [ ] Prompt-injection screening of documents; upload screening (magic bytes, archives, macros)
-- [ ] Proof Mode, policy and routing explorers; model digest pinning; signed Merkle roots over the audit chain
-- [ ] An evaluation and red-team suite with a benchmark dashboard; P&ID graph extraction
+- [ ] A rootless container runtime for generated code (`--network none`, read-only root, non-root)
+- [ ] P&ID extraction from drawings (today a drawing is authored as a graph); a benchmark dashboard over the red team and golden answers
+- [ ] Off-host anchoring of signed roots; a hardware signing key
 - [ ] Offline installation bundle with a frontend container
 
 ---
@@ -356,8 +372,9 @@ Also: the scripted **[demo with correct answers](docs/DEMO.md)** · **[use cases
 Stated plainly, because they decide whether AEGIS is right for you.
 
 - **Latency is hardware-bound.** On a CPU laptop, a cited answer takes about 20–40 s and a drafted document from a scan several minutes. A GPU changes this substantially.
-- **Small models are small.** A 3B model drafts thin documents and can get figures wrong. A calculation over a scanned report runs no code today, so a wrong figure can pass verification. It is **held for a person**, and the fix is on the roadmap. [Read the real example](docs/handbook/08-verification/05-limits.md).
-- **The sandbox is not a container**, and does not confine reads. [Details](docs/handbook/09-security/03-sandbox.md).
+- **Small models are small.** A 3B model drafts thin documents and leaves things out: asked for an isolation plan it once named one branch of five. The figures and the plan come from deterministic engines, so what it omits is restored and what it gets wrong fails verification, but its prose stays thin. [How the gap was closed](docs/handbook/08-verification/05-limits.md).
+- **The sandbox is not a container.** Its limits are enforced by runtime shims in the API user's own process tree. [Details](docs/handbook/09-security/03-sandbox.md).
+- **Drawings are authored as graphs.** The P&ID engine answers from a reviewed graph; reading a drawing image into one is not built yet.
 - **Egress is measured for the workbench's own processes**, not the whole host. For a provable air gap, add a host firewall.
 - **Policy files are a sensible default**, not your organisation's policy. Some declared controls are not implemented yet, and the [configuration reference](docs/handbook/10-configuration/README.md) marks every one.
 - **Compliance is not a software property.** The audit chain supports an assurance process; it is not one.

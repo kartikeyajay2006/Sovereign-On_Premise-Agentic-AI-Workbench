@@ -12,6 +12,7 @@ The API is FastAPI on `http://127.0.0.1:8000`. Every route is under `/api`, exce
 | [11.4 Skills and harnesses](04-skills-harnesses.md) | Skills; harness catalogue, preview, runs, reports |
 | [11.5 Knowledge, sandbox, audit and sovereignty](05-knowledge-sandbox-audit.md) | Documents, search, ingestion; sandbox; audit; egress |
 | [11.6 The event stream and a worked session](06-events-session.md) | `/api/events`, and an end-to-end script |
+| [11.7 Engineering, conflicts, drawings and proof](07-engineering-proof.md) | The formula registry, conflict resolution, digest-bound approval, P&ID queries, certificates and seals |
 
 ## Authentication
 

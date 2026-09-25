@@ -20,6 +20,7 @@ Both end the same way: numbered evidence that knows its document, section, page,
 | [6.3 Chunking and embedding](03-chunking-embedding.md) | How documents become passages and vectors |
 | [6.4 Retrieval and clearance](04-retrieval-and-clearance.md) | Cosine search, BM25 fallback, and why clearance is applied before ranking |
 | [6.5 Writing a corpus](05-corpus-authoring.md) | How to write documents that retrieve and cite well |
+| [6.6 Revision control](06-revisions.md) | Document identity, the revision in force, history on request |
 
 <!-- nav:start -->
 
