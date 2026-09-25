@@ -655,6 +655,10 @@ class AgentOrchestrator:
                 "stage": stage,
                 "model": descriptor.id,
                 "model_version": descriptor.quantization,
+                # The runtime's digest of the weights that answer, so the run
+                # certificate pins an artifact rather than a re-pullable name.
+                "model_digest": descriptor.actual_digest,
+                "integrity": descriptor.integrity,
                 "routing_reason": decision.reason,
                 "provider": descriptor.provider,
                 "memory_admission": admission,

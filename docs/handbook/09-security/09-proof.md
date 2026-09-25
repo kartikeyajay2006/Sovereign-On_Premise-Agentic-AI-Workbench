@@ -28,9 +28,29 @@ A certificate binds, by hash:
 | Verification | Every check's result; the count of each claim verdict |
 | Approval | The decision, the reviewer, the time, and the **review digest** it was given against |
 | Deliverables | Each file's SHA-256 |
+| Provenance (version 2) | What the run ran on; see below |
 | Audit | The signed root taken at issue, and for each of the run's audit events a **Merkle inclusion proof** under it |
 
 The whole body is hashed (`content_sha256`) and signed.
+
+### Provenance
+
+`backend/proof/provenance.py`. Certificates are issued at format **version 2** and carry `run.provenance`, inside the signed body. Every value comes from a record made **while the run happened**; nothing is read from the host at issue time and presented as the run's. What was not recorded is stated as not recorded, with the reason.
+
+| Field | Source |
+|---|---|
+| `models` | Each model that served the run, from its `model / inference_started` audit events: the runtime digest of the weights (`model_digest`, recorded since this version), the registry's integrity verdict, the stages it served, and how many calls it made. A vision extraction served from the cache ([7 · Agents](../07-agents/README.md)) counts as a cache hit under the model that originally produced it. A model audited with no digest carries `digest_note` instead of a guess. |
+| `config` | The `proof / config_snapshot` event the task worker writes as a run starts: the SHA-256 of every `config/*.yaml`, `config/prompts/*.yaml` and `policies/*.yaml`, and the version each declares. A run started outside the worker, or before snapshots existed, says so (`recorded: null`). |
+| `policy_versions` | The `policy_version` of each policy file, from the snapshot. |
+| `prompt_library` | `prompts_version` and the SHA-256 of `config/prompts/prompts.yaml`, from the snapshot. |
+| `egress.monitor` | The sovereignty monitor's reading over the run window, from the run's `task / finished:*` event: unapproved connections observed, or `null` with the reason when the monitor was not running at both ends. It samples, so a connection that opens and closes between samples is not seen, and the method says so. |
+| `egress.sandbox_network_attempts_blocked` | The sum of the sandbox shim's counts across the run's sandbox executions; `null` when there were none. |
+| `sandbox` | Each `python_exec` / `spreadsheet_analyze` execution: whether a process ran, exit code, timeout, duration, static validation, network attempts blocked, and the limits actually applied (`mechanism`: `windows_job_object`, `posix_rlimit` or `none`, memory, CPU, process cap, wall timeout). The verifier's own recomputation runs are not recorded per run and are not listed; `scope` says so. |
+| `formulas` | Each registered formula version the run computed with, and the SHA-256 of its source. |
+
+The run's `finished:*` record, which holds the egress reading, is written before the certificate is issued, so the reading is under the certified root.
+
+Version 1 certificates (issued before provenance) carry none of this and still verify: the provenance checks run only on version 2 and later.
 
 ## Verifying a certificate
 
@@ -49,8 +69,11 @@ The whole body is hashed (`content_sha256`) and signed.
 | The signer is the trusted key, not merely the key the certificate carries | ✓ | ✓ |
 | The audit root's own signature | ✓ | ✓ |
 | Every run event is under the root (inclusion proofs) | ✓ | ✓ |
+| A version 2 certificate carries provenance | ✓ | ✓ |
+| Each certified formula version still has the certified source on the verifying host (a newer version is a supersession, not a failure) | ✓ | ✓ |
 | The audit chain is intact | | ✓ |
 | The log still reproduces the certified root | | ✓ |
+| The log's certified events still produce the stated model digests, config snapshot and egress reading, so even the key holder cannot re-sign a certificate that disagrees with the log | | ✓ |
 | Each deliverable still hashes to its certified value | | ✓ |
 
 The review screen's **Signed proof** panel runs the online checks (`POST /api/proof/verify`) and offers the certificate for download.
@@ -73,6 +96,8 @@ A reviewer can also **request a revision**: nothing is released and nothing is r
 ## Tests
 
 `tests/test_proof.py`: Merkle inclusion for trees of 1 to 17 leaves; key permissions and persistence; a sealed log verifying; a rewritten-and-rechained log exposed; a broken chain refused a seal; a foreign key untrusted; certificates verifying offline, failing when edited, failing under a foreign key, catching an edited event (chain) and a rewritten log (root); approval bound to the digest; revision requests; the proof API; deliverables changed on disk refused.
+
+`tests/test_certificate_provenance.py`: the provenance a certificate states (digests only from this run's events, a missing digest said rather than guessed, config and policy hashes, prompt library version, egress and sandbox figures, formula hashes); an edited digest breaking the signature; a re-signed certificate disagreeing with the log failing online; a run without a snapshot saying so; a version 1 certificate still verifying; a version 2 certificate without provenance failing; a formula edited without a version bump named; the worker's snapshot reaching the certificate.
 
 <!-- nav:start -->
 
