@@ -24,6 +24,8 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from backend.api.dependencies import CurrentUser, SessionToken, require_permission
 from backend.api.task_service import get_task_service
+from backend.rag.parsing import parse_document
+from backend.security import dlp
 from backend.security.throttle import get_login_throttle
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
@@ -317,11 +319,41 @@ async def ingest_document(
     target = staging / Path(file.filename or "document").name
     target.write_bytes(await file.read())
 
+    # Content scanning before anything is indexed (policies/dlp.yaml). A
+    # passage in the index is shown to models for every later question, so
+    # a refusal here is the one that keeps a secret out of all of them.
+    declared = Sensitivity(classification)
+    try:
+        text: str | None = parse_document(target).full_text
+    except Exception:
+        text = None  # ingest_file below reports why the file cannot be read
+    content = dlp.scan(text, "upload").beyond(declared.value) if text else None
+    findings = [finding.record() for finding in content.findings] if content else []
+    if content is not None and content.action == "block":
+        target.unlink(missing_ok=True)
+        blocked = sorted({f.detector for f in content.acting("block")})
+        get_audit_log().record(
+            category="knowledge",
+            action="document_refused",
+            actor=user.username,
+            actor_role=user.role,
+            detail={"filename": target.name, "reason": "content scanning", "dlp": {"findings": findings}},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"'{target.name}' was refused: it contains {', '.join(blocked)}, which "
+            "policies/dlp.yaml does not admit to the knowledge base",
+        )
+    effective = declared
+    floor = content.floor if content is not None else None
+    if floor is not None and get_config().classification_rank(floor) > get_config().classification_rank(declared.value):
+        effective = Sensitivity(floor)
+
     try:
         document = await get_knowledge_base().ingest_file(
             target,
             department=department,
-            classification=Sensitivity(classification),
+            classification=effective,
             version=version,
         )
     except Exception as exc:
@@ -339,6 +371,8 @@ async def ingest_document(
             "classification": document.classification.value,
             "department": document.department,
             "sha256": document.sha256,
+            "declared_classification": declared.value,
+            "dlp": {"scanned": content is not None, "findings": findings},
         },
     )
     return document

@@ -45,6 +45,7 @@ from backend.engineering.stated import assess_stated, bind_stated, extraction_re
 from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
 from backend.engineering.facts import fact_block, fact_conflicts
 from backend.engineering.pid import DrawingError, get_drawing_library, summary_lines
+from backend.security import dlp
 from backend.security.injection import neutralise, screen
 from backend.core.schemas import (
     AgentPlan,
@@ -286,14 +287,25 @@ def _topology_block(task: Task) -> str:
 
 
 def _model_text(item: EvidenceItem) -> str:
-    """An excerpt as the model may see it: instruction-like sentences withheld.
+    """An excerpt as the model may see it: sensitive values and instructions withheld.
 
-    The sentences stay on the evidence item, whole, for a reviewer; the model
-    is shown a marker saying what kind of instruction was removed.
+    Content scanning runs first, at the prompt boundary of policies/dlp.yaml:
+    a value the policy redacts is replaced by a marker naming its detector,
+    and an item carrying a value the policy blocks is not shown at all. Then
+    instruction-like sentences are replaced by a marker saying what kind of
+    instruction was removed. The excerpt itself stays whole on the evidence
+    item for a reviewer. The scan is repeated here, on every use, rather than
+    trusted from a flag, so no prompt can be built from an unscanned excerpt.
     """
+    text = item.excerpt or ""
+    content = dlp.scan(text, "prompt")
+    if content.action == "block":
+        withheld = ", ".join(sorted({f.detector for f in content.acting("block")}))
+        return f"[evidence withheld from the model by content scanning: it contains {withheld}]"
+    text = dlp.redact(text, content, actions=("redact",))
     if (item.extraction_data or {}).get("instruction_like"):
-        return neutralise(item.excerpt or "")
-    return item.excerpt or ""
+        return neutralise(text)
+    return text
 
 
 def _resolved_value(
@@ -437,6 +449,35 @@ def _raised_reason(items: list[EvidenceItem], level: Sensitivity) -> str:
     return (
         f"classification_raised: Evidence {source} {verb} {level.value}, "
         f"so the run is {level.value} too."
+    )
+
+
+def _prompt_safe(text: str) -> str:
+    """Tool output bound for a prompt, with what the prompt boundary redacts or blocks masked.
+
+    Evidence excerpts go through `_model_text`; this is for the few prompt
+    inputs that are not evidence items -- a spreadsheet's structure, a
+    program's stdout -- which may quote a cell verbatim.
+    """
+    return dlp.redact(text or "", dlp.scan(text or "", "prompt"))
+
+
+def _dlp_holds(task: Task) -> int:
+    """Content-scanning events that hold the run for an approving authority.
+
+    A value whose policy is require_approval, anywhere; and a block of the
+    answer or the deliverable, which leaves a person to decide what is
+    released. A block at the prompt boundary only withholds an excerpt from
+    the model, and the run continues without it.
+    """
+    return sum(
+        1
+        for event in task.policy_events
+        if event.action.startswith("dlp.")
+        and (
+            event.decision == PolicyDecision.REQUIRE_APPROVAL
+            or (event.decision == PolicyDecision.DENY and event.action != "dlp.prompt")
+        )
     )
 
 
@@ -849,10 +890,12 @@ class AgentOrchestrator:
         last_flush = 0.0
         FLUSH_INTERVAL = 0.05
 
-        async def flush() -> None:
+        async def flush(final: bool = False) -> None:
             nonlocal sent
-            visible = _visible_so_far(raw)
-            if len(visible) > len(sent):
+            # Masked as the answer boundary masks the finished answer, every
+            # frame, because every frame is the whole text so far.
+            visible = dlp.mask_stream(_visible_so_far(raw), final=final)
+            if visible != sent:
                 sent = visible
                 # The whole visible text, not the delta since the last frame.
                 #
@@ -895,7 +938,7 @@ class AgentOrchestrator:
                     last_flush = now
                     await flush()
 
-        await flush()
+        await flush(final=True)
 
         return GenerationResult.from_runtime(
             text=raw,
@@ -1608,6 +1651,7 @@ class AgentOrchestrator:
         extraction: dict[str, Any] | None = None
         sandbox_result: SandboxResult | None = None
         draft_content: dict[str, Any] | None = None
+        deliverable_floor: str | None = None
         answer_text = ""
         limitations: list[str] = []
 
@@ -1807,6 +1851,10 @@ class AgentOrchestrator:
             # addressed to the model are kept for the reviewer and withheld
             # from every prompt from here on.
             await self._screen_evidence(task, user)
+            # What the evidence carries -- a credential, a personal number, a
+            # marking -- is recorded, and redacted or withheld from every
+            # prompt as policies/dlp.yaml says (`_model_text`).
+            await self._scan_evidence(task, user)
 
             # ------------------------------------------ code execution
             #
@@ -1835,6 +1883,9 @@ class AgentOrchestrator:
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "running")
                 sandbox_result = await self._run_code_stage(task, user, context, ledger)
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "done")
+                # The program's output is evidence too, and may quote a
+                # spreadsheet cell; record what it carries.
+                await self._scan_evidence(task, user)
 
             # ---------------------------------------------- reasoning
             await self._stage(
@@ -1845,6 +1896,9 @@ class AgentOrchestrator:
             )
             self._mark_step(task, {"reason", "analysis"}, "running")
             answer_text = await self._reason(task, user, evidence, extraction, sandbox_result)
+            limitations.extend(
+                f"Content scanning: {event.reason}" for event in task.policy_events if event.action == "dlp.answer"
+            )
             answer_text, restored = _complete_topology(answer_text, task.topology)
             if restored:
                 limitations.append(
@@ -1971,12 +2025,20 @@ class AgentOrchestrator:
                     task, user, answer_text, evidence,
                     [*as_deliverable_calculations(task.calculations), *checked_calculations],
                 )
+                # The release boundary: what the document would carry,
+                # redacted or withheld as policies/dlp.yaml says, before it
+                # is kept or rendered.
+                if draft_content is not None:
+                    draft_content, deliverable_floor = await self._scan_deliverable(
+                        task, user, draft_content, evidence, limitations
+                    )
                 # Persist the exact structured source that is handed to the
                 # renderer. The workbench can now offer an in-place reading
                 # view next to the file without reverse-engineering a DOCX or
                 # pretending the shorter chat answer is the document itself.
                 task.deliverable_content = draft_content
-                checks.append(self.verifier.check_document(draft_content, evidence))
+                if draft_content is not None:
+                    checks.append(self.verifier.check_document(draft_content, evidence))
                 self._mark_step(task, {"document_generate"}, "done")
 
             task.verification = self.verifier.compile_report(
@@ -2044,6 +2106,45 @@ class AgentOrchestrator:
                     },
                 )
 
+            # What leaves -- the answer and the deliverable, after redaction --
+            # is at least as sensitive as the values content scanning found
+            # still in it. Only rises, like the evidence rule above.
+            released_floors = [
+                level for level in (dlp.scan(answer_text, "answer").floor, deliverable_floor) if level
+            ]
+            content_level = (
+                max(released_floors, key=self.config.classification_rank) if released_floors else None
+            )
+            content_raised: str | None = None
+            if content_level is not None and self.config.classification_rank(
+                content_level
+            ) > self.config.classification_rank(profile.sensitivity.value):
+                previous = profile.sensitivity
+                profile = profile.model_copy(update={"sensitivity": Sensitivity(content_level)})
+                task.profile = profile
+                self._checkpoint(task)
+                content_raised = (
+                    f"classification_raised: Content scanning found values classified {content_level} "
+                    f"in what this run releases, so the run is {content_level} too."
+                )
+                self.audit.record(
+                    category="policy",
+                    action="classification_raised",
+                    actor=user.username,
+                    actor_role=user.role,
+                    task_id=task.id,
+                    detail={"from": previous.value, "to": content_level, "because": ["content scanning"]},
+                )
+                await self._emit(
+                    task,
+                    "task.classified",
+                    {
+                        "sensitivity": content_level,
+                        "raised_from": previous.value,
+                        "reason": "content scanning found sensitive values in the output",
+                    },
+                )
+
             # ------------------------------------------------- approval
             required, reasons, approvers = self.gateway.approval_requirement(
                 profile,
@@ -2058,6 +2159,8 @@ class AgentOrchestrator:
                     1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
                 ),
                 severity=_calculated_severity(task),
+
+                dlp_findings=_dlp_holds(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -2067,6 +2170,8 @@ class AgentOrchestrator:
             # rule it triggered.
             if raised_by and any(r.startswith("sensitive_classification") for r in reasons):
                 reasons = [_raised_reason(raised_by, profile.sensitivity), *reasons]
+            if content_raised and any(r.startswith("sensitive_classification") for r in reasons):
+                reasons = [content_raised, *reasons]
             task.approval = ApprovalRecord(
                 required=required,
                 reasons=reasons,
@@ -2200,7 +2305,7 @@ class AgentOrchestrator:
                 prompt=self.config.prompt("task.converse", prompt=task.prompt),
                 stream_to_user=True,
             )
-            text = text.strip()
+            text = await self._release_text(task, user, text.strip())
             await self._emit(task, "task.answer", {"answer": text})
             task.answer = text
             task.verification = VerificationReport(
@@ -2208,11 +2313,22 @@ class AgentOrchestrator:
                 checks=[],
                 limitations=[
                     "Conversational reply: nothing was retrieved and no claims were checked, "
-                    "because the message asked for none."
+                    "because the message asked for none.",
+                    *(f"Content scanning: {e.reason}" for e in task.policy_events if e.action == "dlp.answer"),
                 ],
                 completed_at=datetime.now(timezone.utc),
             )
             task.approval = ApprovalRecord(required=False)
+            if _dlp_holds(task) and task.profile is not None:
+                # A reply is short, but not exempt: what content scanning
+                # holds is held here as anywhere.
+                required, reasons, approvers = self.gateway.approval_requirement(
+                    task.profile, prompt=task.prompt, dlp_findings=_dlp_holds(task)
+                )
+                task.approval = ApprovalRecord(
+                    required=required, reasons=reasons, approver_roles=approvers,
+                    decision="pending" if required else None,
+                )
             self.audit.record(
                 category="agent",
                 action="conversational_reply",
@@ -2221,8 +2337,14 @@ class AgentOrchestrator:
                 task_id=task.id,
                 detail={"characters": len(text)},
             )
-            await self._stage(task, TaskStatus.DELIVERED, "Replied")
-            task.completed_at = datetime.now(timezone.utc)
+            if task.approval.required:
+                await self._stage(
+                    task, TaskStatus.AWAITING_APPROVAL, "Held for human approval before release",
+                    {"reasons": task.approval.reasons, "approver_roles": task.approval.approver_roles},
+                )
+            else:
+                await self._stage(task, TaskStatus.DELIVERED, "Replied")
+                task.completed_at = datetime.now(timezone.utc)
         except TaskCancelled:
             task.status = TaskStatus.CANCELLED
             task.error = "Stopped at your request."
@@ -2520,6 +2642,203 @@ class AgentOrchestrator:
             self._checkpoint(task)
         return flagged
 
+    # -- content scanning (policies/dlp.yaml) -------------------------------
+    async def _record_dlp(
+        self,
+        task: Task,
+        user: User,
+        *,
+        boundary: str,
+        subject: str,
+        entries: list[tuple[dlp.DlpFinding, str | None]],
+        reason: str,
+    ) -> PolicyEvent:
+        """One policy event, one audit record and one stream event for a scan.
+
+        The record names each detector, where it fired and the value's keyed
+        fingerprint. The value itself is never passed in, so it cannot be
+        written out.
+        """
+        strongest = max(
+            (finding for finding, _ in entries), key=lambda f: dlp.ACTIONS.index(f.action)
+        )
+        decision = {
+            "allow": PolicyDecision.ALLOW,
+            "redact": PolicyDecision.ALLOW,
+            "require_approval": PolicyDecision.REQUIRE_APPROVAL,
+            "block": PolicyDecision.DENY,
+        }[strongest.action]
+        event = PolicyEvent(
+            subject=subject,
+            action=f"dlp.{boundary}",
+            decision=decision,
+            reason=reason,
+            rule=f"dlp.yaml:detectors.{strongest.detector}.actions.{boundary}",
+            at=datetime.now(timezone.utc),
+        )
+        task.policy_events.append(event)
+        records = [finding.record(where) for finding, where in entries]
+        self.audit.record(
+            category="security",
+            action=f"dlp_{boundary}",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={"subject": subject, "action": strongest.action, "findings": records},
+        )
+        await self._emit(task, "task.policy", {
+            "subject": subject,
+            "decision": decision.value,
+            "reason": reason,
+            "findings": records,
+        })
+        return event
+
+    async def _scan_evidence(self, task: Task, user: User) -> int:
+        """Content-scan every evidence excerpt at the prompt boundary. Returns items found.
+
+        What the model is shown is decided by `_model_text`, which applies
+        the same policy on every use; this records what was found, once per
+        item, and raises an item's classification to what it was found to
+        carry -- the run inherits it at the classification stage.
+        """
+        found = 0
+        for item in task.evidence:
+            data = dict(item.extraction_data or {})
+            if "dlp" in data:
+                continue
+            content = dlp.scan(item.excerpt or "", "prompt").beyond(item.classification.value)
+            if not content.findings:
+                continue
+            data["dlp"] = [finding.record() for finding in content.findings]
+            item.extraction_data = data
+            found += 1
+            raised_from: str | None = None
+            floor = content.floor
+            if floor is not None and self.config.classification_rank(floor) > self.config.classification_rank(
+                item.classification.value
+            ):
+                raised_from = item.classification.value
+                item.classification = Sensitivity(floor)
+            effect = {
+                "allow": "It is shown to the model as written.",
+                "redact": "Each value is redacted from every prompt.",
+                "require_approval": "It is shown to the model, and the run is held for review.",
+                "block": "The item is withheld from every prompt.",
+            }[content.action]
+            reason = (
+                f"{item.id} ({item.source_document}) contains {content.summary()}. {effect}"
+                + (f" Classified {item.classification.value} (was {raised_from})." if raised_from else "")
+            )
+            await self._record_dlp(
+                task, user, boundary="prompt", subject=item.id,
+                entries=[(finding, item.id) for finding in content.findings], reason=reason,
+            )
+        if found:
+            self._checkpoint(task)
+        return found
+
+    async def _release_text(self, task: Task, user: User, text: str, *, boundary: str = "answer") -> str:
+        """Model output as it may leave: scanned, and redacted or withheld per policy."""
+        content = dlp.scan(text, boundary).beyond(
+            task.profile.sensitivity.value if task.profile else Sensitivity.NORMAL.value
+        )
+        if not content.findings:
+            return text
+        if content.action == "block":
+            blocked = ", ".join(sorted({f.detector for f in content.acting("block")}))
+            released = (
+                f"[The answer was withheld by content scanning: it contained {blocked} "
+                "(policies/dlp.yaml). The run is held for an approving authority.]"
+            )
+            reason = f"The answer contained {content.summary()}; it was withheld and the run is held."
+        else:
+            released = dlp.redact(text, content, actions=("redact",))
+            redacted = content.acting("redact")
+            reason = (
+                f"The answer contained {content.summary()}."
+                + (f" {len(redacted)} value(s) were redacted before it was shown or kept." if redacted else "")
+                + (" The run is held for review." if content.action == "require_approval" else "")
+            )
+        await self._record_dlp(
+            task, user, boundary=boundary, subject=boundary,
+            entries=[(finding, boundary) for finding in content.findings], reason=reason,
+        )
+        return released
+
+    def _deliverable_copy(
+        self, content: dict[str, Any], evidence: list[EvidenceItem]
+    ) -> tuple[dict[str, Any], list[EvidenceItem], list[tuple[dlp.DlpFinding, str | None]]]:
+        """A deliverable's content and evidence as they may be released, and what was found.
+
+        Values the deliverable boundary redacts or blocks are masked in both
+        the drafted content and the evidence excerpts the document quotes;
+        whether a block stops the render is the caller's decision.
+        """
+        released, found = dlp.redact_value(content, "deliverable")
+        entries: list[tuple[dlp.DlpFinding, str | None]] = [(finding, "content") for finding in found]
+        quoted: list[EvidenceItem] = []
+        for item in evidence:
+            scanned = dlp.scan(item.excerpt or "", "deliverable")
+            entries.extend((finding, item.id) for finding in scanned.findings)
+            quoted.append(
+                item.model_copy(update={"excerpt": dlp.redact(item.excerpt, scanned)}) if scanned.findings else item
+            )
+        return released, quoted, entries
+
+    async def _scan_deliverable(
+        self,
+        task: Task,
+        user: User,
+        content: dict[str, Any],
+        evidence: list[EvidenceItem],
+        limitations: list[str],
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """The drafted deliverable at the release boundary: (content or None, floor).
+
+        None when the policy blocks it: nothing is rendered and the run is
+        held. The floor is the classification of what is still released, so
+        a value redacted out of the document does not raise it.
+        """
+        released, _, entries = self._deliverable_copy(content, evidence)
+        level = task.profile.sensitivity.value if task.profile else Sensitivity.NORMAL.value
+        material = dlp.DlpScan("deliverable", [finding for finding, _ in entries]).beyond(level).findings
+        entries = [(finding, where) for finding, where in entries if finding in material]
+        if not entries:
+            return content, None
+        actions = {finding.action for finding, _ in entries}
+        summary = dlp.DlpScan("deliverable", [finding for finding, _ in entries]).summary()
+        if "block" in actions:
+            blocked = ", ".join(sorted({f.detector for f, _ in entries if f.action == "block"}))
+            reason = f"The deliverable would have carried {summary}; it was not rendered, and the run is held."
+            limitations.append(
+                f"No deliverable was rendered: content scanning found {blocked}, which policies/dlp.yaml "
+                "does not release in a document."
+            )
+            released_content: dict[str, Any] | None = None
+        else:
+            redacted = sum(1 for finding, _ in entries if finding.action == "redact")
+            reason = (
+                f"The deliverable carried {summary}."
+                + (f" {redacted} value(s) were redacted from it." if redacted else "")
+                + (" It is held for review." if "require_approval" in actions else "")
+            )
+            if redacted:
+                limitations.append(
+                    f"{redacted} value(s) were redacted from the deliverable by content scanning "
+                    f"({', '.join(sorted({f.detector for f, _ in entries if f.action == 'redact'}))})."
+                )
+            released_content = released
+        await self._record_dlp(
+            task, user, boundary="deliverable", subject="deliverable", entries=entries, reason=reason,
+        )
+        floors = [
+            finding.raises_to for finding, _ in entries
+            if finding.raises_to and finding.action in ("allow", "require_approval")
+        ]
+        floor = max(floors, key=self.config.classification_rank) if floors and released_content else None
+        return released_content, floor
+
     def _active_revisions(self, evidence: list[EvidenceItem]) -> dict[str, tuple[str, str]]:
         """The revision in force of every procedure the run's files refer to."""
         from backend.rag.knowledge_base import get_knowledge_base
@@ -2815,7 +3134,7 @@ class AgentOrchestrator:
                 task, context, "spreadsheet_analyze", {"file_id": spreadsheets[0].id}
             )
             if call.ok:
-                context_lines.append("Spreadsheet structure:\n" + call.output.get("stdout", "")[:2000])
+                context_lines.append("Spreadsheet structure:\n" + _prompt_safe(call.output.get("stdout", ""))[:2000])
         for item in ledger.items[:4]:
             context_lines.append(f"[{item.id}] {_model_text(item)[:400]}")
 
@@ -2946,7 +3265,7 @@ class AgentOrchestrator:
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
                 "\nOutput of code executed in the secure sandbox:\n"
-                + sandbox_result.stdout[:2000]
+                + _prompt_safe(sandbox_result.stdout)[:2000]
                 + "\n"
             )
 
@@ -2984,7 +3303,9 @@ class AgentOrchestrator:
         # Still emitted: `task.token` carries the text as it arrives, but a
         # client that joined late, missed frames, or reloaded has no way to
         # rebuild it. This is the authoritative copy and the one that is
-        # persisted.
+        # persisted -- after content scanning, so it replaces whatever the
+        # stream showed.
+        text = await self._release_text(task, user, text)
         await self._emit(task, "task.answer", {"answer": text})
         return text
 
@@ -3063,6 +3384,20 @@ class AgentOrchestrator:
         authority = authority_statement(task.assessment) if task.assessment is not None else None
         if authority:
             content = {**content, "authority": authority}
+
+        # Enforced here as well as where the draft was scanned, because this
+        # is also reached by re-rendering after a conflict is resolved, with
+        # evidence the first scan never saw. A value the policy will not
+        # release in a document stops the render; the rest are redacted.
+        content, evidence, entries = self._deliverable_copy(content, evidence)
+        blocked = [(finding, where) for finding, where in entries if finding.action == "block"]
+        if blocked:
+            detectors = ", ".join(sorted({finding.detector for finding, _ in blocked}))
+            await self._record_dlp(
+                task, context.user, boundary="deliverable", subject="deliverable", entries=blocked,
+                reason=f"The deliverable was not rendered: it would have carried {detectors}.",
+            )
+            return
         call = await self._call_tool(
             task,
             context,

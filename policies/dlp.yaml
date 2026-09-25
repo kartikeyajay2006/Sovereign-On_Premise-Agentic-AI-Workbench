@@ -1,0 +1,138 @@
+# Content scanning (DLP): what is looked for, and what happens when it is found.
+#
+# Content is scanned at each boundary where it leaves one trust scope for
+# another (backend/security/dlp.py):
+#
+#   upload       a file entering the workbench (task uploads, knowledge ingest)
+#   prompt       an evidence excerpt about to be shown to a model
+#   answer       model output about to be shown to the user or persisted
+#   deliverable  a document about to be rendered for release
+#
+# Actions, weakest to strongest:
+#
+#   allow             recorded (detector, boundary, fingerprint); nothing changes
+#   redact            the value is replaced by "[redacted: <detector> #<fingerprint>]"
+#   require_approval  passed through, and the run is held for an approving
+#                     authority (approval-rules.yaml: sensitive_content)
+#   block             upload: the file is refused and nothing is stored
+#                     prompt: the whole evidence item is withheld from the model
+#                     answer: the answer is withheld and the run is held
+#                     deliverable: nothing is rendered and the run is held
+#
+# At the upload boundary only allow and block apply. The stored file is the
+# record of what was received, so it is never rewritten; a value found in it
+# is redacted downstream, at every boundary where its text could leave.
+#
+# The raw value is never written anywhere by the scanner: not to the audit
+# log, not to a policy event, not to a note. What is recorded is the detector,
+# the boundary, the position and a keyed fingerprint (HMAC-SHA256 under a key
+# kept on this host), so the same value can be recognised across records
+# without being recoverable from them.
+#
+# `raises_to` is the classification a finding imposes on what carries it -- a
+# file, an evidence item, a run. It only ever raises. `marked` means the level
+# the marking itself asserts (see classification_markers below).
+
+policy_version: 1
+
+detectors:
+  # -- secrets and credentials -------------------------------------------
+  private_key:
+    category: secret
+    description: A PEM or PGP private key block with a key body.
+    raises_to: restricted
+    # No engineering document needs a private key; refused at the door.
+    actions: {upload: block, prompt: block, answer: redact, deliverable: block}
+
+  aws_access_key:
+    category: secret
+    description: An AWS access key id (AKIA/ASIA...).
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  github_token:
+    category: secret
+    description: A GitHub personal access or app token (ghp_, gho_, github_pat_...).
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  slack_token:
+    category: secret
+    description: A Slack token (xoxb-, xoxp-...).
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  jwt:
+    category: secret
+    description: A JSON Web Token whose header decodes and names an algorithm.
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  bearer_token:
+    category: secret
+    description: An HTTP bearer credential ("Authorization -- Bearer <token>").
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  credential_assignment:
+    category: secret
+    description: A password, secret, API key or token assigned a literal value in config-like text.
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  connection_string_password:
+    category: secret
+    description: The password in a URL of the form scheme://user:password@host.
+    raises_to: restricted
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  # -- personal data --------------------------------------------------------
+  aadhaar:
+    category: personal
+    description: A 12-digit Aadhaar number that passes the Verhoeff checksum.
+    raises_to: sensitive
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  pan:
+    category: personal
+    description: An Indian PAN (AAAPA9999A) with a valid holder-type letter.
+    raises_to: sensitive
+    actions: {upload: allow, prompt: redact, answer: redact, deliverable: redact}
+
+  email:
+    category: personal
+    description: An email address outside the reserved example domains.
+    raises_to: null
+    # Procedures name their owners; a person's address leaving in a
+    # released document is signed off, not silently removed.
+    actions: {upload: allow, prompt: allow, answer: allow, deliverable: require_approval}
+
+  phone_in:
+    category: personal
+    description: An Indian mobile number (+91 / 0 prefix optional).
+    raises_to: null
+    actions: {upload: allow, prompt: allow, answer: allow, deliverable: require_approval}
+
+  # -- classification markings ---------------------------------------------
+  classification_marker:
+    category: marking
+    description: A protective marking in the text ("Classification - Restricted", a SECRET banner line).
+    # The effect of a marking is the classification it asserts. A document
+    # uploaded as "normal" whose own header says Restricted is Restricted.
+    raises_to: marked
+    actions: {upload: allow, prompt: allow, answer: allow, deliverable: allow}
+
+# Marking as written (case-insensitive) -> the level it asserts. Levels are
+# those in data-classification.yaml. A marking this platform has no level for
+# maps to the most restrictive one it has.
+classification_markers:
+  normal: normal
+  confidential: confidential
+  sensitive: sensitive
+  restricted: restricted
+  secret: restricted
+  top secret: restricted
+
+# Upload text is scanned up to this many characters. A file longer than this
+# is scanned in part, and the note on the file says so.
+max_scan_chars: 2000000
