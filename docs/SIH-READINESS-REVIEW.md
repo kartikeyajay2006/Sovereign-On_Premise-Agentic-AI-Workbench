@@ -71,6 +71,29 @@ Measured on the live host after these commits:
 - Test suite: 959 passed, 13 skipped on Linux. Windows was not re-measured
   after this pass.
 
+## Error sweep, 27 September
+
+The whole codebase, checked five ways:
+
+| Check | Scope | Found |
+|---|---|---|
+| Static analysis | pyflakes and runtime-error rules (ruff F, E9, PLE) over `backend`, `scripts`, `tests`; mypy; every Python file compiled with warnings as errors; `tsc` with `noUnusedLocals` and `noUnusedParameters` | one undefined annotation name, unused variables and imports, a `className` prop never applied, dead state. mypy's remaining findings are optional-type narrowing the code already guards, and Windows-only calls |
+| API | every GET operation, as each of the 7 roles, with real ids (455 calls), plus deliverable and report downloads | no server error |
+| Console | every route in headless Chrome, signed out and as five roles (85 page loads), collecting exceptions, console errors and failed requests | no exception or console error from the app; a 401 on every page for a signed-out visitor, from the session probe |
+| Live runs | `scripts/golden_demo.py` and `scripts/red_team.py` against the running host | **the second judged moment failed**; one correct claim in the first was marked unsupported |
+| Scripts, logs, docs | every script's `--help`, the API and web logs, the audit trail, every link in 137 Markdown files | `make_sample_pid_image.py --help` wrote the drawing; no traceback or 5xx in the logs; no broken link |
+
+Fixed, each with a test:
+
+- **An uploaded survey was never assessed** (`8aa3aed`). The upload parser renders a CSV with `" | "` between cells; the survey reader expected commas, so a run given the V-2104 survey held no assessment, raised no conflict with the field sheet, and the model computed 0.75 mm/year where the registry gives 0.55. The golden demo's second moment now passes.
+- **A correct governing location was marked unsupported** (`271a429`), failing verification on the flagship run. It is now judged as the computed figure it is; the rerun passed all nine checks.
+- **The session probe logged an error on every signed-out page** (`33a5f27`); `/api/auth/session` answers with a 200.
+- **The smaller ones** (`c11f1bb`): the theme toggle's margin, `--help` writing the drawing, the vision cache not ignored by git, dead state, the static errors.
+
+After the fixes: `scripts/golden_demo.py` ends **FINAL STATUS: READY**, the red team holds 31 of 31, the suite passes 981 with 13 skipped, and the crawl finds no error on any screen.
+
+One finding is the model's, not the code's: on one run the 3B model drafted an approval note without the inline citations its prompt asks for. Document verification failed it and the run was held, which is the control working.
+
 ## What still stands between this build and a winning demo
 
 ### Before the judges (no code)

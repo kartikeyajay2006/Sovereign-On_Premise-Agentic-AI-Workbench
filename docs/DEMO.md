@@ -47,7 +47,7 @@ what the API returned; it creates two runs on the target. See
 
 ### Start a golden demo in one click
 
-An empty thread shows the three judged moments as cards. Picking one fills
+An empty thread shows the three judged moments, and the relief valve, as cards. Picking one fills
 the request and attaches its sample files through the ordinary upload
 (quarantine, content scanning and the audit apply); nothing runs until
 **Run** is pressed.
@@ -57,6 +57,7 @@ the request and attaches its sample files through the ordinary upload
 | **Can V-2104 keep running?** | the scanned report (the thickness survey on a host with no vision model) | figures by registered formulas, a cited approval note held for the Head of Inspection |
 | **Two records disagree** | the thickness survey and the contractor field sheet | the reading at shell course 2 differs, so no figure is stated until a reviewer chooses |
 | **A document that gives orders** | a contractor note that tells the model to approve V-2104 | both injected sentences withheld from the model, and the run held for a person |
+| **A relief valve failed its test** | the PSV-2104A bench-test record | every SOP-INS-025 check by formula: as-received failed (11.9 bar(g) against 11.55), the other four passed, High on V-2104, held for the Head of Inspection and then the Plant Manager |
 
 The files are served by `GET /api/samples/{id}` from the ids under `demo.samples`
 in `config/app.yaml`. Set `demo.enabled: false` on a production install.
@@ -557,6 +558,14 @@ are extracted and recomputed in the sandbox during verification.
 
 **Why it matters.** One answer draws on three procedures and a computed
 threshold, each claim cited to its source.
+
+**With the record attached.** The *A relief valve failed its test* card
+attaches `sample_data/relief/PSV-2104A-bench-test-record.md` instead of
+stating the figures in the question. The record is read field by field and
+judged by the five `relief.*` formulas, so the threshold, the verdicts and
+the next bench test (2028-03-12, 24 months in corrosive service) are the
+registry's, not the model's. The run is held for two signatures: sign as
+`head_of_inspection`, then `plant_manager`.
 
 ### Scenario 11 — When the right answer is "no"
 

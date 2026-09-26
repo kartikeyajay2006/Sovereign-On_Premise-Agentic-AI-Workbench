@@ -12,7 +12,7 @@
 ![Ollama](https://img.shields.io/badge/Ollama-local_models-9b52ff?style=for-the-badge&logo=ollama&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-WAL-7c4dff?style=for-the-badge&logo=sqlite&logoColor=white)
 
-![Tests](https://img.shields.io/badge/tests-959_passed_·_13_skipped_on_Linux-16a34a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-981_passed_·_13_skipped_on_Linux-16a34a?style=flat-square)
 ![Egress](https://img.shields.io/badge/egress-0_·_measured-16a34a?style=flat-square)
 ![Audit](https://img.shields.io/badge/audit-SHA--256_hash--chained-0284c7?style=flat-square)
 ![Offline](https://img.shields.io/badge/runs-fully_offline-0284c7?style=flat-square)
@@ -189,7 +189,7 @@ Three processes on one host: the **Next.js console** (`:3000`), the **FastAPI** 
 
 <div align="center">
 
-| 🐍 34,200 lines of Python | ⚛️ 27,800 lines of TypeScript | 🧪 972 tests | 📚 111-page handbook |
+| 🐍 34,200 lines of Python | ⚛️ 27,800 lines of TypeScript | 🧪 994 tests | 📚 111-page handbook |
 |:--:|:--:|:--:|:--:|
 | **🔴 36** live event types | **🛡️ 22** permissions · 7 roles | **🎯 31 / 31** attacks held | **📑 15** documents · 207 passages |
 
@@ -296,6 +296,8 @@ Password for all seven: `workbench` (`security.seed_user_password`). **Change it
 
 A **111-page manual**, written from the code, that says where every control stops as well as what it does.
 
+> **Start here:** 🧾 **[What AEGIS implements today](docs/IMPLEMENTED.md)**, every capability with where it lives and how to see it working · 🏆 the **[SIH build plan](docs/SIH-WINNING-BUILD-PLAN.md)** and the **[readiness review](docs/SIH-READINESS-REVIEW.md)**, phase by phase, with what is still open
+
 <table>
 <tr>
 <td width="33%" valign="top">
@@ -335,7 +337,7 @@ A **111-page manual**, written from the code, that says where every control stop
 </tr>
 </table>
 
-Also: the scripted **[demo with correct answers](docs/DEMO.md)** · **[use cases](docs/USE-CASES.md)** · the **[runtime guarantees](docs/RUNTIME-ENVIRONMENT.md)** · the **[brand kit](docs/assets/brand/README.md)**.
+Also: the scripted **[demo with correct answers](docs/DEMO.md)** · **[use cases](docs/USE-CASES.md)** · the **[runtime guarantees](docs/RUNTIME-ENVIRONMENT.md)** · the **[reference architecture](docs/reference-architecture.md)** · the **[brand kit](docs/assets/brand/README.md)**.
 
 ---
 
@@ -362,13 +364,24 @@ Also: the scripted **[demo with correct answers](docs/DEMO.md)** · **[use cases
 - [x] Prompt-injection screening of evidence; upload quarantine by bytes and structure
 - [x] Ed25519-signed Merkle roots; per-run certificates; digest-bound approval; deliverables re-hashed on download
 - [x] A measured red-team suite; P&ID topology with isolation plans against the lockout procedure
+- [x] A rootless container runtime for generated code, used only when a probe proves it; on Linux without one, a private network namespace
+- [x] An nftables default-deny egress table with its kernel counters read back
+- [x] P&ID graphs read from the drawing image and compared with the authored graph
+- [x] Two signatures, in order, for a High finding; certificates carrying model digests, config hashes and provenance
+- [x] Proof Mode, a measurements dashboard, re-run and compare, and a golden demo check of the three judged moments
+- [x] Hybrid retrieval (vector and BM25 by Reciprocal Rank Fusion); content scanning for secrets, personal data and markings
+- [x] Read-only historian and OPC UA adapters; relief-device verdicts by SOP-INS-025, in the registry and in a run
+- [x] An offline installer bundle, verified before it installs; CI on Linux and Windows
 
-**🔜 Next** ([what is still open, and why](docs/handbook/09-security/06-threat-model.md#what-does-not-hold-yet))
+Everything built, with where it lives: **[docs/IMPLEMENTED.md](docs/IMPLEMENTED.md)**.
 
-- [ ] A rootless container runtime for generated code (`--network none`, read-only root, non-root)
-- [ ] P&ID extraction from drawings (today a drawing is authored as a graph); a benchmark dashboard over the red team and golden answers
+**🔜 Next** ([what is still open, and why](docs/SIH-READINESS-REVIEW.md#what-still-stands-between-this-build-and-a-winning-demo))
+
+- [ ] Bind approval to the prompt, the evidence set, the policy files and the model digests, as it is already bound to the answer and the figures
+- [ ] Operating-envelope checks: operating pressure and temperature against design and MAWP
+- [ ] Frontend tests: a browser smoke test of each golden demo
+- [ ] Read-only CMMS, document-management and directory adapters
 - [ ] Off-host anchoring of signed roots; a hardware signing key
-- [ ] Offline installation bundle with a frontend container
 
 ---
 
@@ -378,8 +391,8 @@ Stated plainly, because they decide whether AEGIS is right for you.
 
 - **Latency is hardware-bound.** On a CPU laptop, a cited answer takes about 20–40 s and a drafted document from a scan several minutes. A GPU changes this substantially.
 - **Small models are small.** A 3B model drafts thin documents and leaves things out: asked for an isolation plan it once named one branch of five. The figures and the plan come from deterministic engines, so what it omits is restored and what it gets wrong fails verification, but its prose stays thin. [How the gap was closed](docs/handbook/08-verification/05-limits.md).
-- **The sandbox is not a container.** Its limits are enforced by runtime shims in the API user's own process tree. [Details](docs/handbook/09-security/03-sandbox.md).
-- **Drawings are authored as graphs.** The P&ID engine answers from a reviewed graph; reading a drawing image into one is not built yet.
+- **The sandbox is a container only where its image is built.** Elsewhere its limits are runtime shims and rlimits in the API user's own process tree; on Linux the kernel still refuses its connections through a private network namespace. [Details](docs/handbook/09-security/03-sandbox.md).
+- **A drawing read from an image is a proposal.** The vision model's reading of a P&ID is compared with the authored graph and every disagreement reported; the isolation engine answers from the reviewed graph.
 - **Egress is measured for the workbench's own processes**, not the whole host. For a provable air gap, add a host firewall.
 - **Policy files are a sensible default**, not your organisation's policy. Some declared controls are not implemented yet, and the [configuration reference](docs/handbook/10-configuration/README.md) marks every one.
 - **Compliance is not a software property.** The audit chain supports an assurance process; it is not one.
