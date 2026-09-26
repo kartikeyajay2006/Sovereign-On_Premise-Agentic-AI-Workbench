@@ -20,7 +20,7 @@ import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
 import { NEW_RUN_EVENT } from '@/components/command-palette'
 import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT, type RunsChangedDetail } from '@/components/navigation'
-import { TraceScope } from '@/shared/motion'
+import { TraceScope, prefersReducedMotion } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { harnessApi } from '@/features/harness/api'
 import { Composer, type ComposerAttachment } from './composer'
@@ -686,9 +686,12 @@ export function ThreadView() {
           // thread is following, so the reader is watching the answer land.
           releasedLive: true,
         }))
-        // The answer has landed: shown once, to a reader who was following,
-        // after it has laid out. Nothing moves the page after this.
-        if (pinnedRef.current) {
+        // A released answer brings its own top into view once it is in place
+        // (answerReleased, below): scrolling to the end here pushed past its
+        // opening lines to the composer. Any other ending -- a refusal, a
+        // failure, a stop -- is read at the end, where its reason is.
+        const releasesAnswer = Boolean(task.answer) && (outcome === 'delivered' || outcome === 'held' || outcome === 'rejected')
+        if (pinnedRef.current && !releasesAnswer) {
           window.requestAnimationFrame(() => {
             programmaticRef.current = true
             scrollToEnd(endRef.current)
@@ -816,6 +819,23 @@ export function ThreadView() {
   const followToEnd = useCallback(() => {
     programmaticRef.current = true
     scrollToEnd(endRef.current)
+  }, [])
+
+  /**
+   * The checked answer is in place: bring its first line to about 96px below
+   * the header, where it is read from the top, instead of leaving the reader
+   * at the end of the thread with the answer's opening lines above the fold.
+   * Only for a reader who was following the run; one who scrolled away to
+   * read something else is left where they are.
+   */
+  const answerReleased = useCallback((_turnId: string, element: HTMLElement) => {
+    if (!pinnedRef.current) return
+    const shellTop = parseFloat(getComputedStyle(element).getPropertyValue('--shell-top')) || 0
+    const top = window.scrollY + element.getBoundingClientRect().top - (shellTop + 96)
+    if (Math.abs(top - window.scrollY) < 8) return
+    pinnedRef.current = false
+    programmaticRef.current = true
+    window.scrollTo({ top: Math.max(0, top), behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
   }, [])
 
   const jumpToLatest = useCallback(() => {
@@ -1306,6 +1326,7 @@ export function ThreadView() {
               busy={busy}
               canReview={canReview}
               models={models}
+              onReleased={answerReleased}
             />
           ),
         )}

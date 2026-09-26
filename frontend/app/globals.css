@@ -2749,3 +2749,14 @@ html[data-theme='dark'],
 @media (prefers-reduced-motion: reduce) {
   .aegis-append.thread-sub { animation: none; }
 }
+
+/* The draft stepping aside for the checked answer: opacity only, on the */
+/* exit curve, inside a box held at the draft's height. The component    */
+/* skips this entirely under reduced motion; --micro is zero there too.  */
+.thread-draft-leave {
+  animation: thread-fade-out var(--micro) var(--ease-exit) forwards;
+}
+@keyframes thread-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}

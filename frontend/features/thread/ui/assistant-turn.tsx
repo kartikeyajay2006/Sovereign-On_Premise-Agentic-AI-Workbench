@@ -1,9 +1,19 @@
 'use client'
 
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
-import { AppendScope, DimScope, Disclose, Light, Refused, Release, Seal, useSecondClock } from '@/shared/motion'
+import {
+  AppendScope,
+  DimScope,
+  Disclose,
+  Light,
+  Refused,
+  Release,
+  Seal,
+  useReducedMotion,
+  useSecondClock,
+} from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import type { DeliverableContent, EvidenceItem, ModelDescriptor } from '@/lib/types'
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
@@ -50,6 +60,9 @@ function RunElapsed({ startedAt }: { startedAt: string }) {
   if (Number.isNaN(started)) return null
   return <span className="tabular">{Math.floor(Math.max(0, now - started) / 1000)}s</span>
 }
+
+/** The draft's exit, matched to --micro in globals.css (.thread-draft-leave). */
+const DRAFT_LEAVE_MS = 120
 
 const OUTCOME_LABEL: Record<AssistantTurnModel['outcome'], string> = {
   running: 'Working',
@@ -556,10 +569,13 @@ export const AssistantTurn = memo(function AssistantTurn({
   busy = false,
   canReview = false,
   models = null,
+  onReleased,
 }: {
   turn: AssistantTurnModel
   onCite?: (turnId: string, evidenceId: string) => void
   onRerun?: (turnId: string) => void
+  /** The checked answer of a live release is in place, at `element`. */
+  onReleased?: (turnId: string, element: HTMLElement) => void
   /** Another run is in flight, so this one cannot be re-run yet. */
   busy?: boolean
   canReview?: boolean
@@ -612,6 +628,45 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
     wasRunning.current = running
   }, [running, foldable])
+
+  /*
+    The hand-over from draft to answer. The draft does not vanish in the
+    frame the checked answer arrives: it fades (120ms, ease-exit) inside a
+    box held at its measured height, so the column does not collapse under
+    the reader, and then the answer mounts and rises into the same place.
+    Only on a live release; a run read from the record has no draft.
+  */
+  const reduced = useReducedMotion()
+  const draftBoxRef = useRef<HTMLDivElement | null>(null)
+  const draftHeightRef = useRef(0)
+  const lastDraftRef = useRef<string | null>(null)
+  if (turn.streamingDraft) lastDraftRef.current = turn.streamingDraft
+  useLayoutEffect(() => {
+    if (draftBoxRef.current) draftHeightRef.current = draftBoxRef.current.offsetHeight
+  })
+  const [leavingDraft, setLeavingDraft] = useState<{ text: string; height: number } | null>(null)
+  const [answerShown, setAnswerShown] = useState(showsAnswer)
+  if (answerShown !== showsAnswer) {
+    setAnswerShown(showsAnswer)
+    if (showsAnswer && turn.releasedLive && lastDraftRef.current && !reduced) {
+      setLeavingDraft({ text: lastDraftRef.current, height: draftHeightRef.current })
+    }
+  }
+  useEffect(() => {
+    if (!leavingDraft) return
+    const timer = window.setTimeout(() => setLeavingDraft(null), DRAFT_LEAVE_MS)
+    return () => window.clearTimeout(timer)
+  }, [leavingDraft])
+
+  // Once the released answer is in place, the thread brings its top into
+  // view. Once per mount: a re-read of the record does not move the page.
+  const answerRef = useRef<HTMLDivElement | null>(null)
+  const announcedRef = useRef(false)
+  useEffect(() => {
+    if (announcedRef.current || leavingDraft || !showsAnswer || !turn.releasedLive || !answerRef.current) return
+    announcedRef.current = true
+    onReleased?.(turn.id, answerRef.current)
+  }, [leavingDraft, showsAnswer, turn.releasedLive, turn.id, onReleased])
 
   return (
     <article className="flex flex-col gap-4">
@@ -761,14 +816,25 @@ export const AssistantTurn = memo(function AssistantTurn({
               released on.
             </p>
           </div>
+        ) : showsAnswer && leavingDraft ? (
+          /* The draft leaving, at the height it had, for 120ms. */
+          <div style={{ minHeight: leavingDraft.height }} aria-hidden>
+            <div className="thread-draft-leave border-l-2 border-line-default pl-4">
+              <p className="font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Draft</p>
+              <div className="mt-2">
+                <Prose text={leavingDraft.text} known={NO_EVIDENCE} onCite={null} className="text-body text-foreground-secondary" />
+              </div>
+            </div>
+          </div>
         ) : showsAnswer ? (
           /*
-            RELEASE: settle() -- the checked answer arrives once. It rises into
-            place at full opacity and its verdict blooms around it and lets
-            go. A run opened from the record was read, not released, so its
-            answer is simply there. The padding gives the light room; the
-            negative margin keeps the text on the column's edge.
+            RELEASE: settle() -- the checked answer arrives once. It rises 8px
+            into place over 300ms (ease-spatial) and its verdict blooms around
+            it once and lets go. A run opened from the record was read, not
+            released, so its answer is simply there. The padding gives the
+            light room; the negative margin keeps the text on the column's edge.
           */
+          <div ref={answerRef}>
           <Release verdict={verdict} released={turn.releasedLive} className="-mx-3 -my-2 flex flex-col gap-3 px-3 py-2">
             {turn.outcome === 'rejected' && (
               <p className="border-l-2 border-critical-border pl-3 text-body text-foreground-secondary">
@@ -783,6 +849,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
             <SourcesRow text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
           </Release>
+          </div>
         ) : !running ? (
           <p className="text-body text-foreground-secondary">This run finished without an answer.</p>
         ) : turn.streamingDraft ? (
@@ -793,7 +860,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             replaced when the checked answer arrives. What it buys is the four
             minutes of a CPU run not being a blank rectangle.
           */
-          <div className="border-l-2 border-line-default pl-4">
+          <div ref={draftBoxRef} className="border-l-2 border-line-default pl-4">
             <p className="text-[12.5px] text-foreground-muted">
               {verifying ? 'Draft · checking every claim before it is released' : 'Draft · not checked yet'}
             </p>
