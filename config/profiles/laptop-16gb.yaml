@@ -7,7 +7,7 @@
 # Estimated: a cited answer in ~17 s, a scan run in 1.5-2 min, for 1-2
 # users. The 3B, the vision model and nomic (~7 GB together) stay resident,
 # so a scan run pays no model swap. Start Ollama with
-# scripts/start-ollama.ps1 -Profile laptop-16gb.
+# scripts/start-ollama.ps1 -Tier laptop-16gb.
 description: Recommended demo laptop -- 16 GB, CPU only, 1-2 users
 
 app:

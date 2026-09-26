@@ -8,7 +8,7 @@
 # ~6.5 tok/s; a cited answer takes 38-56 s, a scan run ~100 s with the
 # V-2104 vision cache warm and ~290 s cold. Keep qwen2.5:3b and nomic
 # resident; load the vision model only on a cache miss; never qwen3:8b.
-# Start Ollama with scripts/start-ollama.ps1 -Profile laptop-8gb.
+# Start Ollama with scripts/start-ollama.ps1 -Tier laptop-8gb.
 description: Demo minimum -- 8 GB, CPU only, one user
 
 app:

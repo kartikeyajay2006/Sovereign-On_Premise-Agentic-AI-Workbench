@@ -7,7 +7,7 @@
 #
 # Estimated: a cited answer in ~7 s, a scan run in under a minute, for
 # 5-15 users. qwen3:8b + vision + nomic stay resident. Start Ollama with
-# scripts/start-ollama.sh --profile gpu-server: OLLAMA_NUM_PARALLEL=4 so
+# scripts/start-ollama.sh --tier gpu-server: OLLAMA_NUM_PARALLEL=4 so
 # the workers below are served concurrently, plus flash attention and a
 # q8_0 KV cache.
 description: Plant server, GPU -- >=12 GB VRAM, 5-15 users

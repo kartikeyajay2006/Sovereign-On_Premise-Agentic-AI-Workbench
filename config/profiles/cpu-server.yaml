@@ -7,7 +7,7 @@
 # Estimated: a cited answer in ~13 s for 3-5 users. All four models stay
 # resident and qwen3:8b is allowed (the router still prefers the smaller
 # model that satisfies a stage; remove qwen2.5:3b from models.yaml to route
-# reasoning to the 8B). Start Ollama with scripts/start-ollama.sh --profile
+# reasoning to the 8B). Start Ollama with scripts/start-ollama.sh --tier
 # cpu-server, which also sets OLLAMA_FLASH_ATTENTION=1 and
 # OLLAMA_KV_CACHE_TYPE=q8_0.
 description: Plant server, CPU -- 64-128 GB, 3-5 users
