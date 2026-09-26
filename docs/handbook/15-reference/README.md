@@ -22,6 +22,6 @@
 
 | | | |
 |:--|:--:|--:|
-| [← 14.2 · Rehearsal and recovery](../14-demo-guide/02-rehearsal.md) | [↑ The AEGIS Handbook](../README.md) | [15.1 · Frequently asked questions →](01-faq.md) |
+| [← 14.3 · Demo day on the 8 GB laptop](../14-demo-guide/03-demo-day.md) | [↑ The AEGIS Handbook](../README.md) | [15.1 · Frequently asked questions →](01-faq.md) |
 
 <!-- nav:end -->

@@ -34,9 +34,20 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `max_context_tokens` | `8192` | ✅ | Cap on the context window sent, and in the memory estimate |
 | `max_image_edge_px` | `1100` | ✅ | Images are downscaled so their long edge fits |
 | `registry_refresh_seconds` | `30` | ✅ | How long model availability is cached |
-| `max_concurrent_requests` | `2` | ⚠️ | Not read. The single task worker already serialises runs |
+| `max_concurrent_requests` | `2` | ⚠️ | Not read. Concurrency is `agent.worker_count` |
 | `single_model_residency` | `true` | ✅ | One generation model in memory at a time |
-| `memory_headroom_mb` | `1536` | ✅ | Free memory to keep beyond a model's footprint |
+| `memory_headroom_mb` | `1536` | ✅ | Free memory to keep beyond a model's footprint. A model that would not fit with it raises `task.model_memory` and falls back to a smaller eligible model ([12.5](../12-operations/05-performance.md#memory-warnings-on-the-timeline)) |
+| `reconcile_on_startup` | `true` | ✅ | At startup, adopt the generation model Ollama still holds and, under single residency, unload the other registered ones. Tests turn it off |
+
+## `readiness`
+
+Read by `scripts/warmup.py` and `GET /api/ready` (`backend/ops/readiness.py`).
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `min_free_memory_mb` | `1536` | ✅ | Free memory, with the drafting model loaded, below which the host is not ready |
+| `vision_sample` | `v2104-scan` | ✅ | A `demo.samples` id whose vision reading must be cached. Empty, or `demo.enabled: false`, makes the check not apply (`null`) |
+| `cache_seconds` | `5` | ✅ | How long `/api/ready` reuses its readings, so the unauthenticated endpoint cannot make the API re-hash the audit log in a loop |
 
 ## `knowledge_base`
 
@@ -86,6 +97,7 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `template_plan_min_confidence` | `0.6` | ✅ | When a run needs a plan, it is taken from the task shape (no model call) if code is already required, or if the classification is at least this confident and no CSV/XLSX is attached ([7.3](../07-agents/03-planning-prompts.md#who-makes-the-plan)). Above 1.0 always asks the model |
 | `step_timeout_seconds` | `600` | ⚠️ | Not read; model calls are bounded by `inference.request_timeout_seconds` |
 | `stream_tokens` | `true` | ⚠️ | Not read; answers always stream |
+| `worker_count` | `1` | ✅ | Runs executed at once. One on a CPU host; the server profiles raise it to match `OLLAMA_NUM_PARALLEL` |
 
 ## `vision_cache`
 
@@ -123,17 +135,30 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 |---|---|:--:|---|
 | `session_ttl_minutes` | `720` | ✅ | Session lifetime (12 h) |
 | `password_hash_rounds` | `12` | ✅ | × 10,000 PBKDF2 iterations (120,000) |
-| `self_registration_enabled` | `true` | ✅ | Allow `POST /api/auth/register`. **Set false outside a demo machine** |
-| `self_registration_default_role` | `operator` | ✅ | Role given to self-registered accounts |
+| `self_registration_enabled` | `false` | ✅ | Allow `POST /api/auth/register`, the one path that skips an administrator. **Keep false outside a development machine** |
+| `self_registration_default_role` | `operator` | ✅ | Role given to self-registered accounts, and the placeholder role of an account waiting on an access request |
 | `self_registration_default_department` | `operations` | ✅ | Their department, if none is given |
 | `secret_key` | `""` | ⚠️ | Not read; sessions are random tokens stored in the database |
-| `seed_user_password` | `workbench` | ✅ | Password given to a seed account when it is created: on first start, and for any declared seed account that does not exist yet (the Head of Inspection and Plant Manager on an older install). **Change before first start** |
+| `seed_user_password` | `workbench` | ✅ | Password given to a demo seed account when it is created (demo mode only): on first start, and for any declared seed account that does not exist yet (the Head of Inspection and Plant Manager on an older install). **Change before first start** |
+
+## `identity`
+
+How accounts come to exist ([9.1](../09-security/01-access-control.md#how-accounts-come-to-exist)).
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `owner_role` | `administrator` | ✅ | The role the first-run owner gets. Must grant `users.manage` |
+| `directory.enabled` | `false` | ⚠️ | Declared only. No directory client ships; the directory reports *not configured* either way |
+| `directory.url` | `""` | ⚠️ | e.g. `ldaps://dc01.plant.local:636`. Shown to administrators; not connected to |
+| `directory.base_dn` | `""` | ⚠️ | e.g. `OU=Staff,DC=plant,DC=local` |
+| `directory.user_filter` | `(sAMAccountName={username})` | ⚠️ | The bind filter a directory client will use |
+| `directory.group_role_map` | `{}` | ⚠️ | Directory group → role in `policies/access-control.yaml` |
 
 ## `demo`
 
 | Key | Default | | Meaning |
 |---|---|:--:|---|
-| `enabled` | `true` | ✅ | Serve the sample files the console's golden-demo cards attach (`GET /api/samples`). **Set false on a production install** |
+| `enabled` | `true` | ✅ | Seed the demo accounts from `policies/access-control.yaml` and list them on the sign-in screen, and serve the sample files the console's golden-demo cards attach (`GET /api/samples`). With it off, a host with no administrator issues the one-time owner setup token at startup. **Set false on a production install** |
 | `samples` | four ids | ✅ | Id → path of each sample, under `sample_data/` only; a path outside it is never served ([11.2](../11-api/02-files-tasks.md#sample-files)) |
 
 <!-- nav:start -->

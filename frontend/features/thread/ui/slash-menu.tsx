@@ -75,7 +75,7 @@ export function SlashMenu({
   return (
     <div
       className={cn(
-        'ae-slash absolute inset-x-0 z-[var(--z-menu)] overflow-hidden rounded-[18px] border border-line-subtle bg-surface shadow-[var(--elev-2)]',
+        'ae-slash absolute inset-x-0 z-[var(--z-menu)] overflow-hidden rounded-[var(--radius-md-token)] border border-line-subtle bg-surface shadow-[var(--elev-2)]',
         placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2',
       )}
     >
@@ -115,7 +115,7 @@ export function SlashMenu({
                   onChoose(item)
                 }}
                 className={cn(
-                  'grid cursor-default grid-cols-[20px_minmax(0,1fr)] items-start gap-x-2.5 rounded-[12px] px-2.5 py-2',
+                  'grid cursor-default grid-cols-[20px_minmax(0,1fr)] items-start gap-x-2.5 rounded-[var(--radius-menu-row)] px-2.5 py-2',
                   active && 'bg-surface-sunken',
                 )}
               >
@@ -137,7 +137,7 @@ export function SlashMenu({
                       {item.kind === 'skill' ? item.skill.name : item.harness.name}
                     </span>
                     {item.kind === 'skill' && item.skill.source === 'custom' && (
-                      <span className="shrink-0 rounded-full bg-surface-sunken px-1.5 text-[11px] text-foreground-muted">
+                      <span className="shrink-0 rounded-[var(--radius-xs)] bg-surface-sunken px-1.5 text-[11px] text-foreground-muted">
                         {item.skill.author_display_name || item.skill.author || 'custom'}
                       </span>
                     )}

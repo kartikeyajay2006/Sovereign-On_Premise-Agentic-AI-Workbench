@@ -18,13 +18,19 @@ import type { TurnOutcome } from './types'
  * sandbox row lit "Sandbox" for plain reasoning and then marked it done, on
  * runs that never touched the sandbox -- a board painting a never-run stage
  * green, which is the one thing it exists not to do.
+ *
+ * The same rule separates `engineering` from `code_execution`. Engineering
+ * is the formula registry: registered, versioned formulas applied to inputs
+ * read from the evidence, with no generated code and no sandbox. Mapping it
+ * to the sandbox row wrote "Ran code in the sandbox" on runs where no code
+ * ran at all, which is a claim about the run the backend never made.
  */
 export const PHASE_TO_STAGE: Record<string, string> = {
   vision_extraction: 'read',
   planning: 'plan',
   retrieval: 'retrieve',
+  engineering: 'compute',
   code_execution: 'sandbox',
-  engineering: 'sandbox',
   reasoning: 'draft',
   verification: 'verify',
   deliverable: 'draft',
@@ -44,6 +50,30 @@ export const MODEL_STAGE_TO_ROW: Record<string, string> = {
   code_generation: 'sandbox',
   drafting: 'draft',
   verification: 'verify',
+}
+
+/** A stage, said once it has happened. */
+export const STAGE_DONE: Record<string, string> = {
+  classify: 'Classified the request',
+  plan: 'Planned the run',
+  read: 'Read the attachments',
+  retrieve: 'Searched the knowledge base',
+  compute: 'Computed with registered formulas',
+  sandbox: 'Ran code in the sandbox',
+  draft: 'Drafted the answer',
+  verify: 'Checked every claim',
+}
+
+/** A stage, said while it happens. */
+export const STAGE_ACTIVE: Record<string, string> = {
+  classify: 'Reading the request',
+  plan: 'Planning',
+  read: 'Reading the attachments',
+  retrieve: 'Searching the knowledge base',
+  compute: 'Computing with registered formulas',
+  sandbox: 'Running code in the sandbox',
+  draft: 'Drafting',
+  verify: 'Checking every claim',
 }
 
 export const TERMINAL = new Set([
@@ -249,7 +279,9 @@ export function stagesFromTask(
     plan: Boolean(task.plan),
     read: (task.files || []).length > 0 || usage.some((u) => u.stage === 'vision_extraction'),
     retrieve: tools.includes('knowledge_search'),
-    sandbox: tools.includes('python_exec') || (task.calculations || []).length > 0,
+    // The registry's own record, not a tool call: no code runs for it.
+    compute: Boolean(task.assessment) || (task.calculations || []).length > 0 || Boolean(task.topology),
+    sandbox: tools.includes('python_exec'),
     draft: Boolean(task.answer),
     verify: Boolean(task.verification),
   }

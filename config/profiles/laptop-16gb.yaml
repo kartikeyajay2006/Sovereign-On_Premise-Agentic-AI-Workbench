@@ -1,0 +1,39 @@
+# Tier (b): recommended demo laptop. 16 GB, 8+ performance cores,
+# DDR5/LPDDR5-6400, no discrete GPU needed.
+#
+# Selected with SOVEREIGN_PROFILE=laptop-16gb. Overlaid on config/app.yaml
+# (`app`) and config/routing.yaml (`routing`); SOVEREIGN_* variables still win.
+#
+# Estimated: a cited answer in ~17 s, a scan run in 1.5-2 min, for 1-2
+# users. The 3B, the vision model and nomic (~7 GB together) stay resident,
+# so a scan run pays no model swap. Start Ollama with
+# scripts/start-ollama.ps1 -Tier laptop-16gb.
+description: Recommended demo laptop -- 16 GB, CPU only, 1-2 users
+
+app:
+  inference:
+    keep_alive: 24h
+    prewarm: true
+    # Both 3B models fit: keep them, rather than paying ~9 s per swap twice
+    # in every scanned-report run.
+    single_model_residency: false
+    memory_headroom_mb: 1536
+    max_context_tokens: 8192
+  agent:
+    worker_count: 1
+  readiness:
+    min_free_memory_mb: 2048
+
+routing:
+  stage_context_tokens:
+    vision_extraction: 8192
+    planning: 5120
+    code_generation: 5120
+    verification: 5120
+    drafting: 5120
+  stage_output_tokens:
+    planning: 350
+    vision_extraction: 2400
+    code_generation: 700
+    verification: 250
+    drafting: 900

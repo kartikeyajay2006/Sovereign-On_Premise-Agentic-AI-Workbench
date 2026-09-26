@@ -1,20 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="32" height="32">
   <!--
-    The AEGIS mark at tab size, as in components/aegis-logo.tsx: the shield in
-    the brand gradient, with the chevron and the seal dot cut through it so
-    the tab strip shows through on light and dark browsers alike.
+    The AEGIS mark at tab size, as in components/aegis-logo.tsx: four corner
+    brackets locked on a lime seal. Set on a night tile so it reads in light
+    and dark tab strips alike.
   -->
-  <defs>
-    <linearGradient id="fill" x1="3.4" y1="1.6" x2="20.6" y2="22.4" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff6a1a" />
-      <stop offset="0.52" stop-color="#ff2d6f" />
-      <stop offset="1" stop-color="#7c4dff" />
-    </linearGradient>
-    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
-      <rect width="24" height="24" fill="#fff" />
-      <path d="M7.7 16.4 12 6.7l4.3 9.7" fill="none" stroke="#000" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
-      <circle cx="12" cy="13.6" r="1.05" fill="#000" />
-    </mask>
-  </defs>
-  <path d="M12 1.6C14.9 2.9 17.7 3.7 20.6 4.1V11.2C20.6 16.3 17.2 20.4 12 22.4C6.8 20.4 3.4 16.3 3.4 11.2V4.1C6.3 3.7 9.1 2.9 12 1.6Z" fill="url(#fill)" mask="url(#cut)" />
+  <rect width="48" height="48" rx="6" fill="#070707" />
+  <path d="M9 18V9H18M30 9H39V18M39 30V39H30M18 39H9V30" fill="none" stroke="#f7f7f4" stroke-width="3.6" stroke-linecap="square" />
+  <rect x="17" y="17" width="14" height="14" fill="#d4f24a" />
 </svg>

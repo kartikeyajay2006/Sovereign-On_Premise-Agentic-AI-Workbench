@@ -174,6 +174,40 @@ Checked on 2026-09-23:
 - WSL / Podman / Docker: not installed. Not required for the backend to run; see
   the section above for the stronger posture they add.
 
+## Local models on the demo laptop
+
+The sandbox is one half of the runtime environment; the local inference
+server is the other, and on an 8 GB laptop it is the half that decides whether
+a demo runs in memory or in swap. Measured on this machine on 2026-09-27:
+
+- **Hardware:** i3-1115G4, 2 cores / 4 threads, no CUDA GPU, 7.75 GB RAM,
+  often about 1–2 GB free with the usual desktop open. Ollama 0.34.4.
+- **Speed:** qwen2.5:3b reads the prompt at about **35 tok/s** and generates
+  at about **6.5 tok/s**. Reading costs more than writing: a cited answer took
+  38.9 s, of which 33.7 s was the prompt and 4.7 s the output.
+- **Resident footprint:** `/api/ps` reports qwen2.5:3b at 2.29 GB at a 5,120-token
+  window (1.93 GB of weights plus cache and buffers). The model manager now
+  reads that figure rather than its old flat 140 KiB-per-token guess, which
+  was four times too high for this model.
+- **Swaps:** under `single_model_residency: true` a scanned-report run swaps
+  twice (3B → vision → 3B), about 9 s each. With the V-2104 vision cache warm
+  the vision model is never loaded and the run takes about 100 s; cold, 5–6 min.
+
+What this host is set up with, and why:
+
+| Setting | Where | Why |
+|---|---|---|
+| `SOVEREIGN_PROFILE=laptop-8gb` | API environment | `config/profiles/laptop-8gb.yaml`: single residency, 1 GB headroom, 5,120-token text stages, one worker, `keep_alive: 24h` |
+| `OLLAMA_*` via `scripts/start-ollama.ps1` | Ollama's environment | `MAX_LOADED_MODELS=2` (the 3B and Nomic), `NUM_PARALLEL=1` (one KV cache), `KEEP_ALIVE=24h`, `HOST=127.0.0.1:11434`. None were set before, so models expired after 5 minutes |
+| Native install, not Docker | – | Docker Desktop's WSL2 VM gets about 3.9 GB here, less than the 3B plus the API need together, and the compose file's port publishing is unverified. Use `docker-compose.yml` only on a Linux server |
+| Reconcile at startup | `inference.reconcile_on_startup` | Ollama outlives an API restart; the API adopts what it still holds instead of loading a second model beside it |
+| `scripts/warmup.ps1` before showing | – | Checks the variables, digests, free memory, the 3B resident at 5,120 tokens and the V-2104 vision cache, and ends READY or NOT READY. `GET /api/ready` serves the same booleans without sign-in |
+
+The nftables egress firewall (`infrastructure/firewall/aegis.nft`) is
+Linux-only; on this Windows host the Security page reports it as *not
+measurable*, never as zero, and containment is the sovereignty monitor's
+reading of the process tree.
+
 ## The rule this exists to enforce
 
 `Sandbox.runtime` reports the backend that was actually *probed to work*, not

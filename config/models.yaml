@@ -22,6 +22,9 @@ models:
     context_window: 32768
     quantization: Q4_K_M
     parameters_b: 8.0
+    # Attention shape, for the model manager's KV-cache estimate
+    # (2 x layers x kv_heads x head_dim x 2 bytes per token): 144 KiB here.
+    architecture: {layers: 36, kv_heads: 8, head_dim: 128}
     approved_classifications: [normal, confidential, restricted, sensitive]
     serving:
       provider: ollama
@@ -49,6 +52,8 @@ models:
     context_window: 32768
     quantization: Q4_K_M
     parameters_b: 3.0
+    # 2 KV heads: 36 KiB of cache per token, a quarter of the 8B's.
+    architecture: {layers: 36, kv_heads: 2, head_dim: 128}
     approved_classifications: [normal, confidential, restricted, sensitive]
     serving:
       provider: ollama
@@ -72,6 +77,7 @@ models:
     context_window: 32768
     quantization: Q4_K_M
     parameters_b: 7.0
+    architecture: {layers: 28, kv_heads: 4, head_dim: 128}
     approved_classifications: [normal, confidential, restricted]
     serving:
       provider: ollama
@@ -92,6 +98,8 @@ models:
     context_window: 32768
     quantization: Q4_K_M
     parameters_b: 3.0
+    # The language model's attention; the image tokens share this cache.
+    architecture: {layers: 36, kv_heads: 2, head_dim: 128}
     approved_classifications: [normal, confidential, restricted, sensitive]
     serving:
       provider: ollama

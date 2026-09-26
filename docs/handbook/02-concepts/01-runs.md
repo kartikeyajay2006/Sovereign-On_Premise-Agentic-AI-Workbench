@@ -65,7 +65,7 @@ In the sidebar, held runs carry an amber dot, rejected, failed and refused runs 
 
 ## One run at a time
 
-Runs are executed by a single background worker (`worker_count=1` in `backend/api/main.py`), in the order they were submitted. On a host that can hold only one model in memory, running two at once would make them fight over it. While a run waits, the Thread shows its place in the queue, updated live by `task.queued` events.
+Runs are executed by background workers, one by default (`agent.worker_count` in `config/app.yaml`), in the order they were submitted. On a host that can hold only one model in memory, running two at once would make them fight over it; the server profiles in `config/profiles/` raise the count where the hardware allows. While a run waits, the Thread shows its place in the queue, updated live by `task.queued` events.
 
 You can stop a run at any time. A stop is checked between stages and while waiting on a model, and the run closes as **Stopped**, recording the stage it was in.
 

@@ -24,6 +24,29 @@ import { AppProviders } from '@/components/app-providers'
   in a heading, in red. Bundled here as woff2 (app/fonts, SIL Open Font
   License) for the same reason as Geist.
 */
+/*
+  Hi-Vis Monochrome type: Archivo (variable weight and width, so display
+  sizes can run semi-condensed and light) and Martian Mono for labels, ids
+  and hashes. Both SIL OFL, bundled in app/fonts like the others, so the
+  air-gapped build fetches nothing.
+*/
+const archivo = localFont({
+  src: './fonts/archivo-variable.woff2',
+  weight: '100 900',
+  // The width axis has to be declared on the @font-face, or font-stretch
+  // selects nothing and the semi-condensed display stays at normal width.
+  declarations: [{ prop: 'font-stretch', value: '62% 125%' }],
+  variable: '--font-archivo',
+  display: 'swap',
+})
+
+const martian = localFont({
+  src: './fonts/martian-mono-variable.woff2',
+  weight: '100 800',
+  variable: '--font-martian',
+  display: 'swap',
+})
+
 const instrument = localFont({
   src: [
     { path: './fonts/instrument-serif-regular.woff2', weight: '400', style: 'normal' },
@@ -35,13 +58,13 @@ const instrument = localFont({
 
 /*
   The theme is applied before first paint, so a reader who chose ink night
-  never sees a flash of paper. A saved choice wins; otherwise the operating
-  system's preference; paper when neither can be read. data-js marks the page
+  never sees a flash of paper. A saved choice wins; otherwise night, which is
+  the Hi-Vis Monochrome ground (paper stays one click away). data-js marks the page
   as scripted, which is what lets the public page's reveal start hidden: with
   no JavaScript, nothing is ever hidden.
 */
 const THEME_BOOT =
-  "(function(){document.documentElement.dataset.js='1';try{var t=localStorage.getItem('aegis-theme');if(t!=='dark'&&t!=='light')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();"
+  "(function(){document.documentElement.dataset.js='1';try{var t=localStorage.getItem('aegis-theme');if(t!=='dark'&&t!=='light')t='dark';document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}})();"
 
 // The description states the mechanism, not an absolute. "Never leave the
 // host" was a guarantee this page could not show; what the product does show
@@ -80,7 +103,7 @@ export default function RootLayout({
       // visibly glide to the top of the next one. This attribute is Next's
       // opt-in to suspend it for navigations and keep it for anchors.
       data-scroll-behavior="smooth"
-      className={`${GeistSans.variable} ${GeistMono.variable} ${instrument.variable} bg-background`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${instrument.variable} ${archivo.variable} ${martian.variable} bg-background`}
       // The boot script sets data-theme before React hydrates.
       suppressHydrationWarning
     >

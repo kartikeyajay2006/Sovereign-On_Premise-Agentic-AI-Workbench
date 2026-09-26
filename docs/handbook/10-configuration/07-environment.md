@@ -27,6 +27,43 @@ Rules:
 
 The test suite uses exactly this mechanism to point every storage path at a temporary directory (`tests/conftest.py`).
 
+## Hardware-tier profiles: `SOVEREIGN_PROFILE`
+
+`SOVEREIGN_PROFILE=<name>` selects `config/profiles/<name>.yaml`: `laptop-8gb`, `laptop-16gb`, `cpu-server` or `gpu-server`. A profile has two optional sections, `app` and `routing`, deep-merged onto `app.yaml` and `routing.yaml`:
+
+- a mapping merges key by key, so a profile names only what it changes;
+- a list or a value replaces the base's;
+- `SOVEREIGN_*` variables are applied **after** the profile, so a variable still wins.
+
+Order: `app.yaml` → profile → `SOVEREIGN_*` variables. Unset or empty means no profile and the base files unchanged. An unknown name, or one that looks like a path, stops the boot with the list of profiles. The chosen profile is printed at startup and recorded in the `system/startup` audit event.
+
+| Setting | `laptop-8gb` | `laptop-16gb` | `cpu-server` | `gpu-server` |
+|---|---|---|---|---|
+| `inference.keep_alive` | 24h | 24h | 24h | 24h |
+| `inference.single_model_residency` | true | false | false | false |
+| `inference.memory_headroom_mb` | 1024 | 1536 | 4096 | 4096 |
+| `inference.max_context_tokens` | 8192 | 8192 | 16384 | 16384 |
+| text-stage `stage_context_tokens` | 5120 | 5120 | 8192 | 8192 |
+| `stage_context_tokens.vision_extraction` | 8192 | 8192 | 8192 | 8192 |
+| `stage_output_tokens.drafting` | 900 | 900 | 2000 | 2000 |
+| `agent.worker_count` | 1 | 1 | 3 | 4 |
+| `readiness.min_free_memory_mb` | 1024 | 2048 | 4096 | 4096 |
+
+Start Ollama with the matching tier (`scripts/start-ollama.ps1 -Tier …` / `scripts/start-ollama.sh --tier …`), which sets the `OLLAMA_*` variables in the next section.
+
+## Ollama's variables
+
+Read by `ollama serve` when it starts, not by AEGIS. `scripts/start-ollama.*` sets them per tier; `scripts/warmup.py` prints the ones its own shell can see.
+
+| Variable | `laptop-8gb` | `laptop-16gb` | `cpu-server` | `gpu-server` | Why |
+|---|---|---|---|---|---|
+| `OLLAMA_HOST` | 127.0.0.1:11434 | same | same | same | Loopback only; the API refuses any other inference endpoint |
+| `OLLAMA_KEEP_ALIVE` | 24h | 24h | 24h | 24h | A reload costs 7–14 s on the laptop; a duration, not -1, so a model can still be evicted |
+| `OLLAMA_MAX_LOADED_MODELS` | 2 | 3 | 4 | 3 | The 3B + Nomic on 8 GB; add the vision model with 16 GB |
+| `OLLAMA_NUM_PARALLEL` | 1 | 1 | 3 | 4 | Matches `agent.worker_count`; each slot multiplies the KV cache |
+| `OLLAMA_FLASH_ATTENTION` | – | – | 1 | 1 | Servers only |
+| `OLLAMA_KV_CACHE_TYPE` | – | – | q8_0 | q8_0 | Halves the KV cache; servers only |
+
 ## Other variables
 
 | Variable | Read by | Meaning |

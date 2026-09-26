@@ -1,0 +1,42 @@
+# Tier (d): plant server, GPU. L4 24 GB or RTX 4000 Ada 20 GB (at least
+# 12 GB of VRAM), 64 GB RAM. An 8 GB RTX 4060 may not hold qwen2.5vl:3b
+# (Ollama issue 14312).
+#
+# Selected with SOVEREIGN_PROFILE=gpu-server. Overlaid on config/app.yaml
+# (`app`) and config/routing.yaml (`routing`); SOVEREIGN_* variables still win.
+#
+# Estimated: a cited answer in ~7 s, a scan run in under a minute, for
+# 5-15 users. qwen3:8b + vision + nomic stay resident. Start Ollama with
+# scripts/start-ollama.sh --tier gpu-server: OLLAMA_NUM_PARALLEL=4 so
+# the workers below are served concurrently, plus flash attention and a
+# q8_0 KV cache.
+description: Plant server, GPU -- >=12 GB VRAM, 5-15 users
+
+app:
+  inference:
+    keep_alive: 24h
+    prewarm: true
+    single_model_residency: false
+    memory_headroom_mb: 4096
+    max_context_tokens: 16384
+  agent:
+    # Matches OLLAMA_NUM_PARALLEL: more workers than parallel slots only queue
+    # at the runtime.
+    worker_count: 4
+  readiness:
+    min_free_memory_mb: 4096
+
+routing:
+  stage_context_tokens:
+    vision_extraction: 8192
+    planning: 8192
+    code_generation: 8192
+    verification: 8192
+    drafting: 8192
+  # Output length stops being the dominant cost on a GPU.
+  stage_output_tokens:
+    planning: 500
+    vision_extraction: 2400
+    code_generation: 1200
+    verification: 400
+    drafting: 2000

@@ -4,30 +4,29 @@ import { FOOTER, HERO } from './copy'
 import { Wordmark } from './wordmark'
 
 /**
- * The page's close: the last call in a panel lit the way the hero is -- an
- * ember horizon and a floor receding to it -- so the page ends where it
- * began, and under it the links, in one quiet row.
+ * The page's close: the last call in a square panel over a grid floor, grey
+ * lines receding to one lime horizon, and under it the links, in one row of
+ * columns ruled at 1px.
  *
  * Not SiteFooter, which calls an authenticated health endpoint and would
  * print "service unreachable" for every anonymous visitor: this one states
- * build-time facts only.
+ * build-time facts only. Nothing in it moves.
  */
 export function LandingFooter() {
   return (
     <footer className="lp-footer">
       <div className="lp-shell">
         <div className="lp-close">
-          <div aria-hidden className="lp-close-light">
-            <i className="floor" />
-            <i className="glow" />
+          <div aria-hidden className="lp-close-floor">
+            <i className="grid" />
             <i className="line" />
           </div>
-          <p className="lp-kicker">{FOOTER.cta.eyebrow}</p>
-          <h2 className="lp-footer-title">
-            {FOOTER.cta.title} <em>{FOOTER.cta.turn}</em>
+          <p className="lp-eyebrow">{FOOTER.cta.eyebrow}</p>
+          <h2 className="lp-close-title">
+            {FOOTER.cta.title} <b>{FOOTER.cta.turn}</b>
           </h2>
           <p className="lp-lede">{FOOTER.cta.lede}</p>
-          <div className="lp-footer-actions">
+          <div className="lp-actions center">
             <Link href={HERO.primary.href} className="lp-btn primary">
               {HERO.primary.label}
               <span className="ar" aria-hidden>
@@ -36,14 +35,14 @@ export function LandingFooter() {
             </Link>
             <a href={HERO.secondary.href} rel="noreferrer" target="_blank" className="lp-btn ghost">
               {HERO.secondary.label}
-              <ArrowUpRight className="size-4 opacity-70" aria-hidden />
+              <ArrowUpRight className="size-4" aria-hidden />
             </a>
           </div>
         </div>
 
         <div className="lp-footer-grid">
           <div>
-            <Wordmark />
+            <Wordmark tone="mono" />
             <p className="blurb">{FOOTER.blurb}</p>
           </div>
           {FOOTER.columns.map((column) => (

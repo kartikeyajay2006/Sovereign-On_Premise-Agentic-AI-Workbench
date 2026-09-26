@@ -208,7 +208,7 @@ function Highlighted({ text, hits }: { text: string; hits: number[] }) {
 
 export function CommandPalette() {
   const router = useRouter()
-  const { role, setRole, logout } = useRole()
+  const { role, setRole, logout, can } = useRole()
   const { push } = useToast()
   const mod = usePlatformMod()
   const [open, setOpen] = useState(false)
@@ -280,7 +280,7 @@ export function CommandPalette() {
   }, [open])
 
   const items = useMemo<Item[]>(() => {
-    const out: Item[] = DESTINATIONS.map((destination) => ({
+    const out: Item[] = DESTINATIONS.filter((destination) => !destination.permission || can(destination.permission)).map((destination) => ({
       id: `screen-${destination.href}`,
       group: 'Go to',
       label: destination.label,
@@ -389,7 +389,7 @@ export function CommandPalette() {
       }
     }
     return out
-  }, [runs, harnessRuns, router, role.id, setRole, logout, push])
+  }, [runs, harnessRuns, router, role.id, setRole, logout, push, can])
 
   // Browsing (no query) shows each group in its order, with the run lists
   // cut to their newest few. Searching ranks everything together, so every

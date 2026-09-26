@@ -100,6 +100,72 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON knowledge_chunks(document_id);
+
+-- Account provisioning (backend/core/accounts.py). Every account on a
+-- production host traces to one of these rows or to the owner setup, so an
+-- auditor can answer "who let this person in, and as what" from the database
+-- as well as from the audit chain.
+
+-- The one-time token that creates the first administrator. Only its SHA-256
+-- is kept: the token itself is written to storage/setup-token for whoever
+-- holds the machine, and a copy of this table is not a way in.
+CREATE TABLE IF NOT EXISTS setup_tokens (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
+-- Invitation codes, stored as hashes. Status is derived from the timestamps
+-- (revoked, used, expired, else open) so no row can say two things at once.
+CREATE TABLE IF NOT EXISTS invites (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL,
+    department TEXT NOT NULL,
+    display_name TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    used_by TEXT,
+    revoked_at TEXT,
+    revoked_by TEXT
+);
+
+-- Administrator-issued password reset codes; same shape and rules as invites.
+CREATE TABLE IF NOT EXISTS password_resets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL UNIQUE,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    revoked_at TEXT
+);
+
+-- A request for access. The requester's account exists from the moment of
+-- asking -- inactive, with only the password hash -- and becomes usable only
+-- when an administrator approves it with a role and department of their own
+-- choosing. A rejected request's account is removed.
+CREATE TABLE IF NOT EXISTS access_requests (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    username TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    requested_role TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by TEXT,
+    granted_role TEXT,
+    granted_department TEXT,
+    decision_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status, created_at);
 """
 
 
@@ -148,6 +214,13 @@ class Database:
             ("supersedes", "TEXT"),
             ("superseded_by", "TEXT"),
         ],
+        "users": [
+            # How the account came to exist (seed, owner, invite, request,
+            # register) and which administrator provisioned it. Accounts made
+            # before provisioning was recorded read as NULL, not as a guess.
+            ("origin", "TEXT"),
+            ("provisioned_by", "TEXT"),
+        ],
     }
 
     def _initialise(self) -> None:
@@ -170,12 +243,43 @@ class Database:
             connection.execute(
                 """
                 INSERT INTO users (id, username, display_name, role, department,
-                                   password_hash, active, created_at)
+                                   password_hash, active, created_at,
+                                   origin, provisioned_by)
                 VALUES (:id, :username, :display_name, :role, :department,
-                        :password_hash, :active, :created_at)
+                        :password_hash, :active, :created_at,
+                        :origin, :provisioned_by)
                 """,
-                {**record, "created_at": record.get("created_at", _utcnow())},
+                {
+                    "origin": None,
+                    "provisioned_by": None,
+                    **record,
+                    "created_at": record.get("created_at", _utcnow()),
+                },
             )
+
+    def update_user(self, user_id: str, **fields: Any) -> None:
+        """Set named columns on one user. Column names come from code, never input."""
+        allowed = {"role", "department", "display_name", "password_hash", "active",
+                   "origin", "provisioned_by"}
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"Not an updatable user column: {sorted(unknown)}")
+        if not fields:
+            return
+        assignments = ", ".join(f"{name} = :{name}" for name in fields)
+        with self.connect() as connection:
+            connection.execute(
+                f"UPDATE users SET {assignments} WHERE id = :id", {**fields, "id": user_id}
+            )
+
+    def delete_user(self, user_id: str) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+    def delete_user_sessions(self, user_id: str) -> int:
+        with self.connect() as connection:
+            cursor = connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            return cursor.rowcount
 
     def get_user_by_username(self, username: str) -> dict[str, Any] | None:
         with self.connect() as connection:
@@ -217,6 +321,169 @@ class Database:
     def delete_session(self, token_hash: str) -> None:
         with self.connect() as connection:
             connection.execute("DELETE FROM sessions WHERE token = ?", (token_hash,))
+
+    # -- provisioning --------------------------------------------------------
+    def replace_setup_token(self, record: dict[str, Any]) -> None:
+        """Keep exactly one setup token: issuing a new one retires the last."""
+        with self.connect() as connection:
+            connection.execute("DELETE FROM setup_tokens")
+            connection.execute(
+                "INSERT INTO setup_tokens (id, token_hash, created_at, expires_at) "
+                "VALUES (:id, :token_hash, :created_at, :expires_at)",
+                record,
+            )
+
+    def get_setup_token(self) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute("SELECT * FROM setup_tokens LIMIT 1").fetchone()
+            return dict(row) if row else None
+
+    def delete_setup_tokens(self) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM setup_tokens")
+
+    def insert_invite(self, record: dict[str, Any]) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO invites (id, code_hash, role, department, display_name,
+                                     created_by, created_at, expires_at)
+                VALUES (:id, :code_hash, :role, :department, :display_name,
+                        :created_by, :created_at, :expires_at)
+                """,
+                record,
+            )
+
+    def get_invite(self, invite_id: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute("SELECT * FROM invites WHERE id = ?", (invite_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_invite_by_hash(self, code_hash: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM invites WHERE code_hash = ?", (code_hash,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_invites(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM invites ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def claim_invite(self, invite_id: str, used_by: str, now: str) -> bool:
+        """Mark an invite used, only if it is still open. False if it was not.
+
+        One conditional UPDATE, so two people racing the same code cannot both
+        be told it was theirs.
+        """
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE invites SET used_at = ?, used_by = ? "
+                "WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?",
+                (now, used_by, invite_id, now),
+            )
+            return cursor.rowcount == 1
+
+    def revoke_invite(self, invite_id: str, revoked_by: str, now: str) -> bool:
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE invites SET revoked_at = ?, revoked_by = ? "
+                "WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL",
+                (now, revoked_by, invite_id),
+            )
+            return cursor.rowcount == 1
+
+    def insert_password_reset(self, record: dict[str, Any]) -> None:
+        with self.connect() as connection:
+            # One open code per account: a new one retires any earlier.
+            connection.execute(
+                "UPDATE password_resets SET revoked_at = :created_at "
+                "WHERE user_id = :user_id AND used_at IS NULL AND revoked_at IS NULL",
+                record,
+            )
+            connection.execute(
+                """
+                INSERT INTO password_resets (id, user_id, code_hash, created_by,
+                                             created_at, expires_at)
+                VALUES (:id, :user_id, :code_hash, :created_by, :created_at, :expires_at)
+                """,
+                record,
+            )
+
+    def get_password_reset_by_hash(self, code_hash: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM password_resets WHERE code_hash = ?", (code_hash,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def claim_password_reset(self, reset_id: str, now: str) -> bool:
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE password_resets SET used_at = ? "
+                "WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?",
+                (now, reset_id, now),
+            )
+            return cursor.rowcount == 1
+
+    def insert_access_request(self, record: dict[str, Any]) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO access_requests (id, user_id, username, display_name,
+                                             requested_role, reason, status, created_at)
+                VALUES (:id, :user_id, :username, :display_name, :requested_role,
+                        :reason, :status, :created_at)
+                """,
+                record,
+            )
+
+    def get_access_request(self, request_id: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM access_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def pending_request_for_user(self, user_id: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM access_requests WHERE user_id = ? AND status = 'pending'",
+                (user_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_access_requests(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                # Pending first, oldest first within them: the queue is worked
+                # in the order people asked.
+                "SELECT * FROM access_requests "
+                "ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, "
+                "CASE status WHEN 'pending' THEN created_at END ASC, "
+                "COALESCE(decided_at, created_at) DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def decide_access_request(self, request_id: str, **fields: Any) -> bool:
+        """Record a decision on a request that is still pending. False if it was not."""
+        allowed = {"status", "decided_at", "decided_by", "granted_role",
+                   "granted_department", "decision_reason", "user_id"}
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"Not a decision column: {sorted(unknown)}")
+        assignments = ", ".join(f"{name} = :{name}" for name in fields)
+        with self.connect() as connection:
+            cursor = connection.execute(
+                f"UPDATE access_requests SET {assignments} "
+                "WHERE id = :request_id AND status = 'pending'",
+                {**fields, "request_id": request_id},
+            )
+            return cursor.rowcount == 1
 
     # -- files -------------------------------------------------------------
     def insert_file(self, record: dict[str, Any]) -> None:

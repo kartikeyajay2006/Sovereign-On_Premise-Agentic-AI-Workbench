@@ -20,7 +20,7 @@ import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
 import { NEW_RUN_EVENT } from '@/components/command-palette'
 import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT, type RunsChangedDetail } from '@/components/navigation'
-import { TraceScope } from '@/shared/motion'
+import { TraceScope, prefersReducedMotion, useDocumentVisible } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { harnessApi } from '@/features/harness/api'
 import { Composer, type ComposerAttachment } from './composer'
@@ -36,8 +36,11 @@ import type {
   UserTurn as UserTurnModel,
 } from '../model/types'
 import { appendUsage, choiceFromEvent, choicesFromRouting } from '../model/usage'
+import { notesFromEvent, notesFromTask } from '../model/notes'
+import type { FollowUp } from '../model/follow-ups'
 import {
   MODEL_STAGE_TO_ROW,
+  STAGE_ACTIVE,
   TERMINAL,
   closeStages,
   enterStage,
@@ -62,6 +65,17 @@ import {
  */
 
 const PREFERRED_MODEL_KEY = 'aegis.console.preferred-model'
+
+/** A settled run in the words of a tab title and an announcement. */
+const SETTLED_WORDS: Partial<Record<AssistantTurnModel['outcome'], string>> = {
+  delivered: 'Answer ready',
+  held: 'Held',
+  rejected: 'Rejected at review',
+  denied: 'Refused by policy',
+  failed: 'Failed',
+  blocked: 'Blocked',
+  cancelled: 'Stopped',
+}
 
 const NO_EVIDENCE: EvidenceItem[] = []
 
@@ -172,6 +186,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     taskId: null,
     outcome: 'running',
     stages: DEFAULT_PIPELINE.map((s) => ({ ...s, status: 'pending' })),
+    notes: [],
     answer: null,
     releasedLive: false,
     streamingDraft: null,
@@ -246,6 +261,10 @@ export function ThreadView() {
   // Bumped by every citation click, so tracing to the same source a second
   // time lands again instead of doing nothing.
   const [traceCount, setTraceCount] = useState(0)
+  // A request typed while a run was in flight, sent when that run ends.
+  const [queued, setQueued] = useState<RunRequest | null>(null)
+  // What ↑ in an empty composer brings back.
+  const [lastPrompt, setLastPrompt] = useState<string | null>(null)
 
   const { user, role, can } = useRole()
   const { push } = useToast()
@@ -526,6 +545,25 @@ export function ThreadView() {
           return
         }
 
+        // What a stage reported while it worked: the plan's steps, a model
+        // swapped in, a page read, a script retried, the sandbox's exit, a
+        // policy finding. Each becomes a ⎿ line under its stage, written from
+        // the event's own fields.
+        case 'task.planned':
+        case 'task.tool_started':
+        case 'task.model_swapped':
+        case 'task.extraction':
+        case 'task.code_retry':
+        case 'task.sandbox_result':
+        case 'task.policy':
+          patchTask(id, (t) => {
+            // Keyed by arrival, not by the dedupe key: that one carries the
+            // whole payload, and a React key need only be unique in the turn.
+            const notes = notesFromEvent(name, data, `${name}|${event.at}|${t.notes.length}`, t)
+            return notes.length ? { ...t, notes: [...t.notes, ...notes] } : t
+          })
+          return
+
         case 'task.tool_completed':
           // Attachments are read by a tool, not announced as a stage, so the
           // Read row learns of them here. A failed read is not a done one.
@@ -553,9 +591,24 @@ export function ThreadView() {
           }
           return
 
-        // The integrity decision, as the formula registry computed it.
+        // The integrity decision, as the formula registry computed it, with
+        // its records and the C items that carry them: the result is shown
+        // and citable the moment it is computed, not when the run ends.
         case 'task.calculation':
-          if (data.assessment) patchTask(id, (t) => ({ ...t, assessment: data.assessment }))
+          if (data.assessment) {
+            patchTask(id, (t) => {
+              const known = new Set(t.evidence.map((e) => e.id))
+              const carriers: EvidenceItem[] = Array.isArray(data.evidence)
+                ? data.evidence.filter((item: EvidenceItem) => item && !known.has(item.id))
+                : []
+              return {
+                ...t,
+                assessment: data.assessment,
+                calculations: Array.isArray(data.records) ? data.records : t.calculations,
+                evidence: carriers.length ? [...t.evidence, ...carriers] : t.evidence,
+              }
+            })
+          }
           return
 
         // A drawing question, answered from the P&ID graph.
@@ -645,14 +698,20 @@ export function ThreadView() {
             closeStages(t.stages, outcome, task.completed_at || task.updated_at, task.error),
             recorded,
           ),
+          // The live notes stay; a plan the stream never delivered is read
+          // back from the record, like any other stage it failed to report.
+          notes: t.notes.some((n) => n.stage === 'plan') ? t.notes : [...notesFromTask(task), ...t.notes],
           stream: 'closed',
           // This read is the release: every path to it is the run this
           // thread is following, so the reader is watching the answer land.
           releasedLive: true,
         }))
-        // The answer has landed: shown once, to a reader who was following,
-        // after it has laid out. Nothing moves the page after this.
-        if (pinnedRef.current) {
+        // A released answer brings its own top into view once it is in place
+        // (answerReleased, below): scrolling to the end here pushed past its
+        // opening lines to the composer. Any other ending -- a refusal, a
+        // failure, a stop -- is read at the end, where its reason is.
+        const releasesAnswer = Boolean(task.answer) && (outcome === 'delivered' || outcome === 'held' || outcome === 'rejected')
+        if (pinnedRef.current && !releasesAnswer) {
           window.requestAnimationFrame(() => {
             programmaticRef.current = true
             scrollToEnd(endRef.current)
@@ -721,6 +780,112 @@ export function ThreadView() {
     }
   }, [busy, activeTaskId])
 
+  /*
+    A held run waits on a person, and that person decides somewhere else --
+    the approval queue, another browser. While the tab is visible the record
+    is read again on window focus and every 30 seconds, and a changed
+    decision replaces the turn's record fields; the held block then blooms
+    once and says who released it, or what the reviewer noted. A hidden tab
+    reads nothing: nobody is there to see it, and focus brings it back.
+  */
+  const visible = useDocumentVisible()
+  const heldTaskId =
+    turns.find((t): t is AssistantTurnModel => t.role === 'assistant' && t.outcome === 'held' && t.stream === 'closed')
+      ?.taskId ?? null
+  useEffect(() => {
+    if (!heldTaskId || !visible) return
+    let live = true
+    const reread = async () => {
+      let task: Task
+      try {
+        task = await api.getTask(heldTaskId)
+      } catch {
+        return // Not news: the next read will try again.
+      }
+      if (!live) return
+      const fields = recordFields(task)
+      const same = (t: AssistantTurnModel) =>
+        (t.approval?.decision ?? null) === (fields.approval?.decision ?? null) && t.outcome === fields.outcome
+      const current = turnsRef.current.find(
+        (t): t is AssistantTurnModel => t.role === 'assistant' && t.taskId === heldTaskId,
+      )
+      if (!current || same(current)) return
+      patchTask(heldTaskId, (t) => (same(t) ? t : { ...t, ...fields }))
+      window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
+      setRunsVersion((n) => n + 1)
+    }
+    const timer = window.setInterval(reread, 30_000)
+    window.addEventListener('focus', reread)
+    return () => {
+      live = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', reread)
+    }
+  }, [heldTaskId, visible, patchTask])
+
+  /*
+    What a reader who is not looking needs to know. A run takes minutes, and
+    the tab is often in the background for them: while it is hidden, its
+    title names the stage the run is in, then "Answer ready" or "Held" once
+    it settles, and it goes back to what it was when the tab is seen again.
+    A polite live region says the same to a screen reader -- each stage as
+    the run enters it, and the release -- without taking focus.
+  */
+  let followed: AssistantTurnModel | undefined
+  for (let i = turns.length - 1; i >= 0 && !followed; i -= 1) {
+    const t = turns[i]
+    if (t.role === 'assistant') followed = t
+  }
+  const followedRunning = followed?.outcome === 'running' && followed.stream === 'live'
+  const followedStage = followedRunning ? followed?.stages.find((s) => s.status === 'active')?.id ?? null : null
+  const stageWords = followedStage ? STAGE_ACTIVE[followedStage] ?? followedStage : followedRunning ? 'Working' : null
+  const settledWords = followed && !followedRunning ? SETTLED_WORDS[followed.outcome] ?? null : null
+
+  const [announcement, setAnnouncement] = useState('')
+  const lastOutcomeRef = useRef<{ id: string; outcome: string } | null>(null)
+  useEffect(() => {
+    // Stage entries only; the moments between two stages are not news.
+    if (followedStage && stageWords) setAnnouncement(`${stageWords}.`)
+  }, [followedStage, stageWords])
+  useEffect(() => {
+    if (!followed) return
+    const previous = lastOutcomeRef.current
+    lastOutcomeRef.current = { id: followed.id, outcome: followed.outcome }
+    // Only a run seen ending here: opening a finished run is a read.
+    if (previous?.id !== followed.id || previous.outcome !== 'running' || followed.outcome === 'running') return
+    const checks = followed.verification
+    const passed = checks.filter((c) => c.passed).length
+    const detail = checks.length ? ` ${passed} of ${checks.length} checks passed.` : ''
+    setAnnouncement(`${settledWords ?? 'The run ended'}.${followed.outcome === 'delivered' || followed.outcome === 'held' ? detail : ''}`)
+  }, [followed, settledWords])
+
+  const titleRef = useRef<string | null>(null)
+  const watchedHiddenRef = useRef(false)
+  useEffect(() => {
+    if (visible) {
+      if (titleRef.current !== null) document.title = titleRef.current
+      titleRef.current = null
+      watchedHiddenRef.current = false
+      return
+    }
+    let label: string | null = null
+    if (stageWords) {
+      label = stageWords
+      watchedHiddenRef.current = true
+    } else if (watchedHiddenRef.current && settledWords) {
+      label = settledWords
+    }
+    if (!label) return
+    if (titleRef.current === null) titleRef.current = document.title
+    document.title = `${label} · AEGIS`
+  }, [visible, stageWords, settledWords])
+  useEffect(
+    () => () => {
+      if (titleRef.current !== null) document.title = titleRef.current
+    },
+    [],
+  )
+
   // Follow the run while the reader is at the end, and let go the moment they
   // move away from it -- by intent, not by distance. Following used to hold
   // until the page was 160px from the end, and it re-pinned on every frame of
@@ -780,6 +945,23 @@ export function ThreadView() {
   const followToEnd = useCallback(() => {
     programmaticRef.current = true
     scrollToEnd(endRef.current)
+  }, [])
+
+  /**
+   * The checked answer is in place: bring its first line to about 96px below
+   * the header, where it is read from the top, instead of leaving the reader
+   * at the end of the thread with the answer's opening lines above the fold.
+   * Only for a reader who was following the run; one who scrolled away to
+   * read something else is left where they are.
+   */
+  const answerReleased = useCallback((_turnId: string, element: HTMLElement) => {
+    if (!pinnedRef.current) return
+    const shellTop = parseFloat(getComputedStyle(element).getPropertyValue('--shell-top')) || 0
+    const top = window.scrollY + element.getBoundingClientRect().top - (shellTop + 96)
+    if (Math.abs(top - window.scrollY) < 8) return
+    pinnedRef.current = false
+    programmaticRef.current = true
+    window.scrollTo({ top: Math.max(0, top), behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
   }, [])
 
   const jumpToLatest = useCallback(() => {
@@ -856,6 +1038,7 @@ export function ThreadView() {
     async (request: RunRequest): Promise<boolean> => {
       if (busyRef.current) return false
       busyRef.current = true
+      setLastPrompt(request.prompt)
 
       const now = new Date().toISOString()
       const stamp = `${Date.now()}`
@@ -952,7 +1135,10 @@ export function ThreadView() {
   const sendRef = useRef<() => void>(() => {})
   sendRef.current = () => {
     const text = prompt.trim()
-    if (!text || busyRef.current || attachments.some((a) => a.uploading)) return
+    if (!text || attachments.some((a) => a.uploading)) return
+    // One run at a time. While one is in flight, the request waits in a chip
+    // above the field and is dispatched when that run ends -- however it ends.
+    if (busyRef.current && queued !== null) return
     const ready = attachments.filter((a) => a.fileId)
     const request: RunRequest = {
       prompt: text,
@@ -970,11 +1156,62 @@ export function ThreadView() {
     setPrompt('')
     setHint(null)
     setSkill(null)
+    if (busyRef.current) {
+      setQueued(request)
+      setAttachments([])
+      return
+    }
     void dispatch(request).then((ok) => {
       if (ok) setAttachments([])
     })
   }
   const send = useCallback(() => sendRef.current(), [])
+
+  /** Take the waiting request back into the field, files and all. */
+  const queuedRef = useRef<RunRequest | null>(null)
+  queuedRef.current = queued
+  const cancelQueued = useCallback(() => {
+    const waiting = queuedRef.current
+    setQueued(null)
+    if (waiting) {
+      setPrompt((current) => (current.trim() ? current : waiting.prompt))
+      setAttachments((current) =>
+        current.length
+          ? current
+          : waiting.attachments.map((file) => ({
+              id: `queued-${file.fileId}`,
+              name: file.filename,
+              sizeBytes: file.sizeBytes,
+              classification: file.classification,
+              uploading: false,
+              fileId: file.fileId,
+            })),
+      )
+    }
+    textareaRef.current?.focus()
+  }, [])
+
+  // The waiting request goes the moment the run it waited on has ended.
+  useEffect(() => {
+    if (busy || !queued) return
+    const request = queued
+    setQueued(null)
+    void dispatch(request)
+  }, [busy, queued, dispatch])
+
+  // Focus returns to the field when a run is released, so the next question
+  // can be typed at once -- unless the reader has put it somewhere else.
+  const wasBusyRef = useRef(busy)
+  useEffect(() => {
+    if (wasBusyRef.current && !busy) {
+      const active = document.activeElement
+      const composer = textareaRef.current?.closest('.thread-dock, [data-composer]')
+      if (!active || active === document.body || (composer && composer.contains(active))) {
+        textareaRef.current?.focus({ preventScroll: true })
+      }
+    }
+    wasBusyRef.current = busy
+  }, [busy])
 
   const rerun = useCallback(
     (turnId: string) => {
@@ -1060,6 +1297,7 @@ export function ThreadView() {
         })
         return
       }
+      setQueued(null)
       if (busyRef.current) leaveLiveRun()
 
       const status = String(task.status).toLowerCase()
@@ -1087,6 +1325,7 @@ export function ThreadView() {
           // for: this one retrieved nothing and executed nothing, and
           // seven green rows would say it did both.
           stages: stagesFromTask(task, inFlight, DEFAULT_PIPELINE),
+          notes: notesFromTask(task),
           error: null,
           startedAt: task.created_at,
           stream: inFlight ? 'live' : 'closed',
@@ -1112,6 +1351,8 @@ export function ThreadView() {
   )
 
   const newRun = useCallback(() => {
+    // A request waiting on the run being left would go the moment it is left.
+    setQueued(null)
     if (busyRef.current) leaveLiveRun()
     openedRef.current = null
     setTurns([])
@@ -1191,6 +1432,36 @@ export function ThreadView() {
     setDrawerOpen(true)
   }, [])
 
+  /**
+   * A follow-up chip fills the composer -- the request, the format it names,
+   * and the run's own attachments, which the question is about -- and puts
+   * the caret at the end. It never sends: the person reads it and presses Run.
+   */
+  const fillFollowUp = useCallback((turnId: string, followUp: FollowUp) => {
+    const turn = turnsRef.current.find((t) => t.id === turnId)
+    const files = turn?.role === 'assistant' ? turn.request?.attachments ?? [] : []
+    setPrompt(followUp.prompt)
+    setHint(null)
+    setSkill(null)
+    if (followUp.format) setFormat(followUp.format)
+    setAttachments(
+      files.map((file) => ({
+        id: `followup-${file.fileId}`,
+        name: file.filename,
+        sizeBytes: file.sizeBytes,
+        classification: file.classification,
+        uploading: false,
+        fileId: file.fileId,
+      })),
+    )
+    window.requestAnimationFrame(() => {
+      const field = textareaRef.current
+      if (!field) return
+      field.focus({ preventScroll: true })
+      field.setSelectionRange(field.value.length, field.value.length)
+    })
+  }, [])
+
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
   const assistantTurns = turns.filter((t): t is AssistantTurnModel => t.role === 'assistant')
@@ -1236,6 +1507,10 @@ export function ThreadView() {
           good chat product opens. The readings that used to sit above it
           live in the header's egress popover, where they come from the API.
         */}
+        <p aria-live="polite" role="status" className="sr-only">
+          {announcement}
+        </p>
+
         {openingRun && (
           <p role="status" className="text-center font-mono text-meta text-foreground-muted">
             Opening run {requestedRun?.slice(0, 8)}…
@@ -1266,6 +1541,8 @@ export function ThreadView() {
               busy={busy}
               canReview={canReview}
               models={models}
+              onReleased={answerReleased}
+              onFollowUp={canRun ? fillFollowUp : undefined}
             />
           ),
         )}
@@ -1277,7 +1554,7 @@ export function ThreadView() {
             <button
               type="button"
               onClick={jumpToLatest}
-              className="hover-decay absolute -top-11 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-medium text-foreground-secondary shadow-[var(--elev-2)] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+              className="hover-decay absolute -top-11 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-[var(--radius-xs)] border border-line-default bg-surface px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-secondary shadow-[var(--elev-2)] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
             >
               <ArrowDown className="size-3" aria-hidden />
               Latest
@@ -1305,6 +1582,9 @@ export function ThreadView() {
             harnesses={harnesses}
             skill={skill}
             onSkillChange={setSkill}
+            queued={queued ? queued.prompt : null}
+            onCancelQueued={cancelQueued}
+            lastRequest={lastPrompt}
           />
         </div>
 

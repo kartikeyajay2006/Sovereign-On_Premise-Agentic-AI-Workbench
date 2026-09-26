@@ -20,7 +20,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from backend.api.dependencies import CurrentUser, OptionalUser, SessionToken, require_permission
@@ -53,6 +53,7 @@ from backend.core.schemas import (
 )
 from backend.models_layer.manager import get_model_manager
 from backend.models_layer.registry import get_model_registry
+from backend.ops import readiness
 from backend.rag.knowledge_base import get_knowledge_base
 from backend.security.sovereignty import get_sovereignty_monitor
 from backend.tools.sandbox import get_sandbox
@@ -80,6 +81,26 @@ def public_status() -> dict[str, Any]:
         "monitored_since": status.monitored_since.isoformat(),
         "checked_at": status.last_checked.isoformat(),
     }
+
+
+@router.get("/ready")
+async def ready() -> JSONResponse:
+    """Is this host ready to serve a question? Readable without signing in.
+
+    For a readiness probe and the console banner, so it answers before
+    anyone authenticates -- and so it says only yes or no, per check: no
+    model names, digests, memory figures, paths or usernames. The detail
+    behind each boolean is what scripts/warmup.py prints on the host itself.
+    The readings are backend/ops/readiness.py's, shared with that script,
+    and are reused for readiness.cache_seconds.
+
+    503 when not ready, so a probe needs no body parsing.
+    """
+    report = await readiness.cached_evaluate()
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if report.ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=report.public(),
+    )
 
 
 # ------------------------------------------------------------------ identity
@@ -185,7 +206,15 @@ def directory() -> list[User]:
     only the demonstration accounts policy seeds. It returned every account,
     which told anyone who could reach the port each real user's name, role,
     department and clearance.
+
+    And only in demo mode. A production host that was once a demo may still
+    hold those rows, and the sign-in screen offers whatever this returns as
+    one-click accounts; outside a demo it returns none, and the screen shows
+    no demo list.
     """
+    demo = get_config().settings.raw.get("demo") or {}
+    if not bool(demo.get("enabled", False)):
+        return []
     seeded = {
         str(seed.get("username"))
         for seed in get_config().access_control.get("seed_users", [])
@@ -240,6 +269,9 @@ def policies(user: CurrentUser) -> dict[str, Any]:
     config = get_config()
     return {
         "roles": config.access_control.get("roles", {}),
+        # The departments an account can be placed in, so the People screen
+        # offers the policy's list rather than one copied into the interface.
+        "departments": config.access_control.get("departments", []),
         "tools": config.tool_permissions.get("tools", {}),
         "hard_denied_actions": config.tool_permissions.get("hard_denied_actions", []),
         "classification_levels": config.data_classification.get("levels", []),

@@ -118,3 +118,69 @@ class TestWorkerSurvivesItsFirstTask:
         assert "self._active" in source
         assert "self._alive" in source
         assert "self._running" not in source
+
+
+class TestSeveralWorkers:
+    """agent.worker_count: more than one run executing at once."""
+
+    def test_every_executing_task_reports_itself_as_running(self) -> None:
+        service = service_with(["c"], running="a")
+        service._executing.append("b")  # type: ignore[attr-defined]
+        assert service.queue_state("a")["running"] is True
+        assert service.queue_state("b")["running"] is True
+        # A waiting task waits on both.
+        assert service.queue_state("c")["ahead"] == 2
+
+    @pytest.mark.asyncio
+    async def test_the_workers_run_concurrently(self) -> None:
+        """start() creates worker_count workers, and they overlap."""
+        service = TaskService.__new__(TaskService)
+        service._alive = False
+        started: list[str] = []
+        release = asyncio.Event()
+
+        async def worker() -> None:
+            started.append("w")
+            await release.wait()
+
+        service._worker = worker  # type: ignore[method-assign]
+        await service.start(worker_count=3)
+        await asyncio.sleep(0)
+        assert len(service._workers) == 3
+        assert started == ["w", "w", "w"]
+        release.set()
+        await asyncio.gather(*service._workers)
+
+
+def test_the_api_starts_the_configured_number_of_workers(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from backend.api import main
+    from backend.core.config import get_config
+
+    counts: list[int] = []
+
+    class Service:
+        def recover_orphans(self) -> list[str]:
+            return []
+
+        async def start(self, worker_count: int = 1) -> None:
+            counts.append(worker_count)
+
+        async def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr(main, "get_task_service", lambda: Service())
+    monkeypatch.setitem(get_config().settings.agent, "worker_count", 3)
+    with TestClient(main.create_app()):
+        pass
+    monkeypatch.setitem(get_config().settings.agent, "worker_count", 1)
+    with TestClient(main.create_app()):
+        pass
+    assert counts == [3, 1]
+
+
+def test_worker_count_defaults_to_one() -> None:
+    from backend.core.config import get_config
+
+    assert get_config().settings.agent.get("worker_count") == 1

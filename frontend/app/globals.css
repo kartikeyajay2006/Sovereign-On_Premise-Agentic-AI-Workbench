@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+/* The Hi-Vis motion system: hv-tick, hv-roll, hv-scan, hv-lock, hv-trace,
+   hv-seal, hv-wipe, hv-caret, each with its reduced-motion fallback. */
+@import './hv-motion.css';
 
 @custom-variant dark (&:is([data-theme='dark'] *));
 
@@ -42,7 +45,7 @@
   --approval: #d97706;
   --critical: #dc2626;
 
-  --radius: 7px;
+  --radius: 2px;
 
   /* shadcn compatibility mappings */
   --card: var(--surface);
@@ -249,12 +252,12 @@
 
   /* House radius stays 4px. The rest exist for nesting: an inner radius
      is the outer radius minus the padding. */
-  --radius-xs: 4px;
-  --radius-sm-token: 6px;
-  --radius-md-token: 10px;   /* floating: menu, popover, toast */
-  --radius-lg-token: 14px;   /* sheets, modals, the composer */
+  --radius-xs: 2px;
+  --radius-sm-token: 2px;
+  --radius-md-token: 3px;    /* floating: menu, popover, toast */
+  --radius-lg-token: 4px;    /* sheets, modals, the composer */
   --menu-pad: 4px;
-  --radius-menu-row: 6px;
+  --radius-menu-row: 2px;
 
   /* Exactly three control sizes, so no component invents a fourth. */
   --control-sm: 32px;
@@ -435,16 +438,16 @@ html[data-theme='dark'],
   /* Grounds. Elevation rises toward light, the opposite of the light
      theme where a raised surface is whiter than paper but a sunken one
      is greyer. */
-  --background: #141413;        /* warm night */
-  --surface: #1d1c1a;           /* raised, one step above the ground */
-  --surface-sunken: #0f0f0e;    /* recessed */
+  --background: #070707;        /* hi-vis night: neutral, not warm */
+  --surface: #111111;           /* raised, one step above the ground */
+  --surface-sunken: #000000;    /* recessed */
 
   /* Inks. Not pure white: #ffffff on a dark ground haloes, and leaves no
      headroom above body text. Worst-case ratio across all three grounds
      is quoted. */
-  --foreground: #f2f1ec;            /* 16.1:1 */
-  --foreground-secondary: #afada7;  /*  8.2:1 */
-  --foreground-muted: #8d8b85;      /*  5.00:1 — clears AA body, which the
+  --foreground: #f7f7f4;            /* 19.4:1 */
+  --foreground-secondary: #b8b8b2;  /*  9.9:1 */
+  --foreground-muted: #9a9a95;      /*  5.00:1 — clears AA body, which the
                                        light theme's #8a8783 never did at
                                        3.33:1 despite carrying most of the
                                        small mono labels in the product. */
@@ -457,26 +460,27 @@ html[data-theme='dark'],
   --ink-border: #d8d5d0;
 
   /* Ink inverted: the primary control is an ivory pill at night. */
-  --action: #f2f1ec;
-  --action-hover: #dcdad3;
-  --action-text: #f2f1ec;
-  --action-ink: #141413;
+  /* Hi-Vis: the one accent. Lime means "you can act" or "this is cited". */
+  --action: #d4f24a;
+  --action-hover: #c3e236;
+  --action-text: #d4f24a;
+  --action-ink: #050505;
 
   /* Status fills are unchanged — a fill is a fill on any ground. */
 
   /* Status TEXT, recomputed for dark. Two of the four base colours turn
      out to work as text here without modification, which is the exact
      inverse of the light theme where all four failed. */
-  --sovereign-text: #16a34a;   /* 5.43:1 worst — the base colour, unchanged */
-  --active-text:    #0f87c9;   /* 4.54:1 worst — lifted from #0284c7 */
-  --approval-text:  #d97708;   /* 5.62:1 worst — the base colour, unchanged */
-  --critical-text:  #e9443c;   /* 4.56:1 worst — lifted from #dc2626 */
+  --sovereign-text: #4cc38a;   /* 8.9:1 on #070707 */
+  --active-text:    #8fb7d4;   /* 9.6:1 */
+  --approval-text:  #ffb224;   /* 11.0:1 */
+  --critical-text:  #ff5a4f;   /* 6.2:1 */
 
   /* On-fill inks are unchanged: a solid fill's luminance did not move. */
 
   /* Lines. The donor is now LIGHT and still warm, and the alphas are
      solved rather than carried over. */
-  --line-ink: oklch(0.92 0.0080 84.57);   /* ~#e7e4df */
+  --line-ink: oklch(0.92 0 0);   /* neutral: hi-vis has no warm cast */
 
   --line-subtle:  oklch(from var(--line-ink) l c h / calc(9%  + 6%  * var(--contrast-lines)));
   --line-default: oklch(from var(--line-ink) l c h / calc(16% + 10% * var(--contrast-lines)));
@@ -760,8 +764,8 @@ html[data-theme='dark'],
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
+  --font-sans: var(--font-archivo), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian), var(--font-geist-mono), ui-monospace, monospace;
 
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -2682,17 +2686,20 @@ html[data-theme='dark'],
 /* ==================================================================== */
 html[data-theme='dark'],
 [data-theme='dark'] {
-  --background: #0c0c0e;
-  --surface: #151518;
-  --surface-sunken: #08080a;
-  --foreground: #ededef;            /* 16.7:1 */
-  --foreground-secondary: #a8a8b0;  /*  8.3:1 */
-  --foreground-muted: #8b8b94;      /*  5.8:1, 5.4:1 on the surface */
+  /* Hi-Vis Monochrome. This block comes last and wins, so it carries the
+     same values as the night block above: an earlier copy of the old
+     palette here silently undid them. */
+  --background: #070707;
+  --surface: #111111;
+  --surface-sunken: #000000;
+  --foreground: #f7f7f4;            /* 19.4:1 */
+  --foreground-secondary: #b8b8b2;  /*  9.9:1 */
+  --foreground-muted: #9a9a95;      /*  7.0:1, 6.6:1 on the surface */
   --line-ink: oklch(0.92 0 0);
-  --action: #ededef;
-  --action-hover: #d4d4d8;
-  --action-text: #ededef;
-  --action-ink: #0c0c0e;
+  --action: #d4f24a;
+  --action-hover: #c3e236;
+  --action-text: #d4f24a;
+  --action-ink: #050505;
 }
 
 /* The sign-in's brand panel: the public page's night, and its light. */
@@ -2726,3 +2733,160 @@ html[data-theme='dark'],
 .side-scroll::-webkit-scrollbar { width: 8px; }
 .side-scroll::-webkit-scrollbar-thumb { border-width: 2px; background-color: color-mix(in oklab, var(--foreground) 14%, transparent); }
 .side-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--foreground) 26%, transparent); }
+
+/* ==================================================================== */
+/* HI-VIS AUTH — sign-in, setup, invitation, reset, request access       */
+/* The doors into the workbench, in the Hi-Vis Monochrome voice: square  */
+/* corners, a Martian Mono uppercase label voice, a light semi-condensed */
+/* Archivo display line, one lime action, and a faint vertical grid on   */
+/* the ground. Static CSS: nothing on these screens moves on its own.    */
+/* The People screen borrows the controls, so a decision there looks     */
+/* like the same instrument as the door it opens.                        */
+/* ==================================================================== */
+.hv-auth {
+  min-height: 100dvh;
+  background-color: var(--background);
+  /* One hairline every 96px, at 4% ink: a drafting sheet, not a pattern. */
+  background-image: linear-gradient(to right, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px);
+  background-size: 96px 100%;
+  background-position: -1px 0;
+  color: var(--foreground);
+}
+.hv-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+}
+.hv-display {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-stretch: 88%;
+  font-size: clamp(2.1rem, 5vw, 2.9rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+.hv-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line-default);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.hv-input::placeholder { color: var(--foreground-muted); }
+.hv-input:hover { border-color: color-mix(in oklab, var(--foreground) 32%, transparent); }
+.hv-input:focus { border-color: var(--action); box-shadow: 0 0 0 1px var(--action); }
+.hv-input[aria-invalid='true'] { border-color: var(--critical); }
+.hv-input.mono { font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.04em; }
+.hv-input.sm { height: 34px; font-size: 0.875rem; }
+textarea.hv-input { height: auto; min-height: 92px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.hv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--action);
+  border-radius: 2px;
+  background: var(--action);
+  color: var(--action-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.hv-btn:hover:not(:disabled) { background: var(--action-hover); border-color: var(--action-hover); }
+.hv-btn:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
+.hv-btn:disabled { opacity: 0.55; cursor: default; }
+.hv-btn.quiet { background: transparent; border-color: var(--line-default); color: var(--foreground); }
+.hv-btn.quiet:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 6%, transparent); border-color: var(--line-default); }
+.hv-btn.danger { background: transparent; border-color: color-mix(in oklab, var(--critical) 55%, transparent); color: var(--critical-text); }
+.hv-btn.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--critical) 10%, transparent); border-color: var(--critical); }
+.hv-btn.sm { height: 32px; padding: 0 12px; font-size: 10px; }
+.hv-link {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.12s ease;
+}
+.hv-link:hover { text-decoration-color: var(--action); }
+.hv-link:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; border-radius: 1px; }
+.hv-panel { border: 1px solid var(--line-subtle); border-radius: 2px; background: var(--surface); }
+.hv-code {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--action-text);
+  word-break: break-all;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hv-input, .hv-btn, .hv-link { transition: none; }
+}
+
+/* ==================================================================== */
+/* THE THREAD'S INTERACTIONS                                             */
+/* Unlayered, so they sit over the signature motions they refine.        */
+/* ==================================================================== */
+
+/* A transcript sub-line an event added while the reader watched: the    */
+/* Append motion at the spatial distance, rising 8px out of nothing over */
+/* 200ms, staggered 40ms within its batch and capped at five. Reduced    */
+/* motion zeroes the distance, the duration and the stagger, and the     */
+/* rule below takes the animation off outright.                          */
+.aegis-append.thread-sub {
+  --rise: var(--shift-md);
+  animation-name: thread-sub-in;
+}
+@keyframes thread-sub-in {
+  from { opacity: 0; transform: translateY(var(--rise)); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aegis-append.thread-sub { animation: none; }
+}
+
+/* A citation that resolves to recorded evidence is something the reader */
+/* can act on, so it takes the one accent: a ~12% lime tint with lime    */
+/* text at night. By day lime text on paper is unreadable (about 1.3:1), */
+/* so the tint is stronger and the ink is a deep olive of the same hue:  */
+/* 8.2:1 on its own tint. At night lime on its tint measures ~12:1.     */
+:root,
+[data-theme='light'] {
+  --cite-wash: color-mix(in oklab, #d4f24a 40%, var(--background));
+  --cite-wash-hover: color-mix(in oklab, #d4f24a 62%, var(--background));
+  --cite-ink: #3d4c00;
+}
+html[data-theme='dark'],
+[data-theme='dark'] {
+  --cite-wash: color-mix(in oklab, #d4f24a 12%, transparent);
+  --cite-wash-hover: color-mix(in oklab, #d4f24a 22%, transparent);
+  --cite-ink: #d4f24a;
+}
+
+/* The draft stepping aside for the checked answer: opacity only, on the */
+/* exit curve, inside a box held at the draft's height. The component    */
+/* skips this entirely under reduced motion; --micro is zero there too.  */
+.thread-draft-leave {
+  animation: thread-fade-out var(--micro) var(--ease-exit) forwards;
+}
+@keyframes thread-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}

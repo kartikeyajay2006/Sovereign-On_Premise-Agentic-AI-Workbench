@@ -23,8 +23,25 @@ const POLL_MS = 2500
 /** Refusals that another attempt will not change. */
 const PERMANENT = new Set([401, 403, 404])
 
+/** A report version announced on the stream as written, before the re-read lands. */
+export interface ReportWritten {
+  report_version: number
+  released: boolean
+  files: { filename: string; sha256: string }[]
+  audit_seq: number | null
+  audit_hash: string | null
+}
+
+export interface HarnessRunSignals {
+  /** harness.aggregating was heard: every child settled, the report not yet written. */
+  aggregating: boolean
+  /** The latest harness.report_written payload heard for this run. */
+  written: ReportWritten | null
+}
+
 export interface HarnessRunState {
   run: HarnessRunView | null
+  signals: HarnessRunSignals
   error: ApiError | null
   /** Browser clock when `run` was read, to advance the server's clock from. */
   fetchedAt: number | null
@@ -75,9 +92,29 @@ export function useHarnessRun(runId: string): HarnessRunState {
   const shownAt = useRef<number | null>(null)
   shownAt.current = run ? Date.parse(run.server_time) : null
 
+  // Two events carry something the record does not say until the next read:
+  // that the runner is between its last child and its report, and the seal
+  // of a report just written. Both are held here for the moment between the
+  // event and the re-read; the record, once read, is what is drawn.
+  const [signals, setSignals] = useState<HarnessRunSignals>({ aggregating: false, written: null })
+
   useEventStream({
     onEvent: (event) => {
       if (!event.event.startsWith('harness.') || event.data?.run_id !== runId) return
+      if (event.event === 'harness.aggregating') setSignals((prev) => ({ ...prev, aggregating: true }))
+      if (event.event === 'harness.report_written') {
+        const data = event.data
+        setSignals({
+          aggregating: false,
+          written: {
+            report_version: Number(data.report_version),
+            released: Boolean(data.released),
+            files: Array.isArray(data.files) ? data.files : [],
+            audit_seq: typeof data.audit_seq === 'number' ? data.audit_seq : null,
+            audit_hash: typeof data.audit_hash === 'string' ? data.audit_hash : null,
+          },
+        })
+      }
       const at = Date.parse(event.at)
       if (shownAt.current !== null && Number.isFinite(at) && at <= shownAt.current) return
       setGeneration((value) => value + 1)
@@ -93,5 +130,5 @@ export function useHarnessRun(runId: string): HarnessRunState {
 
   const refresh = useCallback(() => setGeneration((value) => value + 1), [])
 
-  return { run, error, fetchedAt, replace, refresh }
+  return { run, signals, error, fetchedAt, replace, refresh }
 }

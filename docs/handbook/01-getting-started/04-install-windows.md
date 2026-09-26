@@ -54,15 +54,31 @@ ollama pull nomic-embed-text
 .\.venv\Scripts\python.exe scripts\seed_demo_data.py
 ```
 
-## 5. Start the two services
+## 5. Start Ollama with the tier's variables
+
+Ollama reads its `OLLAMA_*` variables only when the server starts, and with none set it unloads a model five minutes after its last use. Quit the tray app (tray icon > Quit Ollama), then:
+
+```powershell
+.\scripts\start-ollama.ps1                        # the 8 GB demo laptop (-Tier laptop-8gb)
+.\scripts\start-ollama.ps1 -Tier laptop-16gb      # a 16 GB laptop
+.\scripts\start-ollama.ps1 -WhatIf                # print the variables, start nothing
+.\scripts\start-ollama.ps1 -Persist               # also save them as user variables
+```
+
+It sets `OLLAMA_HOST=127.0.0.1:11434`, `OLLAMA_KEEP_ALIVE=24h`, `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_NUM_PARALLEL` for the tier (the table is at the top of the script, and in [12.5](../12-operations/05-performance.md#hardware-profiles)), refuses to start if a server already listens on 11434, and runs `ollama serve` in that window. `-Persist` lets the tray app pick the values up the next time it starts.
+
+## 6. Start the two services
 
 `scripts/run.sh` is a Bash script. On Windows, start the services yourself in two terminals.
 
-**Terminal 1: the API**
+**Terminal 1: the API**, with the same tier as Ollama:
 
 ```powershell
+$env:SOVEREIGN_PROFILE = 'laptop-8gb'
 .\.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 75
 ```
+
+`SOVEREIGN_PROFILE` overlays `config/profiles/laptop-8gb.yaml` on `app.yaml` and `routing.yaml` ([10.7](../10-configuration/07-environment.md)). Leave it unset to run on the base files alone.
 
 **Terminal 2: the web console**
 
@@ -73,6 +89,13 @@ npx next start -H 127.0.0.1
 ```
 
 Open **http://127.0.0.1:3000**.
+
+Then check the host is ready:
+
+```powershell
+.\scripts\warmup.ps1           # loads the drafting model, ends READY or NOT READY
+.\scripts\warmup.ps1 --check   # the same readings, loading nothing
+```
 
 > [!TIP]
 > `--timeout-keep-alive 75` matters. The console's proxy reuses idle connections, and Uvicorn closes an idle one after 5 seconds by default. A request sent down a connection as it closes fails as "socket hang up", which shows in the console as an error for a request the API never received. 75 seconds outlasts the proxy's reuse window.

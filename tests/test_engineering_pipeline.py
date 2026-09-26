@@ -67,6 +67,46 @@ def test_the_stage_computes_the_decision_from_the_scan() -> None:
     assert computation[0].classification == Sensitivity.CONFIDENTIAL
 
 
+def test_the_calculation_event_carries_its_records_and_their_c_items() -> None:
+    """The thread shows the governing figure and cites its C item when it is computed."""
+    now = datetime.now(timezone.utc)
+    prompt = "Calculate the corrosion rate and remaining life of V-2104 and state the severity."
+    stored = StoredFile(id="f1", filename="scanned-inspection-report-V-2104.png", stored_path="/dev/null",
+                        media_type="image/png", size_bytes=1, sha256="0" * 64, input_type="image",
+                        classification=Sensitivity.CONFIDENTIAL, owner_id=ENGINEER.id, department="inspection",
+                        uploaded_at=now)
+    profile = get_task_analyzer().analyze(prompt, [stored], requested_format="docx")
+    task = Task(id="t-eng-event", prompt=prompt, status=TaskStatus.EXECUTING, user_id=ENGINEER.id,
+                created_at=now, updated_at=now, files=[stored], profile=profile)
+    ledger = EvidenceLedger(task.evidence)
+    ledger.add(EvidenceItem(id="pending", source_document=stored.filename, document_id=stored.id,
+                            excerpt=V2104_TRANSCRIPTION, kind="vision_extraction",
+                            classification=Sensitivity.CONFIDENTIAL))
+    orchestrator = AgentOrchestrator()
+    orchestrator._persist = None
+    emitted: list[tuple[str, dict]] = []
+
+    async def capture(_task, event, data=None):
+        emitted.append((event, data or {}))
+
+    orchestrator._emit = capture
+    asyncio.run(orchestrator._engineering_stage(task, ENGINEER, ledger, profile))
+
+    payloads = [data for event, data in emitted if event == "task.calculation"]
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["assessment"]["remaining_life_years"] == 6.18
+    assert payload["calculated"] == sum(1 for r in task.calculations if r.status == "calculated")
+    # Every record, each naming the C item that carries it.
+    assert len(payload["records"]) == len(task.calculations)
+    assert all(record["evidence_id"] for record in payload["records"])
+    # Exactly the C items the decision names, and nothing the run read besides.
+    carried = [item["id"] for item in payload["evidence"]]
+    assert carried == list(task.assessment.evidence_ids)
+    assert all(item["kind"] == "computation" for item in payload["evidence"])
+    assert "not_calculated" in payload
+
+
 def test_the_model_is_told_the_figures_and_told_not_to_recompute() -> None:
     task, _ = _run("Calculate the remaining life of V-2104.")
     block = prompt_block(task.assessment, task.calculations)

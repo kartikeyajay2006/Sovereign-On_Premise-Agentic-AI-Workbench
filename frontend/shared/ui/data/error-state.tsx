@@ -38,6 +38,11 @@ export interface ErrorStateProps {
   detail?: string
   /** Offered only when a retry is actually meaningful. Omit it otherwise. */
   retry?: () => void
+  /** The retry button's words, when "Retry" is not what it does. */
+  retryLabel?: string
+  /** Shown but not pressable, with `retryTitle` saying why. */
+  retryDisabled?: boolean
+  retryTitle?: string
   className?: string
 }
 
@@ -67,6 +72,9 @@ export function ErrorState({
   identifier,
   detail,
   retry,
+  retryLabel = 'Retry',
+  retryDisabled = false,
+  retryTitle,
   className,
 }: ErrorStateProps) {
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -156,8 +164,14 @@ export function ErrorState({
 
       {retry && (
         <div className="mt-[var(--space-6)]">
-          <button type="button" onClick={retry} className={ACTION_CLASS}>
-            Retry
+          <button
+            type="button"
+            onClick={retry}
+            disabled={retryDisabled}
+            title={retryTitle}
+            className={cn(ACTION_CLASS, 'disabled:pointer-events-none disabled:opacity-[var(--opacity-disabled)]')}
+          >
+            {retryLabel}
           </button>
         </div>
       )}

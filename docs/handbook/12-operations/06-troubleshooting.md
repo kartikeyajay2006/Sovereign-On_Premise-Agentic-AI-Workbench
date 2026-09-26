@@ -46,8 +46,9 @@ Read [8.5 What verification cannot catch](../08-verification/05-limits.md). Then
 
 ## Runs are slow or stuck in the queue
 
-- **Queued for a long time:** one worker runs one task at a time. Check what is running (the queue events name it) and stop it if it is stuck.
-- **Stuck in one stage:** check `ollama ps` and `free -h`. A swapping host looks exactly like a hang.
+- **Queued for a long time:** each worker runs one task at a time, and there is one by default (`agent.worker_count`). Check what is running (the queue events name it) and stop it if it is stuck.
+- **Stuck in one stage:** check `ollama ps` and `free -h`. A swapping host looks exactly like a hang. A `task.model_memory` event on the run's timeline (audit `model / memory_warning`) means the model was loaded short of memory; see [12.5](05-performance.md#memory-warnings-on-the-timeline).
+- **Slow after an API restart:** the startup log says which model it adopted from Ollama and what it unloaded. If a model the registry does not declare is resident, it is reported and left loaded: unload it with `ollama stop <name>`.
 - **Two API processes:** `pgrep -af "uvicorn backend.api.main"`. Stop all, start one.
 
 ## The console shows errors

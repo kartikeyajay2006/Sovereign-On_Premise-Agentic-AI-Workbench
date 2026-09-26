@@ -63,6 +63,7 @@ from backend.core.schemas import (
     RoutingDecision,
     SandboxResult,
     Sensitivity,
+    StageMark,
     StoredFile,
     Task,
     TaskProfile,
@@ -233,6 +234,32 @@ class VisualInput:
     path: Path
     source: StoredFile
     page_number: int | None = None
+
+
+# Rendered pages of one PDF are read this many to a vision call.
+PDF_PAGES_PER_BATCH = 3
+
+
+def page_batch_prompt(config: Any, filename: str, page_numbers: list[int]) -> str:
+    """The prompt a batch of rendered PDF pages is read with.
+
+    Module-level so the readiness check (backend/ops/readiness.py) can build
+    the exact vision-cache key a run over the demo scan would look up, rather
+    than a copy of this that drifts and reports a warm cache that is cold.
+    """
+    labels = "; ".join(
+        f"image {index} = page {number}" for index, number in enumerate(page_numbers, start=1)
+    )
+    page_skeleton = json.dumps({"pages": [
+        {"page_number": number, "transcription": "",
+         "fields": [], "findings": [], "tables": [],
+         "illegible_regions": [], "confidence": None}
+        for number in page_numbers
+    ]}, ensure_ascii=False)
+    return config.prompt(
+        "task.vision_extract_pages",
+        filename=filename, page_labels=labels, page_skeleton=page_skeleton,
+    )
 
 
 
@@ -593,6 +620,17 @@ class AgentOrchestrator:
             raise TaskCancelled(task.id)
         task.status = status
         task.updated_at = datetime.now(timezone.utc)
+        # Kept on the record so a settled run's stage strip can be replayed
+        # from the record rather than from a replay buffer that has moved on.
+        task.stage_log.append(
+            StageMark(
+                status=status.value,
+                phase=phase,
+                message=message,
+                skipped=bool((data or {}).get("skipped")),
+                at=task.updated_at,
+            )
+        )
         self._checkpoint(task)
         payload: dict[str, Any] = {"status": status.value, "message": message, **(data or {})}
         if phase:
@@ -688,6 +726,8 @@ class AgentOrchestrator:
             raise NoEligibleModelError(decision.reason)
 
         descriptor = await self.router.resolve_descriptor(decision)
+        # Before the policy check, so a fallback model is checked like any other.
+        decision, descriptor = await self._fit_or_fallback(task, user, stage, decision, descriptor)
         policy_event = self.gateway.check_model(
             user,
             descriptor.id,
@@ -703,7 +743,8 @@ class AgentOrchestrator:
         # Memory admission: make room before invoking, evicting the previously
         # resident model when the host cannot hold both.
         admission = await self.manager.admit(
-            descriptor, actor=user.username, task_id=task.id
+            descriptor, actor=user.username, task_id=task.id,
+            context_tokens=self.router.generation_options(descriptor.id, stage=stage).get("num_ctx"),
         )
         if admission.get("evicted"):
             await self._emit(
@@ -854,6 +895,82 @@ class AgentOrchestrator:
         )
         return _strip_reasoning(result.text), decision
 
+    async def _fit_or_fallback(
+        self, task: Task, user: User, stage: str,
+        decision: RoutingDecision, descriptor: ModelDescriptor,
+    ) -> tuple[RoutingDecision, ModelDescriptor]:
+        """Act on a model that would not fit in free memory, before loading it.
+
+        The manager used to compute `fits` after admission and nobody read
+        it, so a model too large for the host was loaded anyway and the run
+        went to swap, where a 70-second call takes 25 minutes -- with nothing
+        on the timeline to say why. Now a projected shortfall is a
+        `task.model_memory` event on the timeline and an audit record, and
+        the run falls back to a smaller model the router already found
+        eligible for this stage (same hard gates: installed, approved for
+        this data, capability-complete) that does fit. With none, it
+        proceeds on the routed model and the warning stands on the record.
+        """
+        options = self.router.generation_options(descriptor.id, stage=stage)
+        fit = self.manager.projected_fit(descriptor, options.get("num_ctx"))
+        if fit.get("fits", True):
+            return decision, descriptor
+
+        own_footprint = self.manager.footprint_of(descriptor, options.get("num_ctx"))
+        fallback: ModelDescriptor | None = None
+        for candidate in decision.candidates:
+            if not candidate.get("eligible") or candidate.get("model") == descriptor.id:
+                continue
+            try:
+                alternative = await self.router.resolve_descriptor(
+                    decision.model_copy(update={"selected_model": candidate["model"]})
+                )
+            except NoEligibleModelError:
+                continue
+            context = self.router.generation_options(alternative.id, stage=stage).get("num_ctx")
+            if self.manager.footprint_of(alternative, context) >= own_footprint:
+                continue
+            if self.manager.projected_fit(alternative, context).get("fits"):
+                fallback = alternative
+                break
+
+        shortfall = (
+            f"{descriptor.id} needs about {fit['needed_mb']} MB with headroom; "
+            f"about {fit['projected_mb']} MB would be free"
+        )
+        detail = {
+            "stage": stage,
+            "model": descriptor.id,
+            "footprint_mb": fit["footprint_mb"],
+            "needed_mb": fit["needed_mb"],
+            "available_mb": fit["projected_mb"],
+            "fallback": fallback.id if fallback else None,
+            "action": "fallback" if fallback else "proceed",
+            "reason": (
+                f"{shortfall}: using the smaller eligible {fallback.id}" if fallback
+                else f"{shortfall}, and no smaller eligible model fits: proceeding, "
+                "expect this stage to be slow if the host swaps"
+            ),
+        }
+        await self._emit(task, "task.model_memory", detail)
+        self.audit.record(
+            category="model", action="memory_warning", actor=user.username,
+            actor_role=user.role, task_id=task.id, detail=detail,
+        )
+        if fallback is None:
+            return decision, descriptor
+
+        rerouted = decision.model_copy(update={
+            "selected_model": fallback.id,
+            "selected_display_name": fallback.display_name,
+            "reason": f"{decision.reason}; {detail['reason']}",
+        })
+        # The run's routing record names the model that actually answered.
+        if task.routing and task.routing[-1] is decision:
+            task.routing[-1] = rerouted
+            self._checkpoint(task)
+        return rerouted, fallback
+
     async def _generate_streaming(
         self,
         task: Task,
@@ -970,6 +1087,10 @@ class AgentOrchestrator:
                 "summary": call.output_summary,
                 "duration_ms": call.duration_ms,
                 "policy_decision": call.policy_decision.value,
+                # The tool's own start, so a live tool block is placed where
+                # the record will place it, not where the event happened to
+                # arrive.
+                "started_at": call.started_at.isoformat(),
             },
         )
         self.audit.record(
@@ -1401,20 +1522,9 @@ class AgentOrchestrator:
         model again, not be handed the same cached answer.
         """
         if batch[0].page_number is not None:
-            labels = "; ".join(
-                f"image {index} = page {item.page_number}"
-                for index, item in enumerate(batch, start=1)
-            )
-            page_skeleton = json.dumps({"pages": [
-                {"page_number": item.page_number, "transcription": "",
-                 "fields": [], "findings": [], "tables": [],
-                 "illegible_regions": [], "confidence": None}
-                for item in batch
-            ]}, ensure_ascii=False)
-            prompt = self.config.prompt(
-                "task.vision_extract_pages",
-                filename=batch[0].source.filename, page_labels=labels,
-                page_skeleton=page_skeleton,
+            prompt = page_batch_prompt(
+                self.config, batch[0].source.filename,
+                [int(item.page_number) for item in batch],  # type: ignore[arg-type]
             )
         else:
             prompt = self.config.prompt("task.vision_extract", prompt=task.prompt)
@@ -1680,7 +1790,10 @@ class AgentOrchestrator:
                 for _, grouped in groupby(images, key=lambda item: item.source.id):
                     source_items = list(grouped)
                     if source_items[0].page_number is not None:
-                        batches = [source_items[offset:offset + 3] for offset in range(0, len(source_items), 3)]
+                        batches = [
+                            source_items[offset:offset + PDF_PAGES_PER_BATCH]
+                            for offset in range(0, len(source_items), PDF_PAGES_PER_BATCH)
+                        ]
                     else:
                         batches = [[item] for item in source_items]
                     for batch in batches:
@@ -2504,14 +2617,12 @@ class AgentOrchestrator:
         self._persist_evidence(task)
         self._checkpoint(task)
         calculated = [record for record in records if record.status == "calculated"]
-        await self._emit(task, "task.calculation", {
-            "assessment": assessment.model_dump(mode="json"),
-            "calculated": len(calculated),
+        await self._emit(task, "task.calculation", self._calculation_payload(task, {
             "not_calculated": [
                 {"formula": record.formula_id, "subject": record.subject, "reason": record.reason}
                 for record in records if record.status != "calculated"
             ],
-        })
+        }))
         self.audit.record(
             category="engineering",
             action={"calculated": "assessed", "conflicted": "withheld"}.get(assessment.status, "cannot_calculate"),
@@ -2535,6 +2646,25 @@ class AgentOrchestrator:
         # The registry is the authority for a conflicted record too: no
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
+
+    @staticmethod
+    def _calculation_payload(task: Task, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+        """What `task.calculation` carries: the decision, its records, and their C items.
+
+        The records and the C evidence items that hold them travel with the
+        decision so a client can show the governing figure, cite the C item
+        that carries it and open that item, the moment it is computed rather
+        than once the run has finished and the record is read back.
+        """
+        assert task.assessment is not None
+        carriers = set(task.assessment.evidence_ids)
+        return {
+            "assessment": task.assessment.model_dump(mode="json"),
+            "calculated": sum(1 for record in task.calculations if record.status == "calculated"),
+            "records": [record.model_dump(mode="json") for record in task.calculations],
+            "evidence": [item.model_dump(mode="json") for item in task.evidence if item.id in carriers],
+            **(extra or {}),
+        }
 
     async def _fact_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
         """Record where the sources contradict each other about a stated fact.
@@ -3022,10 +3152,7 @@ class AgentOrchestrator:
             "evidence": human.model_dump(mode="json"),
         })
         if task.assessment is not None:
-            await self._emit(task, "task.calculation", {
-                "assessment": task.assessment.model_dump(mode="json"),
-                "calculated": sum(1 for r in task.calculations if r.status == "calculated"),
-            })
+            await self._emit(task, "task.calculation", self._calculation_payload(task))
         if task.verification is not None:
             await self._emit(task, "task.verified", task.verification.model_dump(mode="json"))
         self.audit.record(

@@ -1,0 +1,41 @@
+# Tier (c): plant server, CPU. 16-32-core EPYC/Xeon, 8-12 DDR5 channels,
+# 64-128 GB RAM.
+#
+# Selected with SOVEREIGN_PROFILE=cpu-server. Overlaid on config/app.yaml
+# (`app`) and config/routing.yaml (`routing`); SOVEREIGN_* variables still win.
+#
+# Estimated: a cited answer in ~13 s for 3-5 users. All four models stay
+# resident and qwen3:8b is allowed (the router still prefers the smaller
+# model that satisfies a stage; remove qwen2.5:3b from models.yaml to route
+# reasoning to the 8B). Start Ollama with scripts/start-ollama.sh --tier
+# cpu-server, which also sets OLLAMA_FLASH_ATTENTION=1 and
+# OLLAMA_KV_CACHE_TYPE=q8_0.
+description: Plant server, CPU -- 64-128 GB, 3-5 users
+
+app:
+  inference:
+    keep_alive: 24h
+    prewarm: true
+    single_model_residency: false
+    memory_headroom_mb: 4096
+    max_context_tokens: 16384
+  agent:
+    # Runs are CPU-bound on the runtime; three overlap reading, retrieval
+    # and verification without starving each other on 16+ cores.
+    worker_count: 3
+  readiness:
+    min_free_memory_mb: 4096
+
+routing:
+  stage_context_tokens:
+    vision_extraction: 8192
+    planning: 8192
+    code_generation: 8192
+    verification: 8192
+    drafting: 8192
+  stage_output_tokens:
+    planning: 500
+    vision_extraction: 2400
+    code_generation: 1200
+    verification: 400
+    drafting: 2000

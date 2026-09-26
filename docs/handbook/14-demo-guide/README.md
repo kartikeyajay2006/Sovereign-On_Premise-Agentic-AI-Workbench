@@ -6,6 +6,7 @@
 |---|---|
 | [14.1 The golden path](01-golden-path.md) | A ten-minute demonstration, step by step, with what to say and the correct answers |
 | [14.2 Rehearsal and recovery](02-rehearsal.md) | The checklist for the hour before, and what to do when something goes wrong on stage |
+| [14.3 Demo day on the 8 GB laptop](03-demo-day.md) | The runbook from T−48 h to the slot: freeze, Ollama's variables, clearing memory, start order, `warmup.ps1`, the vision cache, and the live order |
 
 The full scripted demonstration, with thirteen scenarios and the correct answer and clause citations for each, is **[`docs/DEMO.md`](../../DEMO.md)**. This section is the short version for a live, timed slot.
 

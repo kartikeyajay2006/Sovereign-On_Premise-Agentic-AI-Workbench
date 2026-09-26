@@ -72,7 +72,7 @@ Everything here was written from the source code, configuration and policy files
 | # | Section | What it covers |
 |---|---|---|
 | 13 | **[Development](13-development/README.md)** | Repository layout, the test suite, conventions, contributing |
-| 14 | **[Demo guide](14-demo-guide/README.md)** | The golden path for a live demonstration, rehearsal checklist, recovering on stage |
+| 14 | **[Demo guide](14-demo-guide/README.md)** | The golden path for a live demonstration, rehearsal checklist, recovering on stage, the demo-day runbook |
 | 15 | **[Reference](15-reference/README.md)** | FAQ and glossary |
 
 ---

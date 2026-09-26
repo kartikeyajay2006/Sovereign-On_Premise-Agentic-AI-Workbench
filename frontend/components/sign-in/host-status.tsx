@@ -40,14 +40,14 @@ function time(iso: string) {
 /** A loopback call that has not answered in this long is not running. */
 const TIMEOUT_MS = 3000
 
+export type PublicStatusState = State
+
 /**
- * What this machine reports about itself before anyone has signed in, in one
- * line. Three states and no fourth: if the read fails the line says so; it
- * never falls back to a reassuring figure. The form needs the same service,
- * so an unreachable reading is also the most useful thing the page can say
- * about why signing in will fail.
+ * One read of GET /api/status, shared by everything on a screen that needs
+ * it: the host line below, and the site name the sign-in heading uses. Read
+ * once, so the two can never disagree about whether the service answered.
  */
-export function HostStatus({ className }: { className?: string }) {
+export function usePublicStatus(): State {
   const [state, setState] = useState<State>({ kind: 'reading' })
 
   useEffect(() => {
@@ -72,6 +72,22 @@ export function HostStatus({ className }: { className?: string }) {
     }
   }, [])
 
+  return state
+}
+
+/** The configured application name, or null until one has been read. */
+export function siteName(state: State): string | null {
+  return state.kind === 'read' && state.status.name ? state.status.name : null
+}
+
+/**
+ * What this machine reports about itself before anyone has signed in, in one
+ * line. Three states and no fourth: if the read fails the line says so; it
+ * never falls back to a reassuring figure. The form needs the same service,
+ * so an unreachable reading is also the most useful thing the page can say
+ * about why signing in will fail.
+ */
+export function HostStatus({ state, className }: { state: State; className?: string }) {
   const status = state.kind === 'read' ? state.status : null
   const monitoring = Boolean(status?.monitor_active)
   const observed = status && monitoring ? status.external_calls : null

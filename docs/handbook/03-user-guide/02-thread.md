@@ -122,6 +122,6 @@ Every run you can see is listed in the sidebar. Click one to open it in the Thre
 
 | | | |
 |:--|:--:|--:|
-| [← 3.1 · Signing in and roles](01-sign-in.md) | [↑ 03 · Using the workbench](README.md) | [3.3 · Skills →](03-skills.md) |
+| [← 3.1 · Signing in, accounts and roles](01-sign-in.md) | [↑ 03 · Using the workbench](README.md) | [3.3 · Skills →](03-skills.md) |
 
 <!-- nav:end -->

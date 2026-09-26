@@ -89,6 +89,11 @@ class IdentityService:
         before the Head of Inspection and Plant Manager were declared would
         otherwise never gain them, and a High finding it holds for their two
         signatures could never be released.
+
+        These are demonstration accounts with a shared password, so startup
+        creates them only while ``demo.enabled`` is true (``api/main.py``). A
+        production host starts with none and is claimed through the owner
+        setup in ``accounts.py``.
         """
         pending = [
             seed for seed in self.config.access_control.get("seed_users", [])
@@ -110,6 +115,7 @@ class IdentityService:
                 "password_hash": hash_password(password),
                 "active": 1,
                 "created_at": datetime.now(timezone.utc).isoformat(),
+                "origin": "seed",
             }
             self.db.insert_user(record)
             created.append(seed["username"])
@@ -197,6 +203,7 @@ class IdentityService:
             "password_hash": hash_password(password),
             "active": 1,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "origin": "register",
         }
         try:
             self.db.insert_user(record)
