@@ -65,6 +65,7 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `max_written_file_bytes` | `26214400` | ✅ | Largest file the code may write |
 | `process_headroom` | `64` | ✅ | Processes allowed above the user's current count |
 | `network_enabled` | `false` | ✅ | Reported on the Sandbox screen. The shim blocks sockets regardless |
+| `network_namespace` | `auto` | ✅ | Linux subprocess runtime only. `auto`: run each program in a private network namespace once a probe proves it holds; `require`: refuse to run without one; `off`: never probe. Any other value means `require`. See [9.3](../09-security/03-sandbox.md#the-network-namespace-linux) |
 | `container_image` | `localhost/aegis-sandbox:1` | ✅ | Built by `infrastructure/sandbox/build.sh`. Never pulled: a missing image fails the probe |
 | `container_fallback` | `subprocess` | ✅ | When the container runtime fails its probe: `subprocess` (labelled fallback) or `refuse`. Any other value means `refuse` |
 | `container_require_rootless` | `true` | ✅ | A runtime that is not rootless (or cannot say) fails the probe |

@@ -12,12 +12,12 @@
 ![Ollama](https://img.shields.io/badge/Ollama-local_models-9b52ff?style=for-the-badge&logo=ollama&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-WAL-7c4dff?style=for-the-badge&logo=sqlite&logoColor=white)
 
-![Tests](https://img.shields.io/badge/tests-423_passed_·_12_Windows--only-16a34a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-959_passed_·_13_skipped_on_Linux-16a34a?style=flat-square)
 ![Egress](https://img.shields.io/badge/egress-0_·_measured-16a34a?style=flat-square)
 ![Audit](https://img.shields.io/badge/audit-SHA--256_hash--chained-0284c7?style=flat-square)
 ![Offline](https://img.shields.io/badge/runs-fully_offline-0284c7?style=flat-square)
 ![GPU](https://img.shields.io/badge/GPU-not_required-d97706?style=flat-square)
-![Handbook](https://img.shields.io/badge/handbook-101_pages-7c4dff?style=flat-square)
+![Handbook](https://img.shields.io/badge/handbook-111_pages-7c4dff?style=flat-square)
 ![SIH](https://img.shields.io/badge/Smart_India_Hackathon-2025-ff2d6f?style=flat-square)
 
 **[🎬 See it](#-see-aegis-in-action)** · **[🧭 How it works](#-understand--decide--execute--prove)** · **[🧩 Features](#-what-is-inside)** · **[🔐 Security](#-security-by-architecture)** · **[🚀 Quick start](#-quick-start)** · **[📚 Handbook](#-the-aegis-handbook)** · **[👥 Team](#-the-team)**
@@ -119,7 +119,7 @@ A sensitive organisation has to control the **data**, the **models**, the **tool
 <img src="docs/assets/readme/screenshot-signin.webp#gh-light-mode-only" alt="Sign in to AEGIS with local accounts" width="760">
 <img src="docs/assets/readme/screenshot-signin-dark.webp#gh-dark-mode-only" alt="Sign in to AEGIS with local accounts" width="760">
 
-<sub>🔑 Local accounts only: no cloud identity provider. Five demo roles, one click each.</sub>
+<sub>🔑 Local accounts only: no cloud identity provider. Seven demo accounts, one click each.</sub>
 </div>
 
 ---
@@ -163,33 +163,35 @@ Three processes on one host: the **Next.js console** (`:3000`), the **FastAPI** 
 | 🧠 | **Local inference** | Ollama over loopback, **refused otherwise** (HTTP 503). Six models declared; single-model residency with audited load and evict |
 | 💬 | **Workbench** | One thread, every run listed, token streaming, per-run model choice, a transcript of every stage with timings and tokens |
 | 👁️ | **Multimodal reading** | Per-page PDF inspection, PyMuPDF rasterising, batched vision reading, Tesseract fallback; DOCX, XLSX, CSV, PPTX parsers |
-| 🔎 | **Retrieval** | Local embeddings + cosine; BM25 fallback; **department and clearance applied before ranking** |
+| 🔎 | **Retrieval** | Local embeddings and BM25 fused by Reciprocal Rank Fusion; **department and clearance applied before ranking** |
 | 🧭 | **Routing** | Rules, stage overrides, hard gates (installed · approved · capable), scoring, fallbacks, a reason for every choice |
 | ⚡ | **Skills** | Saved, hashed request templates called with `/`; five built in |
 | 🧪 | **Harnesses** | Governed multi-run jobs (question sweep, requirements register, obligation coverage) with one hashed report |
-| 📦 | **Sandbox** | AST validation + POSIX rlimits / macOS watchdog / **probed** Windows Job Object + socket and write shim |
-| 🧮 | **Engineering engine** | Unit-aware, versioned, clause-cited formulas compute corrosion rate, remaining life, severity and the next survey **before the model writes**; every input bound to its table cell, every result hashed; *cannot calculate* when an input is missing |
+| 📦 | **Sandbox** | AST validation, then a **rootless container** (no network, read-only root, no capabilities) where its probe passes; otherwise POSIX rlimits in a **private network namespace** on Linux / macOS watchdog / **probed** Windows Job Object, with socket and write shims |
+| 🧮 | **Engineering engine** | 18 unit-aware, versioned, clause-cited formulas compute corrosion rate, remaining life, severity, the next survey and **relief-valve test verdicts** **before the model writes**; every input bound to its table cell or record line, every result hashed; *cannot calculate* when an input is missing |
 | ✅ | **Verification** | Claim verdicts (calculated · supported · conflicted · unsupported · human decision), engineering, citation, page, calculation, code, document and isolation-plan checks |
 | ⚖️ | **Conflicts** | Disagreeing sources become conflict objects that withhold the decision; a reviewer chooses, the choice is evidence, the formulas recompute |
 | 📚 | **Revision control** | One document code, one revision in force; superseded revisions retrieved only on request, and labelled |
-| 🗺️ | **P&ID topology** | Isolation plans judged branch by branch against the lockout procedure, flow up and down, paths, affected loops; the sheet marked |
+| 🗺️ | **P&ID topology** | A graph read from the drawing or its JSON; isolation plans judged branch by branch against the lockout procedure, flow up and down, paths, affected loops; the sheet marked |
+| 🔌 | **Plant systems** | Read-only historian and OPC UA (simulator) adapters behind one interface; bad-quality samples carry no value |
 | 🚦 | **Policy gateway** | Default deny for permissions, tools, models and paths; every decision audited **with the rule that made it** |
-| 👩‍⚖️ | **Human approval** | Nine rules; separation of duties by account; decisions bound to the version reviewed; request-revision |
+| 👩‍⚖️ | **Human approval** | Eleven rules; a High finding needs **two signatures in order**, Head of Inspection then Plant Manager; separation of duties by account; decisions bound to the version reviewed; request-revision |
 | 📄 | **Deliverables** | DOCX, XLSX, PPTX, Markdown, rendered locally, hashed, withheld until released |
 | 🔗 | **Tamper-evident audit** | Append-only SHA-256 chain, verified on the server **and in the browser**, sealed with **Ed25519-signed Merkle roots** |
-| 🧾 | **Signed proof** | A certificate per run binding its evidence, calculations, approval and deliverable bytes, verifiable **offline** with the public key |
-| 🛡️ | **Ingestion guard** | Uploads judged by their bytes: PDF JavaScript, Office macros, remote templates, archive bombs refused; injected instructions withheld from the model |
+| 🧾 | **Signed proof** | A certificate per run binding its evidence, calculations, approval, deliverable bytes, model digests and config hashes, verifiable **offline** with the public key; **Proof Mode** shows the whole chain on one screen |
+| 📏 | **Measurements** | A dashboard of figures computed from their artifacts; re-run a finished run and **compare** two runs, every difference named |
+| 🛡️ | **Ingestion guard** | Uploads judged by their bytes: PDF JavaScript, Office macros, remote templates, archive bombs refused; injected instructions withheld from the model; content scanned for secrets, personal data and markings |
 | 🎯 | **Red team** | 31 attacks run against a live host, each a measurement, with a hashed report |
-| 📡 | **Sovereignty monitor** | Samples the workbench's own connections every 2 s; reports "cannot observe" rather than a false zero |
+| 📡 | **Sovereignty monitor** | Samples the workbench's own connections every 2 s; an nftables default-deny egress table with its kernel drop counters read back; "cannot observe" rather than a false zero |
 | 📈 | **Usage telemetry** | Tokens, load, prompt and generation time, first-token time, context window, done reason, per model call |
 | 🔴 | **Live trace** | 36 Server-Sent Event types across tasks, harnesses and sovereignty |
-| 👥 | **Access control** | Five roles, 22 permissions, inheritance, departments, clearance ceilings, hashed sessions, sign-in throttling |
+| 👥 | **Access control** | Seven roles, 22 permissions, inheritance, departments, clearance ceilings, hashed sessions, sign-in throttling |
 
 <div align="center">
 
-| 🐍 25,600 lines of Python | ⚛️ 26,300 lines of TypeScript | 🧪 621 tests | 📚 109-page handbook |
+| 🐍 34,200 lines of Python | ⚛️ 27,800 lines of TypeScript | 🧪 972 tests | 📚 111-page handbook |
 |:--:|:--:|:--:|:--:|
-| **🔴 36** live event types | **🛡️ 22** permissions · 5 roles | **🎯 31 / 31** attacks held | **📑 15** documents · 207 passages |
+| **🔴 36** live event types | **🛡️ 22** permissions · 7 roles | **🎯 31 / 31** attacks held | **📑 15** documents · 207 passages |
 
 </div>
 
@@ -211,6 +213,7 @@ MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  
 - A run's classification **rises to the highest class of the evidence it used**, and never falls.
 - Generated code is statically validated (imports, calls, `getattr` tricks, process escapes), then runs under OS limits: `setrlimit` on Linux, a memory watchdog on macOS, a probed **Job Object** on Windows. If the host cannot prove its limits hold, code is **refused**.
 - Sockets, including the raw `_socket` primitive, raise inside the sandbox, and writes outside its workspace are refused.
+- Below the shim, the kernel refuses too: a probed rootless container runs with `--network none`, and without one, Linux runs the code in a private network namespace that holds only a down loopback, so neither the internet nor this host's own model runtime and API can be reached.
 - Sandboxed code cannot read outside its workspace either: `/etc/passwd` and the workbench database are refused at runtime.
 - Approval is separated from execution: **nobody approves their own run**, and a decision applies only to the version that was reviewed.
 - Uploads are judged by their bytes, not their names; document text addressed to the model is withheld from it and holds the run.
@@ -220,7 +223,7 @@ MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  
 
 **⚠️ What this is not, stated plainly**
 
-- The sandbox is **application-level isolation in a subprocess**, not a container or VM, and it runs as the API's user. Its shims block network, process escapes, and reads and writes outside the workspace; a flaw in a shim is not stopped by an operating-system boundary. Container isolation is the next step.
+- Where the sandbox image has not been built, code runs as a **subprocess of the API's user**, not in a container or VM. On Linux the kernel still refuses its connections (a private network namespace), but its filesystem and process limits are the shims' and the rlimits'; a flaw in a shim is not stopped by an operating-system boundary there. Build the image (`infrastructure/sandbox/build.sh`) to add the container's read-only root and dropped capabilities.
 - Engineering figures are deterministic; other claims are traced **lexically**: a passage that carries a claim's terms supports it, which is not the same as entailing it.
 - The signing key lives on the host it signs for. Copy the public key and the seals off-host.
 
@@ -237,7 +240,7 @@ Every control, what is measured, and what is still open: **[Threat model](docs/h
 | **Models** | ![Ollama](https://img.shields.io/badge/-Ollama-000?logo=ollama&logoColor=white) Qwen2.5 3B · Qwen3 8B · Qwen2.5-VL 3B · Qwen2.5 Coder 7B · Moondream 2 · Nomic Embed Text |
 | **Storage** | ![SQLite](https://img.shields.io/badge/-SQLite_WAL-003b57?logo=sqlite&logoColor=white) runs, users, sessions, skills, harness runs, passages and vectors |
 | **Documents** | PyMuPDF · pypdf · Tesseract OCR · python-docx · openpyxl · python-pptx · Pillow |
-| **Execution** | Python subprocess · AST validation · POSIX rlimits · macOS watchdog · Windows Job Object |
+| **Execution** | Rootless Podman/Docker · Linux network namespaces · AST validation · POSIX rlimits · macOS watchdog · Windows Job Object · nftables |
 | **Proof** | Ed25519 (`cryptography`) · RFC 6962 Merkle trees · SHA-256 |
 | **Transport** | REST · Server-Sent Events |
 
@@ -277,11 +280,13 @@ Open **http://127.0.0.1:3000** and pick a demo account.
 |---|---|---|---|
 | `engineer` | Integrity engineer | Restricted | `/clause internal inspection of a pressure vessel in corrosive service` |
 | `reviewer` | Approving authority | Restricted | **Approvals**, then <kbd>A</kbd> |
+| `head_of_inspection` | Head of Inspection | Restricted | The first signature on a High finding: the **relief valve** starter card |
+| `plant_manager` | Plant Manager | Restricted | The second signature, which releases it |
 | `operator` | Plant operator | Confidential | The same question as the engineer: fewer passages |
 | `auditor` | Internal auditor | Restricted | **Audit → Verify chain** |
 | `admin` | Platform administrator | Restricted | Everything |
 
-Password for all five: `workbench` (`security.seed_user_password`). **Change it before any real use**, and bind the console to loopback (`npx next start -H 127.0.0.1`) on a shared network.
+Password for all seven: `workbench` (`security.seed_user_password`). **Change it before any real use**, and bind the console to loopback (`npx next start -H 127.0.0.1`) on a shared network.
 
 → Full setup, Windows, troubleshooting: **[Getting started](docs/handbook/01-getting-started/README.md)** · A guided tour: **[Your first hour](docs/handbook/01-getting-started/07-first-hour.md)**
 
@@ -289,7 +294,7 @@ Password for all five: `workbench` (`security.seed_user_password`). **Change it 
 
 ## 📚 The AEGIS Handbook
 
-A **101-page manual**, written from the code, that says where every control stops as well as what it does.
+A **111-page manual**, written from the code, that says where every control stops as well as what it does.
 
 <table>
 <tr>
