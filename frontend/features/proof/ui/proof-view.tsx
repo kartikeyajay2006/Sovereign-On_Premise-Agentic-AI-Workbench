@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowUpRight, GitCompare } from 'lucide-react'
@@ -67,7 +68,48 @@ function Entry({ entry }: { entry: ProofEntry }) {
   )
 }
 
-function Row({ row, index, last }: { row: ProofRow; index: number; last: boolean }) {
+/**
+ * Issue the certificate a finished run does not have yet. GET
+ * /tasks/{id}/certificate signs and stores it, audited, over the run as it is
+ * recorded now; the chain is then read again, so the row shows the verified
+ * certificate rather than being told it exists.
+ */
+function IssueCertificate({ taskId, onIssued }: { taskId: string; onIssued: () => void }) {
+  const [state, setState] = useState<'idle' | 'issuing' | 'failed'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const issue = async () => {
+    setState('issuing')
+    setError(null)
+    try {
+      await request(`/tasks/${encodeURIComponent(taskId)}/certificate`)
+      onIssued()
+    } catch (err: any) {
+      setState('failed')
+      setError(err?.detail || err?.message || 'The certificate was not issued.')
+    }
+  }
+  return (
+    <span className="flex shrink-0 items-center gap-2">
+      {error && <span className="text-meta text-critical-text">{error}</span>}
+      <button type="button" onClick={issue} disabled={state === 'issuing'} className="btn" data-variant="secondary" data-size="sm">
+        {state === 'issuing' ? 'Issuing…' : 'Issue certificate'}
+      </button>
+    </span>
+  )
+}
+
+function Row({
+  row,
+  index,
+  last,
+  action,
+}: {
+  row: ProofRow
+  index: number
+  last: boolean
+  /** A control that completes this link, where one can. */
+  action?: React.ReactNode
+}) {
   const hasDetail = row.facts.length > 0 || row.entries.length > 0
   const head = (
     <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-4">
@@ -77,6 +119,7 @@ function Row({ row, index, last }: { row: ProofRow; index: number; last: boolean
       <span className={cn('min-w-0 flex-1 text-body', row.empty ? 'text-foreground-muted' : 'text-foreground')}>
         {row.empty ?? row.summary}
       </span>
+      {action}
       <span className={cn('shrink-0 font-mono text-meta', TEXT[row.tone])}>{WORD[row.tone]}</span>
     </div>
   )
@@ -123,6 +166,9 @@ function Row({ row, index, last }: { row: ProofRow; index: number; last: boolean
     </li>
   )
 }
+
+// The statuses a certificate can be issued for (routes/tasks.py task_certificate).
+const FINISHED = new Set(['delivered', 'rejected', 'revision_requested', 'awaiting_approval'])
 
 export function ProofScreen() {
   const params = useSearchParams()
@@ -176,7 +222,17 @@ export function ProofScreen() {
         ) : view ? (
           <ol aria-label="Chain of custody" className="flex flex-col">
             {view.rows.map((row, index) => (
-              <Row key={row.key} row={row} index={index} last={index === view.rows.length - 1} />
+              <Row
+                key={row.key}
+                row={row}
+                index={index}
+                last={index === view.rows.length - 1}
+                action={
+                  row.key === 'certificate' && row.tone === 'none' && FINISHED.has(view.status) ? (
+                    <IssueCertificate taskId={view.task_id} onIssued={proof.reload} />
+                  ) : undefined
+                }
+              />
             ))}
           </ol>
         ) : proof.status === 'failed' ? (
