@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Loader2, LogOut, Users } from 'lucide-react'
+import { request } from '@/lib/api'
 import { ROLES } from '@/lib/presentation'
-import type { RoleId } from '@/lib/types'
+import type { RoleId, User } from '@/lib/types'
 import { useRole } from './role-context'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +30,18 @@ export function RoleSwitcher({ placement = 'below' }: { placement?: 'below' | 'a
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  // The demo switch exists only on a demo host. GET /api/auth/directory lists
+  // the seeded accounts while demo mode is on and [] otherwise, so a
+  // production host shows no "switch account" list it could not honour.
+  const [demoHost, setDemoHost] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    request<User[]>('/auth/directory', { signal: controller.signal })
+      .then((users) => setDemoHost(Array.isArray(users) && users.length > 0))
+      .catch(() => setDemoHost(false))
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -137,52 +150,56 @@ export function RoleSwitcher({ placement = 'below' }: { placement?: 'below' | 'a
             </p>
           </div>
 
-          <div className="px-4 pb-1 pt-3">
-            <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-              Switch demo account
-            </p>
-          </div>
+          {demoHost && (
+            <>
+            <div className="px-4 pb-1 pt-3">
+              <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                Switch demo account
+              </p>
+            </div>
 
-          {switchError && (
-            <p role="alert" className="mx-2 mb-1 rounded-[var(--radius-xs)] bg-critical-surface px-2 py-2 text-ui text-critical-text">
-              {switchError}
-            </p>
+            {switchError && (
+              <p role="alert" className="mx-2 mb-1 rounded-[var(--radius-xs)] bg-critical-surface px-2 py-2 text-ui text-critical-text">
+                {switchError}
+              </p>
+            )}
+
+            <ul className="px-1 pb-1">
+              {ROLES.map((r) => {
+                const isSelected = r.id === role.id
+                const busy = switching === r.id
+                return (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isSelected}
+                      disabled={switching !== null}
+                      onClick={() => (isSelected ? setOpen(false) : void switchTo(r.id))}
+                      className={cn(
+                        'hover-decay flex w-full items-start gap-3 rounded-[var(--radius-menu-row)] px-3 py-2 text-left',
+                        'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none disabled:opacity-[var(--opacity-disabled)]',
+                        isSelected ? 'bg-[var(--selected-surface)]' : 'hover:bg-surface-sunken',
+                      )}
+                    >
+                      <span aria-hidden className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                        {busy ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted motion-reduce:animate-none" />
+                        ) : isSelected ? (
+                          <Check className="h-3.5 w-3.5 text-foreground" />
+                        ) : null}
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-ui font-medium text-foreground">{r.label}</span>
+                        <span className="text-ui text-foreground-secondary">{r.description}</span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+            </>
           )}
-
-          <ul className="px-1 pb-1">
-            {ROLES.map((r) => {
-              const isSelected = r.id === role.id
-              const busy = switching === r.id
-              return (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isSelected}
-                    disabled={switching !== null}
-                    onClick={() => (isSelected ? setOpen(false) : void switchTo(r.id))}
-                    className={cn(
-                      'hover-decay flex w-full items-start gap-3 rounded-[var(--radius-menu-row)] px-3 py-2 text-left',
-                      'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none disabled:opacity-[var(--opacity-disabled)]',
-                      isSelected ? 'bg-[var(--selected-surface)]' : 'hover:bg-surface-sunken',
-                    )}
-                  >
-                    <span aria-hidden className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                      {busy ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted motion-reduce:animate-none" />
-                      ) : isSelected ? (
-                        <Check className="h-3.5 w-3.5 text-foreground" />
-                      ) : null}
-                    </span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="text-ui font-medium text-foreground">{r.label}</span>
-                      <span className="text-ui text-foreground-secondary">{r.description}</span>
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
 
           <div className="border-t border-line-subtle p-1">
             {/* People, for whoever the policy lets provision accounts. Read

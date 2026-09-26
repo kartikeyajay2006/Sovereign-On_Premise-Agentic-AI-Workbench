@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   SquarePen,
   SquareSlash,
+  Users,
   X,
 } from 'lucide-react'
 import { api, request } from '@/lib/api'
@@ -58,6 +59,8 @@ export interface Destination {
   label: string
   /** The second key of its G sequence. */
   key: string
+  /** Shown only to sessions holding this permission. */
+  permission?: string
   /** One line, for the palette. */
   hint: string
 }
@@ -89,13 +92,15 @@ export const PLACES: Place[] = [
       { href: '/measurements', label: 'Measurements', key: 'm', hint: 'every figure, with the artifact it came from', icon: Gauge },
     ],
   },
+  // Administrators only: access requests, invitations and accounts.
+  { href: '/admin/access', label: 'People', key: 'u', hint: 'access requests, invitations and accounts', paths: ['/admin'], icon: Users, permission: 'users.manage' },
 ]
 
 /** Every screen, flat, in navigation order. The palette lists these. */
 export const DESTINATIONS: Destination[] = PLACES.flatMap((place) =>
   place.children
     ? place.children.map(({ href, label, key, hint }) => ({ href, label, key, hint }))
-    : [{ href: place.href, label: place.label, key: place.key, hint: place.hint }],
+    : [{ href: place.href, label: place.label, key: place.key, hint: place.hint, permission: place.permission }],
 )
 
 /**
@@ -444,7 +449,7 @@ function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
 
       <nav aria-label="Workbench" className="mt-4 shrink-0 px-3">
         <ul className="m-0 flex list-none flex-col gap-px p-0">
-          {PLACES.map((place) => {
+          {PLACES.filter((place) => !place.permission || can(place.permission)).map((place) => {
             const isCurrent = place.paths.some((path) => onPath(pathname, path))
             const Icon = place.icon
             const count = place.href === '/approvals' && held && held.count > 0 ? held.count : null
