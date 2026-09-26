@@ -29,6 +29,15 @@ Refused with **400** for a disallowed extension or a file over `storage.max_uplo
 | `GET /api/files` | signed in | Your uploads |
 | `GET /api/files/{id}/download` | owner, override role, or same department | The file, after the gateway's file-access and path-confinement checks |
 
+### Sample files
+
+| Method and path | Permission | Returns |
+|---|---|---|
+| `GET /api/samples` | `file.upload` | The demo's sample files by id, name and size; empty when `demo.enabled` is false |
+| `GET /api/samples/{id}` | `file.upload` | The file's bytes, for one of the ids under `demo.samples`, only from `sample_data/` |
+
+A sample is not stored by fetching it: the console uploads it through `POST /api/files`, so it is quarantined, scanned and classified like any other file.
+
 ## Tasks
 
 ### `POST /api/tasks` · `task.create`

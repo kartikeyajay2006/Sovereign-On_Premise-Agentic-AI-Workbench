@@ -73,17 +73,11 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       # The team develops on Windows, where the sandbox runs under a Job
-      # Object instead of POSIX limits (tests/test_sandbox_windows.py).
-      #
-      # Two tests fail on Windows on main for reasons unrelated to what they
-      # test (a test deliverable whose bytes change when written in text mode,
-      # and POSIX permission bits asserted on the signing key). A fix is on its own branch; remove these two
-      # --deselect lines when it merges, so they run here again.
+      # Object instead of POSIX limits (tests/test_sandbox_windows.py). The
+      # whole suite runs here: the two tests that failed on Windows only
+      # (text-mode line endings, POSIX key permissions) are fixed.
       - name: Tests
-        run: >-
-          python -m pytest -q -p no:cacheprovider -rs
-          --deselect tests/test_api_security.py::TestDeliverableDownload::test_a_recorded_deliverable_downloads
-          --deselect tests/test_proof.py::test_the_key_is_created_private_and_signs
+        run: python -m pytest -q -p no:cacheprovider -rs
 
   frontend:
     name: frontend (typecheck and build)

@@ -45,6 +45,22 @@ It drives the three judged moments through the API and passes a check only on
 what the API returned; it creates two runs on the target. See
 [handbook 14.2](handbook/14-demo-guide/02-rehearsal.md#the-golden-demo-check).
 
+### Start a golden demo in one click
+
+An empty thread shows the three judged moments as cards. Picking one fills
+the request and attaches its sample files through the ordinary upload
+(quarantine, content scanning and the audit apply); nothing runs until
+**Run** is pressed.
+
+| Card | Attaches | What the judges see |
+|---|---|---|
+| **Can V-2104 keep running?** | the scanned report (the thickness survey on a host with no vision model) | figures by registered formulas, a cited approval note held for the Head of Inspection |
+| **Two records disagree** | the thickness survey and the contractor field sheet | the reading at shell course 2 differs, so no figure is stated until a reviewer chooses |
+| **A document that gives orders** | a contractor note that tells the model to approve V-2104 | both injected sentences withheld from the model, and the run held for a person |
+
+The files are served by `GET /api/samples/{id}` from the ids under `demo.samples`
+in `config/app.yaml`. Set `demo.enabled: false` on a production install.
+
 ### Demo accounts
 
 Password for every account: `workbench` (`config/app.yaml`, `security.seed_user_password`).
