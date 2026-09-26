@@ -435,41 +435,58 @@ export const NAV = [
   { href: '#limits', label: 'Limits' },
 ] as const
 
+/**
+ * A file in the repository, on GitHub. Every path below was checked against
+ * the branch it names with `git ls-tree`: `main` where the file is there, and
+ * `redesign/hi-vis` only for a file that has not reached main yet.
+ */
+const onGitHub = (path: string, branch: 'main' | 'redesign/hi-vis' = 'main') => `${REPO_URL}/blob/${branch}/${path}`
+
 export const FOOTER = {
-  cta: {
-    eyebrow: 'On your own hardware',
-    title: 'Local is not enough.',
-    turn: 'So prove the rest.',
-    lede: 'Put a workbench on your own hardware whose every answer shows its sources, its checks and its record.',
-  },
-  blurb: 'An air-gapped AI workbench for regulated industrial work.',
-  // A property of the design, not a reading: the inference client refuses an
-  // endpoint that is not on this host.
-  status: 'Models, retrieval and audit on your own hardware',
+  blurb: 'An air-gapped AI workbench for regulated industrial work. Every answer cited, checked and recorded on the machine it ran on.',
   columns: [
     {
       heading: 'Product',
       links: [
+        { label: 'The crew', href: '#crew' },
+        { label: 'Proof', href: '#proof' },
+        { label: 'The workbench', href: '#product' },
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'How a run is proved', href: '#proof' },
-        { label: 'The run, replayed', href: '#replay' },
-        { label: 'Use cases', href: '#use-cases' },
-        { label: 'What this is not', href: '#limits' },
       ],
     },
     {
-      heading: 'Source',
+      heading: 'Run it',
       links: [
-        { label: 'Repository', href: REPO_URL },
-        { label: 'Architecture notes', href: `${REPO_URL}/tree/main/docs` },
+        { label: 'Get started', href: '#run-it' },
+        { label: 'Hardware', href: `${onGitHub('docs/handbook/01-getting-started/02-requirements.md')}#hardware` },
+        { label: 'Install on Windows', href: onGitHub('docs/handbook/01-getting-started/04-install-windows.md') },
+        { label: 'Offline install', href: onGitHub('docs/handbook/01-getting-started/09-offline-install.md') },
+        { label: 'Demo-day runbook', href: onGitHub('docs/handbook/14-demo-guide/03-demo-day.md', 'redesign/hi-vis') },
+      ],
+    },
+    {
+      heading: 'Trust',
+      links: [
+        { label: 'The audit log', href: onGitHub('docs/handbook/09-security/05-audit-log.md') },
+        { label: 'Threat model', href: onGitHub('docs/handbook/09-security/06-threat-model.md') },
+        { label: 'The sandbox', href: onGitHub('docs/handbook/09-security/03-sandbox.md') },
+        // GitHub's anchor for "⚠️ Limitations" keeps the emoji's variation selector.
+        { label: 'Known limits', href: `${REPO_URL}#%EF%B8%8F-limitations` },
+        { label: 'What verification cannot catch', href: onGitHub('docs/handbook/08-verification/05-limits.md') },
+      ],
+    },
+    {
+      heading: 'Project',
+      links: [
+        { label: 'GitHub', href: REPO_URL },
+        { label: 'Handbook', href: onGitHub('docs/handbook/README.md') },
+        { label: 'What it implements today', href: onGitHub('docs/IMPLEMENTED.md') },
+        { label: 'Architecture', href: onGitHub('docs/handbook/04-architecture/README.md') },
       ],
     },
   ],
-  build: {
-    heading: 'Build',
-    lines: ['api 127.0.0.1:8000', 'inference 127.0.0.1:11434'],
-  },
-  bottomLeft: 'Smart India Hackathon 2026',
-  bottomRight: 'No analytics on this page.',
+  copyright: '© 2026 AEGIS',
+  // The page's CSP allows this origin only (next.config.mjs), so this is enforced, not promised.
+  bottomRight: 'No analytics on this page',
+  giant: 'AEGIS',
 } as const
-

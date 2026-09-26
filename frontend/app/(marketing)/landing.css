@@ -69,11 +69,11 @@
   /* Display: light and semi-condensed. font-stretch asks for the width;
      the variation setting guarantees it, since the face is declared without
      a width range. */
-  .lp-display, .lp-h2, .lp-close-title, .lp-stats b, .lp-pf .cap .h, .lp-verify-head h3 {
+  .lp-display, .lp-h2, .lp-stats b, .lp-pf .cap .h, .lp-verify-head h3 {
     font-weight: 300; font-stretch: 88%; font-variation-settings: 'wdth' var(--lp-display-wdth); letter-spacing: -0.035em;
   }
   .lp-display { margin: 0; font-size: clamp(2.75rem, 1rem + 5.2vw, 5.875rem); line-height: 0.98; text-wrap: balance; }
-  .lp-display b, .lp-h2 b, .lp-close-title b { font-weight: 600; }
+  .lp-display b, .lp-h2 b { font-weight: 600; }
   .lp-h2 { margin: 0; font-size: clamp(2.1rem, 1rem + 3.2vw, 3.75rem); line-height: 1.02; text-wrap: balance; }
   .lp-eyebrow { margin: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.4; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lp-lime); }
   .lp-lede { margin: 0; font-size: clamp(1rem, 0.94rem + 0.3vw, 1.0625rem); line-height: 1.6; color: var(--lp-fg-2); text-wrap: pretty; }
@@ -559,35 +559,34 @@
   /* ==================================================================== */
   /* FOOTER                                                                */
   /* ==================================================================== */
-  .lp-footer { position: relative; padding-top: clamp(8px, 2vw, 24px); }
-  /* The close: a square panel over a grid floor, grey lines receding to one
-     lime horizon. Static; nothing here moves. */
-  .lp-close {
-    position: relative; isolation: isolate; overflow: hidden; text-align: center; border: 1px solid var(--lp-line);
-    padding: clamp(56px, 8vw, 96px) clamp(16px, 4vw, 48px) clamp(128px, 15vw, 184px); background: var(--lp-s0);
-  }
-  .lp-close-floor { position: absolute; inset: 0; z-index: -1; pointer-events: none; --hz: calc(100% - clamp(64px, 8vw, 96px)); }
-  .lp-close-floor i { position: absolute; display: block; }
-  .lp-close-floor .grid {
-    left: 50%; top: var(--hz); width: 2400px; height: 700px; margin-left: -1200px;
-    transform-origin: 50% 0; transform: perspective(520px) rotateX(70deg);
-    background-image: linear-gradient(to right, rgb(255 255 255 / 0.16) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.16) 1px, transparent 1px);
-    background-size: 64px 64px; background-position: center top;
-    -webkit-mask-image: radial-gradient(ellipse 34% 72% at 50% 0%, #000 20%, transparent 76%);
-            mask-image: radial-gradient(ellipse 34% 72% at 50% 0%, #000 20%, transparent 76%);
-  }
-  .lp-close-floor .line { left: 0; right: 0; top: var(--hz); height: 1px; background: linear-gradient(90deg, transparent, var(--lp-lime) 20%, var(--lp-lime) 80%, transparent); }
-  .lp-close-title { margin: 18px auto 0; max-width: 18ch; font-size: clamp(2.4rem, 1rem + 4.6vw, 4.75rem); line-height: 1; }
-  .lp-close .lp-lede { max-width: 46ch; margin: 20px auto 0; }
-
-  .lp-footer-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 36px; padding-block: 56px 44px; }
-  .lp-footer-grid h3 { margin: 0 0 12px; font-family: var(--font-mono); font-size: 10px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lp-fg-3); }
-  .lp-footer-grid a { display: block; width: fit-content; margin-top: 9px; font-size: 0.9rem; color: var(--lp-fg-2); transition: color var(--lp-tick) ease; }
+  .lp-footer { position: relative; overflow: hidden; border-top: 1px solid var(--lp-line); background: #050505; }
+  .lp-footer-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)); gap: 40px 32px; padding-block: clamp(48px, 6vw, 72px) 44px; }
+  .lp-footer-grid .blurb { margin: 16px 0 18px; max-width: 34ch; font-size: 0.9rem; line-height: 1.6; color: var(--lp-fg-2); }
+  .lp-footer-grid h3 { margin: 0 0 14px; font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--lp-fg); }
+  .lp-footer-grid ul { margin: 0; padding: 0; list-style: none; }
+  .lp-footer-grid li + li { margin-top: 9px; }
+  .lp-footer-grid a { font-size: 0.88rem; line-height: 1.4; color: var(--lp-fg-3); transition: color var(--lp-tick) ease; }
   .lp-footer-grid a:hover { color: var(--lp-fg); }
-  .lp-footer-grid .blurb { margin: 14px 0 0; max-width: 32ch; font-size: 0.9rem; line-height: 1.6; color: var(--lp-fg-3); }
-  .lp-footer-grid .val { display: block; margin-top: 9px; font-family: var(--font-mono); font-size: 11px; color: var(--lp-fg-3); }
-  .lp-footer-base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-block: 20px 32px; border-top: 1px solid var(--lp-line); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lp-fg-3); }
-  @media (max-width: 900px) { .lp-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lp-footer-grid > :first-child { grid-column: 1 / -1; } }
+  /* The live egress chip: the hero's reading, one line. */
+  .lp-egress-chip {
+    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; max-width: 100%; margin: 0; padding: 6px 10px; border: 1px solid var(--lp-line); border-radius: 2px;
+    font-family: var(--font-mono); font-size: 10px; line-height: 1.4; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lp-fg-2);
+  }
+  .lp-egress-chip i { width: 6px; height: 6px; background: var(--lp-fg-3); }
+  .lp-egress-chip[data-tone='live'] i { background: var(--lp-ok); }
+  .lp-egress-chip[data-tone='breach'] i { background: var(--lp-crit); }
+  .lp-egress-chip .sub { flex-basis: 100%; padding-left: 14px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: none; color: var(--lp-fg-3); }
+  .lp-footer-base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-block: 16px; border-top: 1px solid var(--lp-line-3); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lp-fg-3); }
+  /* The name at 6% ink, sized to the viewport so the whole word always fits,
+     fading into the ground towards its foot. */
+  .lp-giant { display: flex; justify-content: center; margin-top: clamp(4px, 1vw, 16px); overflow: hidden; pointer-events: none; user-select: none; }
+  .lp-giant span {
+    display: block; font-size: min(20.5vw, 17rem); font-weight: 800; font-stretch: 125%; font-variation-settings: 'wdth' 125; line-height: 0.8; letter-spacing: -0.02em; white-space: nowrap;
+    color: rgb(247 247 244 / 0.06);
+    -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
+  }
+  @media (max-width: 1000px) { .lp-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lp-footer-grid > .brand { grid-column: 1 / -1; } }
+  @media (max-width: 420px) { .lp-footer-grid { gap: 32px 20px; } }
 
   /* ==================================================================== */
   /* MOTION                                                                */

@@ -1,17 +1,18 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { STATS } from './copy'
 
 /**
- * The egress cell of the stat band: how many connections the egress monitor
- * has seen leave this host, read by the visitor's browser from GET
- * /api/status, and read again every 20 s while the band is on screen.
+ * How many connections the egress monitor has seen leave this host, read by
+ * the visitor's browser from GET /api/status, and read again every 20 s while
+ * the reading is on screen. Two faces share the one reading: the hero's stat
+ * cell and the footer's chip.
  *
- * Before the first reading, and whenever the host cannot be read, the cell
- * shows the count the run's own closing record wrote down, labelled as that,
- * so the band never prints a number nobody measured. A reading is shown as it
- * is; the roll runs only when a later reading differs from the one before it,
+ * Before the first reading, and whenever the host cannot be read, each shows
+ * the count the run's own closing record wrote down, labelled as that, so the
+ * page never prints a number nobody measured. A reading is shown as it is;
+ * the roll runs only when a later reading differs from the one before it,
  * never from zero on load.
  */
 
@@ -19,6 +20,8 @@ interface PublicStatus {
   external_calls: number
   monitored_since: string
 }
+
+type Recorded = { value: number; seq: number } | null
 
 function isStatus(value: unknown): value is PublicStatus {
   if (typeof value !== 'object' || value === null) return false
@@ -31,11 +34,10 @@ const hhmm = (iso: string) => /T(\d{2}:\d{2})/.exec(iso)?.[1] ?? null
 
 const POLL_MS = 20_000
 
-export function LiveEgress({ recorded }: { recorded: { value: number; seq: number } | null }) {
+function useEgressReading(root: RefObject<HTMLElement | null>, recorded: Recorded) {
   const [live, setLive] = useState<PublicStatus | null>(null)
   const [previous, setPrevious] = useState<number | null>(null)
   const [turn, setTurn] = useState(0)
-  const root = useRef<HTMLDivElement>(null)
   const last = useRef<number | null>(null)
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export function LiveEgress({ recorded }: { recorded: { value: number; seq: numbe
       io?.disconnect()
       document.removeEventListener('visibilitychange', schedule)
     }
-  }, [])
+  }, [root])
 
   const value = live ? live.external_calls : (recorded?.value ?? null)
   const line = live
@@ -96,9 +98,16 @@ export function LiveEgress({ recorded }: { recorded: { value: number; seq: numbe
     : recorded
       ? STATS.egress.recorded(recorded.seq)
       : STATS.egress.reading
+  return { live, value, line, previous, turn, breach: live !== null && live.external_calls > 0 }
+}
+
+/** The hero's stat cell. */
+export function LiveEgress({ recorded }: { recorded: Recorded }) {
+  const root = useRef<HTMLDivElement>(null)
+  const { value, line, previous, turn, breach } = useEgressReading(root, recorded)
 
   return (
-    <div ref={root} className={`cell${live && live.external_calls > 0 ? ' breach' : ''}`}>
+    <div ref={root} className={`cell${breach ? ' breach' : ''}`}>
       <small>{STATS.egress.label}</small>
       <b aria-live="polite">
         {value === null ? (
@@ -119,5 +128,22 @@ export function LiveEgress({ recorded }: { recorded: { value: number; seq: numbe
       </b>
       <span className="sub">{line}</span>
     </div>
+  )
+}
+
+/** The footer's chip: the same reading, one line. The dot is green only for a live zero. */
+export function EgressChip({ recorded }: { recorded: Recorded }) {
+  const root = useRef<HTMLParagraphElement>(null)
+  const { live, value, line, breach } = useEgressReading(root, recorded)
+  const tone = breach ? 'breach' : live ? 'live' : 'recorded'
+
+  return (
+    <p ref={root} className="lp-egress-chip" data-tone={tone}>
+      <i aria-hidden />
+      <span aria-live="polite">
+        {STATS.egress.label} {value === null ? '—' : `${value} ${STATS.egress.unit(value)}`}
+      </span>
+      <span className="sub">{line}</span>
+    </p>
   )
 }
