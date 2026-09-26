@@ -417,7 +417,7 @@ function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
       <div className="flex h-14 shrink-0 items-center justify-between gap-2 pl-4 pr-3">
         <Link href="/console" aria-label="AEGIS, the thread" onClick={onNavigate} className="flex items-center gap-2.5 rounded-md text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none">
           <AegisMark size={22} />
-          <span className="text-[15px] font-semibold tracking-[0.03em]">AEGIS</span>
+          <span className="text-[15px] font-semibold tracking-[0.14em] [font-stretch:112%]">AEGIS</span>
         </Link>
         {/* The host's one reading, next to the name it vouches for. */}
         <SovereigntyStatus placement="start" />
@@ -605,7 +605,7 @@ export function Navigation() {
         </button>
         <Link href="/console" aria-label="AEGIS, the thread" className="flex items-center gap-2 text-foreground">
           <AegisMark size={20} />
-          <span className="text-[14px] font-semibold tracking-[0.03em]">AEGIS</span>
+          <span className="text-[14px] font-semibold tracking-[0.14em] [font-stretch:112%]">AEGIS</span>
         </Link>
         <div className="ml-auto">
           <SovereigntyStatus />
