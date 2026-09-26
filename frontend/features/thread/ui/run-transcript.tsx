@@ -5,7 +5,7 @@ import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from 
 import { checkLabel } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 import { useSecondClock } from '@/shared/motion'
-import { MODEL_STAGE_TO_ROW } from '../model/board'
+import { MODEL_STAGE_TO_ROW, STAGE_ACTIVE, STAGE_DONE } from '../model/board'
 import type { AssistantTurn } from '../model/types'
 import { formatCount, formatRate, formatSeconds } from '../model/usage'
 
@@ -22,26 +22,26 @@ import { formatCount, formatRate, formatSeconds } from '../model/usage'
  * as it has been doing it.
  */
 
-/** A stage, said once it has happened. */
-const DONE: Record<string, string> = {
-  classify: 'Classified the request',
-  plan: 'Planned the run',
-  read: 'Read the attachments',
-  retrieve: 'Searched the knowledge base',
-  sandbox: 'Ran code in the sandbox',
-  draft: 'Drafted the answer',
-  verify: 'Checked every claim',
-}
+const DONE = STAGE_DONE
+const ACTIVE = STAGE_ACTIVE
 
-/** A stage, said while it happens. */
-const ACTIVE: Record<string, string> = {
-  classify: 'Reading the request',
-  plan: 'Planning',
-  read: 'Reading the attachments',
-  retrieve: 'Searching the knowledge base',
-  sandbox: 'Running code in the sandbox',
-  draft: 'Drafting',
-  verify: 'Checking every claim',
+/**
+ * The compute row's words, from what the registry actually did. The
+ * engineering phase also walks a drawing's graph and records where sources
+ * contradict each other; "Computed with registered formulas" over a run that
+ * withheld every figure, or only read a P&ID, would say something it did not.
+ */
+function computeTitle(turn: AssistantTurn, active: boolean): string {
+  if (turn.assessment?.status === 'conflicted') {
+    return active ? 'Checking the formula inputs' : 'Withheld the calculation: sources disagree'
+  }
+  if (turn.assessment?.status === 'cannot_calculate') {
+    return active ? 'Checking the formula inputs' : 'Could not calculate from the evidence'
+  }
+  if (turn.topology && !turn.assessment) {
+    return active ? "Walking the drawing's graph" : "Walked the drawing's graph"
+  }
+  return active ? ACTIVE.compute : DONE.compute
 }
 
 /** The verifier's checks, in the words a reader uses: see lib/presentation. */
@@ -140,7 +140,10 @@ const SCAN_DECISION: Record<string, string> = {
 
 export const RunTranscript = memo(function RunTranscript({ turn }: { turn: AssistantTurn }) {
   const conversation = turn.profile?.taskType === 'conversation'
-  const lines = turn.stages.filter((s) => SHOWN.has(s.status))
+  // A skipped stage is shown only when the backend said why: that is a
+  // decision the run made, and the reason is the record of it. One the
+  // end-of-run sweep marked skipped because nothing reported it stays out.
+  const lines = turn.stages.filter((s) => SHOWN.has(s.status) || (s.status === 'skipped' && Boolean(s.detail)))
   const waiting = turn.outcome === 'running' && turn.queue !== null && turn.queue.ahead > 0
 
   if (lines.length === 0 && !waiting) return null
@@ -161,15 +164,22 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
       {lines.map((stage) => {
         const active = stage.status === 'active' && turn.outcome === 'running'
         const failed = stage.status === 'failed' || stage.status === 'denied'
+        const skipped = stage.status === 'skipped'
         // The checks ran, and found something: the line says so in its bullet.
         const flagged = stage.id === 'verify' && !active && turn.verification.some((c) => !c.passed)
         const calls = callsFor(turn.usage, stage.id)
         let title = active ? ACTIVE[stage.id] ?? stage.name : DONE[stage.id] ?? stage.name
+        if (stage.id === 'compute') title = computeTitle(turn, active)
         if (stage.id === 'draft' && conversation) title = active ? 'Replying' : 'Replied'
         if (failed) title = `${ACTIVE[stage.id] ?? stage.name} failed`
+        // Skipped by the run's own decision, or cut off by a stop.
+        // A backend skip enters with no start time; a stopped stage had one.
+        if (skipped) title = turn.outcome === 'cancelled' && stage.at ? `${stage.name} stopped` : `${stage.name} skipped`
 
         let note: string | null = null
-        if (stage.id === 'classify' && turn.profile) {
+        if (skipped) {
+          note = null
+        } else if (stage.id === 'classify' && turn.profile) {
           note = `${turn.profile.taskType.replace(/_/g, ' ')} · ${turn.profile.sensitivity}`
         } else if (stage.id === 'retrieve' && !active) {
           const passages = turn.evidence.filter((e) => e.kind === 'knowledge_base' || /^S\d+$/.test(e.id)).length
@@ -191,12 +201,20 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
               ) : (
                 <span
                   aria-hidden
-                  className={cn('inline-block w-[1ch] text-center', failed || flagged ? 'text-critical-text' : 'text-sovereign-text')}
+                  className={cn(
+                    'inline-block w-[1ch] text-center',
+                    skipped ? 'text-foreground-muted' : failed || flagged ? 'text-critical-text' : 'text-sovereign-text',
+                  )}
                 >
-                  ●
+                  {skipped ? '○' : '●'}
                 </span>
               )}
-              <span className={cn('min-w-0 flex-1', active ? 'ae-shimmer font-medium' : failed ? 'text-critical-text' : 'text-foreground')}>
+              <span
+                className={cn(
+                  'min-w-0 flex-1',
+                  active ? 'ae-shimmer font-medium' : failed ? 'text-critical-text' : skipped ? 'text-foreground-secondary' : 'text-foreground',
+                )}
+              >
                 {title}
                 {active ? '…' : ''}
                 {note && <span className="text-foreground-muted"> · {note}</span>}
@@ -206,6 +224,9 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
               </span>
             </div>
 
+            {/* The backend's own words for what the stage is doing, or why it
+                did not run. Never templated here. */}
+            {(active || skipped) && stage.detail && <Result>{stage.detail}</Result>}
             {sources.length > 0 && (
               <Result>
                 {sources.slice(0, 4).map(citeLabel).join(' · ')}
