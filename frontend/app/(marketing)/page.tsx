@@ -54,7 +54,7 @@ const GALLERY: GallerySlide[] = [
     body: 'A run reads like a terminal session: each step with its time, the passages it found, the model’s tokens and the checks, then the cited answer.',
     light: '/landing/shots/thread-light.png',
     dark: '/landing/shots/thread-dark.png',
-    alt: 'The AEGIS thread: a /clause request delivered in 18.8 s with six of six checks passed, and the answer citing S1, SOP-INS-014 §2.2.',
+    alt: 'The AEGIS thread: a /clause request delivered in 39.6 s with four of four checks passed, and the answer citing S1, SOP-INS-014 §2.2.',
   },
   {
     id: 'skills',
@@ -90,7 +90,7 @@ const GALLERY: GallerySlide[] = [
     body: 'Real payloads, refused before they run or contained while they do, with the memory, CPU and exit the host measured.',
     light: '/landing/shots/sandbox-light.png',
     dark: '/landing/shots/sandbox-dark.png',
-    alt: 'The sandbox: a memory bomb contained at the 1024 MB cap, with its traceback, peak memory and CPU time.',
+    alt: 'The sandbox: a payload that opens a socket, refused by the static validator before any process started.',
   },
   {
     id: 'audit',
