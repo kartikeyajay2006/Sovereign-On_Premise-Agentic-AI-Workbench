@@ -80,6 +80,7 @@ class AppliedLimits(BaseModel):
     wall_timeout_seconds: float | None = None
     kill_on_close: bool = False
     die_on_unhandled_exception: bool = False
+    network_namespace: bool = False
 
 
 class ExecutionAccounting(BaseModel):
@@ -125,6 +126,10 @@ class SandboxLimits(BaseModel):
     # The container isolation probe (binary, rootless, each check and the
     # verdict), or None when no container runtime is configured.
     container: dict | None = None
+    # The private network namespace probe (Linux subprocess runtime): the
+    # interfaces the child sees and what its connections met, or None where
+    # it does not apply.
+    network_namespace: dict | None = None
     backend: str
     memory_mb: int
     cpu_seconds: int
@@ -155,6 +160,7 @@ def sandbox_limits(user: CurrentUser) -> SandboxLimits:
         runtime=sandbox.runtime,
         configured_runtime=str(settings.get("runtime", "subprocess")),
         container=sandbox.container_probe(),
+        network_namespace=sandbox.network_namespace_probe(),
         backend=backend,
         memory_mb=int(settings.get("max_memory_mb", 1024)),
         cpu_seconds=int(settings.get("max_cpu_seconds", 30)),

@@ -23,6 +23,8 @@ storage/reports/*
 # The host signing key never leaves the host; certificates are per-install.
 storage/keys/*
 storage/proofs/*
+# What the vision model read from each uploaded page: document content.
+storage/vision-cache/*
 storage/*.db
 storage/*.db-wal
 storage/*.db-shm

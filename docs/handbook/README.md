@@ -34,7 +34,7 @@ Everything here was written from the source code, configuration and policy files
 | 🛠️ **An engineer** extending the system | [Architecture](04-architecture/README.md) | [Agents](07-agents/README.md) → [Verification](08-verification/README.md) → [Development](13-development/README.md) |
 | 🖥️ **An operator** running it on a host | [Installation](01-getting-started/03-install-linux-macos.md) | [Configuration](10-configuration/README.md) → [Operations](12-operations/README.md) |
 | 🔐 **A security reviewer** | [Security and governance](09-security/README.md) | [Threat model](09-security/06-threat-model.md) → [Red team](09-security/08-red-team.md) → [Signed proof](09-security/09-proof.md) |
-| 🏆 **A judge or evaluator** | [Demo guide](14-demo-guide/README.md) | [Engineering verification](08-verification/06-engineering.md) → [Conflicts](02-concepts/09-conflicts.md) → [Red team](09-security/08-red-team.md) |
+| 🏆 **A judge or evaluator** | [What AEGIS implements today](../IMPLEMENTED.md) and the [demo guide](14-demo-guide/README.md) | [Engineering verification](08-verification/06-engineering.md) → [Conflicts](02-concepts/09-conflicts.md) → [Red team](09-security/08-red-team.md) → [Readiness review](../SIH-READINESS-REVIEW.md) |
 
 ---
 

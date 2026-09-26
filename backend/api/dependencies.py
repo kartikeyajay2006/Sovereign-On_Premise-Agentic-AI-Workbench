@@ -52,6 +52,26 @@ def get_current_user(token: SessionToken) -> User:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+def get_optional_user(
+    authorization: Annotated[str | None, Header()] = None,
+    x_session_token: Annotated[str | None, Header()] = None,
+    session_cookie: Annotated[str | None, Cookie(alias="workbench_session")] = None,
+) -> User | None:
+    """The signed-in caller, or None where there is no valid session.
+
+    For the one question a signed-out visitor may ask: whether they are
+    signed in. Everything else requires CurrentUser.
+    """
+    try:
+        token = get_session_token(authorization, x_session_token, session_cookie)
+        return get_identity_service().resolve_session(token)
+    except (HTTPException, AuthenticationError):
+        return None
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+
+
 def require_permission(permission: str) -> Callable[[User], User]:
     """Dependency factory enforcing a named permission via the policy gateway."""
 

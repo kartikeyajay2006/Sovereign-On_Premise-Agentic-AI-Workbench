@@ -168,7 +168,7 @@ def _run(extra: list[EvidenceItem] | None = None):
     orchestrator = AgentOrchestrator()
     orchestrator._persist = None
     orchestrator._active_revisions = lambda evidence: {"SOP-INS-014": ("4.3", "SOP-INS-014 Rev 4.3")}
-    engineered = asyncio.run(orchestrator._engineering_stage(task, ENGINEER, ledger, profile))
+    asyncio.run(orchestrator._engineering_stage(task, ENGINEER, ledger, profile))
     task.answer = "The sources disagree at shell course 2, so the remaining life is withheld."
     task.status = TaskStatus.AWAITING_APPROVAL
     task.approval = ApprovalRecord(

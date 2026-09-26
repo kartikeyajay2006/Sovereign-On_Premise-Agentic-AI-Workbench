@@ -378,17 +378,39 @@ def vessel_inputs_from_text(text: str, item: EvidenceItem) -> VesselInputs:
     return inputs
 
 
+def _survey_table(text: str) -> tuple[list[str], list[dict[str, str]], list[str]] | None:
+    """(column names, rows, each row's line as the evidence shows it), or None.
+
+    A survey reaches a run as the upload parser renders it: cells joined by
+    " | " (backend/rag/parsing.py). A file read straight from disk still has
+    its commas. Both are read here; an empty cell keeps its column.
+    """
+    body = [line for line in text.strip().splitlines() if line.strip()]
+    if not body:
+        return None
+    if "|" in body[0] and "," not in body[0]:
+        table = [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in body]
+        lines = body[1:]
+    else:
+        try:
+            table = [row for row in csv.reader(io.StringIO("\n".join(body)))]
+        except csv.Error:
+            return None
+        lines = [",".join(row) for row in table[1:]]
+    fields = [name.strip() for name in table[0]]
+    rows = [dict(zip(fields, cells, strict=False)) for cells in table[1:]]
+    if not rows:
+        return None
+    return fields, rows, lines
+
+
 def vessel_inputs_from_csv(text: str, item: EvidenceItem) -> VesselInputs:
     """A survey CSV: location, two dated thickness columns, nominal, t-min, years."""
     inputs = VesselInputs()
-    try:
-        reader = csv.DictReader(io.StringIO(text.strip()))
-        rows = list(reader)
-    except csv.Error:
+    parsed = _survey_table(text)
+    if parsed is None:
         return inputs
-    if not rows or not reader.fieldnames:
-        return inputs
-    fields = [name.strip() for name in reader.fieldnames]
+    fields, rows, lines = parsed
     dated = sorted(
         (int(match.group(1)), name)
         for name in fields
@@ -396,26 +418,24 @@ def vessel_inputs_from_csv(text: str, item: EvidenceItem) -> VesselInputs:
     )
     if len(dated) < 2 or "location" not in fields:
         return inputs
-    (older, previous_col), (newer, current_col) = dated[-2], dated[-1]
-    first = rows[0]
+    (_, previous_col), (_, current_col) = dated[-2], dated[-1]
 
     def column(name: str, unit: str, row_index: int = 0) -> BoundValue | None:
         value = (rows[row_index].get(name) or "").strip()
         if not value:
             return None
         return BoundValue(Quantity.of(float(value), unit), stated=f"{value} {unit}", evidence_id=item.id,
-                          locator=f"CSV column '{name}'", source_text=",".join(str(first.get(f, "")) for f in fields))
+                          locator=f"CSV column '{name}'", source_text=lines[row_index])
 
     inputs.nominal = column("nominal_mm", "mm") if "nominal_mm" in fields else None
     inputs.t_min = column("t_min_mm", "mm") if "t_min_mm" in fields else None
     inputs.years_between = column("years_between", "year") if "years_between" in fields else None
     inputs.years_in_service = column("years_in_service", "year") if "years_in_service" in fields else None
-    for row in rows:
+    for row, line in zip(rows, lines, strict=True):
         label = (row.get("location") or "").strip()
         before, after = (row.get(previous_col) or "").strip(), (row.get(current_col) or "").strip()
         if not label or not before or not after:
             continue
-        line = ",".join(str(row.get(f, "")) for f in fields)
         inputs.readings.append(ReadingRow(
             location=label,
             previous=BoundValue(Quantity.of(float(before), "mm"), stated=f"{before} mm", evidence_id=item.id,
@@ -446,7 +466,7 @@ def vessel_inputs(
         if item.kind not in ("uploaded_file", "vision_extraction"):
             continue
         text = item.excerpt or ""
-        if item.source_document.lower().endswith(".csv") or re.match(r"^\s*location,", text, re.IGNORECASE):
+        if item.source_document.lower().endswith(".csv") or re.match(r"^\s*location\s*[,|]", text, re.IGNORECASE):
             found = vessel_inputs_from_csv(text, item)
         else:
             found = vessel_inputs_from_text(text, item)

@@ -32,6 +32,19 @@ export function reasonSentence(reason: string): string {
   return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`
 }
 
+/**
+ * "Head of Inspection, then Plant Manager", or who is still to sign once one
+ * has. A High finding needs both signatures in order; joining the roles with
+ * "or" told a reader one of them would do.
+ */
+function signaturesNeeded(signatures: { authority: string; signedBy: string | null }[]): string {
+  const waiting = signatures.filter((signature) => !signature.signedBy)
+  const given = signatures.length - waiting.length
+  const order = (list: typeof signatures) => list.map((signature) => signature.authority).join(', then ')
+  if (given === 0) return order(signatures)
+  return `${order(waiting)} (${given} of ${signatures.length} signed)`
+}
+
 const LABEL = 'font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)]'
 
 export function HeldBlock({ turn, canReview }: { turn: AssistantTurn; canReview: boolean }) {
@@ -89,10 +102,14 @@ export function HeldBlock({ turn, canReview }: { turn: AssistantTurn; canReview:
             <Lock className="size-3 text-approval" aria-hidden />
             Held for release
           </p>
-          {roles.length > 0 && (
-            <p className="mt-1.5 text-body text-foreground">
-              Release needs {roles.length === 1 ? 'the' : 'a'} {roles.join(' or ')}.
-            </p>
+          {approval.signatures.length > 0 ? (
+            <p className="mt-1.5 text-body text-foreground">Release needs {signaturesNeeded(approval.signatures)}.</p>
+          ) : (
+            roles.length > 0 && (
+              <p className="mt-1.5 text-body text-foreground">
+                Release needs {roles.length === 1 ? 'the' : 'a'} {roles.join(' or ')}.
+              </p>
+            )
           )}
           {reasons.length > 0 && (
             <ul className="mt-1.5 flex flex-col gap-1 text-meta leading-[1.5] text-foreground-secondary">

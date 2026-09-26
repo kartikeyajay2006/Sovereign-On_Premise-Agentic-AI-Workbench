@@ -139,6 +139,9 @@ reproducible artifact behind it.
 
 ## Already closed in the current build
 
+Phase by phase, with what is still open, in
+[the readiness review](SIH-READINESS-REVIEW.md) (27 September 2026).
+
 - A generated deliverable can now be read directly in the thread, with its
   structured content and citation links preserved beside Download.
 - Calculation tasks fail closed when no recomputable expression was produced.
@@ -147,6 +150,19 @@ reproducible artifact behind it.
   self-registration is disabled by default.
 - Installed demo models are pinned to approved Ollama digests; a mismatch is
   refused by the router.
+- Phases 1 to 6 were built on separate branches and merged in PR #6: the
+  formula registry, claim verdicts, the container runtime and nftables
+  egress, ingestion guards, P&ID from the drawing, historian and OPC UA
+  adapters, two signatures for a High finding, signed certificates, Proof
+  Mode, measurements and re-run/compare.
+- Relief devices are judged by SOP-INS-025 formulas, in the registry and in a
+  run; a failed as-received test is High and needs both signatures.
+- On Linux, subprocess code runs in a private network namespace, so the
+  kernel refuses its connections even where no container image is built.
+
+Still open: operating-envelope limits, approval binding to the prompt,
+evidence, policy and model digest, CMMS, document-management and directory
+adapters, and frontend tests.
 
 ## Do not spend judged-build time on
 
