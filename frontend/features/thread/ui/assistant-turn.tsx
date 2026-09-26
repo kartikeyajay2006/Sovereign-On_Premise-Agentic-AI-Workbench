@@ -26,6 +26,7 @@ import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
 import { CITE_CHIP } from './cite-chip'
 import { CiteButton, EvidenceCardScope } from './evidence-card'
+import { HeldBlock } from './held-block'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -842,19 +843,14 @@ export const AssistantTurn = memo(function AssistantTurn({
           */
           <div ref={answerRef}>
           <Release verdict={verdict} released={turn.releasedLive} className="-mx-3 -my-2 flex flex-col gap-3 px-3 py-2">
-            {turn.outcome === 'rejected' && (
-              <p className="border-l-2 border-critical-border pl-3 text-body text-foreground-secondary">
-                <span className="text-critical-text">
-                  {turn.approval?.decision === 'revision_requested' ? 'Returned for revision' : 'Rejected at review'}
-                </span>
-                {turn.approval?.reviewerName ? ` by ${turn.approval.reviewerName}` : ''}
-                {turn.approval?.comment ? `: “${turn.approval.comment}”.` : '.'}
-                {turn.deliverable ? ' Its deliverable was not released.' : ''}
-              </p>
-            )}
             <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
             <SourcesRow text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
           </Release>
+          {/* Directly under the answer: why it is held, who releases it,
+              what is withheld -- and, once decided, the decision. */}
+          <div className="mt-4 empty:hidden">
+            <HeldBlock turn={turn} canReview={canReview} />
+          </div>
           </div>
         ) : !running ? (
           <p className="text-body text-foreground-secondary">This run finished without an answer.</p>
@@ -1015,10 +1011,6 @@ export const AssistantTurn = memo(function AssistantTurn({
               evidence={turn.evidence}
               onRerun={turn.request && onRerun ? () => onRerun(turn.id) : undefined}
               rerunDisabled={busy}
-              held={turn.outcome === 'held'}
-              approverRoles={turn.approval?.approverRoles ?? []}
-              reasons={turn.approval?.reasons ?? []}
-              canReview={canReview}
               taskId={turn.taskId}
             />
           )}

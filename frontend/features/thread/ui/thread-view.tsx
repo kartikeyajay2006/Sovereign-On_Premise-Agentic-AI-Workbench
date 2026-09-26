@@ -20,7 +20,7 @@ import { useRole } from '@/components/role-context'
 import { useToast } from '@/components/toast'
 import { NEW_RUN_EVENT } from '@/components/command-palette'
 import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT, type RunsChangedDetail } from '@/components/navigation'
-import { TraceScope, prefersReducedMotion } from '@/shared/motion'
+import { TraceScope, prefersReducedMotion, useDocumentVisible } from '@/shared/motion'
 import { EvidenceRail } from '@/features/evidence/ui/evidence-rail'
 import { harnessApi } from '@/features/harness/api'
 import { Composer, type ComposerAttachment } from './composer'
@@ -759,6 +759,49 @@ export function ThreadView() {
       window.clearInterval(id)
     }
   }, [busy, activeTaskId])
+
+  /*
+    A held run waits on a person, and that person decides somewhere else --
+    the approval queue, another browser. While the tab is visible the record
+    is read again on window focus and every 30 seconds, and a changed
+    decision replaces the turn's record fields; the held block then blooms
+    once and says who released it, or what the reviewer noted. A hidden tab
+    reads nothing: nobody is there to see it, and focus brings it back.
+  */
+  const visible = useDocumentVisible()
+  const heldTaskId =
+    turns.find((t): t is AssistantTurnModel => t.role === 'assistant' && t.outcome === 'held' && t.stream === 'closed')
+      ?.taskId ?? null
+  useEffect(() => {
+    if (!heldTaskId || !visible) return
+    let live = true
+    const reread = async () => {
+      let task: Task
+      try {
+        task = await api.getTask(heldTaskId)
+      } catch {
+        return // Not news: the next read will try again.
+      }
+      if (!live) return
+      const fields = recordFields(task)
+      const same = (t: AssistantTurnModel) =>
+        (t.approval?.decision ?? null) === (fields.approval?.decision ?? null) && t.outcome === fields.outcome
+      const current = turnsRef.current.find(
+        (t): t is AssistantTurnModel => t.role === 'assistant' && t.taskId === heldTaskId,
+      )
+      if (!current || same(current)) return
+      patchTask(heldTaskId, (t) => (same(t) ? t : { ...t, ...fields }))
+      window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
+      setRunsVersion((n) => n + 1)
+    }
+    const timer = window.setInterval(reread, 30_000)
+    window.addEventListener('focus', reread)
+    return () => {
+      live = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', reread)
+    }
+  }, [heldTaskId, visible, patchTask])
 
   // Follow the run while the reader is at the end, and let go the moment they
   // move away from it -- by intent, not by distance. Following used to hold
