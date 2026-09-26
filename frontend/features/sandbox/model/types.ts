@@ -30,6 +30,8 @@ export interface AppliedLimits {
   wall_timeout_seconds: number | null
   kill_on_close: boolean
   die_on_unhandled_exception: boolean
+  /** The run had its own network namespace: the kernel refused its connections, not only the shim. */
+  network_namespace?: boolean
 }
 
 export interface ExecutionAccounting {
@@ -60,6 +62,8 @@ export interface SandboxLimits {
   configured_runtime?: string
   /** The container isolation probe, or null when no container runtime is configured. */
   container?: ContainerProbe | null
+  /** The private network namespace probe (Linux subprocess runtime), or null where it does not apply. */
+  network_namespace?: NetworkNamespaceProbe | null
   backend: string
   memory_mb: number
   cpu_seconds: number
@@ -69,6 +73,17 @@ export interface SandboxLimits {
   network_allowed: boolean
   max_global_concurrency: number
   max_per_user_concurrency: number
+}
+
+/** Whether a private network namespace isolates the subprocess runtime here (backend/tools/netns.py). */
+export interface NetworkNamespaceProbe {
+  usable: boolean
+  mode: 'auto' | 'require' | 'off'
+  prefix: string[] | null
+  interfaces: string[]
+  loopback: { target: string; result: string | null }
+  external: { target: string; result: string | null }
+  reason: string
 }
 
 /** The startup probe that decides whether a container runtime is used (backend/tools/container_sandbox.py). */

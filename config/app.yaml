@@ -106,6 +106,13 @@ sandbox:
   # workstation. Runaway forking is still contained.
   process_headroom: 64
   network_enabled: false
+  # On Linux the subprocess runtime runs each program in a private network
+  # namespace (rootless `unshare --user --net`): the kernel, not only the
+  # interpreter shim, refuses its connections, including to this host's own
+  # loopback. auto uses it once a startup probe proves it here; require
+  # refuses to run code without it; off never probes. A container already has
+  # --network none, so this applies to the subprocess runtime only.
+  network_namespace: auto       # auto | require | off
   # Container runtime options, used when runtime is podman or docker. The
   # runtime is used only when its binary exists AND a startup probe container
   # proves no network, a read-only root, a non-root user, no capabilities and
