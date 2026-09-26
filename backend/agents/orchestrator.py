@@ -232,6 +232,32 @@ class VisualInput:
     page_number: int | None = None
 
 
+# Rendered pages of one PDF are read this many to a vision call.
+PDF_PAGES_PER_BATCH = 3
+
+
+def page_batch_prompt(config: Any, filename: str, page_numbers: list[int]) -> str:
+    """The prompt a batch of rendered PDF pages is read with.
+
+    Module-level so the readiness check (backend/ops/readiness.py) can build
+    the exact vision-cache key a run over the demo scan would look up, rather
+    than a copy of this that drifts and reports a warm cache that is cold.
+    """
+    labels = "; ".join(
+        f"image {index} = page {number}" for index, number in enumerate(page_numbers, start=1)
+    )
+    page_skeleton = json.dumps({"pages": [
+        {"page_number": number, "transcription": "",
+         "fields": [], "findings": [], "tables": [],
+         "illegible_regions": [], "confidence": None}
+        for number in page_numbers
+    ]}, ensure_ascii=False)
+    return config.prompt(
+        "task.vision_extract_pages",
+        filename=filename, page_labels=labels, page_skeleton=page_skeleton,
+    )
+
+
 
 def _revision_note(item: EvidenceItem) -> str:
     """Label a passage from a revision that is no longer in force.
@@ -1398,20 +1424,9 @@ class AgentOrchestrator:
         model again, not be handed the same cached answer.
         """
         if batch[0].page_number is not None:
-            labels = "; ".join(
-                f"image {index} = page {item.page_number}"
-                for index, item in enumerate(batch, start=1)
-            )
-            page_skeleton = json.dumps({"pages": [
-                {"page_number": item.page_number, "transcription": "",
-                 "fields": [], "findings": [], "tables": [],
-                 "illegible_regions": [], "confidence": None}
-                for item in batch
-            ]}, ensure_ascii=False)
-            prompt = self.config.prompt(
-                "task.vision_extract_pages",
-                filename=batch[0].source.filename, page_labels=labels,
-                page_skeleton=page_skeleton,
+            prompt = page_batch_prompt(
+                self.config, batch[0].source.filename,
+                [int(item.page_number) for item in batch],  # type: ignore[arg-type]
             )
         else:
             prompt = self.config.prompt("task.vision_extract", prompt=task.prompt)
@@ -1677,7 +1692,10 @@ class AgentOrchestrator:
                 for _, grouped in groupby(images, key=lambda item: item.source.id):
                     source_items = list(grouped)
                     if source_items[0].page_number is not None:
-                        batches = [source_items[offset:offset + 3] for offset in range(0, len(source_items), 3)]
+                        batches = [
+                            source_items[offset:offset + PDF_PAGES_PER_BATCH]
+                            for offset in range(0, len(source_items), PDF_PAGES_PER_BATCH)
+                        ]
                     else:
                         batches = [[item] for item in source_items]
                     for batch in batches:

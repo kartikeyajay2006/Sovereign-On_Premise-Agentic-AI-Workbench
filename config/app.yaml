@@ -77,6 +77,21 @@ inference:
   single_model_residency: true
   memory_headroom_mb: 1536
 
+# What "ready" means, for scripts/warmup.py and GET /api/ready
+# (backend/ops/readiness.py). Free memory is read with the drafting model
+# already loaded: below this the next vision call or a second user pushes
+# the host into swap, where a 70-second call takes twenty-five minutes.
+readiness:
+  min_free_memory_mb: 1536
+  # A demo sample (an id under demo.samples) whose vision reading should be
+  # cached before judging: a V-2104 scan run takes about 100 s with it and
+  # 5 to 6 minutes without. Empty, or demo.enabled false, skips the check.
+  vision_sample: v2104-scan
+  # /api/ready is unauthenticated and verifies the audit chain; readings are
+  # reused for this long so it cannot be used to make the API re-hash the
+  # whole log in a loop.
+  cache_seconds: 5
+
 knowledge_base:
   chunk_size_chars: 1200
   chunk_overlap_chars: 180

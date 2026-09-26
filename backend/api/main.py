@@ -24,14 +24,13 @@ from fastapi.responses import JSONResponse
 
 from backend.api.routes import engineering, harnesses, proof, runs, samples, sandbox, skills, system, tasks
 from backend.api.task_service import get_task_service
-from backend.core.analyzer import get_task_analyzer
 from backend.core.audit import get_audit_log
 from backend.core.config import ConfigError, get_config
 from backend.core.database import get_database
 from backend.core.identity import get_identity_service
-from backend.models_layer.client import InferenceError, NonLocalEndpointError, get_inference_client
+from backend.models_layer.client import InferenceError, NonLocalEndpointError
 from backend.models_layer.manager import get_model_manager
-from backend.models_layer.router import get_model_router
+from backend.ops import readiness
 from backend.security.sovereignty import get_sovereignty_monitor
 
 
@@ -50,21 +49,15 @@ async def _prewarm() -> None:
     prompt already read: the first greeting skipped 4.5 of its 8 seconds, and
     the first question skips the ~350 tokens of standing instructions.
     """
-    router = get_model_router()
-    decision = await router.route(get_task_analyzer().conversation_profile(), stage="drafting")
-    if not decision.selected_model:
+    # Routed and loaded by backend/ops/readiness.py, which scripts/warmup.py
+    # also uses: the warm-up must load exactly what this loads, or the first
+    # question after it still pays a reload.
+    descriptor, options = await readiness.drafting_model()
+    if descriptor is None:
         return
-    descriptor = await router.resolve_descriptor(decision)
     await get_model_manager().admit(descriptor, actor="system")
-    options = router.generation_options(descriptor.id, stage="drafting")
     try:
-        await get_inference_client().generate(
-            model=descriptor.provider_model,
-            system=get_config().system_prompt("reasoning"),
-            prompt=get_config().prompt("task.converse", prompt="hello"),
-            options={**options, "num_predict": 1},
-            serving=router.serving_options(descriptor.id),
-        )
+        await readiness.prewarm_drafting_model(descriptor, options)
         print(f"[workbench] {descriptor.display_name} loaded and ready")
     except InferenceError as exc:
         print(f"[workbench] could not preload {descriptor.display_name}: {exc}")
