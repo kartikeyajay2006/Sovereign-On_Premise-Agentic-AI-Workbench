@@ -261,8 +261,16 @@ export const RunTranscript = memo(function RunTranscript({
   return (
     <ol
       aria-label="What the run did"
-      className="thread-log m-0 flex list-none flex-col gap-1.5 rounded-[14px] border border-line-subtle px-3.5 py-3 font-mono text-[12.5px] leading-[1.6]"
+      className="thread-log m-0 flex list-none flex-col gap-1.5 rounded-[var(--radius-xs)] border border-line-default px-3.5 pb-3 pt-0 font-mono text-[12px] leading-[1.6]"
     >
+      {/* The panel's caption strip: what this is, and whose record. */}
+      <li
+        aria-hidden
+        className="-mx-3.5 mb-1 flex items-center justify-between border-b border-line-subtle px-3.5 py-1.5 text-[10px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted"
+      >
+        <span>Run log</span>
+        {turn.taskId && <span className="tabular">{turn.taskId.slice(0, 8)}</span>}
+      </li>
       {waiting && turn.queue && (
         <li className="flex items-baseline gap-2 text-foreground-secondary">
           <Spinner />

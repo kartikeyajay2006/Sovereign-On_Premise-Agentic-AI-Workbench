@@ -15,7 +15,7 @@ import { ClassificationTag } from '@/components/primitives'
 export const UserTurn = memo(function UserTurn({ turn }: { turn: UserTurnModel }) {
   return (
     <article className="group flex flex-col items-end">
-      <div className="max-w-[85%] rounded-[22px] rounded-br-[8px] bg-surface-sunken px-4 py-3">
+      <div className="max-w-[85%] rounded-[var(--radius-sm-token)] border border-line-subtle bg-surface-sunken px-4 py-3">
         {turn.skill && (
           <p className="mb-1 flex items-baseline gap-2 text-[12.5px]" title="This request went through a saved skill. The run met every check a typed request does.">
             <span className="font-mono text-foreground">/{turn.skill.id}</span>
@@ -29,7 +29,7 @@ export const UserTurn = memo(function UserTurn({ turn }: { turn: UserTurnModel }
             {turn.attachments.map((a) => (
               <li
                 key={a.fileId}
-                className="flex max-w-full items-center gap-2 rounded-full bg-surface py-1 pl-2.5 pr-2 text-[12px] text-foreground-secondary"
+                className="flex max-w-full items-center gap-2 rounded-[var(--radius-xs)] bg-surface py-1 pl-2.5 pr-2 text-[12px] text-foreground-secondary"
               >
                 <Paperclip className="size-3 shrink-0 text-foreground-muted" aria-hidden />
                 <span className="max-w-[200px] truncate">{a.filename}</span>
@@ -49,7 +49,9 @@ export const UserTurn = memo(function UserTurn({ turn }: { turn: UserTurnModel }
         )}
       </div>
 
-      <p className="mt-1.5 px-1 text-[12px] text-foreground-muted opacity-70 transition-opacity duration-150 group-hover:opacity-100">
+      {/* Full muted ink, not faded further: at 70% opacity this line fell
+          under AA for its size. */}
+      <p className="mt-1.5 px-1 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted transition-colors duration-150 group-hover:text-foreground-secondary">
         {turn.author.displayName} ·{' '}
         <time dateTime={turn.at} title={turn.at}>
           {new Date(turn.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

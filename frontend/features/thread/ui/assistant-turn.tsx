@@ -695,15 +695,15 @@ export const AssistantTurn = memo(function AssistantTurn({
           tone={held ? 'approval' : null}
           bloomKey={held ? turn.taskId : null}
           className={cn(
-            'inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium',
+            'inline-flex h-[22px] items-center gap-1.5 rounded-[var(--radius-xs)] px-2 font-mono text-[10.5px] font-semibold uppercase tracking-[var(--ls-ledger)]',
             OUTCOME_PILL[turn.outcome],
           )}
         >
-          <span aria-hidden className={cn('size-1.5 rounded-full bg-current', running && 'animate-pulse motion-reduce:animate-none')} />
+          <span aria-hidden className={cn('size-1.5 bg-current', running && 'animate-pulse motion-reduce:animate-none')} />
           {running && turn.stopRequested ? 'Stopping' : OUTCOME_LABEL[turn.outcome]}
         </Light>
 
-        <span className="flex items-center gap-3 text-[12.5px] text-foreground-muted">
+        <span className="flex items-center gap-3 font-mono text-[10.5px] tracking-[var(--ls-ledger)] text-foreground-muted">
           {running && turn.stream === 'live' ? (
             <RunElapsed startedAt={turn.startedAt} />
           ) : !running && turn.elapsedMs !== null ? (
@@ -714,7 +714,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               us otherwise. On a finished turn it said nothing a reader
               needed, and on every one of them. */}
           {running && turn.stream === 'closed' && (
-            <span title="This turn is not attached to the event stream, so it is not updating.">
+            <span className="uppercase" title="This turn is not attached to the event stream, so it is not updating.">
               detached
             </span>
           )}
@@ -725,7 +725,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             type="button"
             aria-expanded={logOpen}
             onClick={() => setLogOpen((open) => !open)}
-            className="hover-decay -mx-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+            className="hover-decay -mx-1.5 inline-flex items-center gap-1 rounded-[var(--radius-xs)] px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
           >
             {workSummary(turn)}
             <ChevronRight
@@ -889,7 +889,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             minutes of a CPU run not being a blank rectangle.
           */
           <div ref={draftBoxRef} className="border-l-2 border-line-default pl-4">
-            <p className="text-[12.5px] text-foreground-muted">
+            <p className="font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
               {verifying ? 'Draft · checking every claim before it is released' : 'Draft · not checked yet'}
             </p>
             <div className="mt-2">

@@ -1554,7 +1554,7 @@ export function ThreadView() {
             <button
               type="button"
               onClick={jumpToLatest}
-              className="hover-decay absolute -top-11 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface px-3.5 py-1.5 text-[12.5px] font-medium text-foreground-secondary shadow-[var(--elev-2)] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+              className="hover-decay absolute -top-11 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-[var(--radius-xs)] border border-line-default bg-surface px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-secondary shadow-[var(--elev-2)] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
             >
               <ArrowDown className="size-3" aria-hidden />
               Latest

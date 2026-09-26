@@ -250,7 +250,7 @@ export const UsageFooter = memo(function UsageFooter({
       {usage.length === 0 && worked && <p className="text-[12px] tabular-nums text-foreground-muted">{worked}</p>}
       {usage.length > 0 && (
         <details className="group/usage">
-          <summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-0.5 rounded-full py-0.5 pr-2 text-[12px] tabular-nums text-foreground-muted transition-colors hover:text-foreground-secondary focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+          <summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-0.5 rounded-[var(--radius-xs)] py-0.5 pr-2 text-[12px] tabular-nums text-foreground-muted transition-colors hover:text-foreground-secondary focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
             <ChevronRight
               className="size-3 shrink-0 transition-transform duration-[var(--micro)] ease-[var(--ease-micro)] group-open/usage:rotate-90"
               aria-hidden
