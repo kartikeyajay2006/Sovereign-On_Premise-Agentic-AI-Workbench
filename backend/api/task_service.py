@@ -128,8 +128,10 @@ class TaskService:
         # Order of ids still waiting, so a caller can be told its position
         # rather than watching an apparently idle screen.
         self._waiting: list[str] = []
-        # Which task is executing right now, for queue positions and cancels.
-        self._active: str | None = None
+        # Which tasks are executing right now, for queue positions and cancels.
+        # A list since agent.worker_count made more than one worker possible;
+        # `_active` is kept as the single-worker view (see the property).
+        self._active = None
         # Asked to stop. Checked between stages, so a run ends at a clean
         # boundary rather than being torn down mid-write.
         self._cancelled: set[str] = set()
@@ -139,6 +141,20 @@ class TaskService:
         # run also ended the loop: the queue served exactly one task per
         # process start, and everything after it sat at 'classified' forever.
         self._alive = False
+
+    # -- what is executing -------------------------------------------------
+    @property
+    def _active(self) -> str | None:
+        """The first executing task: the whole answer with one worker."""
+        executing = getattr(self, "_executing", [])
+        return executing[0] if executing else None
+
+    @_active.setter
+    def _active(self, task_id: str | None) -> None:
+        self._executing: list[str] = [task_id] if task_id else []
+
+    def _is_executing(self, task_id: str) -> bool:
+        return task_id in getattr(self, "_executing", [])
 
     # -- files -------------------------------------------------------------
     def _input_type_for(self, filename: str) -> InputType:
@@ -572,8 +588,10 @@ class TaskService:
         if task_id in self._waiting:
             self._waiting.remove(task_id)
 
-        # A task that never started can be closed out at once.
-        if self._active != task_id:
+        # A task that never started can be closed out at once. With several
+        # workers, "started" means any of them holds it, not the first.
+        was_running = self._is_executing(task_id)
+        if not was_running:
             task.status = TaskStatus.CANCELLED
             task.error = "Stopped before it started."
             task.updated_at = datetime.now(timezone.utc)
@@ -586,12 +604,12 @@ class TaskService:
             actor=user.username,
             actor_role=user.role,
             task_id=task_id,
-            detail={"was_running": self._active == task_id},
+            detail={"was_running": was_running},
         )
         await self.events.publish(
             "task.cancelled",
             task_id=task_id,
-            data={"by": user.display_name, "was_running": self._active == task_id},
+            data={"by": user.display_name, "was_running": was_running},
         )
         await self._publish_queue()
         return self.get_task(task_id) or task
@@ -604,7 +622,7 @@ class TaskService:
         holds the worker is exactly the silence that makes the application look
         stuck.
         """
-        if self._active == task_id:
+        if self._is_executing(task_id):
             return {
                 "running": True,
                 "position": 0,
@@ -612,7 +630,9 @@ class TaskService:
                 "queue_length": len(self._waiting),
             }
 
-        in_progress = 1 if self._active else 0
+        # Every run in progress counts: a task waits only while all the
+        # workers are busy, so it is waiting on every one of them.
+        in_progress = len(getattr(self, "_executing", []))
         if task_id in self._waiting:
             position = self._waiting.index(task_id) + 1
             return {
@@ -644,7 +664,7 @@ class TaskService:
                     # Dropped while it was still queued.
                     self._cancelled.discard(task_id)
                     continue
-                self._active = task_id
+                self._executing.append(task_id)
                 await self._publish_queue()
 
                 task = self.get_task(task_id)
@@ -682,7 +702,8 @@ class TaskService:
                     data={"reason": f"worker error: {exc}"},
                 )
             finally:
-                self._active = None
+                if task_id in self._executing:
+                    self._executing.remove(task_id)
                 # A stop request is spent once its run has ended, however it
                 # ended. Left in the set, every stopped run's id stayed there
                 # for the life of the process.

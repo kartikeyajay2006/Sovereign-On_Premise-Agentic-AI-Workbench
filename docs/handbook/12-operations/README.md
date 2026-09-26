@@ -15,9 +15,14 @@
 
 ```bash
 ./scripts/run.sh --status
+curl -s http://127.0.0.1:8000/api/ready                    # no sign-in: ready + one boolean per check
+python scripts/warmup.py --check                           # the same checks, with the detail
 curl -s http://127.0.0.1:8000/api/health -H "Authorization: Bearer $TOKEN" | jq
 python scripts/audit_tool.py verify
+python scripts/backup.py                                   # nightly; see 12.4
 ```
+
+`/api/ready` answers 200 when every check passes and 503 otherwise, so a process supervisor or load balancer can probe it without a token. It discloses nothing but booleans; `warmup.py --check` prints why a check failed.
 
 | Check | Healthy |
 |---|---|
@@ -28,7 +33,9 @@ python scripts/audit_tool.py verify
 | `sandbox_ready` | `true` |
 | `audit_chain_valid` | `true`, and the tool prints the head hash |
 | `sovereignty_ok` | `true`, external calls 0 |
-| Free memory | More than the largest model's footprint plus 1.5 GB |
+| Free memory | More than the largest model's footprint plus 1.5 GB (`free_memory_ok` in `/api/ready`) |
+| `drafting_model_resident` | `true`: the everyday model is loaded at the context a question asks for |
+| `pinned_models_verified` | `true`: every installed pinned model matches its digest |
 
 <!-- nav:start -->
 

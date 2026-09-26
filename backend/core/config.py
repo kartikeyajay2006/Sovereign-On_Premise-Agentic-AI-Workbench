@@ -12,7 +12,9 @@ prompt, a limit, or a path.
 
 from __future__ import annotations
 
+import copy
 import os
+import re
 import threading
 from functools import lru_cache
 from pathlib import Path
@@ -24,8 +26,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "config"
 POLICY_DIR = PROJECT_ROOT / "policies"
 
+PROFILE_DIR = CONFIG_DIR / "profiles"
+
 ENV_PREFIX = "SOVEREIGN_"
 ENV_NESTING_DELIMITER = "__"
+# Selects config/profiles/<name>.yaml. Deliberately outside the SOVEREIGN_*
+# namespace's nesting: it chooses files, it is not a setting inside one.
+PROFILE_ENV = "SOVEREIGN_PROFILE"
+_PROFILE_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 class ConfigError(RuntimeError):
@@ -72,10 +80,54 @@ def _coerce(raw: str) -> Any:
     return raw
 
 
+def deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """``overlay`` on ``base``: mappings merge key by key, anything else replaces.
+
+    A list replaces rather than extends, so a profile that names two
+    allowed values means those two, not those two plus the base's.
+    Neither argument is modified.
+    """
+    merged = copy.deepcopy(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def _read_profile() -> tuple[str | None, dict[str, Any]]:
+    """The hardware-tier profile named by SOVEREIGN_PROFILE, if any.
+
+    A profile (config/profiles/<name>.yaml) has two optional sections,
+    ``app`` and ``routing``, overlaid on app.yaml and routing.yaml. Unset or
+    empty means no profile and the base files unchanged. A named profile
+    that does not exist is an error, not a silent default: a demo laptop
+    that quietly ran the server profile's residency would swap.
+    """
+    name = os.environ.get(PROFILE_ENV, "").strip().lower()
+    if not name:
+        return None, {}
+    if not _PROFILE_NAME.match(name):
+        raise ConfigError(f"{PROFILE_ENV} must be a profile name, not a path: {name!r}")
+    path = PROFILE_DIR / f"{name}.yaml"
+    if not path.exists():
+        known = sorted(item.stem for item in PROFILE_DIR.glob("*.yaml")) if PROFILE_DIR.exists() else []
+        raise ConfigError(f"Unknown {PROFILE_ENV} '{name}'. Profiles: {', '.join(known) or 'none'}")
+    profile = _read_yaml(path)
+    unknown = set(profile) - {"app", "routing", "description"}
+    if unknown:
+        raise ConfigError(f"Profile {path.name} has unknown sections: {sorted(unknown)}")
+    for section in ("app", "routing"):
+        if not isinstance(profile.get(section) or {}, dict):
+            raise ConfigError(f"Profile {path.name}: '{section}' must be a mapping")
+    return name, profile
+
+
 def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
     """Overlay ``SOVEREIGN_*`` environment variables onto a config mapping."""
     for env_key, env_value in os.environ.items():
-        if not env_key.startswith(ENV_PREFIX):
+        if not env_key.startswith(ENV_PREFIX) or env_key == PROFILE_ENV:
             continue
         path = env_key[len(ENV_PREFIX) :].lower().split(ENV_NESTING_DELIMITER)
         if not path or not path[0]:
@@ -178,9 +230,13 @@ class ConfigBundle:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self.settings = Settings(_apply_env_overrides(_read_yaml(CONFIG_DIR / "app.yaml")))
+        # Base file, then the hardware-tier profile, then SOVEREIGN_* variables:
+        # a variable still wins over a profile, as it wins over the file.
+        self.profile, profile = _read_profile()
+        app = deep_merge(_read_yaml(CONFIG_DIR / "app.yaml"), profile.get("app") or {})
+        self.settings = Settings(_apply_env_overrides(app))
         self.models = _read_yaml(CONFIG_DIR / "models.yaml")
-        self.routing = _read_yaml(CONFIG_DIR / "routing.yaml")
+        self.routing = deep_merge(_read_yaml(CONFIG_DIR / "routing.yaml"), profile.get("routing") or {})
         self.classification = _read_yaml(CONFIG_DIR / "classification.yaml")
         self.prompts = _read_yaml(CONFIG_DIR / "prompts" / "prompts.yaml")
         self.access_control = _read_yaml(POLICY_DIR / "access-control.yaml")

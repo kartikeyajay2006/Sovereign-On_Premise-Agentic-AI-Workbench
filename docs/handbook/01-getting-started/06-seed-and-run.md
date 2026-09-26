@@ -117,15 +117,30 @@ The API's boot sequence (`backend/api/main.py`) is fixed:
 2. Create the storage directories and the database schema.
 3. Verify the audit chain, and record the boot. A broken chain is recorded as `chain_integrity_failure`.
 4. Create the five seed accounts, if the user table is empty.
-5. Start the sovereignty monitor and the task worker. Tasks left running by a previous process are closed as interrupted.
-6. Load the everyday model in the background, when `inference.prewarm` is on.
+5. Start the sovereignty monitor and `agent.worker_count` task workers (one by default). Tasks left running by a previous process are closed as interrupted.
+6. In the background, **reconcile** with what Ollama already holds (`inference.reconcile_on_startup`): the runtime outlives an API restart, so the model manager reads `/api/ps`, adopts the resident drafting model and, under single-model residency, unloads any other registered generation model. Models the registry does not declare are reported and left alone.
+7. Then load the everyday model, when `inference.prewarm` is on.
 
 You will see:
 
 ```text
+[workbench] hardware profile: laptop-8gb
 [workbench] seeded identities: operator, engineer, reviewer, auditor, admin
+[workbench] adopted resident model qwen2.5:3b; unloaded qwen2.5vl:3b
 [workbench] Qwen2.5 3B loaded and ready
 ```
+
+The profile line appears only when `SOVEREIGN_PROFILE` is set, and the adopted line only when Ollama still held a model.
+
+## Is it ready?
+
+```bash
+.venv/bin/python scripts/warmup.py            # loads the drafting model, then READY / NOT READY
+.venv/bin/python scripts/warmup.py --check    # read-only: loads nothing
+curl -s http://127.0.0.1:8000/api/ready       # no sign-in; booleans only
+```
+
+Both read the same checks: the inference server answers, every installed pinned model matches its digest, the drafting model is resident at the context a question asks for, free memory is above `readiness.min_free_memory_mb`, the audit chain verifies, and the V-2104 scan's vision reading is cached (when `readiness.vision_sample` names a demo sample). The script prints the detail behind each; the endpoint returns only `ready` and one boolean per check, with HTTP 503 when not ready. Neither creates a run or writes the audit log.
 
 ## Next
 

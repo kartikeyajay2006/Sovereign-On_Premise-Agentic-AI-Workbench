@@ -140,8 +140,13 @@ class FakeRouter:
 
 
 class NoopManager:
-    async def admit(self, descriptor: ModelDescriptor, *, actor: str, task_id: str) -> dict[str, Any]:
+    async def admit(
+        self, descriptor: ModelDescriptor, *, actor: str, task_id: str, context_tokens: int | None = None
+    ) -> dict[str, Any]:
         return {}
+
+    def projected_fit(self, descriptor: ModelDescriptor, context_tokens: int | None = None) -> dict[str, Any]:
+        return {"fits": True}
 
 
 class EventRecorder:

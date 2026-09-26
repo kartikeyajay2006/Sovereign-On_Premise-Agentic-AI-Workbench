@@ -68,7 +68,7 @@ When the API starts it: loads and validates every YAML file (a malformed policy 
 | PostgreSQL, pgvector | SQLite in WAL mode; vectors as BLOBs, cosine similarity in Python | One file to back up; no server; the corpus is thousands of passages, not millions |
 | Neo4j or another graph store | None yet | P&ID graph extraction is on the roadmap, not built |
 | Redis, Kafka | An in-process `asyncio` fan-out bus | One process produces and serves every event |
-| Celery, a worker fleet | One in-process worker | One model fits in memory at a time; parallel runs would fight over it |
+| Celery, a worker fleet | In-process workers, one by default (`agent.worker_count`) | On a laptop one model fits in memory at a time and parallel runs would fight over it; a server profile raises the count |
 | Kubernetes | A shell script, or Docker for the API | A single host |
 | A cloud identity provider | Local accounts, PBKDF2, sessions in SQLite | No route off the host is needed to sign in |
 

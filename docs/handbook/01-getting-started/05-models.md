@@ -60,6 +60,19 @@ To route back to the 8B for everything, remove the `qwen2.5:3b` entry from the r
 
 Qwen3 emits a `<think>` deliberation block by default. The workbench strips those blocks from every answer, so on a CPU they are pure latency, often several minutes a call. The registry therefore sets `serving.thinking: false` for `qwen3:8b`. Set it to `true` on a GPU host or for a hard reasoning workload.
 
+## Which models to keep resident, by hardware
+
+Pick the tier the host matches, start Ollama with it (`scripts/start-ollama.ps1 -Tier <tier>` or `scripts/start-ollama.sh --tier <tier>`) and the API with `SOVEREIGN_PROFILE=<tier>`. Each tier is a file in `config/profiles/`, overlaid on `app.yaml` and `routing.yaml`.
+
+| Tier | Host | Keep resident | Cited answer | Scan run |
+|---|---|---|---|---|
+| `laptop-8gb` | 8 GB, 2–4 cores, no GPU | Qwen2.5 3B + Nomic; the vision model only on a vision-cache miss; never Qwen3 8B | 38–56 s (measured) | ~100 s with the V-2104 cache warm, ~290 s cold |
+| `laptop-16gb` | 16 GB, 8+ performance cores | 3B + Qwen2.5-VL 3B + Nomic (~7 GB) | ~17 s (estimated) | 1.5–2 min |
+| `cpu-server` | 16–32-core Xeon/EPYC, 64–128 GB | all four; Qwen3 8B allowed | ~13 s | – |
+| `gpu-server` | ≥ 12 GB VRAM, 64 GB RAM | Qwen3 8B + vision + Nomic | ~7 s | under a minute |
+
+On the two laptop tiers, Qwen3 8B is about three times slower than the 3B and does not fit beside anything else in 8 GB: leave it uninstalled, or at least unused (the router already prefers the 3B). Keep the pinned `Q4_K_M` weights on every tier; the digests in `models.yaml` are for those.
+
 ## Running with fewer models
 
 | Missing | What happens |

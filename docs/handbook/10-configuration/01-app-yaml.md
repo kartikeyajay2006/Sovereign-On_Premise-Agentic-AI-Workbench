@@ -34,9 +34,20 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `max_context_tokens` | `8192` | ✅ | Cap on the context window sent, and in the memory estimate |
 | `max_image_edge_px` | `1100` | ✅ | Images are downscaled so their long edge fits |
 | `registry_refresh_seconds` | `30` | ✅ | How long model availability is cached |
-| `max_concurrent_requests` | `2` | ⚠️ | Not read. The single task worker already serialises runs |
+| `max_concurrent_requests` | `2` | ⚠️ | Not read. Concurrency is `agent.worker_count` |
 | `single_model_residency` | `true` | ✅ | One generation model in memory at a time |
-| `memory_headroom_mb` | `1536` | ✅ | Free memory to keep beyond a model's footprint |
+| `memory_headroom_mb` | `1536` | ✅ | Free memory to keep beyond a model's footprint. A model that would not fit with it raises `task.model_memory` and falls back to a smaller eligible model ([12.5](../12-operations/05-performance.md#memory-warnings-on-the-timeline)) |
+| `reconcile_on_startup` | `true` | ✅ | At startup, adopt the generation model Ollama still holds and, under single residency, unload the other registered ones. Tests turn it off |
+
+## `readiness`
+
+Read by `scripts/warmup.py` and `GET /api/ready` (`backend/ops/readiness.py`).
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `min_free_memory_mb` | `1536` | ✅ | Free memory, with the drafting model loaded, below which the host is not ready |
+| `vision_sample` | `v2104-scan` | ✅ | A `demo.samples` id whose vision reading must be cached. Empty, or `demo.enabled: false`, makes the check not apply (`null`) |
+| `cache_seconds` | `5` | ✅ | How long `/api/ready` reuses its readings, so the unauthenticated endpoint cannot make the API re-hash the audit log in a loop |
 
 ## `knowledge_base`
 
@@ -85,6 +96,7 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `template_plan_min_confidence` | `0.6` | ✅ | When a run needs a plan, it is taken from the task shape (no model call) if code is already required, or if the classification is at least this confident and no CSV/XLSX is attached ([7.3](../07-agents/03-planning-prompts.md#who-makes-the-plan)). Above 1.0 always asks the model |
 | `step_timeout_seconds` | `600` | ⚠️ | Not read; model calls are bounded by `inference.request_timeout_seconds` |
 | `stream_tokens` | `true` | ⚠️ | Not read; answers always stream |
+| `worker_count` | `1` | ✅ | Runs executed at once. One on a CPU host; the server profiles raise it to match `OLLAMA_NUM_PARALLEL` |
 
 ## `vision_cache`
 

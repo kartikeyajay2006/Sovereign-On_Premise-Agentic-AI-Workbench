@@ -11,7 +11,9 @@ Boot sequence, in order:
    ``policies/access-control.yaml``; otherwise, on a host with no
    administrator, issue the one-time owner setup token.
 5. Start the sovereignty monitor and the task worker.
-6. Load the everyday model in the background, when ``inference.prewarm`` is set.
+6. In the background: reconcile the model manager with what the runtime
+   already holds (``inference.reconcile_on_startup``), then load the everyday
+   model when ``inference.prewarm`` is set.
 """
 
 from __future__ import annotations
@@ -26,15 +28,14 @@ from fastapi.responses import JSONResponse
 
 from backend.api.routes import accounts, engineering, harnesses, proof, runs, samples, sandbox, skills, system, tasks
 from backend.api.task_service import get_task_service
-from backend.core.analyzer import get_task_analyzer
 from backend.core.accounts import get_account_service
 from backend.core.audit import get_audit_log
 from backend.core.config import ConfigError, get_config
 from backend.core.database import get_database
 from backend.core.identity import get_identity_service
-from backend.models_layer.client import InferenceError, NonLocalEndpointError, get_inference_client
+from backend.models_layer.client import InferenceError, NonLocalEndpointError
 from backend.models_layer.manager import get_model_manager
-from backend.models_layer.router import get_model_router
+from backend.ops import readiness
 from backend.security.sovereignty import get_sovereignty_monitor
 
 
@@ -53,24 +54,60 @@ async def _prewarm() -> None:
     prompt already read: the first greeting skipped 4.5 of its 8 seconds, and
     the first question skips the ~350 tokens of standing instructions.
     """
-    router = get_model_router()
-    decision = await router.route(get_task_analyzer().conversation_profile(), stage="drafting")
-    if not decision.selected_model:
+    # Routed and loaded by backend/ops/readiness.py, which scripts/warmup.py
+    # also uses: the warm-up must load exactly what this loads, or the first
+    # question after it still pays a reload.
+    descriptor, options = await readiness.drafting_model()
+    if descriptor is None:
         return
-    descriptor = await router.resolve_descriptor(decision)
-    await get_model_manager().admit(descriptor, actor="system")
-    options = router.generation_options(descriptor.id, stage="drafting")
-    try:
-        await get_inference_client().generate(
-            model=descriptor.provider_model,
-            system=get_config().system_prompt("reasoning"),
-            prompt=get_config().prompt("task.converse", prompt="hello"),
-            options={**options, "num_predict": 1},
-            serving=router.serving_options(descriptor.id),
+    admission = await get_model_manager().admit(
+        descriptor, actor="system", context_tokens=options.get("num_ctx")
+    )
+    if admission.get("fits") is False:
+        # Loaded anyway: there is no smaller model to answer a greeting
+        # with, and the operator needs the warning before the first run.
+        print(
+            f"[workbench] warning: {descriptor.display_name} needs about "
+            f"{admission.get('footprint_mb')} MB plus headroom; "
+            f"{admission.get('available_after_mb')} MB is free. Expect swapping."
         )
+    try:
+        await readiness.prewarm_drafting_model(descriptor, options)
         print(f"[workbench] {descriptor.display_name} loaded and ready")
     except InferenceError as exc:
         print(f"[workbench] could not preload {descriptor.display_name}: {exc}")
+
+
+async def _reconcile() -> None:
+    """Adopt what the runtime still holds from before this API started.
+
+    Ollama outlives an API restart. Reconciled before the prewarm, so the
+    prewarm's admission knows what is resident instead of loading the
+    drafting model beside a vision model it cannot see. The drafting model
+    is preferred when resident, since it is the one the prewarm wants.
+    """
+    prefer = None
+    try:
+        descriptor, _ = await readiness.drafting_model()
+        prefer = descriptor.id if descriptor else None
+    except Exception:  # unroutable is reported by the prewarm and by /api/ready
+        pass
+    result = await get_model_manager().reconcile(prefer=prefer)
+    if result["adopted"]:
+        evicted = f"; unloaded {', '.join(result['evicted'])}" if result["evicted"] else ""
+        print(f"[workbench] adopted resident model {result['adopted']}{evicted}")
+    if result["unregistered"]:
+        print(f"[workbench] resident but unregistered (left alone): {', '.join(result['unregistered'])}")
+
+
+async def _settle_models(*, reconcile: bool, prewarm: bool) -> None:
+    if reconcile:
+        try:
+            await _reconcile()
+        except Exception as exc:  # never keep the prewarm from running
+            print(f"[workbench] could not reconcile resident models: {exc}")
+    if prewarm:
+        await _prewarm()
 
 
 @contextlib.asynccontextmanager
@@ -114,6 +151,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         actor="system",
         detail={
             "application": config.settings.app.get("name"),
+            # Which hardware-tier profile shaped residency and budgets.
+            "profile": config.profile,
             "inference_provider": config.settings.inference.get("provider"),
             "inference_base_url": config.settings.inference.get("base_url"),
             "sandbox_runtime": config.settings.sandbox.get("runtime"),
@@ -137,6 +176,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             detail={"runtime": effective, "probe": sandbox.container_probe()},
         )
         print(f"[workbench] sandbox runtime: {effective}")
+
+    if config.profile:
+        print(f"[workbench] hardware profile: {config.profile}")
 
     # Demo accounts only in demo mode. Otherwise a host with no administrator
     # prints a one-time setup token for whoever is at its console, and the
@@ -165,11 +207,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if orphans:
         print(f"[workbench] closed {len(orphans)} task(s) interrupted by a restart")
 
-    await service.start(worker_count=1)
+    # One by default: on a CPU host a second concurrent run loads a second
+    # model's cache and both crawl. A server profile raises it.
+    workers = max(1, int(config.settings.agent.get("worker_count", 1) or 1))
+    await service.start(worker_count=workers)
+    if workers > 1:
+        print(f"[workbench] {workers} task workers")
 
     prewarm = None
-    if bool(config.settings.inference.get("prewarm", False)):
-        prewarm = asyncio.create_task(_prewarm())
+    reconcile = bool(config.settings.inference.get("reconcile_on_startup", True))
+    preload = bool(config.settings.inference.get("prewarm", False))
+    if reconcile or preload:
+        prewarm = asyncio.create_task(_settle_models(reconcile=reconcile, prewarm=preload))
 
     try:
         yield

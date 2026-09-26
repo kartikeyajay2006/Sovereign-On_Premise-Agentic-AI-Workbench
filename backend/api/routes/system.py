@@ -20,7 +20,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 from backend.api.dependencies import CurrentUser, SessionToken, require_permission
 from backend.api.task_service import get_task_service
@@ -52,6 +52,7 @@ from backend.core.schemas import (
 )
 from backend.models_layer.manager import get_model_manager
 from backend.models_layer.registry import get_model_registry
+from backend.ops import readiness
 from backend.rag.knowledge_base import get_knowledge_base
 from backend.security.sovereignty import get_sovereignty_monitor
 from backend.tools.sandbox import get_sandbox
@@ -79,6 +80,26 @@ def public_status() -> dict[str, Any]:
         "monitored_since": status.monitored_since.isoformat(),
         "checked_at": status.last_checked.isoformat(),
     }
+
+
+@router.get("/ready")
+async def ready() -> JSONResponse:
+    """Is this host ready to serve a question? Readable without signing in.
+
+    For a readiness probe and the console banner, so it answers before
+    anyone authenticates -- and so it says only yes or no, per check: no
+    model names, digests, memory figures, paths or usernames. The detail
+    behind each boolean is what scripts/warmup.py prints on the host itself.
+    The readings are backend/ops/readiness.py's, shared with that script,
+    and are reused for readiness.cache_seconds.
+
+    503 when not ready, so a probe needs no body parsing.
+    """
+    report = await readiness.cached_evaluate()
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if report.ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=report.public(),
+    )
 
 
 # ------------------------------------------------------------------ identity

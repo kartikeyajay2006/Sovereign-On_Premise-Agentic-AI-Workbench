@@ -81,6 +81,7 @@ export function useEventStream(options: EventStreamOptions = {}) {
       'task.model_selected',
       'task.model_completed',
       'task.model_swapped',
+      'task.model_memory',
       'task.tool_started',
       'task.tool_completed',
       'task.extraction',

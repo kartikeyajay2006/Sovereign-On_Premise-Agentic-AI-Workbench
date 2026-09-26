@@ -21,6 +21,7 @@ The model registry. The concept is in [5.1](../05-models-and-routing/01-registry
 | `context_window` | ✅ | int | Declared window in tokens; capped at `inference.max_context_tokens` when calling |
 | `quantization` | | string | Informational |
 | `parameters_b` | ✅ | float | Billions of parameters: the smaller-model bonus and the memory estimate |
+| `architecture` | | map | `{layers, kv_heads, head_dim}`: the model manager's KV-cache estimate, 2 × layers × kv_heads × head_dim × 2 bytes per token of context (36 KiB for Qwen2.5 3B, 144 KiB for Qwen3 8B). Used when Ollama has not yet reported the model resident; without it the estimate is a conservative 144 KiB per token |
 | `approved_classifications` | ✅ | list | `normal`, `confidential`, `sensitive`, `restricted`. The data classes this model may see |
 | `serving.provider` | ✅ | `ollama` | |
 | `serving.model` | ✅ | string | The runtime's name for it |
