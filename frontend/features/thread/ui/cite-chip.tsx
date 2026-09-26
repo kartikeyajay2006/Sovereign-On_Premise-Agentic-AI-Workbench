@@ -3,6 +3,17 @@
 import { cn } from '@/lib/utils'
 
 /**
+ * A resolved citation's look: the lime tint and lime ink (a deep olive by
+ * day), square, mono. Only for an id that names recorded evidence -- lime is
+ * spent on what the reader can act on, and on what is cited.
+ */
+export const CITE_CHIP = cn(
+  'hover-decay inline-flex items-center rounded-[var(--radius-xs)] px-1.5 font-mono text-[10.5px] font-semibold leading-none',
+  'bg-[var(--cite-wash)] text-[var(--cite-ink)] hover:bg-[var(--cite-wash-hover)] data-[popup-open]:bg-[var(--cite-wash-hover)]',
+  'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
+)
+
+/**
  * A citation id as a chip.
  *
  * Resolved -- the id names evidence this run recorded -- it is a button that
@@ -32,11 +43,7 @@ export function CiteChip({
       onClick={() => onCite(id)}
       data-trace={trace ? `${trace}:${id}` : undefined}
       title={`Open ${id}`}
-      className={cn(
-        'hover-decay inline-flex h-[18px] items-center rounded-[var(--radius-xs)] bg-surface-sunken px-1.5 align-[1px] font-mono text-[10.5px] font-semibold leading-none text-foreground',
-        'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
-        className,
-      )}
+      className={cn(CITE_CHIP, 'h-[18px] align-[1px]', className)}
     >
       {id}
     </button>

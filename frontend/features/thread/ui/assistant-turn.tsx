@@ -24,6 +24,7 @@ import { TopologyCard } from './topology-card'
 import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
+import { CITE_CHIP } from './cite-chip'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -197,7 +198,7 @@ function Inline({
             onClick={() => onCite(id)}
             // TRACE: pairs the chip with its row in the evidence rail.
             data-trace={trace ? `${trace}:${id}` : undefined}
-            className="mx-0.5 inline-flex h-[19px] items-center rounded-[6px] bg-surface-sunken px-1.5 align-[2px] text-[11px] font-semibold leading-none text-foreground-secondary transition-colors hover:bg-foreground hover:text-background focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+            className={cn(CITE_CHIP, 'mx-0.5 h-[19px] align-[2px] text-[11px]')}
           >
             {id}
           </button>
@@ -370,14 +371,19 @@ function SourcesRow({
   onCite: (id: string) => void
   trace: string
 }) {
-  const ids = Array.from(new Set((text.match(/\[[SFVCEHT]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
+  const ids = Array.from(new Set((text.match(/\[[A-Z]{1,3}\d+(?:\.\d+)*\]/g) ?? []).map((m) => m.slice(1, -1))))
   const cited = ids
     .map((id) => evidence.find((e) => e.id === id))
     .filter((e): e is EvidenceItem => e !== undefined)
-  if (cited.length === 0) return null
+  if (evidence.length === 0) return null
   const shown = cited.slice(0, 3)
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-label="Sources this answer cites">
+      {/* Both counts from the record: what the run recorded, and how many
+          of the ids the answer cites resolve to it. */}
+      <span className="mr-1 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+        {evidence.length} source{evidence.length === 1 ? '' : 's'} · {cited.length} cited
+      </span>
       {shown.map((item) => (
         <button
           key={item.id}
@@ -385,9 +391,9 @@ function SourcesRow({
           onClick={() => onCite(item.id)}
           data-trace={`${trace}:${item.id}`}
           title={item.source_document ?? undefined}
-          className="hover-decay inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 text-[12.5px] text-foreground-secondary hover:bg-[color-mix(in_oklab,var(--foreground)_9%,var(--background))] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+          className="hover-decay inline-flex h-7 max-w-full items-center gap-1.5 rounded-[var(--radius-xs)] border border-line-subtle px-2 text-[12.5px] text-foreground-secondary hover:border-line-default hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
         >
-          <span className="font-semibold text-foreground">{item.id}</span>
+          <span className={cn(CITE_CHIP, 'h-[18px] px-1')}>{item.id}</span>
           <span className="truncate">{citeLabel(item)}</span>
         </button>
       ))}
@@ -395,7 +401,7 @@ function SourcesRow({
         <button
           type="button"
           onClick={() => onCite(cited[shown.length].id)}
-          className="hover-decay inline-flex h-7 items-center rounded-full px-2 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+          className="hover-decay inline-flex h-7 items-center rounded-[var(--radius-xs)] px-2 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
         >
           +{cited.length - shown.length} more
         </button>
