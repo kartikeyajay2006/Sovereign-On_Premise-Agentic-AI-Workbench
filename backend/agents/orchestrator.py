@@ -711,6 +711,8 @@ class AgentOrchestrator:
             raise NoEligibleModelError(decision.reason)
 
         descriptor = await self.router.resolve_descriptor(decision)
+        # Before the policy check, so a fallback model is checked like any other.
+        decision, descriptor = await self._fit_or_fallback(task, user, stage, decision, descriptor)
         policy_event = self.gateway.check_model(
             user,
             descriptor.id,
@@ -877,6 +879,82 @@ class AgentOrchestrator:
             },
         )
         return _strip_reasoning(result.text), decision
+
+    async def _fit_or_fallback(
+        self, task: Task, user: User, stage: str,
+        decision: RoutingDecision, descriptor: ModelDescriptor,
+    ) -> tuple[RoutingDecision, ModelDescriptor]:
+        """Act on a model that would not fit in free memory, before loading it.
+
+        The manager used to compute `fits` after admission and nobody read
+        it, so a model too large for the host was loaded anyway and the run
+        went to swap, where a 70-second call takes 25 minutes -- with nothing
+        on the timeline to say why. Now a projected shortfall is a
+        `task.model_memory` event on the timeline and an audit record, and
+        the run falls back to a smaller model the router already found
+        eligible for this stage (same hard gates: installed, approved for
+        this data, capability-complete) that does fit. With none, it
+        proceeds on the routed model and the warning stands on the record.
+        """
+        options = self.router.generation_options(descriptor.id, stage=stage)
+        fit = self.manager.projected_fit(descriptor, options.get("num_ctx"))
+        if fit.get("fits", True):
+            return decision, descriptor
+
+        own_footprint = self.manager.footprint_of(descriptor, options.get("num_ctx"))
+        fallback: ModelDescriptor | None = None
+        for candidate in decision.candidates:
+            if not candidate.get("eligible") or candidate.get("model") == descriptor.id:
+                continue
+            try:
+                alternative = await self.router.resolve_descriptor(
+                    decision.model_copy(update={"selected_model": candidate["model"]})
+                )
+            except NoEligibleModelError:
+                continue
+            context = self.router.generation_options(alternative.id, stage=stage).get("num_ctx")
+            if self.manager.footprint_of(alternative, context) >= own_footprint:
+                continue
+            if self.manager.projected_fit(alternative, context).get("fits"):
+                fallback = alternative
+                break
+
+        shortfall = (
+            f"{descriptor.id} needs about {fit['needed_mb']} MB with headroom; "
+            f"about {fit['projected_mb']} MB would be free"
+        )
+        detail = {
+            "stage": stage,
+            "model": descriptor.id,
+            "footprint_mb": fit["footprint_mb"],
+            "needed_mb": fit["needed_mb"],
+            "available_mb": fit["projected_mb"],
+            "fallback": fallback.id if fallback else None,
+            "action": "fallback" if fallback else "proceed",
+            "reason": (
+                f"{shortfall}: using the smaller eligible {fallback.id}" if fallback
+                else f"{shortfall}, and no smaller eligible model fits: proceeding, "
+                "expect this stage to be slow if the host swaps"
+            ),
+        }
+        await self._emit(task, "task.model_memory", detail)
+        self.audit.record(
+            category="model", action="memory_warning", actor=user.username,
+            actor_role=user.role, task_id=task.id, detail=detail,
+        )
+        if fallback is None:
+            return decision, descriptor
+
+        rerouted = decision.model_copy(update={
+            "selected_model": fallback.id,
+            "selected_display_name": fallback.display_name,
+            "reason": f"{decision.reason}; {detail['reason']}",
+        })
+        # The run's routing record names the model that actually answered.
+        if task.routing and task.routing[-1] is decision:
+            task.routing[-1] = rerouted
+            self._checkpoint(task)
+        return rerouted, fallback
 
     async def _generate_streaming(
         self,

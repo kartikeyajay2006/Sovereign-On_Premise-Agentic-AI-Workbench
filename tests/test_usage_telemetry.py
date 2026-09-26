@@ -145,6 +145,9 @@ class NoopManager:
     ) -> dict[str, Any]:
         return {}
 
+    def projected_fit(self, descriptor: ModelDescriptor, context_tokens: int | None = None) -> dict[str, Any]:
+        return {"fits": True}
+
 
 class EventRecorder:
     def __init__(self) -> None:

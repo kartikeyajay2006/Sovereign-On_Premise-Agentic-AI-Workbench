@@ -313,6 +313,31 @@ class ModelManager:
             return result
 
     # -- admission ---------------------------------------------------------
+    def projected_fit(self, descriptor: ModelDescriptor, context_tokens: int | None = None) -> dict[str, Any]:
+        """Would this model fit, counting what admitting it would evict?
+
+        Asked before admission so the caller can still choose another model:
+        ``admit()`` computes the same figure, but only after it has evicted
+        and committed. Free memory now, plus the resident model's footprint
+        when admission would evict it (single residency, or not enough room
+        for both), against this model's footprint plus the headroom.
+        """
+        footprint = self.footprint_of(descriptor, context_tokens)
+        needed = footprint + self.headroom_bytes
+        available = self.available_bytes()
+        resident = self.state.provider_model
+        exempt = descriptor.role == ModelRole.EMBEDDING or resident == descriptor.provider_model
+        evicts = bool(resident) and not exempt and (self.single_residency or available < needed)
+        projected = available + (self.state.footprint_bytes if evicts else 0)
+        mb = 1024 * 1024
+        return {
+            "fits": exempt or projected >= needed,
+            "footprint_mb": footprint // mb,
+            "needed_mb": needed // mb,
+            "available_mb": available // mb,
+            "projected_mb": projected // mb,
+        }
+
     async def admit(
         self,
         descriptor: ModelDescriptor,
@@ -400,6 +425,9 @@ class ModelManager:
                     "footprint_mb": decision["footprint_mb"],
                     "available_after_mb": decision["available_after_mb"],
                     "evicted": decision["evicted"],
+                    # Recorded, not only returned: a model admitted short of
+                    # memory explains a run that crawled in swap.
+                    "fits": decision["fits"],
                     "registered": descriptor.registered,
                 },
             )

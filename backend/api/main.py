@@ -57,9 +57,17 @@ async def _prewarm() -> None:
     descriptor, options = await readiness.drafting_model()
     if descriptor is None:
         return
-    await get_model_manager().admit(
+    admission = await get_model_manager().admit(
         descriptor, actor="system", context_tokens=options.get("num_ctx")
     )
+    if admission.get("fits") is False:
+        # Loaded anyway: there is no smaller model to answer a greeting
+        # with, and the operator needs the warning before the first run.
+        print(
+            f"[workbench] warning: {descriptor.display_name} needs about "
+            f"{admission.get('footprint_mb')} MB plus headroom; "
+            f"{admission.get('available_after_mb')} MB is free. Expect swapping."
+        )
     try:
         await readiness.prewarm_drafting_model(descriptor, options)
         print(f"[workbench] {descriptor.display_name} loaded and ready")
