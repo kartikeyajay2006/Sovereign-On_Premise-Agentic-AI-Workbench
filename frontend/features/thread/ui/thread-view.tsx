@@ -1524,8 +1524,10 @@ export function ThreadView() {
 
         {turns.length === 0 && !openingRun && (
           <div className="thread-hello text-center">
-            <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
-              What should we <em className="font-serif text-[1.08em] font-normal italic tracking-[-0.01em]">check</em> today?
+            {/* Hi-Vis display voice: light, semi-condensed Archivo, and one
+                word in weight for the one thing the product does. */}
+            <h1 className="text-[clamp(1.9rem,3.4vw,2.5rem)] font-light leading-[1.05] tracking-[-0.03em] text-foreground [font-stretch:92%]">
+              What should we <b className="font-semibold">check</b> today?
             </h1>
             <p className="mx-auto mt-2 max-w-[52ch] text-[0.98rem] leading-[1.55] text-foreground-secondary">
               Ask about a procedure, a report or a calculation. Every answer is cited, checked against policy and
