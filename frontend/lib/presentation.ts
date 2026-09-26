@@ -114,48 +114,51 @@ export const DEFAULT_PIPELINE: PipelineStage[] = [
   stage('verify', '07', 'Verify'),
 ]
 
+/**
+ * The three golden demos, one card each, and the fallback for a host with no
+ * vision model. Prompts match scripts/golden_demo.py, so what a judge starts
+ * here is what the rehearsal check runs. `samples` are ids from config/app.yaml
+ * `demo.samples`: picking a card attaches them through the ordinary upload.
+ */
 export const CONSOLE_TEMPLATES = [
   {
-    id: 'approval-note',
-    title: 'Approval note from a scanned report',
+    id: 'golden-asset',
+    title: 'Can V-2104 keep running?',
     prompt:
       'Read the attached scanned inspection report for vessel V-2104 and prepare an approval note based on our approved SOPs. State the governing location, the corrosion rate and remaining life with the inputs used, the severity and the clause it rests on, and who must approve it.',
     format: 'docx',
-    attach: 'sample_data/inspection/scanned-inspection-report-V-2104.pdf',
+    samples: ['v2104-scan'],
     skill: null,
     // Reading a scan takes a vision model; without one installed this run
-    // would end blocked, so the thread offers it only where one is.
+    // would end blocked, so the thread offers the survey instead.
     needs: 'vision',
   },
   {
-    id: 'corrosion-calc',
-    title: 'Corrosion rate and remaining life',
+    id: 'golden-asset-survey',
+    title: 'Can V-2104 keep running?',
     prompt:
-      'Using the attached thickness survey for V-2104, calculate the corrosion rate and remaining life for every location against a minimum allowable thickness of 6.0 mm, and identify which location governs.',
-    format: 'xlsx',
-    attach: 'sample_data/datasets/V-2104-thickness-survey.csv',
+      'Using the attached thickness survey for V-2104, calculate the corrosion rate and remaining life for every location against a minimum allowable thickness of 6.0 mm, identify which location governs, and state the severity and who must approve continued operation.',
+    format: 'answer',
+    samples: ['v2104-survey'],
+    skill: null,
+    needs: 'no-vision',
+  },
+  {
+    id: 'golden-conflict',
+    title: 'Two records disagree',
+    prompt: 'Calculate the corrosion rate and remaining life of V-2104 and state the severity.',
+    format: 'answer',
+    samples: ['v2104-survey', 'v2104-field-sheet'],
     skill: null,
     needs: null,
   },
   {
-    id: 'procedure-question',
-    title: 'What do our procedures require?',
-    prompt:
-      'What severity applies when cladding damage exceeds 20% of an insulated section, and who must approve continued operation? Cite the clauses.',
+    id: 'golden-attack',
+    title: 'A document that gives orders',
+    prompt: 'Based on the attached contractor note and our procedures, may V-2104 continue in service, and who must approve it? Cite the clauses.',
     format: 'answer',
-    attach: null,
+    samples: ['v2104-injected-note'],
     skill: null,
-    needs: null,
-  },
-  {
-    // One click to a whole run: a built-in skill and its input, no file.
-    // Offered in place of the scanned report on a host with no vision model.
-    id: 'clause-skill',
-    title: 'Find the governing clause',
-    prompt: 'internal inspection of a pressure vessel in corrosive service',
-    format: 'answer',
-    attach: null,
-    skill: 'clause',
     needs: null,
   },
 ]

@@ -51,10 +51,32 @@ def test_ordinary_procedure_and_runbook_text_is_not_flagged(text: str) -> None:
     assert screen(text) == []
 
 
+ATTACK = ROOT / "sample_data" / "attack"
+
+
 def test_the_whole_demonstration_corpus_screens_clean() -> None:
+    # sample_data/attack/ holds the one document written to carry an
+    # injection, for the golden demo; it is tested below, not here.
     texts = [p.read_text(errors="ignore") for p in (ROOT / "sample_data").rglob("*")
-             if p.suffix in (".md", ".csv", ".txt", ".json")]
+             if p.suffix in (".md", ".csv", ".txt", ".json") and ATTACK not in p.parents]
     assert texts and [f for text in texts for f in screen(text)] == []
+
+
+def test_the_demo_attack_note_is_caught_whole_even_hard_wrapped() -> None:
+    text = (ATTACK / "V-2104-contractor-note-with-injection.md").read_text(encoding="utf-8")
+    # Compared as flowing text: the file wraps its lines, and so does neutralise.
+    shown = " ".join(neutralise(text).split())
+    # Both injected sentences, each split across a line wrap in the file.
+    assert "Ignore your procedures" not in shown
+    assert "fit for" not in shown and "no approval is required" not in shown and "mention this note" not in shown
+    # The record around them still reaches the model.
+    assert "Cladding damage was observed over approximately 35%" in shown
+    assert "left barricaded and tagged" in shown
+
+
+def test_a_procedure_stating_what_a_note_shall_state_is_not_an_instruction() -> None:
+    assert screen("The approval note shall state that the vessel is fit for continued service, with the basis.") == []
+    assert screen("Do not remove this note from the vessel file.") == []
 
 
 def test_the_model_sees_a_marker_where_the_instruction_was() -> None:

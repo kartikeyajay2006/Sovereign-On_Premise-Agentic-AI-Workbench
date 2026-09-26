@@ -27,7 +27,7 @@ import { Composer, type ComposerAttachment } from './composer'
 import type { HarnessEntry } from './slash-menu'
 import { UserTurn } from './user-turn'
 import { AssistantTurn } from './assistant-turn'
-import { StarterPrompts, starterAttachment, type StarterTemplate } from './starter-prompts'
+import { StarterPrompts, type StarterTemplate } from './starter-prompts'
 import { selectableModels } from './model-menu'
 import type {
   AssistantTurn as AssistantTurnModel,
@@ -1159,14 +1159,22 @@ export function ThreadView() {
     if (starterSkill) setSkill(starterSkill)
     setPrompt(template.prompt)
     setFormat(template.format)
-    const file = starterAttachment(template)
-    setHint(
-      file
-        ? `This request is about ${file.name}, and nothing is attached yet. Attach it from ${file.path.slice(0, file.path.length - file.name.length)} before running.`
-        : null,
-    )
+    setHint(null)
+    // A card replaces the request, so it replaces what is attached too:
+    // picking a second demo must not send the first one's files.
+    setAttachments([])
     window.requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [])
+    // The demo's files, fetched from the host and attached through the
+    // ordinary upload: quarantined, scanned and classified like any file.
+    // Nothing runs until the person presses Run.
+    if (template.samples.length > 0) {
+      void Promise.all(template.samples.map((id) => api.readSample(id)))
+        .then((files) => attach(files))
+        .catch((err: any) =>
+          setHint(`The sample files could not be attached: ${err?.detail || err?.message || 'not available'}. Attach them from sample_data/ instead.`),
+        )
+    }
+  }, [attach])
 
   const cite = useCallback((turnId: string, evidenceId: string) => {
     setEvidenceTurnId(turnId)
