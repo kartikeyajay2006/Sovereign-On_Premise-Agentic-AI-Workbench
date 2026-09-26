@@ -2733,3 +2733,109 @@ html[data-theme='dark'],
 .side-scroll::-webkit-scrollbar { width: 8px; }
 .side-scroll::-webkit-scrollbar-thumb { border-width: 2px; background-color: color-mix(in oklab, var(--foreground) 14%, transparent); }
 .side-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--foreground) 26%, transparent); }
+
+/* ==================================================================== */
+/* HI-VIS AUTH — sign-in, setup, invitation, reset, request access       */
+/* The doors into the workbench, in the Hi-Vis Monochrome voice: square  */
+/* corners, a Martian Mono uppercase label voice, a light semi-condensed */
+/* Archivo display line, one lime action, and a faint vertical grid on   */
+/* the ground. Static CSS: nothing on these screens moves on its own.    */
+/* The People screen borrows the controls, so a decision there looks     */
+/* like the same instrument as the door it opens.                        */
+/* ==================================================================== */
+.hv-auth {
+  min-height: 100dvh;
+  background-color: var(--background);
+  /* One hairline every 96px, at 4% ink: a drafting sheet, not a pattern. */
+  background-image: linear-gradient(to right, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px);
+  background-size: 96px 100%;
+  background-position: -1px 0;
+  color: var(--foreground);
+}
+.hv-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+}
+.hv-display {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-stretch: 88%;
+  font-size: clamp(2.1rem, 5vw, 2.9rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+.hv-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line-default);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.hv-input::placeholder { color: var(--foreground-muted); }
+.hv-input:hover { border-color: color-mix(in oklab, var(--foreground) 32%, transparent); }
+.hv-input:focus { border-color: var(--action); box-shadow: 0 0 0 1px var(--action); }
+.hv-input[aria-invalid='true'] { border-color: var(--critical); }
+.hv-input.mono { font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.04em; }
+.hv-input.sm { height: 34px; font-size: 0.875rem; }
+textarea.hv-input { height: auto; min-height: 92px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.hv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--action);
+  border-radius: 2px;
+  background: var(--action);
+  color: var(--action-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.hv-btn:hover:not(:disabled) { background: var(--action-hover); border-color: var(--action-hover); }
+.hv-btn:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
+.hv-btn:disabled { opacity: 0.55; cursor: default; }
+.hv-btn.quiet { background: transparent; border-color: var(--line-default); color: var(--foreground); }
+.hv-btn.quiet:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 6%, transparent); border-color: var(--line-default); }
+.hv-btn.danger { background: transparent; border-color: color-mix(in oklab, var(--critical) 55%, transparent); color: var(--critical-text); }
+.hv-btn.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--critical) 10%, transparent); border-color: var(--critical); }
+.hv-btn.sm { height: 32px; padding: 0 12px; font-size: 10px; }
+.hv-link {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.12s ease;
+}
+.hv-link:hover { text-decoration-color: var(--action); }
+.hv-link:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; border-radius: 1px; }
+.hv-panel { border: 1px solid var(--line-subtle); border-radius: 2px; background: var(--surface); }
+.hv-code {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--action-text);
+  word-break: break-all;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hv-input, .hv-btn, .hv-link { transition: none; }
+}

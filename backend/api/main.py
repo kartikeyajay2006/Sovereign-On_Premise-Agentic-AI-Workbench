@@ -7,7 +7,9 @@ Boot sequence, in order:
    start).
 2. Ensure storage directories and the database schema exist.
 3. Verify the audit chain and record the boot event.
-4. Seed the identities declared in ``policies/access-control.yaml``.
+4. In demo mode, seed the demonstration identities declared in
+   ``policies/access-control.yaml``; otherwise, on a host with no
+   administrator, issue the one-time owner setup token.
 5. Start the sovereignty monitor and the task worker.
 6. Load the everyday model in the background, when ``inference.prewarm`` is set.
 """
@@ -22,9 +24,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import engineering, harnesses, proof, runs, samples, sandbox, skills, system, tasks
+from backend.api.routes import accounts, engineering, harnesses, proof, runs, samples, sandbox, skills, system, tasks
 from backend.api.task_service import get_task_service
 from backend.core.analyzer import get_task_analyzer
+from backend.core.accounts import get_account_service
 from backend.core.audit import get_audit_log
 from backend.core.config import ConfigError, get_config
 from backend.core.database import get_database
@@ -135,9 +138,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         print(f"[workbench] sandbox runtime: {effective}")
 
-    created = get_identity_service().ensure_seed_users()
-    if created:
-        print(f"[workbench] seeded identities: {', '.join(created)}")
+    # Demo accounts only in demo mode. Otherwise a host with no administrator
+    # prints a one-time setup token for whoever is at its console, and the
+    # first administrator is created with it (backend/core/accounts.py).
+    provisioning = get_account_service()
+    if provisioning.demo_enabled():
+        created = get_identity_service().ensure_seed_users()
+        if created:
+            print(f"[workbench] seeded demo identities: {', '.join(created)}")
+    token = provisioning.issue_setup_token()
+    if token:
+        print(
+            "[workbench] no administrator on this host. One-time setup token "
+            f"(valid 24 h, also in {provisioning.setup_token_path()}):\n"
+            f"[workbench]   {token}\n"
+            "[workbench] open /setup in the console to create the first administrator."
+        )
 
     monitor = get_sovereignty_monitor()
     await monitor.start()
@@ -192,6 +208,7 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(system.router)
+    application.include_router(accounts.router)
     application.include_router(tasks.router)
     application.include_router(sandbox.router)
     application.include_router(harnesses.router)

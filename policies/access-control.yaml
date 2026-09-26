@@ -72,6 +72,10 @@ roles:
       - system.manage
       # Delete a skill someone else added.
       - skill.manage
+      # Provision accounts: invitations, access-request decisions,
+      # activation and password resets (backend/core/accounts.py). The owner
+      # created at first-run setup takes this role, so it must keep this.
+      - users.manage
     max_data_classification: restricted
 
 # Departments constrain which knowledge-base documents a user may retrieve.
@@ -89,9 +93,13 @@ departments:
   - id: general
     label: General
 
-# Seed identities created on first boot when the user table is empty.
-# Passwords are never stored in this file; they are supplied via environment
-# (SEED_USER_PASSWORD) and stored only as a salted hash.
+# Demonstration identities, created at startup only while demo.enabled is
+# true in config/app.yaml (each one once, if missing). A production host has
+# none: its first administrator is created through the one-time owner setup,
+# and everyone else through an invitation or an approved access request.
+# Passwords are never stored in this file; they come from
+# security.seed_user_password (SOVEREIGN_SECURITY__SEED_USER_PASSWORD) and are
+# stored only as a salted hash.
 seed_users:
   - username: operator
     display_name: Plant Operator

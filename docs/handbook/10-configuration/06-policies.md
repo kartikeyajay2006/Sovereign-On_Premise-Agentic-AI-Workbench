@@ -11,7 +11,7 @@ Five files in `policies/`, each with `policy_version: 1`.
 | `roles.<role>.permissions` | ✅ | Granted permissions (see [9.1](../09-security/01-access-control.md) for which are enforced) |
 | `roles.<role>.max_data_classification` | ✅ | Clearance ceiling |
 | `departments[]` | ✅ | `id` and `label`: valid departments |
-| `seed_users[]` | ✅ | Accounts created when the user table is empty: `username`, `display_name`, `role`, `department`. Passwords come from `security.seed_user_password` |
+| `seed_users[]` | ✅ | Demo accounts, created at startup (each once, if missing) only while `demo.enabled` is true: `username`, `display_name`, `role`, `department`. Passwords come from `security.seed_user_password` |
 | `file_access.department_isolation` | ✅ | Refuse other departments' files and passages |
 | `file_access.override_roles` | ✅ | Roles exempt from department isolation |
 | `file_access.owner_always_allowed` | ✅ | Uploaders can always read their uploads |

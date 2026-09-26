@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { api, setAuthToken } from '@/lib/api'
 import { ROLES } from '@/lib/presentation'
-import type { Role, RoleId, User } from '@/lib/types'
+import type { Role, RoleId, Session, User } from '@/lib/types'
 
 interface RoleContextValue {
   user: User | null
@@ -19,6 +19,12 @@ interface RoleContextValue {
   authenticated: boolean
   setRole: (id: RoleId) => Promise<void>
   login: (username: string, password?: string) => Promise<void>
+  /**
+   * Take a session the service issued some other way than /auth/login --
+   * owner setup, an accepted invitation, a password reset -- as the
+   * signed-in identity.
+   */
+  adopt: (session: Session) => void
   logout: () => Promise<void>
   can: (capabilityOrPermission: string) => boolean
 }
@@ -88,6 +94,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const adopt = (session: Session) => {
+    setAuthToken(session.token)
+    setUser(session.user)
+    const mapped = presentationRole(session.user.role)
+    if (mapped) {
+      setRoleId(mapped.id)
+    }
+    setLoading(false)
+  }
+
   const logout = async () => {
     await api.logout()
     setUser(null)
@@ -132,6 +148,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     authenticated: Boolean(user),
     setRole: setRoleAndSwitch,
     login,
+    adopt,
     logout,
     can,
   }

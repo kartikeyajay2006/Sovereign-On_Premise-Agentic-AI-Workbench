@@ -1,20 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { ROLES } from '@/lib/presentation'
-import type { RoleId } from '@/lib/types'
-import { Input } from '@/shared/ui/controls/input'
+import { request } from '@/lib/api'
+import { roleName } from '@/lib/presentation'
+import type { User } from '@/lib/types'
 import { ErrorState } from '@/shared/ui/data/error-state'
-import { AegisLogo } from '@/components/aegis-logo'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { useRole } from '@/components/role-context'
-import { Wordmark } from '@/components/landing/wordmark'
 import { cn } from '@/lib/utils'
-import { HostStatus } from './host-status'
-import { HERO } from '@/components/landing/copy'
+import { readSetupStatus } from '@/components/accounts/api'
+import { ActionButton, AuthHeading, AuthShell, Field, FormError, RecordedNote } from '@/components/accounts/auth-shell'
+import { HostStatus, siteName, usePublicStatus } from './host-status'
 
 /**
  * Where to go after signing in: the path the guard bounced from, if it is a
@@ -56,252 +54,262 @@ function ServiceUnreachable({ api, className }: { api: string; className?: strin
   )
 }
 
-function initials(label: string) {
-  return label
-    .split(/\s+/)
-    .map((word) => word[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
+/** A refused sign-in, in words that do not say which half was wrong. */
+function refusedMessage(err: any): string {
+  // A lockout is the service's own sentence, with its wait; anything else is
+  // one message for both fields. Saying which half was wrong tells an
+  // attacker which usernames exist on this host.
+  if (err?.status === 429 && typeof err?.detail === 'string') return err.detail
+  return 'That username and password do not match an active account on this host.'
 }
 
 /**
  * Sign in.
  *
- * One quiet column, the way the best product sign-ins are: the mark, a
- * plain heading, the form, and one ink action. Below it, the demo accounts,
- * each with what its role is for -- on this product the role is the point:
- * an engineer can run a task and cannot release it; a reviewer can -- and one
- * line reporting what this machine says about itself, read live.
+ * Identifier first, then password, the way a plant's other systems ask: one
+ * field and Continue, then the password for that name. Nothing is asked of
+ * the service between the two steps -- a "no such user" at step one would
+ * tell anyone at the screen which names exist here -- so the name is only
+ * checked, with the password, when both are sent.
  *
- * There is no sign-up and the page says so: accounts on an air-gapped host
- * are provisioned on that host, and a registration form would promise a path
- * the backend does not have. The same goes for "forgot password": no mail
- * transport, no link to nothing.
+ * Above the form, the site's configured name (or "this host" until the
+ * service has said it). Below, the two other doors, quietly: an invitation
+ * code, or a request for access. There is no sign-up. Every account on a
+ * production host is an administrator's decision, and the page does not
+ * offer a path the backend refuses.
+ *
+ * On a demo host the seeded accounts are listed, folded away under "Demo
+ * accounts", from GET /api/auth/directory -- which lists them only while
+ * demo mode is on, so a production host shows no list rather than a list of
+ * accounts it does not have.
+ *
+ * A host that has never been set up has no one to sign in as, so the page
+ * sends the visitor to /setup when GET /api/setup/status says so.
  */
 export function SignInView({ api }: { api: string }) {
   const router = useRouter()
   const { login } = useRole()
+  const host = usePublicStatus()
+  const site = siteName(host)
 
+  const [step, setStep] = useState<'identify' | 'password'>('identify')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [reveal, setReveal] = useState(false)
-  // Where the error belongs, so it is shown beside the thing that caused it.
   const [error, setError] = useState<SignInError | null>(null)
-  const [busy, setBusy] = useState<'form' | RoleId | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [demo, setDemo] = useState<User[]>([])
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const usernameRef = useRef<HTMLInputElement>(null)
+
+  // First run: nobody to sign in as yet. A failed read leaves the form up;
+  // the host line below already says the service did not answer.
+  useEffect(() => {
+    const controller = new AbortController()
+    readSetupStatus(controller.signal)
+      .then((status) => {
+        if (status.needs_setup) router.replace('/setup')
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [router])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    request<User[]>('/auth/directory', { signal: controller.signal })
+      .then((users) => setDemo(Array.isArray(users) ? users : []))
+      .catch(() => setDemo([]))
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    if (step === 'password') passwordRef.current?.focus()
+    else usernameRef.current?.focus()
+  }, [step])
+
+  const identify = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!username.trim()) {
+      setError({ at: 'form', unreachable: false, message: 'Enter your username.' })
+      return
+    }
+    setError(null)
+    setStep('password')
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (busy) return
-    if (!username.trim() || !password) {
-      setError({ at: 'form', unreachable: false, message: 'Enter a username and a password.' })
+    if (!password) {
+      setError({ at: 'form', unreachable: false, message: 'Enter your password.' })
       return
     }
     setError(null)
     setBusy('form')
     try {
-      await login(username.trim(), password)
+      await login(username.trim().toLowerCase(), password)
       router.push(nextPath())
     } catch (err: any) {
-      // One message for both fields. Saying which half was wrong tells an
-      // attacker which usernames exist on this host.
-      setError(
-        err?.status === 0
-          ? { at: 'form', unreachable: true }
-          : { at: 'form', unreachable: false, message: 'That username and password do not match an account on this host.' },
-      )
+      setError(err?.status === 0 ? { at: 'form', unreachable: true } : { at: 'form', unreachable: false, message: refusedMessage(err) })
       setBusy(null)
     }
   }
 
-  const signInAs = async (roleId: RoleId) => {
+  const signInAs = async (account: User) => {
     if (busy) return
     setError(null)
-    setBusy(roleId)
+    setBusy(account.username)
     try {
-      await login(roleId)
+      await login(account.username)
       router.push(nextPath())
     } catch (err: any) {
       setError(
         err?.status === 0
           ? { at: 'demo', unreachable: true }
-          : { at: 'demo', unreachable: false, message: `The ${roleId} account did not accept the demo password on this host.` },
+          : { at: 'demo', unreachable: false, message: `The ${account.username} account did not accept the demo password on this host.` },
       )
       setBusy(null)
     }
   }
 
+  const change = () => {
+    setStep('identify')
+    setPassword('')
+    setError(null)
+  }
+
   return (
-    <div className="flex min-h-dvh bg-background">
-      {/*
-        The brand panel, from a laptop's width up: the landing page's night
-        ground and its three guarantees, so signing in reads as the same
-        product as the page that led here. Static CSS; nothing moves.
-      */}
-      <aside
-        data-theme="dark"
-        aria-label="About AEGIS"
-        className="ae-night ae-signin-panel sticky top-0 hidden h-dvh w-[44%] max-w-[620px] shrink-0 flex-col justify-between p-10 lg:flex xl:p-14"
-      >
-        <Link
-          href="/"
-          aria-label="AEGIS — home"
-          className="w-fit rounded-full focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
-        >
-          <Wordmark />
-        </Link>
-        <div>
-          <p className="ae-kicker m-0">On your own hardware</p>
-          <h2 className="mt-5 text-[clamp(2.2rem,3.2vw,3rem)] font-semibold leading-none tracking-[-0.05em] text-foreground">
-            Every answer,
-            <em className="block font-serif text-[1.06em] font-normal italic tracking-[-0.02em]">cited to the clause.</em>
-          </h2>
-          <ul className="ae-hero-proof mt-8 flex-col items-start justify-start gap-3">
-            {HERO.proof.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-        <p className="m-0 max-w-[44ch] text-[0.82rem] leading-[1.55] text-foreground-muted">
-          Models, retrieval and the audit chain run on the machine you are signing in to.
-        </p>
-      </aside>
+    <AuthShell
+      footer={
+        <>
+          <HostStatus state={host} />
+          <RecordedNote>Every sign-in is recorded.</RecordedNote>
+        </>
+      }
+    >
+      <AuthHeading label="Sign in to" title={site ?? 'this host'} />
 
-      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-      <header className="flex h-16 items-center justify-between px-5 sm:px-8">
-        <Link
-          href="/"
-          aria-label="AEGIS — home"
-          className="rounded-full focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none lg:invisible"
-        >
-          <Wordmark />
-        </Link>
-        <ThemeToggle />
-      </header>
-
-      <main className="flex flex-1 justify-center px-5 pb-16 pt-8 sm:pt-14">
-        <div className="w-full max-w-[400px]">
-          <div className="ae-load-1 text-center">
-            <AegisLogo variant="mark" size={52} className="mx-auto" />
-            <h1 className="mt-6 text-[1.7rem] font-semibold tracking-[-0.03em] text-foreground">Sign in to AEGIS</h1>
-            <p className="mt-2 text-[0.95rem] text-foreground-secondary">Use the account provisioned for you on this host.</p>
-          </div>
-
-          <form onSubmit={submit} className="ae-load-2 mt-9 flex flex-col gap-4" noValidate>
-            <Input
-              label="Username"
-              size="lg"
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              error={error?.at === 'form' && !error.unreachable ? error.message : undefined}
-              placeholder="engineer"
-            />
-            <Input
-              label="Password"
-              size="lg"
-              type={reveal ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              labelAction={
-                <button
-                  type="button"
-                  onClick={() => setReveal((v) => !v)}
-                  aria-label={reveal ? 'Hide password' : 'Show password'}
-                  aria-pressed={reveal}
-                  className="flex size-6 items-center justify-center rounded-full text-foreground-muted transition-colors hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
-                >
-                  {reveal ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
-                </button>
-              }
-            />
-            <button type="submit" disabled={busy !== null} aria-busy={busy === 'form' || undefined} className="ae-btn primary mt-2 w-full">
-              {busy === 'form' ? (
-                <>
-                  <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
-                  Signing in…
-                </>
-              ) : (
-                'Continue'
-              )}
-            </button>
-            {error?.at === 'form' && error.unreachable && <ServiceUnreachable api={api} />}
-          </form>
-
-          <section aria-labelledby="demo-heading" className="ae-load-3 mt-10">
-            <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-line-subtle" />
-              <h2 id="demo-heading" className="text-[0.82rem] font-normal text-foreground-muted">
-                or try a demo account
-              </h2>
-              <span className="h-px flex-1 bg-line-subtle" />
+      {step === 'identify' ? (
+        <form onSubmit={identify} className="mt-10 flex flex-col gap-5" noValidate>
+          <Field
+            ref={usernameRef}
+            label="Username"
+            name="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            error={error?.at === 'form' && !error.unreachable ? error.message : undefined}
+          />
+          <ActionButton>Continue</ActionButton>
+        </form>
+      ) : (
+        <form onSubmit={submit} className="mt-10 flex flex-col gap-5" noValidate>
+          {/* The name travels with the password, for the browser's password manager too. */}
+          <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />
+          <div className="flex items-center justify-between gap-3 border-y border-line-subtle py-3">
+            <div className="min-w-0">
+              <p className="hv-label m-0">Username</p>
+              <p className="m-0 mt-1 truncate font-mono text-[0.9rem] text-foreground">{username.trim().toLowerCase()}</p>
             </div>
-
-            <ul className="mt-4 flex flex-col gap-1.5">
-              {ROLES.map((r) => {
-                const pending = busy === r.id
-                return (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      onClick={() => void signInAs(r.id)}
-                      disabled={busy !== null}
-                      aria-busy={pending || undefined}
-                      className={cn(
-                        'group flex w-full items-center gap-3 rounded-[14px] border border-line-subtle bg-surface px-3 py-2.5 text-left',
-                        'transition-[border-color,box-shadow,transform] duration-150',
-                        'hover:border-line-default hover:shadow-[0_1px_2px_oklch(0_0_0/0.04),0_8px_20px_-12px_oklch(0_0_0/0.18)]',
-                        'focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none active:scale-[0.99]',
-                        'disabled:cursor-default',
-                        busy !== null && !pending && 'opacity-50',
-                      )}
-                    >
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-sunken text-[0.75rem] font-semibold text-foreground">
-                        {initials(r.label)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline gap-2">
-                          <span className="truncate text-[0.92rem] font-medium text-foreground">{r.label}</span>
-                          <span className="text-[0.75rem] text-foreground-muted">{r.id}</span>
-                        </span>
-                        <span className="mt-0.5 block text-[0.8rem] leading-[1.45] text-foreground-secondary">{r.description}</span>
-                      </span>
-                      {pending ? (
-                        <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-foreground-muted motion-reduce:animate-none" />
-                      ) : (
-                        <ChevronRight
-                          aria-hidden
-                          className="size-4 shrink-0 text-foreground-muted transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground"
-                        />
-                      )}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-            {error?.at === 'demo' &&
-              (error.unreachable ? (
-                <ServiceUnreachable api={api} className="mt-4" />
-              ) : (
-                <p role="alert" className="mt-3 text-[0.85rem] text-critical-text">
-                  {error.message}
-                </p>
-              ))}
-          </section>
-
-          <div className="ae-load-4 mt-10 flex flex-col gap-3 border-t border-line-subtle pt-5">
-            <HostStatus />
-            <p className="text-[0.8rem] leading-[1.5] text-foreground-muted">
-              No self sign-up: accounts are provisioned on this host. Every attempt, accepted or refused, is written to
-              its hash-chained audit log.
-            </p>
+            <button type="button" onClick={change} className="hv-link shrink-0 text-[0.85rem]">
+              Change
+            </button>
           </div>
-        </div>
-      </main>
-      </div>
-    </div>
+          <Field
+            ref={passwordRef}
+            label="Password"
+            name="password"
+            type={reveal ? 'text' : 'password'}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={error?.at === 'form' && !error.unreachable ? error.message : undefined}
+            action={
+              <button
+                type="button"
+                onClick={() => setReveal((v) => !v)}
+                aria-label={reveal ? 'Hide password' : 'Show password'}
+                aria-pressed={reveal}
+                className="flex size-6 items-center justify-center text-foreground-muted transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+              >
+                {reveal ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
+              </button>
+            }
+          />
+          <ActionButton busy={busy === 'form'} busyLabel="Signing in…" disabled={busy !== null}>
+            Sign in
+          </ActionButton>
+        </form>
+      )}
+      {error?.at === 'form' && error.unreachable && <ServiceUnreachable api={api} className="mt-5" />}
+
+      <p className="mt-8 text-[0.86rem] leading-[1.6] text-foreground-secondary">
+        Have an invitation code?{' '}
+        <Link href="/invite" className="hv-link">
+          Accept it
+        </Link>
+        <span aria-hidden className="px-2 text-foreground-muted">
+          ·
+        </span>
+        No account?{' '}
+        <Link href="/request-access" className="hv-link">
+          Request access
+        </Link>
+      </p>
+
+      {demo.length > 0 && (
+        <details className="group mt-10 border-t border-line-subtle pt-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline-2 focus-visible:outline-foreground [&::-webkit-details-marker]:hidden">
+            <span className="hv-label">Demo accounts · {demo.length}</span>
+            <ChevronRight aria-hidden className="size-3.5 text-foreground-muted transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+          </summary>
+          <p className="mt-3 text-[0.8rem] leading-[1.5] text-foreground-muted">
+            Seeded because this host runs in demo mode. Each signs in with the shared demo password.
+          </p>
+          <ul className="mt-3 flex flex-col border-t border-line-subtle">
+            {demo.map((account) => {
+              const pending = busy === account.username
+              return (
+                <li key={account.id} className="border-b border-line-subtle">
+                  <button
+                    type="button"
+                    onClick={() => void signInAs(account)}
+                    disabled={busy !== null}
+                    aria-busy={pending || undefined}
+                    className={cn(
+                      'group/row flex w-full items-center gap-3 px-1 py-2 text-left transition-colors',
+                      'hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]',
+                      'focus-visible:outline-2 focus-visible:outline-foreground disabled:cursor-default',
+                      busy !== null && !pending && 'opacity-50',
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[0.88rem] text-foreground">{account.display_name}</span>
+                    <span className="hidden font-mono text-[0.72rem] text-foreground-muted sm:inline">{roleName(account.role)}</span>
+                    <span className="w-[9.5rem] shrink-0 truncate text-right font-mono text-[0.75rem] text-foreground-secondary">
+                      {account.username}
+                    </span>
+                    {pending ? (
+                      <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-foreground-muted motion-reduce:animate-none" />
+                    ) : (
+                      <ChevronRight aria-hidden className="size-3.5 shrink-0 text-foreground-muted group-hover/row:text-action-text" />
+                    )}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          {error?.at === 'demo' &&
+            (error.unreachable ? (
+              <ServiceUnreachable api={api} className="mt-4" />
+            ) : (
+              <div className="mt-3">
+                <FormError>{error.message}</FormError>
+              </div>
+            ))}
+        </details>
+      )}
+    </AuthShell>
   )
 }

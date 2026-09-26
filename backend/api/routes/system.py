@@ -167,7 +167,15 @@ def directory() -> list[User]:
     only the demonstration accounts policy seeds. It returned every account,
     which told anyone who could reach the port each real user's name, role,
     department and clearance.
+
+    And only in demo mode. A production host that was once a demo may still
+    hold those rows, and the sign-in screen offers whatever this returns as
+    one-click accounts; outside a demo it returns none, and the screen shows
+    no demo list.
     """
+    demo = get_config().settings.raw.get("demo") or {}
+    if not bool(demo.get("enabled", False)):
+        return []
     seeded = {
         str(seed.get("username"))
         for seed in get_config().access_control.get("seed_users", [])
@@ -222,6 +230,9 @@ def policies(user: CurrentUser) -> dict[str, Any]:
     config = get_config()
     return {
         "roles": config.access_control.get("roles", {}),
+        # The departments an account can be placed in, so the People screen
+        # offers the policy's list rather than one copied into the interface.
+        "departments": config.access_control.get("departments", []),
         "tools": config.tool_permissions.get("tools", {}),
         "hard_denied_actions": config.tool_permissions.get("hard_denied_actions", []),
         "classification_levels": config.data_classification.get("levels", []),
