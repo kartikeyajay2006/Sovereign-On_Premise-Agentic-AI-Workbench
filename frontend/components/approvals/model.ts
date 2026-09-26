@@ -118,6 +118,31 @@ export function awaitingSignature(task: Task | null | undefined): RequiredSignat
 }
 
 /**
+ * Why this viewer cannot give the next signature on a signed finding, or
+ * null when they can (or no signature is awaited).
+ *
+ * The service refuses a second signature from the same person
+ * (SOP-OPS-008 Clause 3.2) and a signature from any role but the next
+ * signatory's. Offering Approve to either would only lead to that refusal:
+ * right after signing, the Head of Inspection was shown "Approve & release".
+ */
+export function signatureRefusal(
+  task: Task | null | undefined,
+  viewer: { id: string; role: string } | null | undefined,
+): string | null {
+  const next = awaitingSignature(task)
+  if (!next || !viewer) return null
+  const earlier = (task?.approval?.signatures ?? []).find((s) => s.user_id === viewer.id)
+  if (earlier) {
+    return `You signed this as the ${earlier.authority}. The next signature is the ${next.authority}'s; the same person cannot sign twice (SOP-OPS-008 Clause 3.2).`
+  }
+  if (viewer.role !== next.role) {
+    return `The next signature is the ${next.authority}'s, who ${next.capacity} this finding; your role cannot give it.`
+  }
+  return null
+}
+
+/**
  * The signature an approval would give when it is not the last one needed,
  * or null. Approving then records a signature and releases nothing.
  */

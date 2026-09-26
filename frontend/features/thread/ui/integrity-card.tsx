@@ -131,9 +131,16 @@ export function IntegrityCard({
 }) {
   const [open, setOpen] = useState(false)
   const calculated = records.filter((record) => record.status === 'calculated').length
+  const stated = assessment.kind === 'stated'
+  // A stated question has no location; its figures sit on the one C item.
   const governingId = records.find(
     (record) => record.subject === `${assessment.subject} · ${assessment.governing_location}`,
-  )?.evidence_id
+  )?.evidence_id ?? (stated ? records.find((r) => r.formula_id === 'integrity.remaining_life')?.evidence_id : undefined)
+  const life = assessment.remaining_life_years
+  const authority = [
+    assessment.recommended_by?.length ? `recommended by ${assessment.recommended_by.join(' and ')}` : null,
+    assessment.approved_by?.length ? `approved by ${assessment.approved_by.join(' and ')}` : null,
+  ].filter(Boolean).join(', ')
   const decisionId = records.find((record) => (record.subject || '').endsWith('· decision'))?.evidence_id
   const severity = (assessment.severity || '').toLowerCase()
   const cannot = assessment.status !== 'calculated'
@@ -177,40 +184,63 @@ export function IntegrityCard({
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Reading label="Governing location" cite={governingId} onCite={onCite}>
-            {assessment.governing_location}
-          </Reading>
+          {stated ? (
+            <Reading label="Inputs" cite={assessment.source_evidence_ids?.[0]} onCite={onCite}>
+              stated in the request
+            </Reading>
+          ) : (
+            <Reading label="Governing location" cite={governingId} onCite={onCite}>
+              {assessment.governing_location}
+            </Reading>
+          )}
           <Reading label="Corrosion rate" cite={governingId} onCite={onCite}>
             <span className="tabular font-medium">{fmt(assessment.governing_rate_mm_yr)} mm/year</span>
-            <span className="text-meta text-foreground-muted">{assessment.governing_rate_is} governs</span>
-          </Reading>
-          <Reading label="Remaining life" cite={governingId} onCite={onCite}>
-            <span className="tabular font-medium">
-              {assessment.remaining_life_years == null ? 'not limited by corrosion' : `${fmt(assessment.remaining_life_years, 2)} years`}
+            <span className="text-meta text-foreground-muted">
+              {stated ? 'from the stated readings' : `${assessment.governing_rate_is} governs`}
             </span>
           </Reading>
-          <Reading label="Severity" cite={decisionId} onCite={onCite}>
-            <span className={cn('font-medium capitalize', SEVERITY_TONE[severity])}>{assessment.severity}</span>
+          <Reading label="Remaining life" cite={governingId} onCite={onCite}>
+            <span className={cn('tabular font-medium', life != null && life <= 0 && 'text-critical-text')}>
+              {life == null ? 'not limited by corrosion' : `${fmt(life, 2)} years`}
+            </span>
+            {/* A negative life is how far past t-min it already is, not time left to run. */}
+            {life != null && life <= 0 && <span className="text-meta text-foreground-muted">at or below t-min now</span>}
           </Reading>
-          <Reading label="Approving authority" cite={decisionId} onCite={onCite}>
-            {assessment.approver}
-          </Reading>
-          <Reading label={assessment.kind === 'vessel' ? 'Next thickness survey' : 'Next measurement'} cite={decisionId} onCite={onCite}>
-            {assessment.next_due ? (
-              <>
-                <span className="tabular font-medium">{assessment.next_due}</span>
-                <span className="text-meta text-foreground-muted">{assessment.interval_months} months</span>
-              </>
-            ) : (
-              <span className="text-foreground-muted">not calculable from the evidence</span>
-            )}
-          </Reading>
+          {assessment.severity && (
+            <Reading label="Severity" cite={decisionId} onCite={onCite}>
+              <span className={cn('font-medium capitalize', SEVERITY_TONE[severity])}>{assessment.severity}</span>
+            </Reading>
+          )}
+          {(authority || assessment.approver) && (
+            <Reading label="Approving authority" cite={decisionId} onCite={onCite}>
+              {assessment.approver}
+              {authority && <span className="text-meta text-foreground-muted">{authority}; AEGIS only prepares it</span>}
+            </Reading>
+          )}
+          {!stated && (
+            <Reading label={assessment.kind === 'vessel' ? 'Next thickness survey' : 'Next measurement'} cite={decisionId} onCite={onCite}>
+              {assessment.withdraw_from_service ? (
+                <>
+                  <span className="font-medium text-critical-text">withdrawn from service</span>
+                  <span className="text-meta text-foreground-muted">no routine interval applies</span>
+                </>
+              ) : assessment.next_due ? (
+                <>
+                  <span className="tabular font-medium">{assessment.next_due}</span>
+                  <span className="text-meta text-foreground-muted">{assessment.interval_months} months</span>
+                </>
+              ) : (
+                <span className="text-foreground-muted">not calculable from the evidence</span>
+              )}
+            </Reading>
+          )}
           {assessment.severity_basis && (
             <p className="text-meta text-foreground-secondary sm:col-span-2 lg:col-span-3">
               <span className="font-medium text-foreground">Basis.</span> {assessment.severity_basis}.{' '}
               {assessment.required_action && <>Required action: {assessment.required_action}.</>}
             </p>
           )}
+          {!stated && (
           <p className="text-meta text-foreground-secondary sm:col-span-2 lg:col-span-3">
             <span className="font-medium text-foreground">Fitness-For-Service.</span>{' '}
             {assessment.ffs_triggers.length
@@ -219,6 +249,12 @@ export function IntegrityCard({
                 ? `No trigger applies (local metal loss ${fmt(assessment.local_metal_loss_percent, 1)}% of nominal, under the 25% trigger).`
                 : 'No trigger applies.'}
           </p>
+          )}
+          {assessment.withdraw_from_service && assessment.next_due_basis && (
+            <p className="text-meta text-foreground-secondary sm:col-span-2 lg:col-span-3">
+              <span className="font-medium text-critical-text">Immediate action.</span> {assessment.next_due_basis}
+            </p>
+          )}
         </div>
       )}
 

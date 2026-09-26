@@ -64,7 +64,7 @@ tools:
 
   historian_read:
     description: Read recorded values for a tag from the plant historian or OPC UA (read-only).
-    allowed_roles: [operator, engineer, reviewer, administrator]
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
     max_data_classification: restricted
     side_effects: read_only
     requires_approval: false

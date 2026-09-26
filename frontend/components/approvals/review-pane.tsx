@@ -11,9 +11,9 @@ import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type ReadFailure } from '@/shared/ui/data/reading'
-import { checkLabel } from '@/lib/presentation'
+import { checkLabel, roleName } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
-import { awaitingSignature, formatSize, splitReason, stamp, type QueueItem } from './model'
+import { awaitingSignature, formatSize, signatureRefusal, splitReason, stamp, type QueueItem } from './model'
 import { DECISION_MARK } from './queue-list'
 
 export interface DetailRead {
@@ -152,11 +152,16 @@ function DecisionRecord({ item, task }: { item: QueueItem; task: Task | null }) 
 function HeldBecause({ task }: { task: Task }) {
   const approval = task.approval
   if (!approval || approval.reasons.length === 0) return null
+  // Two signatures are both needed, in order; "X or Y" read as either one.
+  const plan = approval.required_signatures ?? []
+  const meta =
+    plan.length > 1
+      ? `signed by ${plan.map((s) => s.authority).join(', then ')}`
+      : approval.approver_roles.length > 0
+        ? `decided by ${approval.approver_roles.map(roleName).join(' or ')}`
+        : undefined
   return (
-    <Section
-      title="Held because"
-      meta={approval.approver_roles.length > 0 ? `decided by ${approval.approver_roles.join(' or ')}` : undefined}
-    >
+    <Section title="Held because" meta={meta}>
       {/* The reason in words. The rule's name -- what the policy file and
           the audit record call it -- is in its title, for whoever needs to
           find it there, rather than a second line under every reason. */}
@@ -426,6 +431,7 @@ export function ReviewPane({
   canDecide,
   ownRun,
   reviewer,
+  viewer,
   onApprove,
   onReject,
   onRevise,
@@ -446,6 +452,8 @@ export function ReviewPane({
    */
   ownRun: boolean
   reviewer: string
+  /** Who is looking, to tell whether they can give the next signature. */
+  viewer?: { id: string; role: string } | null
   onApprove: () => void
   onReject: () => void
   /** Send the run back to its submitter with a note: nothing released, nothing rejected. */
@@ -468,6 +476,7 @@ export function ReviewPane({
   const signedSoFar = task?.approval?.signatures?.length ?? 0
   const signaturesNeeded = task?.approval?.required_signatures?.length ?? 0
   const lastSignature = awaiting != null && signedSoFar === signaturesNeeded - 1
+  const refusal = held ? signatureRefusal(task, viewer) : null
 
   const cite = (id: string) => {
     setFocusedEvidence(id)
@@ -539,7 +548,7 @@ export function ReviewPane({
                 size="sm"
                 ground="paper"
                 shortcut="A"
-                disabled={!canDecide || openConflicts.length > 0}
+                disabled={!canDecide || openConflicts.length > 0 || refusal !== null}
                 onClick={onApprove}
               >
                 {awaiting && !lastSignature
@@ -584,6 +593,7 @@ export function ReviewPane({
             Your decision is recorded against {reviewer} in the audit chain.
           </p>
         )}
+        {canDecide && !ownRun && refusal && <p className="mt-2 text-ui text-foreground-muted">{refusal}</p>}
         {awaiting && (
           <p className="mt-2 text-ui text-approval-text">
             {signedSoFar > 0 ? `Signed ${signedSoFar} of ${signaturesNeeded}. ` : ''}

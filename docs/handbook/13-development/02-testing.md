@@ -6,7 +6,7 @@
 .venv/bin/python -m pytest -q -k "sandbox or egress"
 ```
 
-Expected on Linux or macOS: **423 passed, 12 skipped**. The skips are the Windows Job Object tests, which run only on a Windows host where the probe passes.
+As measured on CI (2026-09-26): **921 passed, 13 skipped** on Linux, **933 passed, 1 skipped** on Windows. The Linux skips are the Windows Job Object tests, which run only on a Windows host where the probe passes, and the real-container sandbox test, which runs only where Podman or Docker is installed.
 
 ## Isolation
 
@@ -38,7 +38,7 @@ Tests do not call the model runtime on purpose: where a test exercises the pipel
 | `backend (windows, Python 3.11)` | `windows-latest` | the whole suite, where the sandbox runs under a Job Object |
 | `frontend (typecheck and build)` | `ubuntu-latest` | `npm ci`, `tsc --noEmit`, `next build` |
 
-The Linux job is the one that runs the sandbox containment tests (`TestSandboxContainment` and the recomputation tests). They skip on a host without resource limits, so the probe step makes sure they run on the runner instead of passing as skips. The Windows job deselects the two tests that fail on Windows on `main` (a deliverable written in text mode, and POSIX permission bits on the signing key); remove the `--deselect` lines when their fix merges. Python is 3.11, the version the Dockerfile ships. pip and npm downloads are cached, and every action is pinned to a commit SHA.
+The Linux job is the one that runs the sandbox containment tests (`TestSandboxContainment` and the recomputation tests). They skip on a host without resource limits, so the probe step makes sure they run on the runner instead of passing as skips. The Windows job runs the whole suite as well. Python is 3.11, the version the Dockerfile ships. pip and npm downloads are cached, and every action is pinned to a commit SHA.
 
 To run what CI runs, locally:
 

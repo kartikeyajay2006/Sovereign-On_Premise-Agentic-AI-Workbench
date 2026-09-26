@@ -290,3 +290,15 @@ security:
   login_spray_accounts: 10
   login_window_seconds: 300
   login_lockout_seconds: 300
+
+# The demonstration's sample files, which the console's starter cards attach
+# in one click (backend/api/routes/samples.py). Served by id only, only from
+# sample_data/, and uploaded through the ordinary quarantine and scanning.
+# Turn off on a production install.
+demo:
+  enabled: true
+  samples:
+    v2104-scan: sample_data/inspection/scanned-inspection-report-V-2104.pdf
+    v2104-survey: sample_data/datasets/V-2104-thickness-survey.csv
+    v2104-field-sheet: sample_data/conflict/V-2104-contractor-field-sheet.md
+    v2104-injected-note: sample_data/attack/V-2104-contractor-note-with-injection.md

@@ -82,6 +82,7 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `default_step_budget` | `8` | ✅ | Step budget when the complexity class has none |
 | `max_step_budget` | `20` | ✅ | Cap on any step budget |
 | `max_replans` | `2` | ⚠️ | Not read. Code retries use `verification.max_replans` in `policies/approval-rules.yaml` |
+| `template_plan_min_confidence` | `0.6` | ✅ | When a run needs a plan, it is taken from the task shape (no model call) if code is already required, or if the classification is at least this confident and no CSV/XLSX is attached ([7.3](../07-agents/03-planning-prompts.md#who-makes-the-plan)). Above 1.0 always asks the model |
 | `step_timeout_seconds` | `600` | ⚠️ | Not read; model calls are bounded by `inference.request_timeout_seconds` |
 | `stream_tokens` | `true` | ⚠️ | Not read; answers always stream |
 
@@ -125,7 +126,14 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `self_registration_default_role` | `operator` | ✅ | Role given to self-registered accounts |
 | `self_registration_default_department` | `operations` | ✅ | Their department, if none is given |
 | `secret_key` | `""` | ⚠️ | Not read; sessions are random tokens stored in the database |
-| `seed_user_password` | `workbench` | ✅ | Password for the five seed accounts, used only when the user table is empty. **Change before first start** |
+| `seed_user_password` | `workbench` | ✅ | Password given to a seed account when it is created: on first start, and for any declared seed account that does not exist yet (the Head of Inspection and Plant Manager on an older install). **Change before first start** |
+
+## `demo`
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `enabled` | `true` | ✅ | Serve the sample files the console's golden-demo cards attach (`GET /api/samples`). **Set false on a production install** |
+| `samples` | four ids | ✅ | Id → path of each sample, under `sample_data/` only; a path outside it is never served ([11.2](../11-api/02-files-tasks.md#sample-files)) |
 
 <!-- nav:start -->
 

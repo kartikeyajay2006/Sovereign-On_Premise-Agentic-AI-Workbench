@@ -241,6 +241,24 @@ export const api = {
     return res.json()
   },
 
+  /**
+   * One of the demo's sample files (GET /api/samples/{id}), as a File the
+   * composer then uploads through POST /files like any other: the sample is
+   * quarantined, scanned and classified exactly as a chosen file would be.
+   */
+  async readSample(id: string): Promise<File> {
+    const token = getAuthToken()
+    const res = await fetch(`${API_BASE}/samples/${encodeURIComponent(id)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new ApiError(res.status, err.detail || 'Sample not available')
+    }
+    const name = /filename="?([^";]+)"?/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? id
+    return new File([await res.blob()], name)
+  },
+
   // ----------------------------------------------------------- sovereignty
   async sovereigntyStatus(): Promise<SovereigntyStatus> {
     return request<SovereigntyStatus>(

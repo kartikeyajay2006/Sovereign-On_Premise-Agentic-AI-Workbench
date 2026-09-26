@@ -83,7 +83,10 @@ def test_the_certificate_states_what_the_run_ran_on(tmp_path: Path) -> None:
     assert config["files"]["policies/access-control.yaml"] == hashlib.sha256(policy.read_bytes()).hexdigest()
     assert "config/app.yaml" in config["files"]
     assert provenance["policy_versions"]["policies/access-control.yaml"] == 1
-    assert provenance["prompt_library"]["version"] == 1
+    # The version the prompt file declares, whatever it is now.
+    prompts = Path(__file__).resolve().parents[1] / "config" / "prompts" / "prompts.yaml"
+    declared = next(line for line in prompts.read_text(encoding="utf-8").splitlines() if line.startswith("prompts_version:"))
+    assert provenance["prompt_library"]["version"] == int(declared.split(":", 1)[1])
     assert provenance["prompt_library"]["file"] == "config/prompts/prompts.yaml"
 
     assert provenance["egress"]["monitor"]["unapproved_connections_observed"] == 0

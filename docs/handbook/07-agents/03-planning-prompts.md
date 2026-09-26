@@ -64,7 +64,7 @@ Every prompt is in `config/prompts/prompts.yaml`. No prompt text lives in Python
 |---|---|---|
 | `base` | Included in all | Ground every claim in evidence, or say it is absent. Never claim internet access. Precise, industrial tone. Quantities carry units; standards carry clause references |
 | `planning` | Planning | An explicit, minimal plan; each step one tool or direct reasoning |
-| `reasoning` | Answers | The first sentence is the answer. Answer only what was asked. Every factual sentence ends with the identifier of its evidence, `[S2]`. Figures and clause numbers exactly as stated; never invent one. One to four sentences. If the evidence does not settle it, say so and name the document that would |
+| `reasoning` | Answers | The first sentence is the answer. Answer only what was asked. Every factual sentence ends with the identifier of its evidence, `[S2]`. Figures and clause numbers exactly as stated; never invent one. One to four connected sentences, never one labelled field per sentence. For a document request, the document's conclusion: what is recommended, on which figures, and who decides, not the headings a procedure requires the document to carry. If the evidence does not settle it, say so and name the document that would |
 | `coding` | Code | Dependency-light Python 3 for an offline sandbox; standard library plus pandas, numpy, openpyxl; never import socket, requests, urllib or subprocess; print results |
 | `vision` | Reading scans | Transcribe what is visible; mark unreadable values `[illegible]` rather than infer them |
 | `drafting` | Deliverables | Formal industrial documents citing each factual statement inline as `[S1]` |

@@ -22,7 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import engineering, harnesses, proof, runs, sandbox, skills, system, tasks
+from backend.api.routes import engineering, harnesses, proof, runs, samples, sandbox, skills, system, tasks
 from backend.api.task_service import get_task_service
 from backend.core.analyzer import get_task_analyzer
 from backend.core.audit import get_audit_log
@@ -199,6 +199,7 @@ def create_app() -> FastAPI:
     application.include_router(engineering.router)
     application.include_router(proof.router)
     application.include_router(runs.router)
+    application.include_router(samples.router)
 
     @application.exception_handler(NonLocalEndpointError)
     async def non_local_endpoint_handler(

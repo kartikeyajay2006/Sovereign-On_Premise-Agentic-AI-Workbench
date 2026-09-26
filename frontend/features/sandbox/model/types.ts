@@ -56,6 +56,10 @@ export interface SandboxLimits {
   execution_allowed: boolean
   reason: string
   runtime: string
+  /** What config asks for (subprocess | podman | docker); `runtime` is what the host actually does. */
+  configured_runtime?: string
+  /** The container isolation probe, or null when no container runtime is configured. */
+  container?: ContainerProbe | null
   backend: string
   memory_mb: number
   cpu_seconds: number
@@ -65,6 +69,19 @@ export interface SandboxLimits {
   network_allowed: boolean
   max_global_concurrency: number
   max_per_user_concurrency: number
+}
+
+/** The startup probe that decides whether a container runtime is used (backend/tools/container_sandbox.py). */
+export interface ContainerProbe {
+  runtime: string
+  binary: string | null
+  image: string
+  usable: boolean
+  reason: string
+  rootless: boolean | null
+  checks: { name: string; passed: boolean; detail?: string }[]
+  probed_at: string
+  fallback?: string
 }
 
 export interface SelfTestCheck {

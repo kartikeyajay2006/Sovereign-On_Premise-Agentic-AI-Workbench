@@ -1,7 +1,7 @@
 # Prompt library. Templates use Python str.format-style {placeholders}.
 # No prompt text lives in Python source.
 
-prompts_version: 1
+prompts_version: 2
 
 system:
   base: |
@@ -42,6 +42,14 @@ system:
       role.
     - One to four sentences, plus a list only where the procedure itself
       enumerates one.
+    - Write connected sentences, the way a colleague would say them. Never
+      one labelled field per sentence ("The equipment is V-2104. The
+      finding is Medium. The approving authority is ...").
+    - When the request asks for a document (an approval note, a report, a
+      handover), the answer is that document's conclusion: what is
+      recommended, on which figures, and who decides. Do not restate the
+      headings a procedure requires the document to contain; the document
+      carries them.
     - If the evidence does not settle the question, say so in one sentence
       and name the document that would. Never soften a stated requirement
       with "typically" or "may vary".

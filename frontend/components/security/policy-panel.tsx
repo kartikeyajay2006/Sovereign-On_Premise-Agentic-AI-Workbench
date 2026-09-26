@@ -4,6 +4,7 @@ import { memo, useState } from 'react'
 import { ClassificationTag } from '@/components/primitives'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type Reading } from '@/shared/ui/data/reading'
+import { roleName } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 import type { Policies, ToolPolicy } from './api'
 
@@ -52,10 +53,10 @@ function Matrix({ policies, currentRole }: { policies: Policies; currentRole: st
               </span>
               <span className="text-ui text-foreground-secondary">
                 <span className="text-sovereign-text">Allow</span>{' '}
-                {roles.filter((r) => allowed.has(r)).join(', ') || 'no role'}
+                {roles.filter((r) => allowed.has(r)).map(roleName).join(', ') || 'no role'}
               </span>
               <span className="text-ui text-foreground-muted">
-                Deny {roles.filter((r) => !allowed.has(r)).join(', ') || 'no role'}
+                Deny {roles.filter((r) => !allowed.has(r)).map(roleName).join(', ') || 'no role'}
               </span>
             </li>
           )
@@ -75,11 +76,13 @@ function Matrix({ policies, currentRole }: { policies: Policies; currentRole: st
                   scope="col"
                   title={role}
                   className={cn(
-                    'truncate px-2 py-2 text-left font-mono text-ledger font-normal uppercase tracking-[var(--ls-ledger)]',
+                    // Names, not ids: `head_of_inspection` truncated to
+                    // `head_of_in…` in an eight-role matrix. A name wraps.
+                    'px-2 py-2 text-left align-bottom text-ledger font-normal leading-tight',
                     role === currentRole ? 'bg-[var(--selected-surface)] text-foreground' : 'text-foreground-muted',
                   )}
                 >
-                  {role}
+                  {roleName(role)}
                   {role === currentRole && <span className="block normal-case tracking-normal">you</span>}
                 </th>
               ))}
@@ -216,9 +219,11 @@ export const PolicyPanel = memo(function PolicyPanel({
                 <span className="text-ui text-foreground">{rule.description || rule.name}</span>
                 <span className="font-mono text-ledger text-foreground-muted">
                   {rule.name}
-                  {rule.approver_roles && rule.approver_roles.length > 0
-                    ? ` · decided by ${rule.approver_roles.join(' or ')}`
-                    : ''}
+                  {rule.signatures && rule.signatures.length > 1
+                    ? ` · signed by ${rule.signatures.map((s) => s.authority).join(', then ')}`
+                    : rule.approver_roles && rule.approver_roles.length > 0
+                      ? ` · decided by ${rule.approver_roles.map(roleName).join(' or ')}`
+                      : ''}
                 </span>
               </li>
             ))}
