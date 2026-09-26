@@ -85,8 +85,46 @@ function Side({ name, side }: { name: string; side: CompareSide }) {
   )
 }
 
+/** A JSON object or list from the comparison, parsed; anything else is shown as written. */
+function structured(value: string): Record<string, unknown> | Record<string, unknown>[] | null {
+  const head = value.trimStart()[0]
+  if (head !== '{' && head !== '[') return null
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed) && parsed.every((item) => item && typeof item === 'object' && !Array.isArray(item))) return parsed
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed
+  } catch {}
+  return null
+}
+
+const scalar = (v: unknown) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v))
+
+/**
+ * Certificate provenance arrives as JSON: an object per field, or a list of
+ * records (one per formula). Laid out as key and value, one per line, so two
+ * cells can be read against each other instead of as two walls of braces.
+ */
+function Structured({ data }: { data: Record<string, unknown> | Record<string, unknown>[] }) {
+  const records = Array.isArray(data) ? data : [data]
+  return (
+    <div className="flex flex-col gap-2">
+      {records.map((record, index) => (
+        <dl key={index} className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+          {Object.entries(record).map(([key, v]) => (
+            <div key={key} className="contents">
+              <dt className="text-foreground-muted">{key.replace(/_/g, ' ')}</dt>
+              <dd className="break-all">{scalar(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      ))}
+    </div>
+  )
+}
+
 function Cell({ value, changed }: { value: string; changed: boolean }) {
   const absent = value === 'not recorded'
+  const data = absent ? null : structured(value)
   return (
     <td
       className={cn(
@@ -94,7 +132,7 @@ function Cell({ value, changed }: { value: string; changed: boolean }) {
         absent ? 'text-foreground-muted' : changed ? 'text-foreground' : 'text-foreground-secondary',
       )}
     >
-      {value}
+      {data ? <Structured data={data} /> : value}
     </td>
   )
 }

@@ -67,6 +67,16 @@ export const ROLES: Role[] = [
   },
 ]
 
+/**
+ * A role id as the policy files and audit records write it, in words. The
+ * backend's `administrator` is the `admin` role here; an id no role declares
+ * is shown as itself rather than guessed at.
+ */
+export function roleName(id: string): string {
+  const key = id === 'administrator' ? 'admin' : id
+  return ROLES.find((role) => role.id === key)?.label ?? id.replace(/_/g, ' ')
+}
+
 // The stages a run moves through. Structure only: the model that handled each
 // stage and how long it took are filled in from the run itself, because
 // showing a model name and a latency before anything has executed states two

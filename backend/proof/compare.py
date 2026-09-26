@@ -72,7 +72,12 @@ def _text(value: Any) -> str:
     if value is None or value == "" or value == [] or value == {}:
         return NOT_RECORDED
     if isinstance(value, (list, tuple, set)):
-        return ", ".join(str(item) for item in value)
+        items = list(value)
+        # A list of records (formula versions, certified inputs) is JSON, so
+        # the client can lay it out; str() of a dict is a Python repr.
+        if any(isinstance(item, (dict, list, tuple)) for item in items):
+            return json.dumps(items, sort_keys=True, default=str)
+        return ", ".join(str(item) for item in items)
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True, default=str)
     return str(value)

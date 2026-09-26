@@ -240,6 +240,8 @@ export interface DeliverableContent {
   findings?: Array<{ description?: string; severity?: string; reference?: string }>
   recommendation?: string
   approval_statement?: string
+  /** Who recommends and who approves, from the severity formula (SOP-OPS-008). */
+  authority?: string
 }
 
 export interface ApprovalRecord {
@@ -698,6 +700,27 @@ export interface SovereigntyStatus {
   /** Why the last sample took no reading, when it did not. */
   monitor_error?: string | null
   interfaces: Record<string, any>
+  /** The host's nftables egress table as read back from the kernel. Absent from older backends. */
+  firewall?: EgressFirewallStatus | null
+}
+
+/**
+ * Every figure is null unless it was read: a host that could not be asked
+ * (not Linux, no nft, nft refused) reports `not_measurable`, never zero.
+ */
+export interface EgressFirewallStatus {
+  state: 'enforced' | 'not_default_deny' | 'not_present' | 'not_measurable'
+  measurable: boolean
+  present: boolean | null
+  reason: string | null
+  table: string
+  output_policy: string | null
+  denied_packets: number | null
+  denied_bytes: number | null
+  allowed_packets: number | null
+  counters: Record<string, { packets: number; bytes: number }>
+  ruleset_sha256: string | null
+  read_at: string
 }
 
 export interface ModelDescriptor {

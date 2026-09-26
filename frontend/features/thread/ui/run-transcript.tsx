@@ -130,6 +130,14 @@ function Checks({ checks }: { checks: VerificationCheck[] }) {
 
 const SHOWN = new Set(['done', 'active', 'failed', 'denied'])
 
+// A redaction and a plain pass are both policy `allow`; the reason beside it
+// says which ("Each value is redacted…"), so the label does not guess.
+const SCAN_DECISION: Record<string, string> = {
+  allow: 'recorded',
+  require_approval: 'held for a person',
+  deny: 'blocked',
+}
+
 export const RunTranscript = memo(function RunTranscript({ turn }: { turn: AssistantTurn }) {
   const conversation = turn.profile?.taskType === 'conversation'
   const lines = turn.stages.filter((s) => SHOWN.has(s.status))
@@ -219,6 +227,35 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
           </li>
         )
       })}
+      {turn.scans.length > 0 && turn.outcome !== 'running' && (
+        <li className="flex flex-col gap-0.5">
+          <div className="flex items-baseline gap-2">
+            <span
+              aria-hidden
+              className={cn(
+                'inline-block w-[1ch] text-center',
+                turn.scans.some((scan) => scan.decision === 'deny') ? 'text-critical-text' : 'text-approval-text',
+              )}
+            >
+              ●
+            </span>
+            <span className="min-w-0 flex-1 text-foreground">
+              Content scanned
+              <span className="text-foreground-muted">
+                {' '}
+                · {turn.scans.length} boundar{turn.scans.length === 1 ? 'y' : 'ies'} acted on
+              </span>
+            </span>
+          </div>
+          {turn.scans.map((scan, i) => (
+            <Result key={`${scan.boundary}-${i}`} tone={scan.decision === 'deny' ? 'critical' : undefined}>
+              <span title={scan.rule ?? undefined}>
+                {scan.boundary} · {SCAN_DECISION[scan.decision] ?? scan.decision} · {scan.reason}
+              </span>
+            </Result>
+          ))}
+        </li>
+      )}
     </ol>
   )
 })

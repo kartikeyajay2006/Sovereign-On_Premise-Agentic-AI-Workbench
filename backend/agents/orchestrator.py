@@ -2036,6 +2036,11 @@ class AgentOrchestrator:
                 # renderer. The workbench can now offer an in-place reading
                 # view next to the file without reverse-engineering a DOCX or
                 # pretending the shorter chat answer is the document itself.
+                # The authority line is added here as well as at render, so the
+                # stored source still is what the renderer is handed.
+                authority = authority_statement(task.assessment) if task.assessment is not None else None
+                if draft_content is not None and authority:
+                    draft_content = {**draft_content, "authority": authority}
                 task.deliverable_content = draft_content
                 if draft_content is not None:
                     checks.append(self.verifier.check_document(draft_content, evidence))

@@ -6,6 +6,7 @@ import { ArrowUpRight, Check, Copy, FileCheck2, GitCompare, Quote, RotateCcw } f
 import type { EvidenceItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { expandCitations } from '../model/usage'
+import { roleName } from '@/lib/presentation'
 
 /**
  * What a reader does with an answer once it has landed.
@@ -188,7 +189,7 @@ export const AnswerActions = memo(function AnswerActions({
         <span className="ml-auto flex items-center gap-2 text-meta">
           {approverRoles.length > 0 && (
             <span className="text-approval-text" title={reasons.join('\n') || undefined}>
-              Held for {approverRoles.map((r) => r.replace(/_/g, ' ')).join(' or ')}
+              Held for {approverRoles.map(roleName).join(' or ')}
               {reasons.length > 0 && (
                 <span className="text-foreground-muted">
                   {' · '}

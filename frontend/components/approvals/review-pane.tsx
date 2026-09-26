@@ -11,7 +11,7 @@ import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type ReadFailure } from '@/shared/ui/data/reading'
-import { checkLabel } from '@/lib/presentation'
+import { checkLabel, roleName } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 import { awaitingSignature, formatSize, splitReason, stamp, type QueueItem } from './model'
 import { DECISION_MARK } from './queue-list'
@@ -155,7 +155,7 @@ function HeldBecause({ task }: { task: Task }) {
   return (
     <Section
       title="Held because"
-      meta={approval.approver_roles.length > 0 ? `decided by ${approval.approver_roles.join(' or ')}` : undefined}
+      meta={approval.approver_roles.length > 0 ? `decided by ${approval.approver_roles.map(roleName).join(' or ')}` : undefined}
     >
       {/* The reason in words. The rule's name -- what the policy file and
           the audit record call it -- is in its title, for whoever needs to

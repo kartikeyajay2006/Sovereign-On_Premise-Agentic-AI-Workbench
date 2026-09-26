@@ -97,6 +97,15 @@ export interface ModelChoice {
   preferenceReason: string | null
 }
 
+export interface ContentScan {
+  /** upload | prompt | answer | deliverable */
+  boundary: string
+  decision: string
+  reason: string
+  rule: string | null
+  at: string
+}
+
 export interface AssistantTurn {
   role: 'assistant'
   id: string
@@ -160,6 +169,12 @@ export interface AssistantTurn {
   conflicts: ConflictRecord[]
   /** Every material claim in the answer with its verdict. */
   claims: ClaimVerdict[]
+  /**
+   * What content scanning (policies/dlp.yaml) did at each boundary it acted
+   * on: redacted, held or blocked. Never the value itself; the record only
+   * names the detector rule and why.
+   */
+  scans: ContentScan[]
   /** A P&ID question answered from the drawing's graph. */
   topology: import('@/components/pid/api').TopologyResult | null
   /** Why the run was refused, when it was. */

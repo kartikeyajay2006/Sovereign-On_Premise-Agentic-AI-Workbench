@@ -65,6 +65,19 @@ const PREFERRED_MODEL_KEY = 'aegis.console.preferred-model'
 
 const NO_EVIDENCE: EvidenceItem[] = []
 
+/** The run's content-scanning events, out of its policy trace. */
+function contentScans(events: Task['policy_events']) {
+  return (events ?? [])
+    .filter((event) => typeof event?.action === 'string' && event.action.startsWith('dlp.'))
+    .map((event) => ({
+      boundary: String(event.action).slice(4),
+      decision: String(event.decision ?? '').toLowerCase(),
+      reason: String(event.reason ?? ''),
+      rule: event.rule ?? null,
+      at: String(event.at ?? ''),
+    }))
+}
+
 /** Everything a turn shows that the task record is the authority for. */
 function recordFields(task: Task) {
   const first = task.deliverables?.[0]
@@ -84,6 +97,7 @@ function recordFields(task: Task) {
     calculations: task.calculations ?? [],
     conflicts: task.conflicts ?? [],
     claims: task.verification?.claims ?? [],
+    scans: contentScans(task.policy_events),
     topology: task.topology ?? null,
     denialReason: task.error || null,
     elapsedMs: task.duration_ms ?? null,
@@ -166,6 +180,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     calculations: [],
     conflicts: [],
     claims: [],
+    scans: [],
     topology: null,
     denialReason: null,
     error: null,

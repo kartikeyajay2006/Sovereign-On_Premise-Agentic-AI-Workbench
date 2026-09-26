@@ -1,4 +1,5 @@
 import { request } from '@/lib/api'
+import type { EgressFirewallStatus } from '@/lib/types'
 
 /*
  * The Assurance screen's calls, with shapes transcribed from the backend.
@@ -44,6 +45,8 @@ export interface SovereigntyStatus {
   monitor_active: boolean
   monitor_error?: string | null
   interfaces: Record<string, InterfaceReading>
+  /** The host egress firewall, read back from the kernel. Absent from older backends. */
+  firewall?: EgressFirewallStatus | null
 }
 
 export interface SandboxCheck {
