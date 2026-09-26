@@ -47,8 +47,6 @@ export const HERO = {
   eyebrow: 'Air-gapped AI workbench · regulated plants',
   title: 'Answers your plant can',
   titleKey: 'prove.',
-  titleEm: 'prove.',
-  pill: (total: string) => `A recorded run: one question, cited and checked, in ${total} on a laptop CPU`,
   lede: 'AEGIS runs the model, the search and the checks on your own hardware, and hands over every answer with its sources, its checks and its record.',
   // The vessel is a drawing; the page says so where it is drawn.
   vesselNote: 'Illustration · label from the recorded run',
@@ -450,47 +448,5 @@ export const FOOTER = {
   },
   bottomLeft: 'Smart India Hackathon 2026',
   bottomRight: 'No analytics on this page.',
-} as const
-
-
-// Transitional: read by the page this commit still ships.
-export const PIPELINE = {
-  id: 'chain',
-  eyebrow: 'How it works',
-  title: 'One question,',
-  titleTurn: 'proved in five steps.',
-  lede: 'The run at the top of the page, in the five steps it took. The vessel is an illustration; every value pinned to it is read from the run’s record.',
-  steps: [
-    {
-      key: 'classify',
-      label: 'Classify',
-      title: 'It reads the request first.',
-      line: 'Before anything is retrieved, the request is classified, so policy knows what kind of work this is and how sensitive.',
-    },
-    {
-      key: 'retrieve',
-      label: 'Retrieve',
-      title: 'It finds the clauses that govern it.',
-      line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.',
-    },
-    {
-      key: 'draft',
-      label: 'Draft',
-      title: 'It answers from those passages alone.',
-      line: 'A local model writes the answer and cites every claim to the passage it rests on.',
-    },
-    {
-      key: 'verify',
-      label: 'Verify',
-      title: 'Every claim is checked before release.',
-      line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.',
-    },
-    {
-      key: 'record',
-      label: 'Record',
-      title: 'Every step goes on a hash chain.',
-      line: 'Each record carries the hash of the one before it, so changing any record breaks every hash after it.',
-    },
-  ],
 } as const
 

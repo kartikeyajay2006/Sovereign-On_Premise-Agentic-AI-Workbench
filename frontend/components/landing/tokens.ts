@@ -35,12 +35,12 @@ export const MONO_VALUE = 'font-mono text-ui font-[425] text-foreground-secondar
 /** The same, one step down, for a value sharing a row with a MONO_LABEL. */
 export const MONO_META = 'font-mono text-meta font-[425] text-foreground-secondary'
 
-/** A card: a white sheet with a hairline and a generous radius. */
-export const CARD = 'rounded-[16px] border border-line-subtle bg-surface'
+/** A card: a square sheet with a 1px rule (Hi-Vis Monochrome corners are 2px). */
+export const CARD = 'rounded-[2px] border border-line-subtle bg-surface'
 
 /**
- * The action fill: the red thread, white ink (5.42:1), a deeper red under the
- * pointer. At most one per decision context.
+ * The action fill: hi-vis lime, black ink, a deeper lime under the pointer.
+ * At most one per decision context.
  */
 export const ACTION_FILL = 'bg-action text-action-ink hover:bg-action-hover'
 
