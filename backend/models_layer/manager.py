@@ -106,10 +106,14 @@ class ModelManager:
         return base + kv_bytes
 
     # -- runtime control ---------------------------------------------------
+    def _http(self, timeout: float) -> httpx.AsyncClient:
+        """One place the manager's runtime calls are made from, so a test can fake them."""
+        return httpx.AsyncClient(base_url=self.base_url, timeout=timeout)
+
     async def _unload(self, provider_model: str) -> bool:
         """Ask the runtime to release a model immediately (keep_alive: 0)."""
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, timeout=30.0) as client:
+            async with self._http(30.0) as client:
                 response = await client.post(
                     "/api/generate",
                     json={"model": provider_model, "keep_alive": 0, "prompt": ""},
@@ -121,7 +125,7 @@ class ModelManager:
     async def resident_models(self) -> list[dict[str, Any]]:
         """What the runtime currently holds in memory."""
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, timeout=15.0) as client:
+            async with self._http(15.0) as client:
                 response = await client.get("/api/ps")
                 if response.status_code >= 400:
                     return []
