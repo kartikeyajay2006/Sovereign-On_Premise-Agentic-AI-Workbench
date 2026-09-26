@@ -3,22 +3,15 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRole } from '@/components/role-context'
+import { NAV } from './copy'
 import { Wordmark } from './wordmark'
 
-const NAV = [
-  { href: '#how', label: 'How it works' },
-  { href: '#use-cases', label: 'Use cases' },
-  { href: '#product', label: 'Product' },
-  { href: '#proof', label: 'Security' },
-  { href: '#limits', label: 'Limits' },
-] as const
-
 /**
- * The public header: the mark, five anchors, and the way in.
+ * The public header: the mark, the anchors in mono capitals, and the way in.
  *
- * Clear while the page is at its top, over the scene; a near-opaque ground
- * and a hairline once anything has scrolled under it. No backdrop blur: a
- * blurred sticky bar repaints on every scroll frame.
+ * Clear while the page is at its top; a near-opaque ground and a 1px rule
+ * once anything has scrolled under it. No backdrop blur: a blurred sticky bar
+ * repaints on every scroll frame.
  */
 export function LandingHeader() {
   // `authenticated` is false on the server render and during the first load,
@@ -36,8 +29,8 @@ export function LandingHeader() {
   return (
     <header className={`lp-header${scrolled ? ' scrolled' : ''}`}>
       <div className="lp-shell row">
-        <Link href="/" aria-label="AEGIS — home" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4">
-          <Wordmark />
+        <Link href="/" aria-label="AEGIS — home" className="lp-home">
+          <Wordmark tone="mono" />
         </Link>
 
         <nav aria-label="Sections" className="lp-nav">
@@ -49,7 +42,11 @@ export function LandingHeader() {
         </nav>
 
         <div className="end">
-          {authenticated ? null : <Link href="/sign-in">Sign in</Link>}
+          {authenticated ? null : (
+            <Link href="/sign-in" className="lp-nav-link">
+              Sign in
+            </Link>
+          )}
           <Link href={authenticated ? '/console' : '/sign-in'} className="lp-btn primary sm">
             {authenticated ? 'Open the workbench' : 'Get started'}
           </Link>

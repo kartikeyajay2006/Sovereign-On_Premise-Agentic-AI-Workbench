@@ -1,131 +1,48 @@
 import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
+import type { CSSProperties, ReactNode } from 'react'
 import { AttackList } from '@/components/landing/attack-list'
 import { ChainTamper } from '@/components/landing/chain-tamper'
+import { ChainVerify } from '@/components/landing/chain-verify'
+import { ChapterTiles } from '@/components/landing/chapter-tiles'
 import { CopyCommands } from '@/components/landing/copy-commands'
-import { BENTO, HERO, LIMITS, PIPELINE, PROOF, RUN_IT, USE_CASES } from '@/components/landing/copy'
-import { HeroLive } from '@/components/landing/hero-live'
+import { BENTO, CHAIN_VERIFY, CHAPTERS, HERO, LIMITS, PROOF, PROOF_SEQ, RAIL, REPLAY, RUN_IT, STATS, USE_CASES } from '@/components/landing/copy'
+import { HeroVessel } from '@/components/landing/hero-vessel'
+import * as R from '@/components/landing/landing-data'
 import { LiveContainment } from '@/components/landing/live-containment'
+import { LiveEgress } from '@/components/landing/live-egress'
 import { PageRequests } from '@/components/landing/page-requests'
 import { ProductGallery, type GallerySlide } from '@/components/landing/product-gallery'
+import { ProofSequence, type ProofData } from '@/components/landing/proof-sequence'
 import { RevealSection } from '@/components/landing/reveal-section'
-import { documentCode, run, runId, sectionLabel, sectionNumber, seconds, type EvidenceUnit as Unit } from '@/components/landing/run-fixture'
-import { StoryScene, type SceneData } from '@/components/landing/story-scene'
-import { checkLabel } from '@/lib/presentation'
+import { RunReplay } from '@/components/landing/run-replay'
 
 // --------------------------------------------------------------------------- //
-// The run, read once.
+// The public page, Hi-Vis Monochrome.
 //
-// Every figure and every quoted word below comes from public/landing/run.json
-// and is derived here, on the server, at render. Nothing is defaulted to a
-// number: a value the record does not carry comes out as null, and the part
-// of the page that would have printed it prints less.
+// Every figure and every quoted word about the run comes from
+// public/landing/run.json through landing-data.ts, derived on the server at
+// render. The only other numbers on the page are read live by the visitor's
+// browser (egress, this page's own requests) or recomputed there (hashes).
 // --------------------------------------------------------------------------- //
 
-const checks = run.verification?.checks ?? []
-const passedChecks = checks.filter((check) => check.passed).length
-const total = seconds(run.duration_ms ?? run.timeline.total_ms)
-const statusWord = run.status.charAt(0).toUpperCase() + run.status.slice(1).replace(/_/g, ' ')
-const hash8 = run.recorded?.hash_full ? run.recorded.hash_full.slice(0, 8) : null
-const audit = run.audit
-const auditRange = audit.count > 0 && audit.first_sequence !== null && audit.last_sequence !== null ? { first: audit.first_sequence, last: audit.last_sequence } : null
+const checksLine = R.checks.length > 0 ? `${R.passedChecks} of ${R.checks.length} checks passed` : null
 
+/** The hero reticle's label, a line a part: clause, figure, claims traced. */
+const reticle = R.reticleLabel ? R.reticleLabel.split(' · ') : []
 
-// Passages, and the first one the answer cites.
-const passages = run.evidence.filter((unit) => /^S\d+$/.test(unit.id))
-const markers = Array.from(new Set((run.answer.match(/\[[SFVCEHT]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
-const cited = markers.map((id) => run.evidence.find((unit) => unit.id === id)).filter((unit): unit is Unit => unit !== undefined)
-const first = cited[0] ?? null
-const answerText = run.answer.replace(/\s*\[[SFVCEHT]\d+\]\s*/g, ' ').trim()
-
-// The clause the answer rests on: the first cited passage, split around the
-// phrase -- from the comma before it up to the figure the answer states.
-// Where the record will not split cleanly, the scene shows no clause.
-const clause = (() => {
-  if (!first) return null
-  const lines = first.excerpt.split('\n')
-  const heading = lines.find((line) => /^#+\s/.test(line))?.replace(/^#+\s*/, '').trim() ?? sectionLabel(first)
-  const body = lines
-    .filter((line) => !/^#+\s/.test(line))
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const figure = answerText.match(/\d+(?:\.\d+)?\s*(?:months?|years?|days?|hours?|mm|bar\(g\)|%)/i)?.[0] ?? null
-  if (!figure) return null
-  const at = body.indexOf(figure)
-  if (at < 0) return null
-  const from = body.lastIndexOf(',', at) + 1
-  return {
-    doc: documentCode(first),
-    section: sectionNumber(first),
-    heading,
-    before: body.slice(0, from) + ' ',
-    mark: body.slice(from, at).trimStart(),
-    figure,
-    after: body.slice(at + figure.length),
-  }
-})()
-
-// The steps, timed as the record timed them.
-const ms = (value: number | null | undefined) => (value == null ? null : value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(1)} s`)
-const stage = (id: string) => run.timeline.stages.find((item) => item.id === id && item.ran) ?? null
-const STEP_TIME: Record<string, string | null> = {
-  classify: ms(stage('classify')?.ms),
-  retrieve: ms(stage('retrieve')?.ms),
-  draft: ms(stage('draft')?.ms),
-  verify: checks.length > 0 ? `${passedChecks} of ${checks.length}` : null,
-  record: auditRange ? `seq ${auditRange.first}–${auditRange.last}` : null,
-}
-const draftCall = (run.usage ?? []).filter((call) => call.stage === 'drafting').at(-1) ?? null
-
-const scene: SceneData = {
-  runId,
-  url: `127.0.0.1:3000/console?run=${run.task_id}`,
-  skill: run.skill ? { id: run.skill.id, name: run.skill.name } : null,
-  input: run.skill ? run.skill.input : run.prompt,
-  classify: stage('classify')?.note?.replace(/_/g, ' ') ?? null,
-  passages: passages.map((unit) => ({
-    id: unit.id,
-    label: `${documentCode(unit)} ${sectionNumber(unit)}`.trim(),
-    score: unit.score === null ? null : unit.score.toFixed(2),
-    cited: unit.cited,
-  })),
-  retrieveTime: STEP_TIME.retrieve,
-  draftLine: draftCall
-    ? [
-        draftCall.display_name || draftCall.model,
-        draftCall.prompt_tokens !== null ? `${draftCall.prompt_tokens.toLocaleString('en-US')} in` : null,
-        draftCall.output_tokens !== null ? `${draftCall.output_tokens.toLocaleString('en-US')} out` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : null,
-  draftTime: STEP_TIME.draft,
-  answer: answerText,
-  citeId: first?.id ?? '',
-  citeLabel: first ? `${documentCode(first)} ${sectionNumber(first)}`.trim() : '',
-  checks: checks.map((check) => ({ label: checkLabel(check.name), passed: check.passed })),
-  checksLine: checks.length > 0 ? `${passedChecks} of ${checks.length} checks passed` : null,
-  clause,
-  chain: audit.tail.map((record) => ({ seq: record.sequence, what: `${record.category} · ${record.action}`, hash: record.hash })),
-  seal: hash8,
-  total,
-  status: statusWord,
-  steps: PIPELINE.steps.map((step) => ({ key: step.key, label: step.label, title: step.title, line: step.line, time: STEP_TIME[step.key] ?? null })),
-}
-
-// Security: the recorded self-test, one payload a line, and the chain's tail.
-const selfTest = run.sandbox_self_test?.detail ?? null
-const attacks = selfTest?.checks.map((check) => ({ name: check.name, passed: check.passed, detail: check.detail })) ?? []
-const attacksFoot =
-  selfTest && selfTest.assessable !== false && selfTest.total > 0
-    ? `${selfTest.passed} of ${selfTest.total} held · recorded ${run.sandbox_self_test?.at.slice(0, 10)} · seq ${run.sandbox_self_test?.sequence}`
-    : null
-const tail = audit.tail
+/** The meta rail: small uppercase lines, each value the record's. */
+const rail = ([
+  { k: RAIL.run, v: R.runId },
+  R.total ? { k: RAIL.time, v: R.total } : null,
+  R.modelName ? { k: RAIL.model, v: R.modelName } : null,
+  checksLine ? { k: RAIL.checks, v: `${R.passedChecks} / ${R.checks.length} passed` } : null,
+  R.headSeq !== null && R.hash8 ? { k: RAIL.chain, v: `#${R.headSeq} · ${R.hash8}` } : null,
+  { k: RAIL.recorded, v: R.capturedOn },
+] as Array<{ k: string; v: string } | null>).filter((row): row is { k: string; v: string } => row !== null)
 
 // The limits, one line each. The latency line is the run's own.
-const limits = LIMITS.brief.map((item) => (item.id === 'latency' && total ? { ...item, line: LIMITS.latencyLine(total) } : item))
-
+const limits = LIMITS.brief.map((item) => (item.id === 'latency' && R.total ? { ...item, line: LIMITS.latencyLine(R.total) } : item))
 const cases = USE_CASES.grid.map(([row, index]) => USE_CASES.rows[row][index])
 
 // The gallery: screenshots of the running product, captured on the demo host.
@@ -186,17 +103,31 @@ const GALLERY: GallerySlide[] = [
   },
 ]
 
-/** A section's head: the label, the claim with its turn in serif italic, one line of lede. */
-function Head({ id, eyebrow, title, em, lede, center }: { id: string; eyebrow: string; title: string; em?: string; lede?: string; center?: boolean }) {
+const pad = (n: number) => String(n).padStart(2, '0')
+const at = (i: number) => ({ ['--i' as string]: i }) as CSSProperties
+
+/** Twelve segments of the section's top rule: the chapter wipe between sections. */
+function ChapterRule() {
   return (
-    <div className={`lp-head lp-rise${center ? ' center' : ''}`}>
-      <p className="lp-kicker">{eyebrow}</p>
+    <div className="lp-rule" aria-hidden>
+      {Array.from({ length: 12 }, (_, i) => (
+        <i key={i} style={at(i)} />
+      ))}
+    </div>
+  )
+}
+
+/** A section's head: the mono eyebrow, the light claim with its key words heavy, one line of lede. */
+function Head({ id, eyebrow, title, strong, lede }: { id: string; eyebrow: string; title: string; strong?: string; lede?: string }) {
+  return (
+    <div className="lp-head lp-rise">
+      <p className="lp-eyebrow">{eyebrow}</p>
       <h2 id={id} className="lp-h2">
         {title}
-        {em ? (
+        {strong ? (
           <>
             {' '}
-            <em>{em}</em>
+            <b>{strong}</b>
           </>
         ) : null}
       </h2>
@@ -205,190 +136,415 @@ function Head({ id, eyebrow, title, em, lede, center }: { id: string; eyebrow: s
   )
 }
 
-const ROMAN = ['i.', 'ii.', 'iii.', 'iv.', 'v.', 'vi.', 'vii.', 'viii.']
+function Section({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
+  return (
+    <RevealSection id={id} aria-labelledby={`${id}-title`} className={`lp-section${className ? ` ${className}` : ''}`}>
+      <ChapterRule />
+      <div className="lp-shell">{children}</div>
+    </RevealSection>
+  )
+}
+
+// --------------------------------------------------------------------------- //
+// The three chapter panels, drawn from the record on the server.
+// --------------------------------------------------------------------------- //
+
+const retrievePanel = (
+  <div className="lp-pv">
+    <p className="lp-pv-head">
+      <span>{R.retrieve.count} passages</span>
+      <span>{R.retrieve.documents} documents</span>
+      {R.retrieve.mode ? <span>{R.retrieve.mode} search</span> : null}
+      {R.retrieve.time ? <span>{R.retrieve.time}</span> : null}
+      {R.retrieve.policy ? <span>policy {R.retrieve.policy}</span> : null}
+    </p>
+    <table className="lp-table">
+      <thead>
+        <tr>
+          <th scope="col">Rank</th>
+          <th scope="col">Id</th>
+          <th scope="col">Document</th>
+          <th scope="col">Section</th>
+          <th scope="col" className="num">
+            Score
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {R.retrieve.rows.map((row) => (
+          <tr key={row.id} data-cited={row.cited ? '' : undefined}>
+            <td>{pad(row.rank)}</td>
+            <td>
+              <span className={row.cited ? 'chip' : 'id'}>{row.id}</span>
+            </td>
+            <td>{row.doc}</td>
+            <td className="sec">{row.section}</td>
+            <td className="num">{row.score ?? ''}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p className="lp-pv-foot">Score is the cosine similarity embedding search reported. The lit row is the passage the answer cites.</p>
+  </div>
+)
+
+const verifyPanel = (
+  <div className="lp-pv">
+    <p className="lp-pv-head">
+      {R.claims ? (
+        <span>
+          {R.claims.supported} of {R.claims.total} material claims supported
+        </span>
+      ) : null}
+      {checksLine ? <span>{checksLine}</span> : null}
+    </p>
+    <p className="lp-pv-answer">
+      {R.answerText} {R.cite ? <span className="chip">{R.cite.id}</span> : null}
+    </p>
+    <ul className="lp-pv-checks">
+      {R.checks.map((check) => (
+        <li key={check.name} className={check.passed ? 'ok' : 'no'}>
+          <span className="sq" aria-hidden />
+          <span className="t">
+            {check.label}
+            <span className="sr-only">{check.passed ? ': passed' : ': failed'}</span>
+          </span>
+          <span className="d">{check.detail}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+)
+
+const sealPanel = (
+  <div className="lp-pv">
+    <p className="lp-pv-head">
+      {R.auditRange ? (
+        <span>
+          {R.auditRange.count} records appended · seq {R.auditRange.first}–{R.auditRange.last}
+        </span>
+      ) : null}
+      <span>{R.audit.path}</span>
+    </p>
+    <table className="lp-table">
+      <thead>
+        <tr>
+          <th scope="col">Seq</th>
+          <th scope="col">At</th>
+          <th scope="col">Record</th>
+          <th scope="col">Prev → hash</th>
+        </tr>
+      </thead>
+      <tbody>
+        {R.chain.map((record) => (
+          <tr key={record.seq} data-cited={record.seq === R.headSeq ? '' : undefined}>
+            <td>#{record.seq}</td>
+            <td>{record.at ?? ''}</td>
+            <td className="sec">
+              {record.category} · {record.action}
+            </td>
+            <td className="hash">
+              {record.prev.slice(0, 8)} → <span>{record.hash.slice(0, 8)}</span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p className="lp-pv-foot">The run’s last {R.chain.length} records as the capture holds them. Each prev is the hash of the record before it.</p>
+  </div>
+)
+
+const proofData: ProofData = {
+  labels: { ...PROOF_SEQ.steps, stamp: PROOF_SEQ.stamp, held: PROOF_SEQ.held },
+  doc:
+    R.cite && R.clause
+      ? {
+          code: R.cite.doc,
+          title: R.cite.docTitle,
+          section: R.cite.section,
+          heading: R.clause.heading,
+          before: R.clause.before,
+          mark: R.clause.mark,
+          figure: R.clause.figure,
+          after: R.clause.after,
+        }
+      : null,
+  claim: { text: R.answerText, cite: R.cite?.id ?? null, citeLabel: R.cite?.label ?? null },
+  checks: R.checks.map((check) => ({ label: check.label, passed: check.passed, detail: check.detail })),
+  checksLine,
+  seal: R.hashFull
+    ? {
+        hash: R.hashFull,
+        line: [R.headSeq !== null ? `audit #${R.headSeq}` : null, R.auditRange ? `${R.auditRange.count} records appended by this run` : null]
+          .filter(Boolean)
+          .join(' · '),
+        released: R.released,
+      }
+    : null,
+}
 
 export default function LandingPage() {
   return (
     <>
       {/* ---------------------------------------------------------------- */}
-      {/* The scene: the hero, and the run played in the workbench          */}
+      {/* Hero: the claim, the vessel scan, the meta rail, the stat band    */}
       {/* ---------------------------------------------------------------- */}
-      <StoryScene
-        data={scene}
-        hero={
-          <div className="lp-hero-copy">
-            {total ? (
-              <a href="#how" className="lp-pill lp-load-1">
-                <span aria-hidden className="dot" />
-                {HERO.pill(total)}
-                <span aria-hidden className="ar">
-                  ↓
-                </span>
-              </a>
-            ) : null}
+      <section className="lp-hero" aria-labelledby="hero-title">
+        <div className="lp-shell lp-hero-grid">
+          <div className="copy">
+            <p className="lp-eyebrow lp-load-1">{HERO.eyebrow}</p>
             <h1 id="hero-title" className="lp-display lp-load-2">
-              {HERO.title}
-              {/* On a phone the line breaks where it falls: "Answers you / can prove." */}
-              <br className="max-sm:hidden" /> <em>{HERO.titleEm}</em>
+              {HERO.title}{' '}
+              <b>
+                <span aria-hidden className="lp-letters">
+                  {Array.from(HERO.titleKey).map((ch, i) => (
+                    <span key={i} style={at(i)}>
+                      {ch}
+                    </span>
+                  ))}
+                </span>
+                <span className="sr-only">{HERO.titleKey}</span>
+              </b>
             </h1>
             <p className="lp-lede lp-load-3">{HERO.lede}</p>
-            <div className="lp-hero-actions lp-load-3">
+            <div className="lp-actions lp-load-3">
               <Link href={HERO.primary.href} className="lp-btn primary">
                 {HERO.primary.label}
                 <span className="ar" aria-hidden>
                   →
                 </span>
               </Link>
-              <a href={HERO.secondary.href} rel="noreferrer" target="_blank" className="lp-btn ghost">
-                {HERO.secondary.label}
-                <ArrowUpRight className="size-4 opacity-70" aria-hidden />
+              <a href={HERO.how.href} className="lp-btn ghost">
+                {HERO.how.label}
               </a>
             </div>
-            <div className="lp-hero-live lp-load-4">
-              <HeroLive />
+          </div>
+
+          {reticle.length > 0 ? <HeroVessel label={reticle} note={HERO.vesselNote} /> : null}
+
+          <dl className="lp-rail lp-load-4" aria-label={RAIL.label}>
+            <div className="hd">{RAIL.label}</div>
+            {rail.map((row) => (
+              <div key={row.k} className="row">
+                <dt>{row.k}</dt>
+                <dd>{row.v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="lp-shell">
+          <div className="lp-stats">
+            <LiveEgress recorded={R.recordedEgress} />
+            <div className="cell">
+              <small>{STATS.cited.label}</small>
+              <b>{STATS.cited.value}</b>
+              {R.cite && R.claims ? (
+                <span className="sub">
+                  this run: {R.claims.supported}/{R.claims.total} · {R.cite.id} {R.cite.label}
+                </span>
+              ) : null}
+            </div>
+            <div className="cell">
+              <small>{STATS.formula.label}</small>
+              <b>{STATS.formula.value}</b>
+              <span className="sub">{STATS.formula.line}</span>
+            </div>
+            <div className="cell">
+              <small>{STATS.sealed.label}</small>
+              <b>{STATS.sealed.value}</b>
+              {R.headSeq !== null && R.hash8 ? (
+                <span className="sub">
+                  this run: #{R.headSeq} · {R.hash8}
+                </span>
+              ) : null}
             </div>
           </div>
-        }
-      />
+        </div>
+      </section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 01 Retrieve / 02 Verify / 03 Seal                                 */}
+      {/* ---------------------------------------------------------------- */}
+      <Section id={CHAPTERS.id}>
+        <Head id={`${CHAPTERS.id}-title`} eyebrow={CHAPTERS.eyebrow} title={CHAPTERS.title} strong={CHAPTERS.titleKey} lede={CHAPTERS.lede} />
+        <div className="lp-rise">
+          <ChapterTiles
+            idBase="lp-ch"
+            tabs={CHAPTERS.tabs.map((tab) => ({
+              ...tab,
+              stat:
+                tab.key === 'retrieve'
+                  ? [`${R.retrieve.count} passages`, R.retrieve.time].filter(Boolean).join(' · ')
+                  : tab.key === 'verify'
+                    ? checksLine
+                    : R.headSeq !== null && R.hash8
+                      ? `#${R.headSeq} · ${R.hash8}`
+                      : null,
+            }))}
+            panels={[retrievePanel, verifyPanel, sealPanel]}
+          />
+        </div>
+      </Section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* The proof sequence, and the chain it closes                       */}
+      {/* ---------------------------------------------------------------- */}
+      <Section id={PROOF_SEQ.id}>
+        <Head id={`${PROOF_SEQ.id}-title`} eyebrow={PROOF_SEQ.eyebrow} title={PROOF_SEQ.title} strong={PROOF_SEQ.titleKey} lede={PROOF_SEQ.lede} />
+        <ProofSequence data={proofData} />
+        {R.chain.length > 0 ? (
+          <div className="lp-verify-wrap">
+            <div className="lp-verify-head">
+              <p className="lp-eyebrow">{CHAIN_VERIFY.label}</p>
+              <h3>{CHAIN_VERIFY.title}</h3>
+              <p>{CHAIN_VERIFY.line}</p>
+            </div>
+            <ChainVerify records={R.chain.map((record) => ({ seq: record.seq, category: record.category, action: record.action, line: record.line }))} head={R.hashFull} />
+          </div>
+        ) : null}
+      </Section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* The run, replayed                                                 */}
+      {/* ---------------------------------------------------------------- */}
+      <Section id={REPLAY.id}>
+        <Head id={`${REPLAY.id}-title`} eyebrow={REPLAY.eyebrow} title={REPLAY.title} strong={REPLAY.titleKey} lede={REPLAY.lede} />
+        <div className="lp-rise">
+          <RunReplay lines={R.replay} runId={R.runId} total={R.total} labels={{ speed: REPLAY.speed, again: REPLAY.again, skip: REPLAY.skip, still: REPLAY.still }} />
+        </div>
+      </Section>
 
       {/* ---------------------------------------------------------------- */}
       {/* What people ask it                                                */}
       {/* ---------------------------------------------------------------- */}
-      <RevealSection id={USE_CASES.id} aria-labelledby={`${USE_CASES.id}-title`} className="lp-section">
-        <div className="lp-shell">
-          <Head id={`${USE_CASES.id}-title`} eyebrow={USE_CASES.eyebrow} title={USE_CASES.title} em={USE_CASES.titleTurn} lede={USE_CASES.lede} />
-          <ul className="lp-cases lp-rise">
-            {cases.map((item) => {
-              const command = item.text.match(/^(\/[a-z-]+)\s+(.*)$/)
-              return (
-                <li key={item.text}>
-                  <span className="kind">{item.kind}</span>
-                  <span className="q">
-                    {command ? (
-                      <>
-                        <span className="cmd">{command[1]}</span> {command[2]}
-                      </>
-                    ) : (
-                      item.text
-                    )}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-          <p className="lp-cases-note">{USE_CASES.note}</p>
-        </div>
-      </RevealSection>
+      <Section id={USE_CASES.id}>
+        <Head id={`${USE_CASES.id}-title`} eyebrow={USE_CASES.eyebrow} title={USE_CASES.title} strong={USE_CASES.titleTurn} lede={USE_CASES.lede} />
+        <ul className="lp-cases lp-rise">
+          {cases.map((item, i) => {
+            const command = item.text.match(/^(\/[a-z-]+)\s+(.*)$/)
+            return (
+              <li key={item.text}>
+                <span className="kind">
+                  <span>{pad(i + 1)}</span> {item.kind}
+                </span>
+                <span className="q">
+                  {command ? (
+                    <>
+                      <span className="cmd">{command[1]}</span> {command[2]}
+                    </>
+                  ) : (
+                    item.text
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+        <p className="lp-note">{USE_CASES.note}</p>
+      </Section>
 
       {/* ---------------------------------------------------------------- */}
       {/* The product, screen by screen                                     */}
       {/* ---------------------------------------------------------------- */}
-      <RevealSection id="product" aria-labelledby="product-title" className="lp-section">
-        <div className="lp-shell">
-          <Head
-            id="product-title"
-            eyebrow="Product"
-            title="One workbench."
-            em="Every step on the record."
-            lede="The thread, skills, harnesses, the approval queue, the sandbox and the audit chain, as they run on the demo host."
-          />
-          <div className="lp-rise mt-12">
-            <ProductGallery slides={GALLERY} variant="dark" />
-          </div>
+      <Section id="product">
+        <Head
+          id="product-title"
+          eyebrow="Product"
+          title="One workbench."
+          strong="Every step on the record."
+          lede="The thread, skills, harnesses, the approval queue, the sandbox and the audit chain, as they ran on the demo host when these were captured."
+        />
+        <div className="lp-rise lp-gap">
+          <ProductGallery slides={GALLERY} variant="dark" />
         </div>
-      </RevealSection>
+      </Section>
 
       {/* ---------------------------------------------------------------- */}
       {/* Security: each claim something the reader can check               */}
       {/* ---------------------------------------------------------------- */}
-      <RevealSection id={PROOF.id} aria-labelledby={`${PROOF.id}-title`} className="lp-section">
-        <div className="lp-shell">
-          <Head id={`${PROOF.id}-title`} eyebrow={PROOF.eyebrow} title={PROOF.title} em={PROOF.titleTurn} lede={PROOF.lede} />
-          <div className="lp-bento lp-rise">
-            {tail.length > 0 ? (
-              <article className="lp-tile wide">
-                <div>
-                  <h3 className="ti">{BENTO.tamper.title}</h3>
-                  <p className="li">{BENTO.tamper.line}</p>
-                </div>
-                <ChainTamper
-                  records={tail.map((record) => ({ sequence: record.sequence, line: record.line }))}
-                  edit={{ ...BENTO.tamper.edit, path: [...BENTO.tamper.edit.path] }}
-                  labels={{
-                    restore: BENTO.tamper.restore,
-                    verified: BENTO.tamper.verified,
-                    broken: BENTO.tamper.broken,
-                    brokenLast: BENTO.tamper.brokenLast,
-                    idle: BENTO.tamper.idle,
-                  }}
-                />
-              </article>
-            ) : null}
-            <article className="lp-tile">
+      <Section id={PROOF.id}>
+        <Head id={`${PROOF.id}-title`} eyebrow={PROOF.eyebrow} title={PROOF.title} strong={PROOF.titleTurn} lede={PROOF.lede} />
+        <div className="lp-bento lp-rise">
+          {R.audit.tail.length > 0 ? (
+            <article className="lp-tile wide">
               <div>
-                <h3 className="ti">{BENTO.airgap.title}</h3>
-                <p className="li">{BENTO.airgap.line}</p>
+                <h3 className="ti">{BENTO.tamper.title}</h3>
+                <p className="li">{BENTO.tamper.line}</p>
               </div>
-              <LiveContainment />
+              <ChainTamper
+                records={R.audit.tail.map((record) => ({ sequence: record.sequence, line: record.line }))}
+                edit={{ ...BENTO.tamper.edit, path: [...BENTO.tamper.edit.path] }}
+                labels={{
+                  restore: BENTO.tamper.restore,
+                  verified: BENTO.tamper.verified,
+                  broken: BENTO.tamper.broken,
+                  brokenLast: BENTO.tamper.brokenLast,
+                  idle: BENTO.tamper.idle,
+                }}
+              />
             </article>
-            <article className="lp-tile">
-              <div>
-                <h3 className="ti">{BENTO.attacks.title}</h3>
-                <p className="li">{BENTO.attacks.line}</p>
-              </div>
-              {attacks.length > 0 ? <AttackList attacks={attacks} foot={attacksFoot} /> : null}
-            </article>
-            <article className="lp-tile">
-              <div>
-                <h3 className="ti">{BENTO.requests.title}</h3>
-                <p className="li">{BENTO.requests.line}</p>
-              </div>
-              <PageRequests />
-            </article>
-          </div>
+          ) : null}
+          <article className="lp-tile">
+            <div>
+              <h3 className="ti">{BENTO.airgap.title}</h3>
+              <p className="li">{BENTO.airgap.line}</p>
+            </div>
+            <LiveContainment />
+          </article>
+          <article className="lp-tile">
+            <div>
+              <h3 className="ti">{BENTO.attacks.title}</h3>
+              <p className="li">{BENTO.attacks.line}</p>
+            </div>
+            {R.attacks.length > 0 ? <AttackList attacks={R.attacks} foot={R.attacksFoot} /> : null}
+          </article>
+          <article className="lp-tile">
+            <div>
+              <h3 className="ti">{BENTO.requests.title}</h3>
+              <p className="li">{BENTO.requests.line}</p>
+            </div>
+            <PageRequests />
+          </article>
         </div>
-      </RevealSection>
+      </Section>
 
       {/* ---------------------------------------------------------------- */}
       {/* Limits, one line each                                             */}
       {/* ---------------------------------------------------------------- */}
-      <RevealSection id={LIMITS.id} aria-labelledby={`${LIMITS.id}-title`} className="lp-section">
-        <div className="lp-shell">
-          <Head id={`${LIMITS.id}-title`} eyebrow={LIMITS.eyebrow} title={LIMITS.title} em={LIMITS.titleTurn} lede={LIMITS.lede} />
-          <ol className="lp-limits lp-rise">
-            {limits.map((item, i) => (
-              <li key={item.id}>
-                <span className="n">{ROMAN[i]}</span>
-                <span className="t">{item.title}</span>
-                <span className="l">{item.line}</span>
-              </li>
-            ))}
-          </ol>
-          <a href={LIMITS.readme.href} target="_blank" rel="noreferrer" className="lp-link mt-12">
-            {LIMITS.readme.label} <ArrowUpRight className="size-4" aria-hidden />
-          </a>
-        </div>
-      </RevealSection>
+      <Section id={LIMITS.id}>
+        <Head id={`${LIMITS.id}-title`} eyebrow={LIMITS.eyebrow} title={LIMITS.title} strong={LIMITS.titleTurn} lede={LIMITS.lede} />
+        <ol className="lp-limits lp-rise">
+          {limits.map((item, i) => (
+            <li key={item.id}>
+              <span className="n">{pad(i + 1)}</span>
+              <span className="t">{item.title}</span>
+              <span className="l">{item.line}</span>
+            </li>
+          ))}
+        </ol>
+        <a href={LIMITS.readme.href} target="_blank" rel="noreferrer" className="lp-link">
+          {LIMITS.readme.label} <ArrowUpRight className="size-4" aria-hidden />
+        </a>
+      </Section>
 
       {/* ---------------------------------------------------------------- */}
       {/* Get started                                                       */}
       {/* ---------------------------------------------------------------- */}
-      <RevealSection id={RUN_IT.id} aria-labelledby={`${RUN_IT.id}-title`} className="lp-section">
-        <div className="lp-shell">
-          <Head id={`${RUN_IT.id}-title`} eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} em={RUN_IT.titleEm} lede={RUN_IT.lede} />
-          <div className="lp-start lp-rise">
-            <CopyCommands lines={[...RUN_IT.commands]} />
-            <ol className="lp-next">
-              {RUN_IT.next.map((line, i) => (
-                <li key={line}>
-                  <span className="n">{ROMAN[i]}</span>
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
+      <Section id={RUN_IT.id}>
+        <Head id={`${RUN_IT.id}-title`} eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} strong={RUN_IT.titleEm} lede={RUN_IT.lede} />
+        <div className="lp-start lp-rise">
+          <CopyCommands lines={[...RUN_IT.commands]} />
+          <ol className="lp-next">
+            {RUN_IT.next.map((line, i) => (
+              <li key={line}>
+                <span className="n">{pad(i + 1)}</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ol>
         </div>
-      </RevealSection>
+      </Section>
     </>
   )
 }
