@@ -290,3 +290,32 @@ span.hv-lock-frame {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ==================================================================== */
+/* MARK — the lock closing, once, where a caller asks for it            */
+/* The brackets come in from 1.5x onto the seal (the lock curve), then  */
+/* the core ticks on. Reduced motion draws the closed mark.             */
+/* ==================================================================== */
+:root,
+[data-theme='light'] { --mark-core: #5f6e00; }
+[data-theme='dark'] { --mark-core: #d4f24a; }
+.hv-mark-intro .hv-mark-brackets {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation: hv-mark-close 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hv-mark-intro .hv-mark-core {
+  animation: hv-mark-tick 120ms steps(2, end) 420ms both;
+}
+@keyframes hv-mark-close {
+  from { transform: scale(1.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes hv-mark-tick {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hv-mark-intro .hv-mark-brackets,
+  .hv-mark-intro .hv-mark-core { animation: none; opacity: 1; transform: none; }
+}
