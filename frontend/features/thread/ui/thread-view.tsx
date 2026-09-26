@@ -37,6 +37,7 @@ import type {
 } from '../model/types'
 import { appendUsage, choiceFromEvent, choicesFromRouting } from '../model/usage'
 import { notesFromEvent, notesFromTask } from '../model/notes'
+import type { FollowUp } from '../model/follow-ups'
 import {
   MODEL_STAGE_TO_ROW,
   TERMINAL,
@@ -1294,6 +1295,36 @@ export function ThreadView() {
     setDrawerOpen(true)
   }, [])
 
+  /**
+   * A follow-up chip fills the composer -- the request, the format it names,
+   * and the run's own attachments, which the question is about -- and puts
+   * the caret at the end. It never sends: the person reads it and presses Run.
+   */
+  const fillFollowUp = useCallback((turnId: string, followUp: FollowUp) => {
+    const turn = turnsRef.current.find((t) => t.id === turnId)
+    const files = turn?.role === 'assistant' ? turn.request?.attachments ?? [] : []
+    setPrompt(followUp.prompt)
+    setHint(null)
+    setSkill(null)
+    if (followUp.format) setFormat(followUp.format)
+    setAttachments(
+      files.map((file) => ({
+        id: `followup-${file.fileId}`,
+        name: file.filename,
+        sizeBytes: file.sizeBytes,
+        classification: file.classification,
+        uploading: false,
+        fileId: file.fileId,
+      })),
+    )
+    window.requestAnimationFrame(() => {
+      const field = textareaRef.current
+      if (!field) return
+      field.focus({ preventScroll: true })
+      field.setSelectionRange(field.value.length, field.value.length)
+    })
+  }, [])
+
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
   const assistantTurns = turns.filter((t): t is AssistantTurnModel => t.role === 'assistant')
@@ -1370,6 +1401,7 @@ export function ThreadView() {
               canReview={canReview}
               models={models}
               onReleased={answerReleased}
+              onFollowUp={canRun ? fillFollowUp : undefined}
             />
           ),
         )}

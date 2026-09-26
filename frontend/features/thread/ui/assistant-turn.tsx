@@ -27,6 +27,7 @@ import { RunTranscript, citeLabel } from './run-transcript'
 import { CITE_CHIP } from './cite-chip'
 import { CiteButton, EvidenceCardScope } from './evidence-card'
 import { HeldBlock } from './held-block'
+import { followUps, type FollowUp } from '../model/follow-ups'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -576,8 +577,11 @@ export const AssistantTurn = memo(function AssistantTurn({
   canReview = false,
   models = null,
   onReleased,
+  onFollowUp,
 }: {
   turn: AssistantTurnModel
+  /** A follow-up chip was picked: fill the composer with it. Never sends. */
+  onFollowUp?: (turnId: string, followUp: FollowUp) => void
   onCite?: (turnId: string, evidenceId: string) => void
   onRerun?: (turnId: string) => void
   /** The checked answer of a live release is in place, at `element`. */
@@ -612,6 +616,7 @@ export const AssistantTurn = memo(function AssistantTurn({
       ? 'sovereign'
       : null
   const heldForReview = held && turn.deliverable !== null && !turn.deliverable.released
+  const nextSteps = followUps(turn)
 
   /*
     The work log is open while the run is live and folds to one line when an
@@ -1013,6 +1018,21 @@ export const AssistantTurn = memo(function AssistantTurn({
               rerunDisabled={busy}
               taskId={turn.taskId}
             />
+          )}
+          {!running && onFollowUp && nextSteps.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" aria-label="Ask next">
+              {nextSteps.map((step) => (
+                <button
+                  key={step.key}
+                  type="button"
+                  onClick={() => onFollowUp(turn.id, step)}
+                  title="Puts this in the composer. Nothing is sent until you press Run."
+                  className="hover-decay inline-flex h-7 max-w-full items-center rounded-[var(--radius-xs)] border border-line-default px-2.5 text-[12.5px] text-foreground-secondary hover:border-line-strong hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+                >
+                  <span className="truncate">{step.label}</span>
+                </button>
+              ))}
+            </div>
           )}
           {/* Only what the reader did not expect -- a model request that was
               not honoured, an answer cut off at its limit. The figures are in
