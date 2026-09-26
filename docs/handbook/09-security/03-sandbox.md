@@ -52,6 +52,7 @@ The mechanism is chosen by **what the host can do**, probed at run time, never b
 | Processes | `RLIMIT_NPROC` = current + 64 | Same | Active process limit |
 | Core dumps | `RLIMIT_CORE` = 0 | Same | n/a |
 | On close | Process group killed | Same | Kill-on-job-close |
+| Network | A private **network namespace**, probed first ([below](#the-network-namespace-linux)) | Shim only | Shim only |
 
 Two details matter:
 
@@ -76,7 +77,7 @@ The Assurance screen's self-test submits real payloads (a static socket import, 
 ## What the sandbox does not stop
 
 > [!WARNING]
-> With `runtime: subprocess` (the default, and the only runtime verified on the Windows development host), this is application-level isolation inside a subprocess: static rules, OS resource limits and an interpreter shim. It is **not** a container, a virtual machine, a namespace or a seccomp filter, and the child runs as the **same operating-system user** as the API.
+> With `runtime: subprocess` (the default, and the only runtime verified on the Windows development host), this is application-level isolation inside a subprocess: static rules, OS resource limits and an interpreter shim. It is **not** a container, a virtual machine or a seccomp filter, and the child runs as the **same operating-system user** as the API. The one kernel boundary it has is on Linux: a private network namespace, so its connections are refused below the shim.
 
 Concretely, verified on the demonstration host:
 
@@ -97,6 +98,14 @@ In order of effort:
 
 1. **Confine listing in the shim** as reads are: refuse `os.listdir`, `os.scandir` and `os.walk` outside the read scope.
 2. **Run each execution in a container.** Implemented: set `sandbox.runtime: podman` (or `docker`) on a Linux host with the image built. See [the container runtime](#the-container-runtime) below.
+
+## The network namespace (Linux)
+
+`backend/tools/netns.py`. Without a container, a subprocess shares the host's network stack: the shim is then the only thing between generated code and the host's loopback, where Ollama (11434) and the API (8000) listen. On Linux each program therefore runs under a rootless `unshare --user --map-current-user --net` (plain `--user --net` on util-linux older than 2.38). Its namespace holds one loopback interface, **down**, so the kernel returns *Network is unreachable* for every connection, to the internet or to 127.0.0.1, whatever the program does to the interpreter. It needs no image, no root and no network to set up, and the rlimits set in `preexec_fn` carry across `unshare`'s exec.
+
+It is used only after a probe, run once and cached, starts a program with the exact prefix a run gets and **without** the shim, and sees only `lo`, with a connection to the host's loopback and one to an outside address both refused. `sandbox.network_namespace` decides what happens otherwise: `auto` runs without it and says why on the Sandbox screen, `require` refuses to run. The runtime then reads *subprocess (private network namespace)*, each run's limits record `network_namespace: true`, `GET /api/sandbox/limits` carries the probe, and the self-test adds **Kernel network namespace**, a fresh probe with the shim absent, so it measures the kernel layer on its own.
+
+It does nothing for the filesystem or for processes: those are still the shim's and the rlimits'. The container below adds a read-only root and dropped capabilities.
 
 ## The container runtime
 

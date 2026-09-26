@@ -67,7 +67,7 @@ import psutil
 
 from backend.core.config import get_config
 from backend.core.schemas import SandboxResult
-from backend.tools import container_sandbox
+from backend.tools import container_sandbox, netns
 
 # --------------------------------------------------------- platform capability
 # RLIMIT_CPU, RLIMIT_AS, RLIMIT_FSIZE and RLIMIT_NPROC are POSIX. Windows has
@@ -814,6 +814,9 @@ class LimitsApplied:
     wall_timeout_seconds: float | None = None
     kill_on_close: bool = False
     die_on_unhandled_exception: bool = False
+    # The run had a private network namespace (Linux): the kernel, not only
+    # the interpreter shim, refused its connections.
+    network_namespace: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -824,6 +827,7 @@ class LimitsApplied:
             "wall_timeout_seconds": self.wall_timeout_seconds,
             "kill_on_close": self.kill_on_close,
             "die_on_unhandled_exception": self.die_on_unhandled_exception,
+            "network_namespace": self.network_namespace,
         }
 
 
@@ -1007,6 +1011,11 @@ class Sandbox:
         backend = self._enforcement_backend()
         if backend == "posix_rlimit":
             label = "subprocess"
+            mode, namespace = self._network_namespace()
+            if namespace is not None and namespace.usable:
+                label = "subprocess (private network namespace)"
+            elif namespace is not None and mode != "off":
+                label = f"subprocess (no network namespace: {namespace.reason})"
         elif backend == "windows_job_object":
             label = "subprocess (Windows Job Object)"
         else:
@@ -1040,6 +1049,30 @@ class Sandbox:
         if probe.usable:
             return "container", probe
         return ("fallback" if settings.fallback == "subprocess" else "refused"), probe
+
+    def _network_namespace(self) -> tuple[str, netns.NamespaceProbe | None]:
+        """The ``sandbox.network_namespace`` mode, and the probe where it applies.
+
+        It applies to the Linux subprocess path only: a container already has
+        ``--network none``, and other platforms have no network namespaces.
+        ``auto`` uses the namespace when the probe proves it; ``require``
+        refuses to run without one; ``off`` never probes.
+        """
+        mode = str(self._settings.get("network_namespace", "auto")).lower()
+        if mode not in ("auto", "require", "off"):
+            mode = "require"
+        if mode == "off" or not sys.platform.startswith("linux"):
+            return mode, None
+        if self._container_selection()[0] == "container":
+            return mode, None
+        return mode, netns.probe_network_namespace()
+
+    def network_namespace_probe(self) -> dict[str, Any] | None:
+        """The namespace probe result for the limits and self-test endpoints."""
+        mode, probe = self._network_namespace()
+        if probe is None:
+            return None
+        return {**probe.to_dict(), "mode": mode}
 
     def container_probe(self) -> dict[str, Any] | None:
         """The container probe result for the limits and self-test endpoints."""
@@ -1080,6 +1113,14 @@ class Sandbox:
                 "docs/RUNTIME-ENVIRONMENT.md. Every other stage works here."
             )
         if _POSIX_RLIMITS:
+            mode, namespace = self._network_namespace()
+            if mode == "require" and not (namespace is not None and namespace.usable):
+                why = namespace.reason if namespace is not None else f"this host is {sys.platform}"
+                return False, (
+                    "sandbox.network_namespace is require, and a private network "
+                    f"namespace is not available here: {why}. Execution is refused "
+                    "rather than run on the host's network stack."
+                )
             return True, ""
         if _WINDOWS_JOB_CAPABLE:
             ok, reason = probe_windows_job_limits()
@@ -1346,6 +1387,8 @@ class Sandbox:
         before = {path.name for path in workspace.iterdir()}
         timeout = float(self._settings.get("timeout_seconds", 45))
         max_output = int(self._settings.get("max_output_bytes", 262144))
+        _, namespace = self._network_namespace()
+        namespace_prefix = namespace.prefix if namespace is not None and namespace.usable else []
 
         started = time.perf_counter()
         timed_out = False
@@ -1364,8 +1407,10 @@ class Sandbox:
                 # if that was not the timeout, it was the memory cap.
                 memory_killed = exit_code is None and not timed_out
             else:
+                # The rlimits set in preexec_fn are inherited across unshare's
+                # exec, so the namespace adds to them and replaces nothing.
                 completed = subprocess.run(
-                    [sys.executable, str(script)],
+                    [*namespace_prefix, sys.executable, str(script)],
                     cwd=str(workspace),
                     env=self._environment(workspace),
                     capture_output=True,
@@ -1435,6 +1480,7 @@ class Sandbox:
             memory_mb=memory_limit,
             cpu_seconds=int(self._settings.get("max_cpu_seconds", 30)),
             wall_timeout_seconds=timeout,
+            network_namespace=bool(namespace_prefix),
         )
         accounting = ExecutionAccounting(
             assessable=True,
@@ -1701,6 +1747,7 @@ class Sandbox:
                 "backend": "none",
                 "runtime": self.runtime,
                 "container_probe": self.container_probe(),
+                "network_namespace": self.network_namespace_probe(),
                 "duration_ms": int((time.perf_counter() - started) * 1000),
                 "ran_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -1719,6 +1766,7 @@ class Sandbox:
             "backend": backend,
             "runtime": self.runtime,
             "container_probe": self.container_probe(),
+            "network_namespace": self.network_namespace_probe(),
             "overall": (
                 f"{passed} of {len(checks)} containment checks held on this host"
                 if passed == len(checks)
@@ -1986,6 +2034,21 @@ class Sandbox:
     def _limit_checks_posix(self) -> list[dict[str, Any]]:
         """CPU / memory / process caps on the POSIX backend, reported as measured."""
         checks: list[dict[str, Any]] = []
+
+        # The shim masks the kernel layer from inside a run, so the kernel
+        # layer is measured the way the container is: a fresh probe, in the
+        # same namespace a run gets, with no shim loaded.
+        mode, namespace = self._network_namespace()
+        if namespace is not None and mode != "off":
+            fresh = netns.probe_network_namespace(force=True)
+            checks.append(
+                {
+                    "name": "Kernel network namespace",
+                    "target": "connect to the host's loopback and an outside address, shim not loaded",
+                    "passed": fresh.usable,
+                    "detail": fresh.summary() if fresh.prefix else fresh.reason,
+                }
+            )
 
         cpu_case = self._execute_unvalidated("x = 0\nwhile True:\n    x += 1\n")
         checks.append(

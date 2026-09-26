@@ -138,6 +138,15 @@ export const api = {
     return request<User>('/auth/me')
   },
 
+  /**
+   * Who is signed in, or that nobody is. A 200 either way: /auth/me answers
+   * a signed-out visitor with a 401, which the browser logs as an error on
+   * every page, the public landing page included.
+   */
+  async session(): Promise<{ authenticated: boolean; user: User | null }> {
+    return request<{ authenticated: boolean; user: User | null }>('/auth/session')
+  },
+
   async logout(): Promise<void> {
     try {
       await request('/auth/logout', { method: 'POST' })

@@ -21,8 +21,9 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from pydantic import BaseModel
 
-from backend.api.dependencies import CurrentUser, SessionToken, require_permission
+from backend.api.dependencies import CurrentUser, OptionalUser, SessionToken, require_permission
 from backend.api.task_service import get_task_service
 from backend.rag.parsing import parse_document
 from backend.security import dlp
@@ -178,6 +179,23 @@ def logout(
 @router.get("/auth/me", response_model=User)
 def current_user(user: CurrentUser) -> User:
     return user
+
+
+class SessionState(BaseModel):
+    authenticated: bool
+    user: User | None = None
+
+
+@router.get("/auth/session", response_model=SessionState)
+def session_state(user: OptionalUser) -> SessionState:
+    """Who is signed in, or that nobody is: a 200 either way.
+
+    The console asks this on every page, because the session may live in an
+    HttpOnly cookie it cannot read. /auth/me answers a signed-out visitor
+    with a 401, which the browser logged as an error on every page, the
+    public one included. A forged or expired token is simply not signed in.
+    """
+    return SessionState(authenticated=user is not None, user=user)
 
 
 @router.get("/auth/directory", response_model=list[User])

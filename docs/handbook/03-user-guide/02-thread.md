@@ -13,14 +13,17 @@ A new thread opens on *What should we check today?*, with the composer and start
 
 ### Starter cards
 
-| Card | What it does |
-|---|---|
-| **Approval note from a scanned report** | Attaches `scanned-inspection-report-V-2104.pdf`, asks for an approval note, output **Word**. Shown only when a vision model is installed |
-| **Corrosion rate and remaining life** | Attaches `V-2104-thickness-survey.csv`, asks for rate and remaining life at every location, output **Excel** |
-| **What do our procedures require?** | A cited question about cladding damage and who must approve continued operation |
-| **Find the governing clause** | The `/clause` skill with a ready input. Offered in place of the scanned report on a host with no vision model |
+Four cards, two by two, each a golden demo (`CONSOLE_TEMPLATES` in `frontend/lib/presentation.ts`). The first is one of two, depending on whether a vision model is installed.
 
-Clicking a card fills the composer; nothing runs until you send.
+| Card | Attaches | What it does |
+|---|---|---|
+| **Can V-2104 keep running?** | `scanned-inspection-report-V-2104.pdf` | Asks for an approval note, output **Word**: the scan is read locally, the figures come from the formula registry, and the note is held for sign-off. Shown when a vision model is installed |
+| **Can V-2104 keep running?** | `V-2104-thickness-survey.csv` | The same question from the survey, **answer only**. Shown in its place when no vision model is installed |
+| **Two records disagree** | the survey and `V-2104-contractor-field-sheet.md` | The reading at shell course 2 differs (9.4 mm against 9.9 mm), so no figure is stated until a reviewer chooses |
+| **A document that gives orders** | `V-2104-contractor-note-with-injection.md` | The note tells the model to approve V-2104; its instructions are withheld from the model and the run is held for a person |
+| **A relief valve failed its test** | `PSV-2104A-bench-test-record.md` | Each SOP-INS-025 clause judged by formula; the valve opened above 11.55 bar(g), so the finding on V-2104 is High and needs the Head of Inspection and then the Plant Manager |
+
+Clicking a card fills the composer and attaches its files through the ordinary upload; nothing runs until you send.
 
 ### The composer
 

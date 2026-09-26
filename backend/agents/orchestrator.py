@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import groupby
 from pathlib import Path
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar
 
 from backend.agents.code_extraction import extract_python
 from backend.agents.verifier import get_verification_engine
@@ -85,6 +85,9 @@ from backend.models_layer.router import NoEligibleModelError, get_model_router
 from backend.policy.gateway import get_policy_gateway
 from backend.rag.parsing import inspect_pdf_pages
 from backend.tools.registry import ToolContext, get_tool_registry
+
+if TYPE_CHECKING:
+    from backend.engineering.formulas import BoundValue
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
 JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)

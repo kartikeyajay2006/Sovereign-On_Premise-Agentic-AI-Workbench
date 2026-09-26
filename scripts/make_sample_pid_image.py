@@ -16,6 +16,7 @@ with it element by element, and every disagreement is reported.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -136,6 +137,9 @@ def render(source: Path = SOURCE, target: Path = TARGET) -> Path:
 
 
 def main() -> int:
+    # Read the arguments even though there are none to take: without this,
+    # `--help` rendered the drawing over the committed image.
+    argparse.ArgumentParser(description=__doc__.split("\n\n")[0]).parse_args()
     print(f"  drawing  {render().relative_to(ROOT)}")
     return 0
 

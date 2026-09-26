@@ -22,6 +22,7 @@ from backend.core.schemas import (
 from backend.engineering.assessment import assess_piping, assess_vessel
 from backend.engineering.extraction import InputConflict, piping_inputs, vessel_inputs
 from backend.engineering.formulas import BoundValue, output_value
+from backend.engineering.relief import assess_relief, relief_inputs
 
 _RANK = {Sensitivity.NORMAL: 0, Sensitivity.CONFIDENTIAL: 1, Sensitivity.SENSITIVE: 2, Sensitivity.RESTRICTED: 3}
 
@@ -63,6 +64,10 @@ def assess_with_conflicts(
     piping = piping_inputs(pool)
     if piping is not None:
         records, assessment = assess_piping(piping)
+        return records, assessment, []
+    relief = relief_inputs(pool)
+    if relief is not None:
+        records, assessment = assess_relief(relief)
         return records, assessment, []
     return None
 
@@ -326,6 +331,8 @@ def prompt_block(
 def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRecord]) -> list[str]:
     """The calculated decision as cited sentences, one per finding."""
     decision = _decision_id(assessment, records)
+    if assessment.kind == "relief":
+        return _relief_lines(assessment, decision)
     governing = _location_id(assessment, records)
     # Values stated in a question have no location to govern.
     where = f"governing location {assessment.governing_location}; " if assessment.governing_location else ""
@@ -368,6 +375,36 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     elif assessment.next_due:
         lines.append(f"[{decision}] Next {'thickness survey' if assessment.kind == 'vessel' else 'measurement'} "
                      f"due {assessment.next_due} ({assessment.next_due_basis}).")
+    return lines
+
+
+def _relief_lines(assessment: IntegrityAssessment, decision: str | None) -> list[str]:
+    """A relief device's verdicts: one per SOP-INS-025 clause, then the decision.
+
+    Nothing here is about thickness or corrosion: the thickness sentences
+    would have told the model to state a rate and a remaining life that no
+    relief-valve record carries.
+    """
+    protected = f" on {assessment.protected_equipment}" if assessment.protected_equipment else ""
+    lines = [
+        f"[{decision}] {assessment.subject}{protected}: {check.label}: "
+        f"{'passed' if check.passed else 'FAILED'}. {check.detail}."
+        for check in assessment.checks
+    ]
+    if assessment.severity:
+        lines.append(
+            f"[{decision}] Severity {assessment.severity.capitalize()} on the protected equipment"
+            f"{protected}. Basis: {assessment.severity_basis}. Required action: {assessment.required_action}. "
+            f"Approving authority: {assessment.approver}."
+        )
+    elif assessment.required_action:
+        lines.append(f"[{decision}] Required action: {assessment.required_action}.")
+    authority = authority_statement(assessment)
+    if authority:
+        lines.append(f"[{decision}] {authority}")
+    if assessment.next_due and not assessment.withdraw_from_service:
+        lines.append(f"[{decision}] Next bench test of {assessment.subject} due {assessment.next_due} "
+                     f"({assessment.next_due_basis}).")
     return lines
 
 
