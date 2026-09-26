@@ -122,17 +122,30 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 |---|---|:--:|---|
 | `session_ttl_minutes` | `720` | ✅ | Session lifetime (12 h) |
 | `password_hash_rounds` | `12` | ✅ | × 10,000 PBKDF2 iterations (120,000) |
-| `self_registration_enabled` | `true` | ✅ | Allow `POST /api/auth/register`. **Set false outside a demo machine** |
-| `self_registration_default_role` | `operator` | ✅ | Role given to self-registered accounts |
+| `self_registration_enabled` | `false` | ✅ | Allow `POST /api/auth/register`, the one path that skips an administrator. **Keep false outside a development machine** |
+| `self_registration_default_role` | `operator` | ✅ | Role given to self-registered accounts, and the placeholder role of an account waiting on an access request |
 | `self_registration_default_department` | `operations` | ✅ | Their department, if none is given |
 | `secret_key` | `""` | ⚠️ | Not read; sessions are random tokens stored in the database |
-| `seed_user_password` | `workbench` | ✅ | Password given to a seed account when it is created: on first start, and for any declared seed account that does not exist yet (the Head of Inspection and Plant Manager on an older install). **Change before first start** |
+| `seed_user_password` | `workbench` | ✅ | Password given to a demo seed account when it is created (demo mode only): on first start, and for any declared seed account that does not exist yet (the Head of Inspection and Plant Manager on an older install). **Change before first start** |
+
+## `identity`
+
+How accounts come to exist ([9.1](../09-security/01-access-control.md#how-accounts-come-to-exist)).
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `owner_role` | `administrator` | ✅ | The role the first-run owner gets. Must grant `users.manage` |
+| `directory.enabled` | `false` | ⚠️ | Declared only. No directory client ships; the directory reports *not configured* either way |
+| `directory.url` | `""` | ⚠️ | e.g. `ldaps://dc01.plant.local:636`. Shown to administrators; not connected to |
+| `directory.base_dn` | `""` | ⚠️ | e.g. `OU=Staff,DC=plant,DC=local` |
+| `directory.user_filter` | `(sAMAccountName={username})` | ⚠️ | The bind filter a directory client will use |
+| `directory.group_role_map` | `{}` | ⚠️ | Directory group → role in `policies/access-control.yaml` |
 
 ## `demo`
 
 | Key | Default | | Meaning |
 |---|---|:--:|---|
-| `enabled` | `true` | ✅ | Serve the sample files the console's golden-demo cards attach (`GET /api/samples`). **Set false on a production install** |
+| `enabled` | `true` | ✅ | Seed the demo accounts from `policies/access-control.yaml` and list them on the sign-in screen, and serve the sample files the console's golden-demo cards attach (`GET /api/samples`). With it off, a host with no administrator issues the one-time owner setup token at startup. **Set false on a production install** |
 | `samples` | four ids | ✅ | Id → path of each sample, under `sample_data/` only; a path outside it is never served ([11.2](../11-api/02-files-tasks.md#sample-files)) |
 
 <!-- nav:start -->

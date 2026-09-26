@@ -6,7 +6,7 @@ The API is FastAPI on `http://127.0.0.1:8000`. Every route is under `/api`, exce
 
 | Page | Endpoints |
 |---|---|
-| [11.1 Authentication and system](01-auth-system.md) | Sign-in, sessions, status, health, models, routing, policies, tools |
+| [11.1 Authentication and system](01-auth-system.md) | Sign-in, sessions, owner setup, invitations, access requests, user administration, status, health, models, routing, policies, tools |
 | [11.2 Files and tasks](02-files-tasks.md) | Uploads, creating and reading runs, cancelling |
 | [11.3 Approvals and deliverables](03-approvals-deliverables.md) | The review queue, decisions, downloads |
 | [11.4 Skills and harnesses](04-skills-harnesses.md) | Skills; harness catalogue, preview, runs, reports |
@@ -46,7 +46,8 @@ The API also accepts the `workbench_session` cookie it sets at sign-in, which is
 | 401 | No valid session |
 | 403 | Signed in, but not permitted, or not entitled to this record |
 | 404 | No such record, or one you may not know exists |
-| 409 | Conflict (a skill with that name exists; a harness run still in progress) |
+| 409 | Conflict (a skill with that name exists; a harness run still in progress; an access request already decided) |
+| 429 | Too many failed sign-ins or wrong codes from this client; `Retry-After` says when to try again |
 | 410 | A deliverable is recorded but its file is gone from storage |
 | 503 | The inference endpoint is not loopback, and was refused |
 
@@ -58,11 +59,13 @@ Errors are JSON: `{"detail": "…"}`.
 |---|---|
 | `GET /` | `{name, status, sovereign, external_calls, monitor_active, monitored_since, docs, checked_at}` |
 | `GET /api/status` | Containment status for the sign-in page |
-| `GET /api/auth/directory` | The user list, for the demo account cards |
-| `POST /api/auth/login`, `POST /api/auth/register` | Sessions |
+| `GET /api/auth/directory` | The seeded demo accounts, in demo mode only; `[]` otherwise |
+| `POST /api/auth/login`, `POST /api/auth/register` | Sessions (`register` is refused unless `security.self_registration_enabled`) |
+| `GET /api/setup/status`, `POST /api/setup/owner` | First-run owner setup, with the one-time token |
+| `POST /api/invites/accept`, `POST /api/password-resets/accept` | Redeem a one-time code an administrator issued |
+| `POST /api/access-requests`, `GET /api/access-requests/{id}/status` | Ask for an account; follow the decision |
 
-> [!WARNING]
-> `GET /api/auth/directory` returns **every** account's username, display name, role and department, not only the seeded demo accounts, and needs no sign-in. On a shared network that is user enumeration. See [9.6](../09-security/06-threat-model.md).
+The code-redeeming and request routes are throttled like sign-in, on counters of their own. See [11.1](01-auth-system.md#accounts-and-provisioning).
 
 <!-- nav:start -->
 

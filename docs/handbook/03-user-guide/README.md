@@ -26,7 +26,7 @@ Below 1024 px wide, the sidebar becomes a sheet behind a menu button in a slim t
 
 | Page | Screen | Who uses it |
 |---|---|---|
-| [3.1 Signing in and roles](01-sign-in.md) | Sign-in | Everyone |
+| [3.1 Signing in, accounts and roles](01-sign-in.md) | Sign-in, setup, invitations, access requests, People | Everyone; People for administrators |
 | [3.2 Thread](02-thread.md) | Ask, attach, choose output and model, read the run | Everyone who creates tasks |
 | [3.3 Skills](03-skills.md) | Saved instructions | Everyone; engineers and up add them |
 | [3.4 Harnesses](04-harnesses.md) | Multi-run jobs and their reports | Everyone who creates tasks |
@@ -44,6 +44,6 @@ Below 1024 px wide, the sidebar becomes a sheet behind a menu button in a slim t
 
 | | | |
 |:--|:--:|--:|
-| [← 2.9 · Conflicts and human resolution](../02-concepts/09-conflicts.md) | [↑ The AEGIS Handbook](../README.md) | [3.1 · Signing in and roles →](01-sign-in.md) |
+| [← 2.9 · Conflicts and human resolution](../02-concepts/09-conflicts.md) | [↑ The AEGIS Handbook](../README.md) | [3.1 · Signing in, accounts and roles →](01-sign-in.md) |
 
 <!-- nav:end -->
