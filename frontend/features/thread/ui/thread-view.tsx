@@ -112,6 +112,7 @@ function recordFields(task: Task) {
     conflicts: task.conflicts ?? [],
     claims: task.verification?.claims ?? [],
     scans: contentScans(task.policy_events),
+    policyEvents: (task.policy_events ?? []).length,
     topology: task.topology ?? null,
     denialReason: task.error || null,
     elapsedMs: task.duration_ms ?? null,
@@ -196,6 +197,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     conflicts: [],
     claims: [],
     scans: [],
+    policyEvents: null,
     topology: null,
     denialReason: null,
     error: null,
@@ -1486,8 +1488,11 @@ export function ThreadView() {
         window's edge.
       */}
       <TraceScope
+        // Read by the Brief: with the evidence rail docked, its margin has
+        // no room to move out into (globals.css, THE BRIEF).
+        data-rail-docked={drawerOpen ? '' : undefined}
         className={cn(
-          'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
+          'thread-column mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
           // With a run on screen the column fills the window, so the composer
           // below it sits at the window's foot even under a short answer.
           turns.length === 0 ? 'thread-empty min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'min-h-[calc(100dvh-var(--shell-top))] pt-8',
