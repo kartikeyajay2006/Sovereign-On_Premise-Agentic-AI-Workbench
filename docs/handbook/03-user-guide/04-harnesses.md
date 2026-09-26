@@ -9,7 +9,7 @@ A harness runs **one job over many items**. Each item is an ordinary, fully gove
 
 ## The library
 
-Open **Harnesses** (<kbd>G</kbd> then <kbd>H</kbd>). The library lists the three built-in harnesses with what each asks for, and your recent harness runs with their status.
+Open **Harnesses** (<kbd>G</kbd> then <kbd>H</kbd>). The library shows the three built-in harnesses as numbered tiles, each with what it asks for, and below them your recent harness runs with their status. <kbd>J</kbd> / <kbd>K</kbd> or the arrow keys move between tiles; <kbd>Enter</kbd> opens one.
 
 | Harness | You provide | Each item is | You get |
 |---|---|---|---|

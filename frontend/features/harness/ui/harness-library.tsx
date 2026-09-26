@@ -10,7 +10,8 @@ import { PageHeader } from '@/components/page-header'
 import { harnessApi } from '../api'
 import type { HarnessCatalogView, HarnessRunSummary, HarnessTally } from '../model/types'
 import { ACTIVE_RUN, OUTCOME, OUTCOME_ORDER, UNSETTLED } from './outcome'
-import { Ledger, OutcomeMarker, Panel, RunStatusBadge } from './parts'
+import { OutcomeMarker, Panel, RunStatusBadge } from './parts'
+import { LABEL, MONO } from './control/style'
 import { plural, relativeTime, shortId } from './format'
 
 /** The runs list is re-read only while one of them is still moving. */
@@ -140,9 +141,16 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
             <code className="font-mono text-meta">config/harnesses/*.yaml</code>.
           </p>
         ) : (
-          <ul role="list" onKeyDown={onListKey} className="flex list-none flex-col p-0">
+          // Square tiles on a 1px-ruled grid, each numbered, in the Hi-Vis
+          // manner. The same buttons as before, in the same order, with the
+          // same keys: j/k and the arrows move, Enter configures.
+          <ul
+            role="list"
+            onKeyDown={onListKey}
+            className="grid list-none grid-cols-1 gap-px bg-line-default p-0 md:grid-cols-2 xl:grid-cols-3"
+          >
             {harnesses.map((harness, index) => (
-              <li key={harness.id} className="grouped-row last:border-b-0">
+              <li key={harness.id} className="flex bg-surface">
                 <button
                   ref={(element) => {
                     rowRefs.current[index] = element
@@ -151,38 +159,39 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   tabIndex={index === focused ? 0 : -1}
                   onFocus={() => setFocused(index)}
                   onClick={() => onConfigure(harness.id)}
-                  className="hover-decay group flex w-full items-start gap-4 px-4 py-4 text-left hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+                  className="group flex min-h-[184px] w-full flex-col gap-3 p-4 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
                 >
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <span className="text-heading font-medium tracking-[var(--ls-heading)] text-foreground">
-                      {harness.name}
+                  <span className="flex items-center justify-between gap-3">
+                    <span className={cn(MONO, 'flex size-7 items-center justify-center border border-line-strong text-foreground')}>
+                      {String(index + 1).padStart(2, '0')}
                     </span>
-                    <span className="max-w-[80ch] text-body text-foreground-secondary">
-                      {harness.summary}
+                    <ArrowRight
+                      className="arrow-shift size-4 shrink-0 text-foreground-muted group-hover:text-action"
+                      aria-hidden
+                    />
+                  </span>
+                  <span className="text-[22px] font-light leading-tight tracking-[-0.03em] text-foreground [font-stretch:88%]">
+                    {harness.name}
+                  </span>
+                  <span className="text-[13px] leading-5 text-foreground-secondary">{harness.summary}</span>
+                  <span className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line-subtle pt-2">
+                    <span className={LABEL}>
+                      Fans out over{' '}
+                      {harness.expansion_source === 'knowledge_sections'
+                        ? 'indexed sections'
+                        : harness.inputs.find((input) => input.kind === 'lines')?.label.toLowerCase() ||
+                          'lines'}{' '}
+                      · up to {harness.max_items}
                     </span>
-                    <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                      <Ledger>
-                        Fans out over{' '}
-                        {harness.expansion_source === 'knowledge_sections'
-                          ? 'indexed sections'
-                          : harness.inputs.find((input) => input.kind === 'lines')?.label.toLowerCase() ||
-                            'lines'}{' '}
-                        · up to {harness.max_items}
-                      </Ledger>
-                      {/* Configuration, so ink: nothing is held until a report exists. */}
-                      {harness.report_requires_approval && (
-                        <Ledger className="inline-flex items-center gap-1">
-                          <span aria-hidden>⏸</span> Report needs approval
-                        </Ledger>
-                      )}
-                      {/* The hash is on the configure screen, beside what it hashes. */}
-                      <Ledger>v{harness.version}</Ledger>
-                    </span>
-                  </div>
-                  <ArrowRight
-                    className="arrow-shift mt-1 size-4 shrink-0 text-foreground-muted group-hover:text-foreground"
-                    aria-hidden
-                  />
+                    {/* Configuration, so ink: nothing is held until a report exists. */}
+                    {harness.report_requires_approval && (
+                      <span className={cn(LABEL, 'inline-flex items-center gap-1')}>
+                        <span aria-hidden>⏸</span> Report needs approval
+                      </span>
+                    )}
+                    {/* The hash is on the configure screen, beside what it hashes. */}
+                    <span className={LABEL}>v{harness.version}</span>
+                  </span>
                 </button>
               </li>
             ))}
@@ -227,28 +236,26 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   <button
                     type="button"
                     onClick={() => onOpenRun(run.id)}
-                    className="hover-decay grid w-full grid-cols-1 gap-x-6 gap-y-2 px-4 py-3 text-left hover:bg-surface-sunken focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center"
+                    className="grid min-h-7 w-full grid-cols-1 gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center"
                   >
                     <span className="flex min-w-0 flex-col gap-1">
-                      <span className="truncate text-body font-medium text-foreground">
-                        {run.harness_name}
-                      </span>
-                      <Ledger>
+                      <span className="truncate text-[13px] text-foreground">{run.harness_name}</span>
+                      <span className={LABEL}>
                         {shortId(run.id)} · {run.user_display_name} · {relativeTime(run.created_at)}
-                      </Ledger>
+                      </span>
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">
-                      <span className="tabular font-mono text-meta text-foreground">
+                      <span className={cn(MONO, 'text-foreground')}>
                         {run.tally.settled} of {plural(run.tally.total, 'item')} settled
                         {run.current_index !== null && (
-                          <span className="text-active-text"> · #{run.current_index} in flight</span>
+                          <span className="text-action"> · #{run.current_index} in flight</span>
                         )}
                       </span>
                       <TallyGlyphs tally={run.tally} />
                     </span>
                     <span className="flex flex-col items-start gap-1 md:items-end">
                       <RunStatusBadge status={run.status} />
-                      <span className={cn('font-mono text-ledger uppercase tracking-[var(--ls-ledger)]', report.tone)}>
+                      <span className={cn(LABEL, report.tone)}>
                         {report.text}
                       </span>
                     </span>
