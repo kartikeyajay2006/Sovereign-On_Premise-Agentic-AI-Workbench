@@ -25,6 +25,7 @@ import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
 import { CITE_CHIP } from './cite-chip'
+import { CiteButton, EvidenceCardScope } from './evidence-card'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -192,16 +193,15 @@ function Inline({
           )
         }
         return (
-          <button
+          <CiteButton
             key={i}
-            type="button"
-            onClick={() => onCite(id)}
-            // TRACE: pairs the chip with its row in the evidence rail.
-            data-trace={trace ? `${trace}:${id}` : undefined}
+            id={id}
+            onCite={onCite}
+            trace={trace}
             className={cn(CITE_CHIP, 'mx-0.5 h-[19px] align-[2px] text-[11px]')}
           >
             {id}
-          </button>
+          </CiteButton>
         )
       })}
     </>
@@ -385,17 +385,16 @@ function SourcesRow({
         {evidence.length} source{evidence.length === 1 ? '' : 's'} · {cited.length} cited
       </span>
       {shown.map((item) => (
-        <button
+        <CiteButton
           key={item.id}
-          type="button"
-          onClick={() => onCite(item.id)}
-          data-trace={`${trace}:${item.id}`}
-          title={item.source_document ?? undefined}
+          id={item.id}
+          onCite={onCite}
+          trace={trace}
           className="hover-decay inline-flex h-7 max-w-full items-center gap-1.5 rounded-[var(--radius-xs)] border border-line-subtle px-2 text-[12.5px] text-foreground-secondary hover:border-line-default hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
         >
           <span className={cn(CITE_CHIP, 'h-[18px] px-1')}>{item.id}</span>
           <span className="truncate">{citeLabel(item)}</span>
-        </button>
+        </CiteButton>
       ))}
       {cited.length > shown.length && (
         <button
@@ -675,6 +674,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   }, [leavingDraft, showsAnswer, turn.releasedLive, turn.id, onReleased])
 
   return (
+    <EvidenceCardScope turn={turn} onOpen={cite}>
     <article className="flex flex-col gap-4">
       {/* ── Zone 1 — run header ───────────────────────────────────────── */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -1029,5 +1029,6 @@ export const AssistantTurn = memo(function AssistantTurn({
         </footer>
       )}
     </article>
+    </EvidenceCardScope>
   )
 })
