@@ -100,7 +100,7 @@ function CardBody({ id, turn, onOpen }: { id: string; turn: AssistantTurn; onOpe
           {records.length > 3 && <li className={LABEL}>+{records.length - 3} more</li>}
         </ul>
       ) : (
-        item.excerpt && <p className="line-clamp-3 text-[12.5px] leading-[1.5] text-foreground-secondary">{item.excerpt}</p>
+        item.excerpt && <p className="line-clamp-3 text-[12.5px] leading-[1.5] text-foreground-secondary">{plainExcerpt(item.excerpt)}</p>
       )}
 
       {(typeof item.score === 'number' || hash) && (
@@ -226,4 +226,9 @@ export function CiteButton({
       {children}
     </PreviewCard.Trigger>
   )
+}
+
+/** The passage as prose: markdown heading and emphasis marks dropped, since the card shows the section already. */
+function plainExcerpt(text: string): string {
+  return text.replace(/(^|\s)#{1,6}\s+/g, '$1').replace(/[*`]{1,3}/g, '').trim()
 }
