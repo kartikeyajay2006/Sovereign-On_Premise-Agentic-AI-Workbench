@@ -113,7 +113,8 @@ export function Inline({
             id={id}
             onCite={onCite}
             trace={trace}
-            className={cn(CITE_CHIP, 'mx-0.5 h-[19px] align-[2px] text-[11px]')}
+            // Punctuation after a chip sits against it, as it would against a word.
+            className={cn(CITE_CHIP, 'ml-0.5 h-[19px] align-[2px] text-[11px]', /^[.,;:!?)]/.test(parts[i + 1] ?? '') ? 'mr-0' : 'mr-0.5')}
           >
             {id}
           </CiteButton>

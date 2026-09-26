@@ -3015,6 +3015,10 @@ html[data-theme='dark'],
   color: color-mix(in oklab, var(--foreground-muted) 70%, transparent);
 }
 .brief-meta { margin-left: auto; text-transform: none; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+/* Two deliberate lines: the stamp and the run's time and model, then the */
+/* crew under them, rather than whatever the column width wraps into.     */
+.brief-signoff .brief-crew { order: 3; flex-basis: 100%; }
+.brief-signoff .brief-meta { order: 2; }
 
 /* The margin: beside the claims from 1024px, below them under that. */
 @media (min-width: 1024px) {
