@@ -118,6 +118,78 @@ function Records({ records, onCite }: { records: CalculationRecord[]; onCite: (i
   )
 }
 
+/**
+ * A relief device has no rate or remaining life: its figures are one verdict
+ * per SOP-INS-025 clause, each computed from the test record, then the
+ * decision those verdicts add up to.
+ */
+function ReliefReadings({ assessment, authority, decisionId, onCite }: {
+  assessment: IntegrityAssessment
+  authority: string
+  decisionId: string | null | undefined
+  onCite: (id: string) => void
+}) {
+  const severity = (assessment.severity || '').toLowerCase()
+  return (
+    <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+      {(assessment.checks ?? []).map((check) => (
+        <Reading key={check.label} label={check.label} cite={decisionId} onCite={onCite}>
+          <span className={cn('font-medium', check.passed ? 'text-sovereign-text' : 'text-critical-text')}>
+            {check.passed ? 'passed' : 'failed'}
+          </span>
+          <span className="text-meta text-foreground-muted">{check.detail}</span>
+        </Reading>
+      ))}
+      {assessment.severity && (
+        <Reading label="Severity" cite={decisionId} onCite={onCite}>
+          <span className={cn('font-medium capitalize', SEVERITY_TONE[severity])}>{assessment.severity}</span>
+          {assessment.protected_equipment && (
+            <span className="text-meta text-foreground-muted">on {assessment.protected_equipment}</span>
+          )}
+        </Reading>
+      )}
+      {(authority || assessment.approver) && (
+        <Reading label="Approving authority" cite={decisionId} onCite={onCite}>
+          {assessment.approver}
+          {authority && <span className="text-meta text-foreground-muted">{authority}; AEGIS only prepares it</span>}
+        </Reading>
+      )}
+      <Reading label="Next bench test" cite={decisionId} onCite={onCite}>
+        {assessment.withdraw_from_service ? (
+          <>
+            <span className="font-medium text-critical-text">failed relief device</span>
+            <span className="text-meta text-foreground-muted">the protected equipment is withdrawn</span>
+          </>
+        ) : assessment.next_due ? (
+          <>
+            <span className="tabular font-medium">{assessment.next_due}</span>
+            <span className="text-meta text-foreground-muted">{assessment.interval_months} months</span>
+          </>
+        ) : (
+          <span className="text-foreground-muted">not calculable from the record</span>
+        )}
+      </Reading>
+      {(assessment.severity_basis || assessment.required_action) && (
+        <p className="text-meta text-foreground-secondary sm:col-span-2 lg:col-span-3">
+          {assessment.severity_basis && (
+            <>
+              <span className="font-medium text-foreground">Basis.</span> {assessment.severity_basis}.{' '}
+            </>
+          )}
+          {assessment.required_action && (
+            <>
+              <span className={cn('font-medium', assessment.withdraw_from_service ? 'text-critical-text' : 'text-foreground')}>
+                Required action.
+              </span>{' '}
+              {assessment.required_action}.
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function IntegrityCard({
   assessment,
   records,
@@ -132,6 +204,7 @@ export function IntegrityCard({
   const [open, setOpen] = useState(false)
   const calculated = records.filter((record) => record.status === 'calculated').length
   const stated = assessment.kind === 'stated'
+  const relief = assessment.kind === 'relief'
   // A stated question has no location; its figures sit on the one C item.
   const governingId = records.find(
     (record) => record.subject === `${assessment.subject} · ${assessment.governing_location}`,
@@ -160,7 +233,9 @@ export function IntegrityCard({
             <Calculator className="h-4 w-4 text-foreground-secondary" aria-hidden />
           )}
           <span className="text-ui font-medium text-foreground">
-            {withheld ? 'Decision withheld' : cannot ? 'Cannot calculate' : 'Integrity decision'} · {assessment.subject}
+            {withheld ? 'Decision withheld' : cannot ? 'Cannot calculate' : relief ? 'Relief device decision' : 'Integrity decision'} ·{' '}
+            {assessment.subject}
+            {relief && assessment.protected_equipment ? ` on ${assessment.protected_equipment}` : ''}
           </span>
         </span>
         <span className="font-mono text-meta text-foreground-muted">
@@ -182,6 +257,8 @@ export function IntegrityCard({
           The evidence is missing <span className="font-medium">{assessment.missing.join(', ') || 'required inputs'}</span>.
           No figure is estimated in its place.
         </p>
+      ) : relief ? (
+        <ReliefReadings assessment={assessment} authority={authority} decisionId={decisionId} onCite={onCite} />
       ) : (
         <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
           {stated ? (

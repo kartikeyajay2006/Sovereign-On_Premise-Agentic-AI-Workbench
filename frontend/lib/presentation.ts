@@ -161,6 +161,16 @@ export const CONSOLE_TEMPLATES = [
     skill: null,
     needs: null,
   },
+  {
+    id: 'golden-relief',
+    title: 'A relief valve failed its test',
+    prompt:
+      'Using the attached bench test record for PSV-2104A, judge the valve against SOP-INS-025 and say whether V-2104 may stay in service: state each check, the severity, the required action and who must approve it. Cite the clauses.',
+    format: 'answer',
+    samples: ['psv-2104a-test'],
+    skill: null,
+    needs: null,
+  },
 ]
 
 export const DELIVERABLE_FORMATS = [

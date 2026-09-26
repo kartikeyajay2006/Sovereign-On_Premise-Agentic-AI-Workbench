@@ -101,6 +101,23 @@ def _figures(text: str) -> set[str]:
     return figures
 
 
+def _registry_summary(assessment: IntegrityAssessment) -> str:
+    """The computed decision in one line, for whichever kind of record it was."""
+    severity = f", {assessment.severity.capitalize()}" if assessment.severity else ""
+    if assessment.kind == "relief":
+        verdicts = ", ".join(f"{c.label} {'passed' if c.passed else 'FAILED'}" for c in assessment.checks)
+        return f"{assessment.subject}: {verdicts or 'no check'}{severity}"
+    life = (
+        f"{assessment.remaining_life_years:g} years" if assessment.remaining_life_years is not None
+        else "not limited by corrosion"
+    )
+    rate = assessment.governing_rate_mm_yr
+    return (
+        f"{assessment.governing_location}: {rate:g} mm/year, {life}{severity}" if rate is not None
+        else f"{assessment.subject}: {life}{severity}"
+    )
+
+
 def _stated_conclusions(text: str) -> list[str]:
     """Rates, remaining lives and severity bands an answer asserts."""
     stated = [f"{match.group(1)} mm/year" for match in RATE_IN_TEXT.finditer(text or "")]
@@ -691,10 +708,7 @@ class VerificationEngine:
             passed=not problems,
             detail=(
                 "Every rate, remaining life and severity the answer states matches the formula registry "
-                f"({assessment.governing_location}: {assessment.governing_rate_mm_yr:g} mm/year, "
-                + (f"{assessment.remaining_life_years:g} years" if assessment.remaining_life_years is not None
-                   else "not limited by corrosion")
-                + (f", {assessment.severity.capitalize()}" if assessment.severity else "") + ")."
+                f"({_registry_summary(assessment)})."
                 if not problems else "; ".join(problems[:4]) + "."
             ),
             evidence_ids=[i for i in [decision, *assessment.evidence_ids] if i],

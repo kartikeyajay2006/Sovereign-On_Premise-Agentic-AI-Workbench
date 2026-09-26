@@ -309,3 +309,4 @@ demo:
     v2104-survey: sample_data/datasets/V-2104-thickness-survey.csv
     v2104-field-sheet: sample_data/conflict/V-2104-contractor-field-sheet.md
     v2104-injected-note: sample_data/attack/V-2104-contractor-note-with-injection.md
+    psv-2104a-test: sample_data/relief/PSV-2104A-bench-test-record.md
