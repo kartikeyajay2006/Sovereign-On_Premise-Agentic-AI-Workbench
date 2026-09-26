@@ -42,44 +42,119 @@ export type Rich = ReadonlyArray<string | { v: string }>
 // --------------------------------------------------------------------------- //
 
 export const HERO = {
-  // The claim, with its last word turned in serif italic: what every answer
-  // here can be, said once.
-  title: 'Answers you can',
+  // The claim, light, with its last word set heavy: what every answer here
+  // can be, said once.
+  eyebrow: 'Air-gapped AI workbench · regulated plants',
+  title: 'Answers your plant can',
+  titleKey: 'prove.',
   titleEm: 'prove.',
-  lede: 'AEGIS runs the model, the search and the checks on your own hardware, and hands over every answer with its sources, its checks and its record.',
-  // The pill over the headline: the run the page is built from, timed by its record.
   pill: (total: string) => `A recorded run: one question, cited and checked, in ${total} on a laptop CPU`,
-  // Two lines, because the argument is a turn. The claim in sans, the
-  // qualification in serif italic — the typography performs the sentence.
-  headline: 'Local is not enough.',
-  headlineTurn: 'So prove the rest.',
-  // The hero's overline and the quiet line under its buttons: statements of
-  // mechanism, each one something the page below demonstrates.
-  // The pill above the headline, and the note under the replay.
-  // Points at the gallery's Skills screen: what is new, said as what it does.
-  announce: { tag: 'New', text: 'Skills: save an instruction, call it with /', href: '#product' },
-  replayNote:
-    'A recorded run, replayed. Every value comes from its record; only the pacing is compressed, and each step shows the time it really took on a two-core laptop CPU.',
-  sub: 'An air-gapped AI workbench for regulated industrial work. Every answer is cited to a page, checked against your policy, and recorded.',
+  lede: 'AEGIS runs the model, the search and the checks on your own hardware, and hands over every answer with its sources, its checks and its record.',
+  // The vessel is a drawing; the page says so where it is drawn.
+  vesselNote: 'Illustration · label from the recorded run',
   // Properties of the design, each enforced in code rather than promised:
   // the inference client refuses a non-local endpoint, the verifier runs on
-  // every answer, and the audit log is a hash chain.
+  // every answer, and the audit log is a hash chain. (The sign-in panel reads these.)
   proof: ['No cloud model calls', 'Every answer cited and checked', 'Every step hash-chained'],
   primary: { label: 'Open the workbench', href: '/sign-in' },
+  how: { label: 'How a run is proved', href: '#proof' },
   secondary: { label: 'Read the source', href: REPO_URL },
   repoPath: REPO_PATH,
 } as const
 
+/** The meta rail beside the hero: labels only; every value is the run's. */
+export const RAIL = {
+  label: 'Recorded run',
+  run: 'Run',
+  time: 'Question → answer',
+  model: 'Model',
+  checks: 'Checks',
+  chain: 'Chain',
+  recorded: 'Recorded',
+} as const
+
+/** The band of four under the hero. */
+export const STATS = {
+  egress: {
+    label: 'Egress',
+    unit: (n: number) => (n === 1 ? 'connection' : 'connections'),
+    live: (since: string | null) => `read live from this host${since ? ` · since ${since} UTC` : ''}`,
+    recorded: (seq: number) => `this run, as its record #${seq} wrote it`,
+    reading: 'reading GET /api/status…',
+  },
+  cited: { label: 'Every answer', value: 'cited' },
+  formula: { label: 'Figures', value: 'by formula', line: 'recomputed before release; this run stated none' },
+  sealed: { label: 'Record', value: 'sealed' },
+} as const
+
 // --------------------------------------------------------------------------- //
-// 03 — The chain
+// Chapters: 01 retrieve, 02 verify, 03 seal
 // --------------------------------------------------------------------------- //
 
-export const CHAIN = {
-  id: 'chain',
+export const CHAPTERS = {
+  id: 'how',
   eyebrow: 'How it works',
-  title: 'Cited. Checked. Recorded.',
-  titleTurn: 'Before anything leaves.',
-  lede: 'Every answer goes through three steps, and each leaves something you can open. These are from the run above.',
+  title: 'Three steps.',
+  titleKey: 'Each leaves a record.',
+  lede: 'The recorded run, step by step. Pick a step to see what it left behind.',
+  tabs: [
+    { key: 'retrieve', n: '01', label: 'Retrieve', line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.' },
+    { key: 'verify', n: '02', label: 'Verify', line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.' },
+    { key: 'seal', n: '03', label: 'Seal', line: 'Each audit record carries the hash of the one before it, so changing any record breaks every hash after it.' },
+  ],
+} as const
+
+// --------------------------------------------------------------------------- //
+// The proof sequence
+// --------------------------------------------------------------------------- //
+
+export const PROOF_SEQ = {
+  id: 'proof',
+  eyebrow: 'Proof',
+  title: 'From the page',
+  titleKey: 'to the seal.',
+  lede: 'One answer, followed back to the paragraph it rests on and forward to the record that closes it. Every word below is the recorded run’s.',
+  steps: {
+    document: { label: 'Document', title: 'The procedure it searched.' },
+    excerpt: { label: 'Excerpt', title: 'The clause it found.' },
+    claim: { label: 'Claim', title: 'The sentence, traced to it.' },
+    checks: { label: 'Checks', title: 'Every check, before release.' },
+    seal: { label: 'Seal', title: 'The record, sealed.' },
+  },
+  stamp: 'Sealed',
+  held: 'Held · not sealed',
+} as const
+
+// --------------------------------------------------------------------------- //
+// The replay
+// --------------------------------------------------------------------------- //
+
+export const REPLAY = {
+  id: 'replay',
+  eyebrow: 'Replay',
+  title: 'The run,',
+  titleKey: 'as it happened.',
+  lede: 'Its events in the order the record gives them. Clock times are the record’s own; stage lines print the duration it measured.',
+  speed: 'Replayed at 4×',
+  again: 'Replay',
+  skip: 'Show all',
+  still: 'The record, in full',
+} as const
+
+// --------------------------------------------------------------------------- //
+// Hash-chain verify
+// --------------------------------------------------------------------------- //
+
+export const CHAIN_VERIFY = {
+  label: 'Chain verify',
+  title: 'Recomputed in your browser.',
+  line: 'The run’s last three audit records as captured, between the record before them, known by its hash, and the run’s sealed head. The capture holds these three records, so three are re-hashed.',
+  before: 'before',
+  beforeLine: 'known by its hash',
+  head: 'run head',
+  idle: 'Re-hashes when this is on screen.',
+  verified: 'All {n} records hash to their stored values here, each prev matches the hash before it, and the head matches the run’s seal.',
+  broken: 'The chain breaks at {at}.',
 } as const
 
 // --------------------------------------------------------------------------- //
@@ -130,50 +205,6 @@ export const USE_CASES = {
 } as const
 
 // --------------------------------------------------------------------------- //
-// How it works: one run, proved in five steps
-// --------------------------------------------------------------------------- //
-
-export const PIPELINE = {
-  id: 'chain',
-  eyebrow: 'How it works',
-  title: 'One question,',
-  titleTurn: 'proved in five steps.',
-  lede: 'The run at the top of the page, in the five steps it took. The vessel is an illustration; every value pinned to it is read from the run’s record.',
-  steps: [
-    {
-      key: 'classify',
-      label: 'Classify',
-      title: 'It reads the request first.',
-      line: 'Before anything is retrieved, the request is classified, so policy knows what kind of work this is and how sensitive.',
-    },
-    {
-      key: 'retrieve',
-      label: 'Retrieve',
-      title: 'It finds the clauses that govern it.',
-      line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.',
-    },
-    {
-      key: 'draft',
-      label: 'Draft',
-      title: 'It answers from those passages alone.',
-      line: 'A local model writes the answer and cites every claim to the passage it rests on.',
-    },
-    {
-      key: 'verify',
-      label: 'Verify',
-      title: 'Every claim is checked before release.',
-      line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.',
-    },
-    {
-      key: 'record',
-      label: 'Record',
-      title: 'Every step goes on a hash chain.',
-      line: 'Each record carries the hash of the one before it, so changing any record breaks every hash after it.',
-    },
-  ],
-} as const
-
-// --------------------------------------------------------------------------- //
 // Security: four proofs, each checkable from this page
 // --------------------------------------------------------------------------- //
 
@@ -190,7 +221,7 @@ export const BENTO = {
     idle: 'Re-hashing in your browser when this is on screen.',
   },
   airgap: {
-    title: 'Nothing leaves the machine.',
+    title: 'Egress, read live.',
     line: 'The monitor watches the workbench’s own processes for any connection past loopback, and this page reads it live.',
   },
   attacks: {
@@ -208,7 +239,7 @@ export const BENTO = {
 // --------------------------------------------------------------------------- //
 
 export const PROOF = {
-  id: 'proof',
+  id: 'security',
   eyebrow: 'Security',
   title: 'Don’t take our word for it.',
   titleTurn: 'Check it yourself.',
@@ -373,6 +404,16 @@ export const RUN_IT = {
 // Footer
 // --------------------------------------------------------------------------- //
 
+/** The header's anchors, in page order. */
+export const NAV = [
+  { href: '#how', label: 'How it works' },
+  { href: '#proof', label: 'Proof' },
+  { href: '#replay', label: 'Replay' },
+  { href: '#use-cases', label: 'Use cases' },
+  { href: '#security', label: 'Security' },
+  { href: '#limits', label: 'Limits' },
+] as const
+
 export const FOOTER = {
   cta: {
     eyebrow: 'On your own hardware',
@@ -389,7 +430,8 @@ export const FOOTER = {
       heading: 'Product',
       links: [
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'How a run is proved', href: '#how' },
+        { label: 'How a run is proved', href: '#proof' },
+        { label: 'The run, replayed', href: '#replay' },
         { label: 'Use cases', href: '#use-cases' },
         { label: 'What this is not', href: '#limits' },
       ],
@@ -408,5 +450,47 @@ export const FOOTER = {
   },
   bottomLeft: 'Smart India Hackathon 2026',
   bottomRight: 'No analytics on this page.',
+} as const
+
+
+// Transitional: read by the page this commit still ships.
+export const PIPELINE = {
+  id: 'chain',
+  eyebrow: 'How it works',
+  title: 'One question,',
+  titleTurn: 'proved in five steps.',
+  lede: 'The run at the top of the page, in the five steps it took. The vessel is an illustration; every value pinned to it is read from the run’s record.',
+  steps: [
+    {
+      key: 'classify',
+      label: 'Classify',
+      title: 'It reads the request first.',
+      line: 'Before anything is retrieved, the request is classified, so policy knows what kind of work this is and how sensitive.',
+    },
+    {
+      key: 'retrieve',
+      label: 'Retrieve',
+      title: 'It finds the clauses that govern it.',
+      line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.',
+    },
+    {
+      key: 'draft',
+      label: 'Draft',
+      title: 'It answers from those passages alone.',
+      line: 'A local model writes the answer and cites every claim to the passage it rests on.',
+    },
+    {
+      key: 'verify',
+      label: 'Verify',
+      title: 'Every claim is checked before release.',
+      line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.',
+    },
+    {
+      key: 'record',
+      label: 'Record',
+      title: 'Every step goes on a hash chain.',
+      line: 'Each record carries the hash of the one before it, so changing any record breaks every hash after it.',
+    },
+  ],
 } as const
 
