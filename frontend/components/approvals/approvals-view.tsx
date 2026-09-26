@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { RotateCw } from 'lucide-react'
 import type { StreamEvent, Task, TaskSummary } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
-import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
+import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT } from '@/components/navigation'
 import { PageHeader } from '@/components/page-header'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
@@ -27,6 +27,7 @@ import {
   awaitingSignature,
   interimSignature,
   mergeQueue,
+  signatureRefusal,
   type Decision,
   type QueueItem,
 } from './model'
@@ -85,6 +86,7 @@ export function ApprovalsView() {
   const canDecide = can('approval.decide')
   const canReadAll = can('task.read.all')
   const reviewer = user?.display_name || role.label
+  const viewer = user ? { id: user.id, role: user.role } : null
 
   const queue = useReading<QueueData>(
     async (signal) => {
@@ -300,6 +302,7 @@ export function ApprovalsView() {
 
   const openDialog = (kind: DecisionKind) => {
     if (!selected || selected.decision !== 'held' || !canDecide || ownRun) return
+    if (kind === 'approve' && signatureRefusal(selectedTask, viewer)) return
     setDialog({ kind, id: selected.id })
   }
 
@@ -368,6 +371,8 @@ export function ApprovalsView() {
       // The service has recorded it, so the header's held count re-reads
       // now rather than at the next navigation.
       window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
+      // The run's state changed: the sidebar's held marker has to follow.
+      window.dispatchEvent(new Event(RUNS_CHANGED_EVENT))
       const released = task.deliverables.filter((d) => d.released).map((d) => d.filename)
       // One signature of several: the run is still held for the next one.
       const awaiting = awaitingSignature(task)
@@ -594,6 +599,7 @@ export function ApprovalsView() {
                     canDecide={canDecide}
                     ownRun={ownRun}
                     reviewer={reviewer}
+                    viewer={viewer}
                     onApprove={() => openDialog('approve')}
                     onReject={() => openDialog('reject')}
                     onRevise={() => openDialog('revise')}

@@ -94,6 +94,8 @@ export interface ApprovalRule {
   name: string
   description?: string
   approver_roles?: string[]
+  /** Ordered signatures when one role alone cannot decide (a High finding). */
+  signatures?: { role: string; authority: string; capacity?: string }[]
   requires_deliverable?: boolean
   match?: Record<string, unknown>
 }

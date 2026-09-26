@@ -270,8 +270,10 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
 
   useEffect(() => {
     const onChanged = (event: Event) => {
+      // A plain Event (an approval decided elsewhere) re-reads the list but
+      // says nothing about which run is live, so it leaves that alone.
       const detail = (event as CustomEvent<RunsChangedDetail>).detail
-      setRunning(detail?.running ?? null)
+      if (detail) setRunning(detail.running ?? null)
       setTick((n) => n + 1)
     }
     window.addEventListener(RUNS_CHANGED_EVENT, onChanged)

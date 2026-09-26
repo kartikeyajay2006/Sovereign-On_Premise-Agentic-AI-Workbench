@@ -219,9 +219,11 @@ export const PolicyPanel = memo(function PolicyPanel({
                 <span className="text-ui text-foreground">{rule.description || rule.name}</span>
                 <span className="font-mono text-ledger text-foreground-muted">
                   {rule.name}
-                  {rule.approver_roles && rule.approver_roles.length > 0
-                    ? ` · decided by ${rule.approver_roles.map(roleName).join(' or ')}`
-                    : ''}
+                  {rule.signatures && rule.signatures.length > 1
+                    ? ` · signed by ${rule.signatures.map((s) => s.authority).join(', then ')}`
+                    : rule.approver_roles && rule.approver_roles.length > 0
+                      ? ` · decided by ${rule.approver_roles.map(roleName).join(' or ')}`
+                      : ''}
                 </span>
               </li>
             ))}

@@ -9,7 +9,7 @@ export type StarterTemplate = (typeof CONSOLE_TEMPLATES)[number]
 /** What each starter produces, said plainly, and the icon that stands for it. */
 const CARD: Record<string, { icon: LucideIcon; blurb: string }> = {
   'approval-note': { icon: FileScan, blurb: 'Scanned PDF in, a cited Word approval note out, held for sign-off.' },
-  'corrosion-calc': { icon: Calculator, blurb: 'Survey CSV in, rates and remaining life computed in the sandbox.' },
+  'corrosion-calc': { icon: Calculator, blurb: 'Survey CSV in, rates and remaining life computed by registered formulas, not the model.' },
   'procedure-question': { icon: BookOpenText, blurb: 'A cited answer from your procedures, checked before release.' },
   'clause-skill': { icon: Quote, blurb: 'The /clause skill, ready to run: the clause that governs, cited and checked.' },
 }
