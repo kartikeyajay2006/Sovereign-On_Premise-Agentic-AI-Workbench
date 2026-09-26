@@ -191,7 +191,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if orphans:
         print(f"[workbench] closed {len(orphans)} task(s) interrupted by a restart")
 
-    await service.start(worker_count=1)
+    # One by default: on a CPU host a second concurrent run loads a second
+    # model's cache and both crawl. A server profile raises it.
+    workers = max(1, int(config.settings.agent.get("worker_count", 1) or 1))
+    await service.start(worker_count=workers)
+    if workers > 1:
+        print(f"[workbench] {workers} task workers")
 
     prewarm = None
     reconcile = bool(config.settings.inference.get("reconcile_on_startup", True))
