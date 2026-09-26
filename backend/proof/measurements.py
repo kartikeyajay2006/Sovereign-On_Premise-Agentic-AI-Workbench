@@ -26,7 +26,7 @@ import re
 import statistics
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -260,7 +260,7 @@ def _sandbox(audit: AuditLog) -> Metric:
                         "The sandbox self-test has not been run on this host. Run it from Assurance.")
     detail = event.detail
     source = MetricSource(kind="audit_event", name=f"audit event #{event.sequence}", sha256=event.hash,
-                          at=event.at.isoformat(), href=f"/api/audit?category=security")
+                          at=event.at.isoformat(), href="/api/audit?category=security")
     if not detail.get("assessable"):
         return Metric(id="sandbox_self_test", group="Security", label=label, status="skipped",
                       reason=str(detail.get("reason") or "The sandbox refused to execute on this host, "

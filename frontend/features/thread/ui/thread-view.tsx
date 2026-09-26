@@ -236,9 +236,8 @@ export function ThreadView() {
   // Whose evidence the rail shows. It showed the newest turn's whatever was
   // clicked, so [S1] in an earlier answer opened a different run's S1.
   const [evidenceTurnId, setEvidenceTurnId] = useState<string | null>(null)
-  // Which past run the thread is showing, and a counter the rail watches so
-  // a run that just finished appears without a reload.
-  const [openedTaskId, setOpenedTaskId] = useState<string | null>(null)
+  // A counter the rail watches, so a run that just finished appears without
+  // a reload. Which past run the thread shows is openedRef.
   const [runsVersion, setRunsVersion] = useState(0)
   const [awayFromEnd, setAwayFromEnd] = useState(false)
   // Bumped by every citation click, so tracing to the same source a second
@@ -904,7 +903,6 @@ export function ThreadView() {
         activeTaskIdRef.current = task.id
         openedRef.current = task.id
         setActiveTaskId(task.id)
-        setOpenedTaskId(task.id)
         replaceRunParam(task.id)
         setRunsVersion((n) => n + 1)
         return true
@@ -1091,7 +1089,6 @@ export function ThreadView() {
           request,
         },
       ])
-      setOpenedTaskId(taskId)
       replaceRunParam(taskId)
       setDrawerOpen(false)
       setFocusEvidenceId(null)
@@ -1114,7 +1111,6 @@ export function ThreadView() {
     if (busyRef.current) leaveLiveRun()
     openedRef.current = null
     setTurns([])
-    setOpenedTaskId(null)
     replaceRunParam(null)
     setPrompt('')
     setAttachments([])

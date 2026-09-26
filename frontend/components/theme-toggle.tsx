@@ -40,6 +40,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         'transition-[color,border-color,transform] duration-[var(--standard)] ease-[var(--ease-spatial)]',
         'hover:-translate-y-px hover:border-line-strong hover:text-foreground',
         'focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none',
+        className,
       )}
     >
       {dark ? (
