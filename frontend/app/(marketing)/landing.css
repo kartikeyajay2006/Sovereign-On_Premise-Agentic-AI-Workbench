@@ -112,7 +112,8 @@
 
   /* ---- header -------------------------------------------------------------- */
   .lp-header { position: sticky; top: 0; z-index: 50; height: 64px; background: transparent; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
-  .lp-header.scrolled { background: color-mix(in srgb, var(--lp-bg) 92%, transparent); box-shadow: 0 1px 0 var(--lp-line); }
+  /* Solid once scrolled: at 92% the 90px headlines showed through it. */
+  .lp-header.scrolled { background: var(--lp-bg); box-shadow: 0 1px 0 var(--lp-line); }
   .lp-header .row { display: flex; align-items: center; gap: 36px; height: 64px; }
   .lp-home { display: inline-flex; }
   .lp-nav { display: flex; align-items: center; gap: 26px; }
