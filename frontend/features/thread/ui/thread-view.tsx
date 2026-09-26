@@ -246,6 +246,10 @@ export function ThreadView() {
   // Bumped by every citation click, so tracing to the same source a second
   // time lands again instead of doing nothing.
   const [traceCount, setTraceCount] = useState(0)
+  // A request typed while a run was in flight, sent when that run ends.
+  const [queued, setQueued] = useState<RunRequest | null>(null)
+  // What ↑ in an empty composer brings back.
+  const [lastPrompt, setLastPrompt] = useState<string | null>(null)
 
   const { user, role, can } = useRole()
   const { push } = useToast()
@@ -956,6 +960,7 @@ export function ThreadView() {
     async (request: RunRequest): Promise<boolean> => {
       if (busyRef.current) return false
       busyRef.current = true
+      setLastPrompt(request.prompt)
 
       const now = new Date().toISOString()
       const stamp = `${Date.now()}`
@@ -1053,7 +1058,10 @@ export function ThreadView() {
   const sendRef = useRef<() => void>(() => {})
   sendRef.current = () => {
     const text = prompt.trim()
-    if (!text || busyRef.current || attachments.some((a) => a.uploading)) return
+    if (!text || attachments.some((a) => a.uploading)) return
+    // One run at a time. While one is in flight, the request waits in a chip
+    // above the field and is dispatched when that run ends -- however it ends.
+    if (busyRef.current && queued !== null) return
     const ready = attachments.filter((a) => a.fileId)
     const request: RunRequest = {
       prompt: text,
@@ -1071,11 +1079,62 @@ export function ThreadView() {
     setPrompt('')
     setHint(null)
     setSkill(null)
+    if (busyRef.current) {
+      setQueued(request)
+      setAttachments([])
+      return
+    }
     void dispatch(request).then((ok) => {
       if (ok) setAttachments([])
     })
   }
   const send = useCallback(() => sendRef.current(), [])
+
+  /** Take the waiting request back into the field, files and all. */
+  const queuedRef = useRef<RunRequest | null>(null)
+  queuedRef.current = queued
+  const cancelQueued = useCallback(() => {
+    const waiting = queuedRef.current
+    setQueued(null)
+    if (waiting) {
+      setPrompt((current) => (current.trim() ? current : waiting.prompt))
+      setAttachments((current) =>
+        current.length
+          ? current
+          : waiting.attachments.map((file) => ({
+              id: `queued-${file.fileId}`,
+              name: file.filename,
+              sizeBytes: file.sizeBytes,
+              classification: file.classification,
+              uploading: false,
+              fileId: file.fileId,
+            })),
+      )
+    }
+    textareaRef.current?.focus()
+  }, [])
+
+  // The waiting request goes the moment the run it waited on has ended.
+  useEffect(() => {
+    if (busy || !queued) return
+    const request = queued
+    setQueued(null)
+    void dispatch(request)
+  }, [busy, queued, dispatch])
+
+  // Focus returns to the field when a run is released, so the next question
+  // can be typed at once -- unless the reader has put it somewhere else.
+  const wasBusyRef = useRef(busy)
+  useEffect(() => {
+    if (wasBusyRef.current && !busy) {
+      const active = document.activeElement
+      const composer = textareaRef.current?.closest('.thread-dock, [data-composer]')
+      if (!active || active === document.body || (composer && composer.contains(active))) {
+        textareaRef.current?.focus({ preventScroll: true })
+      }
+    }
+    wasBusyRef.current = busy
+  }, [busy])
 
   const rerun = useCallback(
     (turnId: string) => {
@@ -1161,6 +1220,7 @@ export function ThreadView() {
         })
         return
       }
+      setQueued(null)
       if (busyRef.current) leaveLiveRun()
 
       const status = String(task.status).toLowerCase()
@@ -1215,6 +1275,8 @@ export function ThreadView() {
   )
 
   const newRun = useCallback(() => {
+    // A request waiting on the run being left would go the moment it is left.
+    setQueued(null)
     if (busyRef.current) leaveLiveRun()
     openedRef.current = null
     setTurns([])
@@ -1441,6 +1503,9 @@ export function ThreadView() {
             harnesses={harnesses}
             skill={skill}
             onSkillChange={setSkill}
+            queued={queued ? queued.prompt : null}
+            onCancelQueued={cancelQueued}
+            lastRequest={lastPrompt}
           />
         </div>
 

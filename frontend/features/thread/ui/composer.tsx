@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu } from '@base-ui/react/menu'
 import { ArrowUp, Check, ChevronDown, Loader2, Paperclip, Square, X } from 'lucide-react'
@@ -56,7 +56,16 @@ export interface ComposerProps {
   /** The skill the next run goes through, or null. */
   skill?: Skill | null
   onSkillChange?: (skill: Skill | null) => void
+  /** A request waiting for the run in flight to end, or null. */
+  queued?: string | null
+  /** Takes the waiting request back into the field. */
+  onCancelQueued?: () => void
+  /** The last request sent, which ↑ in an empty field brings back. */
+  lastRequest?: string | null
 }
+
+/** How long the first Escape keeps the second one armed to stop the run. */
+const STOP_ARM_MS = 2000
 
 /** "/", then letters: the composer is asking for a skill or a harness by name. */
 const SLASH = /^\/([a-z0-9-]*)$/i
@@ -138,8 +147,20 @@ export const Composer = memo(function Composer({
   harnesses = null,
   skill = null,
   onSkillChange,
+  queued = null,
+  onCancelQueued,
+  lastRequest = null,
 }: ComposerProps) {
   const fileRef = useRef<HTMLInputElement | null>(null)
+  // Escape once arms a stop, Escape again within two seconds sends it: a
+  // single stray Escape must not end a four-minute run.
+  const [stopArmed, setStopArmed] = useState(false)
+  useEffect(() => {
+    if (!stopArmed) return
+    const timer = window.setTimeout(() => setStopArmed(false), STOP_ARM_MS)
+    return () => window.clearTimeout(timer)
+  }, [stopArmed])
+  if (stopArmed && !busy) setStopArmed(false)
   const ownRef = useRef<HTMLTextAreaElement | null>(null)
   const inputRef = textareaRef ?? ownRef
   const [dragging, setDragging] = useState(false)
@@ -176,7 +197,10 @@ export const Composer = memo(function Composer({
   // without it, and the answer came back about a document it never saw.
   const uploading = attachments.some((a) => a.uploading)
   // A bare "/name" is a request for the menu, not a question to send.
-  const canSend = value.trim().length > 0 && !busy && !disabled && !uploading && !(onSkillChange && !skill && SLASH.test(value))
+  const ready = value.trim().length > 0 && !disabled && !uploading && !(onSkillChange && !skill && SLASH.test(value))
+  const canSend = ready && !busy
+  // While a run is in flight, Enter queues one request to follow it.
+  const canQueue = ready && busy && queued === null
 
   // Grow with the text, up to a ceiling. Measured before paint so the field
   // never shows a frame at the wrong height.
@@ -284,6 +308,22 @@ export const Composer = memo(function Composer({
             onSkillChange?.(null)
             return
           }
+          if (e.key === 'Escape' && busy && onStop && !stopping) {
+            e.preventDefault()
+            if (stopArmed) {
+              setStopArmed(false)
+              onStop()
+            } else {
+              setStopArmed(true)
+            }
+            return
+          }
+          // ↑ in an empty field brings back the last request, as a shell does.
+          if (e.key === 'ArrowUp' && value === '' && lastRequest && !e.shiftKey) {
+            e.preventDefault()
+            onChange(lastRequest)
+            return
+          }
           if (e.key !== 'Enter') return
           // An input method editor commits a composed character with Enter.
           // Sending on that keystroke would dispatch half a word -- the case
@@ -291,7 +331,7 @@ export const Composer = memo(function Composer({
           if (e.nativeEvent.isComposing || e.keyCode === 229) return
           if (e.shiftKey) return
           e.preventDefault()
-          if (canSend) onSubmit()
+          if (canSend || canQueue) onSubmit()
         }}
         rows={1}
         disabled={disabled}
@@ -307,7 +347,9 @@ export const Composer = memo(function Composer({
         className="block min-h-[56px] w-full resize-none overflow-y-auto bg-transparent px-5 pb-1 pt-4 text-[16px] leading-[1.55] text-foreground placeholder:text-foreground-muted focus:outline-none disabled:opacity-[var(--opacity-disabled)]"
       />
       <span id="composer-keys" className="sr-only">
-        {busy ? 'Enter sends once this run ends.' : 'Enter sends. Shift and Enter start a new line.'}
+        {busy
+          ? 'Enter queues this request to send when the run ends. Escape twice stops the run.'
+          : 'Enter sends. Shift and Enter start a new line. Up arrow in an empty field recalls the last request.'}
       </span>
 
       {attachments.length > 0 && (
@@ -341,6 +383,32 @@ export const Composer = memo(function Composer({
       )}
 
       {hint && <p className="px-5 pb-1 pt-1 text-[12.5px] text-foreground-secondary">{hint}</p>}
+
+      {queued !== null && (
+        <div className="flex px-4 pb-1 pt-2">
+          <span
+            className="flex min-w-0 items-center gap-2 rounded-[var(--radius-xs)] border border-line-default py-1 pl-2.5 pr-1 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-secondary"
+            title={queued}
+          >
+            <span className="truncate">Sends when this run ends</span>
+            <span className="max-w-[240px] truncate normal-case tracking-normal text-foreground-muted">· {queued}</span>
+            <button
+              type="button"
+              onClick={onCancelQueued}
+              aria-label="Do not send the waiting request"
+              className="grid size-5 shrink-0 place-items-center rounded-[var(--radius-xs)] text-foreground-muted hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {stopArmed && (
+        <p role="status" className="px-5 pb-1 pt-1 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground">
+          Press Esc again to stop
+        </p>
+      )}
 
       <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
         <input
