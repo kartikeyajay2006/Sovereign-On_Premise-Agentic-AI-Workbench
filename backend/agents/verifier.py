@@ -849,13 +849,21 @@ class VerificationEngine:
                 authority = (assessment.approver or "").split(" (")[0]
                 authorised = bool(authority and authority.lower() in claim.lower()
                                   and re.search(r"approv", claim, re.IGNORECASE))
-                if matched or dated or banded or authorised:
+                # Likewise which location governs: the assessment picks the
+                # lowest remaining life (SOP-INS-014 Clause 4.3). No passage
+                # says "governing location", so asking one to carry it failed
+                # a correct answer that cited exactly the item it was told to.
+                governing = assessment.governing_location or ""
+                located = bool(governing and governing.lower() in claim.lower()
+                               and re.search(r"\bgovern", claim, re.IGNORECASE))
+                if matched or dated or banded or authorised or located:
                     c_ids = [i for i in known_cited if i.startswith("C")] or [ident for _, ident in matched] \
                         or list(assessment.evidence_ids[-1:])
                     shown = ", ".join(f"{f:g}" for f, _ in matched)
                     parts = [p for p in (shown, assessment.next_due if dated else "",
                                          f"{assessment.severity.capitalize()} severity" if banded else "",
-                                         f"approving authority {authority}" if authorised else "") if p]
+                                         f"approving authority {authority}" if authorised else "",
+                                         f"governing location {governing}" if located else "") if p]
                     verdicts.append(verdict(
                         "CALCULATED", c_ids,
                         f"{', '.join(parts)} computed by registered formulas from "
