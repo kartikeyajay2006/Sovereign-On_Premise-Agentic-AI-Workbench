@@ -16,7 +16,7 @@ The workbench is one window with a **sidebar** on the left and the current scree
 | **AEGIS · 0 egress** | The mark, and the live count of connections the workbench's processes have made off the host |
 | **New run** | Starts a fresh thread |
 | **Search** <kbd>Ctrl</kbd> <kbd>K</kbd> | The command palette: jump to any screen, run, or action |
-| **Places** | Thread, Skills, Harnesses, Approvals, Knowledge, Assurance (Posture, Sandbox, Audit) |
+| **Places** | Thread, Skills, Harnesses, Approvals, Knowledge, Assurance (Posture, Sandbox, Audit, Measurements) |
 | **Runs** | Your past runs, grouped *Today*, *Yesterday* and earlier. An amber dot means held; red means rejected, failed or refused; grey means stopped |
 | **Account** | Your name and role. Click it to see your clearance, switch demo account, or sign out. The moon/sun button switches theme |
 

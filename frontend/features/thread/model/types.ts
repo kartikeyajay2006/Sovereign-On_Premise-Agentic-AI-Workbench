@@ -74,6 +74,12 @@ export interface RunRequest {
   preferredModel: string | null
   /** The skill `prompt` goes through, or null for the prompt as typed. */
   skill: { id: string; name: string } | null
+  /**
+   * Set by Run again on a run the API has recorded: the request is then
+   * rebuilt server-side from that run, and the new run records it as its
+   * parent (POST /api/runs/{id}/rerun).
+   */
+  rerunOf?: string | null
 }
 
 /**
@@ -89,6 +95,15 @@ export interface ModelChoice {
   preferredModel: string | null
   preferenceHonoured: boolean | null
   preferenceReason: string | null
+}
+
+export interface ContentScan {
+  /** upload | prompt | answer | deliverable */
+  boundary: string
+  decision: string
+  reason: string
+  rule: string | null
+  at: string
 }
 
 export interface AssistantTurn {
@@ -154,6 +169,12 @@ export interface AssistantTurn {
   conflicts: ConflictRecord[]
   /** Every material claim in the answer with its verdict. */
   claims: ClaimVerdict[]
+  /**
+   * What content scanning (policies/dlp.yaml) did at each boundary it acted
+   * on: redacted, held or blocked. Never the value itself; the record only
+   * names the detector rule and why.
+   */
+  scans: ContentScan[]
   /** A P&ID question answered from the drawing's graph. */
   topology: import('@/components/pid/api').TopologyResult | null
   /** Why the run was refused, when it was. */

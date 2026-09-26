@@ -11,9 +11,9 @@ import { Seal } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type ReadFailure } from '@/shared/ui/data/reading'
-import { checkLabel } from '@/lib/presentation'
+import { checkLabel, roleName } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
-import { formatSize, splitReason, stamp, type QueueItem } from './model'
+import { awaitingSignature, formatSize, signatureRefusal, splitReason, stamp, type QueueItem } from './model'
 import { DECISION_MARK } from './queue-list'
 
 export interface DetailRead {
@@ -152,11 +152,16 @@ function DecisionRecord({ item, task }: { item: QueueItem; task: Task | null }) 
 function HeldBecause({ task }: { task: Task }) {
   const approval = task.approval
   if (!approval || approval.reasons.length === 0) return null
+  // Two signatures are both needed, in order; "X or Y" read as either one.
+  const plan = approval.required_signatures ?? []
+  const meta =
+    plan.length > 1
+      ? `signed by ${plan.map((s) => s.authority).join(', then ')}`
+      : approval.approver_roles.length > 0
+        ? `decided by ${approval.approver_roles.map(roleName).join(' or ')}`
+        : undefined
   return (
-    <Section
-      title="Held because"
-      meta={approval.approver_roles.length > 0 ? `decided by ${approval.approver_roles.join(' or ')}` : undefined}
-    >
+    <Section title="Held because" meta={meta}>
       {/* The reason in words. The rule's name -- what the policy file and
           the audit record call it -- is in its title, for whoever needs to
           find it there, rather than a second line under every reason. */}
@@ -171,6 +176,41 @@ function HeldBecause({ task }: { task: Task }) {
           )
         })}
       </ul>
+    </Section>
+  )
+}
+
+/**
+ * The signatures a High finding needs, each with who gave it or that it is
+ * still to come. Only what the record holds: a signature not in it is shown
+ * as awaited, never as given.
+ */
+function Signatures({ task }: { task: Task }) {
+  const plan = task.approval?.required_signatures ?? []
+  if (plan.length === 0) return null
+  const signed = task.approval?.signatures ?? []
+  return (
+    <Section title="Signatures" meta={`${signed.length} of ${plan.length} given`}>
+      <ol className="flex flex-col gap-2.5">
+        {plan.map((needed, index) => {
+          const given = signed[index]
+          return (
+            <li key={`${needed.role}-${index}`} className="flex gap-2.5 text-body text-foreground">
+              <span
+                aria-hidden
+                className={cn('mt-[9px] size-1 shrink-0 rounded-full', given ? 'bg-sovereign' : 'bg-approval')}
+              />
+              <span>
+                {needed.authority} {needed.capacity}
+                {needed.clause ? <span className="text-foreground-muted"> · {needed.clause}</span> : null}
+                <span className="block text-ui text-foreground-muted">
+                  {given ? `Signed by ${given.name} · ${stamp(given.signed_at)}` : 'Not yet signed'}
+                </span>
+              </span>
+            </li>
+          )
+        })}
+      </ol>
     </Section>
   )
 }
@@ -391,6 +431,7 @@ export function ReviewPane({
   canDecide,
   ownRun,
   reviewer,
+  viewer,
   onApprove,
   onReject,
   onRevise,
@@ -411,6 +452,8 @@ export function ReviewPane({
    */
   ownRun: boolean
   reviewer: string
+  /** Who is looking, to tell whether they can give the next signature. */
+  viewer?: { id: string; role: string } | null
   onApprove: () => void
   onReject: () => void
   /** Send the run back to its submitter with a note: nothing released, nothing rejected. */
@@ -428,6 +471,12 @@ export function ReviewPane({
   const hasDocument = (task?.deliverables.length ?? item.deliverableCount) > 0
   // The service refuses a release while sources still disagree.
   const openConflicts = (task?.conflicts ?? []).filter((c) => c.status === 'unresolved' && c.impact === 'high')
+  // A High finding signed once is still held: the second authority has not.
+  const awaiting = held ? awaitingSignature(task) : null
+  const signedSoFar = task?.approval?.signatures?.length ?? 0
+  const signaturesNeeded = task?.approval?.required_signatures?.length ?? 0
+  const lastSignature = awaiting != null && signedSoFar === signaturesNeeded - 1
+  const refusal = held ? signatureRefusal(task, viewer) : null
 
   const cite = (id: string) => {
     setFocusedEvidence(id)
@@ -461,6 +510,11 @@ export function ReviewPane({
               <span aria-hidden>{mark.glyph}</span>
               {mark.label}
             </span>
+            {awaiting && signedSoFar > 0 && (
+              <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-approval-text">
+                Waiting for second authority
+              </span>
+            )}
             <ClassificationTag level={item.sensitivity ?? 'unclassified'} />
             <span className="min-w-0 max-w-full truncate font-mono text-ledger text-foreground-muted" title={item.id}>
               #{item.id.slice(0, 8)}
@@ -494,10 +548,14 @@ export function ReviewPane({
                 size="sm"
                 ground="paper"
                 shortcut="A"
-                disabled={!canDecide || openConflicts.length > 0}
+                disabled={!canDecide || openConflicts.length > 0 || refusal !== null}
                 onClick={onApprove}
               >
-                {hasDocument ? 'Approve & release' : 'Approve'}
+                {awaiting && !lastSignature
+                  ? `Sign as ${awaiting.authority}`
+                  : hasDocument
+                    ? 'Approve & release'
+                    : 'Approve'}
               </Button>
             </div>
           )}
@@ -535,6 +593,15 @@ export function ReviewPane({
             Your decision is recorded against {reviewer} in the audit chain.
           </p>
         )}
+        {canDecide && !ownRun && refusal && <p className="mt-2 text-ui text-foreground-muted">{refusal}</p>}
+        {awaiting && (
+          <p className="mt-2 text-ui text-approval-text">
+            {signedSoFar > 0 ? `Signed ${signedSoFar} of ${signaturesNeeded}. ` : ''}
+            Next: the {awaiting.authority}, who {awaiting.capacity} this finding
+            {awaiting.clause ? ` (${awaiting.clause})` : ''}. Nothing is released until every signature
+            is given, and a change to the run voids the signatures already given.
+          </p>
+        )}
       </header>
 
       <div
@@ -558,6 +625,7 @@ export function ReviewPane({
         ) : (
           <div className="flex max-w-[860px] flex-col gap-8 pb-8">
             <HeldBecause task={task} />
+            <Signatures task={task} />
             <ConflictPanel
               conflicts={task.conflicts ?? []}
               taskId={item.id}

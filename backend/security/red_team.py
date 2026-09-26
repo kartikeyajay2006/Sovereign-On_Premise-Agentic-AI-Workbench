@@ -62,7 +62,9 @@ class RedTeam:
         self.client = client
         self.password = password
         self.audit_log_path = audit_log_path
-        self.seeded = seeded_usernames or {"operator", "engineer", "reviewer", "auditor", "admin"}
+        self.seeded = seeded_usernames or {
+            "operator", "engineer", "reviewer", "head_of_inspection", "plant_manager", "auditor", "admin",
+        }
         self.results: list[AttackResult] = []
         self._tokens: dict[str, str] = {}
 

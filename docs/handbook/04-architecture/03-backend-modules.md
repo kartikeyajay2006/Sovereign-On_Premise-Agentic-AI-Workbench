@@ -5,6 +5,7 @@ The backend is about 16,400 lines of Python in eleven packages under `backend/`.
 ```text
 backend/
 ├── api/            HTTP surface, task queue and worker
+├── connectors/     read-only historian and OPC UA adapters
 ├── agents/         orchestrator and verifier: the staged pipeline
 ├── core/           config, schemas, database, identity, audit, analyzer, events
 ├── harness/        multi-run jobs
@@ -66,13 +67,13 @@ The orchestrator is about 2,100 lines. The roadmap splits it into typed stages w
 | File | Owns |
 |---|---|
 | `parsing.py` | Parsers for Markdown and text, PDF (per page), DOCX, XLSX, CSV and PPTX; PDF page inspection and rasterisation; Tesseract OCR |
-| `knowledge_base.py` | Ingestion, chunking, embedding, storage, and search (cosine similarity or BM25) with clearance applied before ranking |
+| `knowledge_base.py` | Ingestion, chunking, embedding, storage, and search (cosine and BM25 fused by Reciprocal Rank Fusion, or BM25 alone) with clearance applied before ranking |
 
 ## `tools/`
 
 | File | Owns |
 |---|---|
-| `registry.py` | The tools an agent may call (`knowledge_search`, `file_read`, `python_exec`, `spreadsheet_analyze`, `document_generate`), each gated by the policy gateway |
+| `registry.py` | The tools an agent may call (`knowledge_search`, `file_read`, `python_exec`, `spreadsheet_analyze`, `historian_read`, `document_generate`), each gated by the policy gateway |
 | `sandbox.py` | Static validation, the `sitecustomize` shim, and the three enforcement backends: POSIX rlimits, the macOS watchdog, the Windows Job Object |
 | `deliverables.py` | DOCX, XLSX, PPTX and Markdown rendering, hashing |
 
@@ -80,6 +81,7 @@ The orchestrator is about 2,100 lines. The roadmap splits it into typed stages w
 
 | Package | Owns |
 |---|---|
+| `connectors/` | Read-only plant-data adapters behind one interface: the SQLite historian (and its simulated dataset) and OPC UA, simulated from the historian or live through the optional `asyncua` ([7.4](../07-agents/04-tools.md)) |
 | `harness/` | Definitions and input validation, expansion into items, the service that submits children through the ordinary queue, aggregation, versioned hashed reports, the `harness_runs` table |
 | `skills/` | Built-in skills from `config/skills/`, custom skills in the `skills` table, template validation and hashing |
 | `security/sovereignty.py` | The egress monitor |

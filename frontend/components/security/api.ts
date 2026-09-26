@@ -1,4 +1,5 @@
 import { request } from '@/lib/api'
+import type { EgressFirewallStatus } from '@/lib/types'
 
 /*
  * The Assurance screen's calls, with shapes transcribed from the backend.
@@ -44,6 +45,8 @@ export interface SovereigntyStatus {
   monitor_active: boolean
   monitor_error?: string | null
   interfaces: Record<string, InterfaceReading>
+  /** The host egress firewall, read back from the kernel. Absent from older backends. */
+  firewall?: EgressFirewallStatus | null
 }
 
 export interface SandboxCheck {
@@ -91,6 +94,8 @@ export interface ApprovalRule {
   name: string
   description?: string
   approver_roles?: string[]
+  /** Ordered signatures when one role alone cannot decide (a High finding). */
+  signatures?: { role: string; authority: string; capacity?: string }[]
   requires_deliverable?: boolean
   match?: Record<string, unknown>
 }

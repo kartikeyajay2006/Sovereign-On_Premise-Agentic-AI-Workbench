@@ -33,6 +33,11 @@ def isolated_storage() -> Path:
     os.environ["SOVEREIGN_AUDIT__LOG_FILE"] = str(root / "logs" / "audit.jsonl")
     # An app started by a test must not load a real model in the background.
     os.environ["SOVEREIGN_INFERENCE__PREWARM"] = "false"
+    # The vision cache routes before it reads, which asks the model runtime
+    # what is installed; tests that fake `_generate` must not reach it, nor
+    # be served a reading another test stored. tests/test_vision_cache.py
+    # turns it on against its own directory.
+    os.environ["SOVEREIGN_VISION_CACHE__ENABLED"] = "false"
 
     # Drop any cached configuration and singletons built before this ran.
     from backend.core import audit, config, database
@@ -47,6 +52,7 @@ def isolated_storage() -> Path:
         if key.startswith("SOVEREIGN_STORAGE__") or key in {
             "SOVEREIGN_AUDIT__LOG_FILE",
             "SOVEREIGN_INFERENCE__PREWARM",
+            "SOVEREIGN_VISION_CACHE__ENABLED",
         }:
             del os.environ[key]
 

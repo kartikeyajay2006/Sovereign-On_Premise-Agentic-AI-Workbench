@@ -10,7 +10,7 @@ The most important convention, in code and in the interface alike:
 - A check that could not complete is a **failed** check with its reason, never a crashed run and never a quiet pass.
 - A figure the runtime did not report stays `None`. Zero is a count; `None` is the absence of one.
 - A monitor that cannot observe says so, and claims nothing.
-- A configured value that is not implemented is reported as such (*config requests 'docker', not implemented*), not echoed back as if it were.
+- A configured value that is not implemented is reported as such (*config requests 'gvisor', not implemented*; a requested container runtime that fails its probe is reported as *fallback: podman unavailable: …*), not echoed back as if it were.
 
 ## Comments explain *why*, with the incident
 

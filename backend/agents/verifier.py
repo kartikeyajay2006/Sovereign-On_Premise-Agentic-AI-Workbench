@@ -152,6 +152,16 @@ def _names_value(claim: str, stated: str | None) -> bool:
     return stated.casefold() in claim.casefold()
 
 
+def _mentions_subject(claim: str, conflict: ConflictRecord) -> bool:
+    """Whether a claim is about a fact conflict's subject (its tag or clause, or the attribute)."""
+    subject = conflict.subject or ""
+    # V-2104 is not V-2104R.
+    if subject and re.search(rf"(?<![\w-]){re.escape(subject)}(?![\w-])", claim, re.IGNORECASE):
+        return True
+    attribute = conflict.label[len(subject):].strip().casefold()
+    return bool(attribute) and attribute in claim.casefold()
+
+
 def _claim_kind(claim: str) -> str:
     if DECISION_CLAIM.search(claim):
         return "recommendation"
@@ -712,6 +722,7 @@ class VerificationEngine:
         records = records or []
         every_conflict = [c for c in conflicts or [] if c.kind == "input"]
         open_conflicts = [c for c in every_conflict if c.status == "unresolved" and c.impact == "high"]
+        open_facts = [c for c in conflicts or [] if c.kind == "fact" and c.status == "unresolved"]
         by_id = {item.id: item for item in evidence}
         calculated = assessment is not None and assessment.status == "calculated"
         computed: dict[float, str] = {}
@@ -774,6 +785,27 @@ class VerificationEngine:
                 elif len(named) > 1:
                     conflicted_verdict = verdict(
                         "SUPPORTED", ids, f"Reports both values of {conflict.label} recorded as {conflict.id}.",
+                    )
+                if conflicted_verdict is not None:
+                    break
+            # A fact conflict touches only claims about its own subject: one
+            # that takes a single side is CONFLICTED, one that names every
+            # side is reporting the disagreement.
+            for conflict in open_facts if conflicted_verdict is None else []:
+                if not _mentions_subject(claim, conflict):
+                    continue
+                named = [c for c in conflict.candidates if _names_value(claim, c.stated)]
+                values = " vs ".join(f"{c.stated} [{c.evidence_id}]" for c in conflict.candidates)
+                ids = [c.evidence_id for c in conflict.candidates]
+                if len(named) == 1:
+                    conflicted_verdict = verdict(
+                        "CONFLICTED", ids,
+                        f"Takes {named[0].stated} from {named[0].evidence_id} for {conflict.label}, although "
+                        f"the sources disagree ({values}); conflict {conflict.id} is unresolved.",
+                    )
+                elif len(named) > 1:
+                    conflicted_verdict = verdict(
+                        "SUPPORTED", ids, f"Reports every value of {conflict.label} recorded as {conflict.id}.",
                     )
                 if conflicted_verdict is not None:
                     break

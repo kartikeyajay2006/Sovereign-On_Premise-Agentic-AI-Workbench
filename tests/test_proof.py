@@ -45,8 +45,10 @@ def test_a_changed_leaf_is_not_under_the_root() -> None:
 def test_the_key_is_created_private_and_signs(tmp_path: Path) -> None:
     signer = HostSigner(tmp_path / "keys")
     signature = signer.sign({"a": 1})
-    mode = stat.S_IMODE(os.stat(signer.private_path).st_mode)
-    assert mode == 0o600
+    # Windows has no POSIX mode bits (os.stat reports 0o666); privacy there
+    # comes from the storage folder's ACL, so the mode is checked on POSIX only.
+    if os.name == "posix":
+        assert stat.S_IMODE(os.stat(signer.private_path).st_mode) == 0o600
     assert signer.public_path.read_text().strip() == signature["public_key"]
     # The same key after a restart.
     assert HostSigner(tmp_path / "keys").key_id == signer.key_id

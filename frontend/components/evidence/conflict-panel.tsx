@@ -15,7 +15,9 @@ import type { ConflictRecord, Task } from '@/lib/types'
  * value; that choice becomes H evidence and the formulas recompute from it.
  * A revision conflict (a record written against a superseded procedure) is
  * settled by rule in favour of the revision in force, and listed so a reader
- * sees it happened.
+ * sees it happened. A fact conflict (two sources stating different values for
+ * one attribute of one tag or clause) withholds the claims that take a side
+ * until a person chooses, through the same form.
  */
 
 export function resolveConflict(
@@ -93,8 +95,9 @@ function ResolveForm({
     <fieldset className="mt-3 flex flex-col gap-2 border-t border-line-subtle pt-3">
       <legend className="sr-only">Resolve {conflict.id}</legend>
       <p className="text-ui text-foreground-secondary">
-        Choose the value the decision should use. It is recorded as H evidence under your name, and every
-        figure is recomputed from it by the same formulas.
+        {conflict.kind === 'fact'
+          ? 'Choose the value that is correct. It is recorded as H evidence under your name, and claims that state it are then checked against that record.'
+          : 'Choose the value the decision should use. It is recorded as H evidence under your name, and every figure is recomputed from it by the same formulas.'}
       </p>
       <div className="flex flex-wrap gap-2">
         {conflict.candidates.map((option, index) => (
@@ -152,7 +155,7 @@ function ResolveForm({
       {error && <p className="text-ui text-critical-text">{error}</p>}
       <div>
         <Button variant="primary" size="sm" ground="paper" disabled={!ready || busy} onClick={submit}>
-          {busy ? 'Recording…' : `Resolve ${conflict.id} and recompute`}
+          {busy ? 'Recording…' : conflict.kind === 'fact' ? `Resolve ${conflict.id}` : `Resolve ${conflict.id} and recompute`}
         </Button>
       </div>
     </fieldset>

@@ -2,7 +2,7 @@
 
 > A file is what its bytes are, and document text is evidence, never instruction.
 
-Two controls stand between an uploaded document and the model: the **upload quarantine**, which decides whether a file may be stored at all, and **instruction screening**, which decides what of a stored document's text the model is allowed to read as text.
+Two controls stand between an uploaded document and the model: the **upload quarantine**, which decides whether a file may be stored at all, and **instruction screening**, which decides what of a stored document's text the model is allowed to read as text. A third, **content scanning** ([9.10](10-content-scanning.md)), reads the same text for credentials, personal data and classification markings, from the one copy of it extracted at upload.
 
 ## Upload quarantine
 

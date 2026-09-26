@@ -12,6 +12,7 @@ After verification, the policy gateway evaluates the rules in `policies/approval
 | `released_deliverable` | It produces a document (DOCX, XLSX, PPTX or Markdown) | reviewer, administrator |
 | `verification_failure` | Any verification check failed | reviewer, administrator |
 | `low_confidence_classification` | The analyzer's confidence was below 0.35 **and** there is something to release | reviewer, administrator |
+| `high_severity_finding` | The formula registry computed a **High** finding | head_of_inspection **then** plant_manager, two signatures (below) |
 | `safety_recommendation` | The request mentions *safety*, *hazard*, *shutdown*, *incident* or *statutory* | reviewer, administrator |
 
 Every matching rule is listed on the run, so a reviewer sees all the reasons, not just the first. When the class was raised by evidence, that reason is put first and names the evidence, because "4 of 4 checks passed" beside **Held** is otherwise puzzling.
@@ -27,7 +28,7 @@ A held run's document is **rendered and hashed, but not released**. It exists in
 
 Three conditions must all hold:
 
-1. The person has the `approval.decide` permission. Of the seeded roles, only **reviewer** and **administrator** do.
+1. The person has the `approval.decide` permission. Of the seeded roles, **reviewer**, **head_of_inspection**, **plant_manager** and **administrator** do.
 2. Their role is one of the approver roles the matching rules named.
 3. **They did not run the task themselves.**
 
@@ -44,6 +45,19 @@ A reviewer **approves** or **rejects**, with an optional comment. The decision r
 | `task.approval_decided` | The live event stream |
 
 Approved runs become **Delivered**, and their documents are released. Rejected runs become **Rejected**, and nothing is released.
+
+## Two signatures for a High finding
+
+SOP-INS-014 Clause 5.1 names the Head of Inspection + Plant Manager as the authority for a High finding. SOP-OPS-008 Clauses 2.3 and 3.5 say both sign: the Head of Inspection **recommends**, then the Plant Manager **approves**. The `signatures` list of the `high_severity_finding` rule holds this, in that order. When the rule matches, only these two roles decide the run: a general reviewer cannot release a High finding alone (SOP-OPS-008 Clause 3.1, the highest authority named applies). Their accounts are seeded as `head_of_inspection` and `plant_manager`. An install seeded before these accounts existed gains them on its next start.
+
+- **The first signature releases nothing.** The run stays held, and the Approvals screen shows **WAITING FOR SECOND AUTHORITY** and names who signs next. The audit log records `approval / signature_recorded` with the authority, the capacity, "1 of 2" and the review digest.
+- **Order is enforced.** The Plant Manager approves the Head of Inspection's recommendation, so the Plant Manager cannot sign first.
+- **The same person cannot sign twice** (SOP-OPS-008 Clause 3.2). The person who ran the task cannot sign at all.
+- **A role outside the rule is refused.** That includes the reviewer and the administrator.
+- **A signature is bound to the version signed.** If the run changes after the first signature, for example because a conflict was resolved and the finding recomputed, that signature is void. It is removed, and `approval / signatures_voided` is audited. The Head of Inspection then signs the new version.
+- **The second signature releases the run.** The run becomes Delivered, and the `approved` audit entry and the run certificate list both signatures.
+
+The required signatures are read again from policy, against the run's computed severity, each time someone decides. A run that becomes High after a conflict resolution therefore needs the High signatures.
 
 ## Harness reports
 

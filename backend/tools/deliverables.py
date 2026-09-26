@@ -195,6 +195,13 @@ class DeliverableEngine:
             document.add_heading("Recommendation", level=1)
             document.add_paragraph(str(content["recommendation"]))
 
+        # Set by the run from the severity formula, not by the model: who
+        # recommends and who approves under SOP-OPS-008, so the note never
+        # reads as approved by the tool that drafted it.
+        if content.get("authority"):
+            document.add_heading("Recommending officer and approving authority", level=1)
+            document.add_paragraph(str(content["authority"]))
+
         if content.get("approval_statement"):
             document.add_heading("Approval sought", level=1)
             document.add_paragraph(str(content["approval_statement"]))
@@ -403,6 +410,8 @@ class DeliverableEngine:
             recommendation_slide.shapes.title.text = "Recommendation"
             recommendation_slide.placeholders[1].text_frame.text = str(
                 content["recommendation"]
+            ) + (
+                f"\n\n{content['authority']}" if content.get("authority") else ""
             )
 
         if evidence:
@@ -470,6 +479,8 @@ class DeliverableEngine:
             lines.append("")
         if content.get("recommendation"):
             lines += ["## Recommendation", "", str(content["recommendation"]), ""]
+        if content.get("authority"):
+            lines += ["## Recommending officer and approving authority", "", str(content["authority"]), ""]
         if evidence:
             lines += ["## Evidence", ""]
             for item in evidence:

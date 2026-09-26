@@ -17,6 +17,7 @@ import asyncio
 import ipaddress
 import os
 import socket
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -25,7 +26,8 @@ import psutil
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
-from backend.core.schemas import NetworkConnection, SovereigntyStatus
+from backend.core.schemas import EgressFirewallStatus, NetworkConnection, SovereigntyStatus
+from backend.security.egress_firewall import EgressFirewallReader
 
 
 class SovereigntyMonitor:
@@ -46,6 +48,13 @@ class SovereigntyMonitor:
         # Why the last sample produced no reading, or None when it did. While
         # it is set the monitor is not monitoring, and says so.
         self._sample_error: str | None = None
+        # The host firewall underneath: read every few samples, not every one,
+        # because it costs a subprocess and the kernel counters are cumulative.
+        firewall_settings = dict(self.config.settings.sovereignty.get("firewall") or {})
+        self._firewall_reader = EgressFirewallReader(firewall_settings)
+        self._firewall_interval = float(firewall_settings.get("poll_interval_seconds", 10))
+        self._firewall: EgressFirewallStatus | None = None
+        self._firewall_read_monotonic: float | None = None
         self._allowed_networks = [
             ipaddress.ip_network(str(cidr))
             for cidr in self.config.settings.sovereignty.get("allowed_cidrs", [])
@@ -75,6 +84,7 @@ class SovereigntyMonitor:
     # -- sampling ----------------------------------------------------------
     def sample(self) -> SovereigntyStatus:
         """Take one observation of the platform's network posture."""
+        self._refresh_firewall()
         pids = self._process_tree_pids()
         violations: list[NetworkConnection] = []
         local = 0
@@ -169,7 +179,86 @@ class SovereigntyMonitor:
             monitor_active=self._running and self._sample_error is None,
             monitor_error=self._sample_error,
             interfaces=self.interfaces(),
+            firewall=self._firewall,
         )
+
+    # -- host firewall -----------------------------------------------------
+    def _refresh_firewall(self, *, force: bool = False) -> EgressFirewallStatus | None:
+        """Re-read the nftables egress table when the interval has passed.
+
+        Kernel drops since the last reading are written to the audit trail as
+        they are observed, so a blocked attempt is on the record even though
+        it never became a connection the monitor could see. A reading that
+        failed is kept as the failure, with its reason: the previous figures
+        are not carried forward as if they were current.
+        """
+        now = time.monotonic()
+        if (
+            not force
+            and self._firewall_read_monotonic is not None
+            and now - self._firewall_read_monotonic < self._firewall_interval
+        ):
+            return self._firewall
+        try:
+            current = self._firewall_reader.read()
+        except Exception as exc:  # a reader bug must not stop the monitor
+            current = self._firewall_reader._unmeasurable(
+                f"reading the firewall failed ({type(exc).__name__})"
+            )
+        previous = self._firewall
+        self._firewall = current
+        self._firewall_read_monotonic = now
+        self._audit_firewall_change(previous, current)
+        return current
+
+    def _audit_firewall_change(
+        self, previous: EgressFirewallStatus | None, current: EgressFirewallStatus
+    ) -> None:
+        if previous is None or previous.state != current.state:
+            self.audit.record(
+                category="sovereignty",
+                action="egress_firewall_state",
+                actor="sovereignty_monitor",
+                detail={
+                    "state": current.state,
+                    "reason": current.reason,
+                    "table": current.table,
+                    "ruleset_sha256": current.ruleset_sha256,
+                    "previous_state": previous.state if previous else None,
+                },
+            )
+        if (
+            previous is not None
+            and previous.denied_packets is not None
+            and current.denied_packets is not None
+        ):
+            delta = current.denied_packets - previous.denied_packets
+            if delta > 0:
+                self.audit.record(
+                    category="sovereignty",
+                    action="egress_blocked_by_firewall",
+                    actor="sovereignty_monitor",
+                    detail={
+                        "packets": delta,
+                        "total_packets": current.denied_packets,
+                        "counters": {
+                            name: counter.packets
+                            for name, counter in current.counters.items()
+                        },
+                    },
+                )
+            elif delta < 0:
+                # The table was reloaded, which restarts its counters.
+                self.audit.record(
+                    category="sovereignty",
+                    action="egress_firewall_counters_reset",
+                    actor="sovereignty_monitor",
+                    detail={
+                        "previous_total": previous.denied_packets,
+                        "total_packets": current.denied_packets,
+                        "ruleset_sha256": current.ruleset_sha256,
+                    },
+                )
 
     def interfaces(self) -> dict[str, Any]:
         """Interface inventory, so an auditor can see the host's actual posture."""

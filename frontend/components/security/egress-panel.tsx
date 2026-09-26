@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { LEDGER_MUTED, Readout, ReadoutRow } from '@/shared/ui/data/ledger'
 import type { InterfaceReading, SovereigntyStatus } from './api'
+import type { EgressFirewallStatus } from '@/lib/types'
 
 /** Seconds since a timestamp, recounted each second. Only this re-renders. */
 export function Ago({ iso }: { iso: string }) {
@@ -35,6 +36,54 @@ const LOOPBACK = (address: string) => address.startsWith('127.') || address === 
 function classify(reading: InterfaceReading) {
   const external = reading.addresses.filter((a) => !LOOPBACK(a))
   return { external, loopbackOnly: reading.addresses.length > 0 && external.length === 0 }
+}
+
+const FIREWALL_STATE: Record<EgressFirewallStatus['state'], string> = {
+  enforced: 'enforced · default deny',
+  not_default_deny: 'loaded, but not default deny',
+  not_present: 'not loaded',
+  not_measurable: 'not measurable here',
+}
+
+/**
+ * The layer under the monitor: the kernel's own count of what it refused.
+ * The monitor samples and can miss a short connection; a drop counter
+ * cannot. Where the table could not be read the figures stay empty and the
+ * reason is shown, because a zero there would claim a count nobody took.
+ */
+function FirewallReading({ firewall }: { firewall: EgressFirewallStatus }) {
+  const enforced = firewall.state === 'enforced'
+  return (
+    <section aria-label="Host firewall" className="flex flex-col gap-2">
+      <h3 className={LEDGER_MUTED}>Host firewall · {firewall.table}</h3>
+      <div className="flex flex-col gap-3 rounded-[var(--radius)] bg-surface p-5 shadow-[var(--elev-0)]">
+        <ReadoutRow>
+          <Readout
+            label="State"
+            value={FIREWALL_STATE[firewall.state]}
+            tone={enforced ? 'default' : firewall.measurable ? 'approval' : 'muted'}
+          />
+          <Readout
+            label="Denied"
+            value={firewall.denied_packets === null ? '—' : `${firewall.denied_packets} packets`}
+            tone={firewall.denied_packets === null ? 'muted' : 'default'}
+            hint="Packets the output chain dropped, from the kernel's named counters"
+          />
+          <Readout
+            label="To the model server"
+            value={firewall.allowed_packets === null ? '—' : `${firewall.allowed_packets} packets`}
+            tone={firewall.allowed_packets === null ? 'muted' : 'default'}
+            hint="The one destination the table permits"
+          />
+          <Readout label="Read" value={<Ago iso={firewall.read_at} />} hint={firewall.read_at} />
+        </ReadoutRow>
+        {firewall.reason && <p className="max-w-[80ch] text-ui text-foreground-secondary">{firewall.reason}</p>}
+        {firewall.ruleset_sha256 && (
+          <p className="break-all font-mono text-ledger text-foreground-muted">ruleset sha256 {firewall.ruleset_sha256}</p>
+        )}
+      </div>
+    </section>
+  )
 }
 
 /**
@@ -99,6 +148,8 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
           </p>
         </details>
       </div>
+
+      {status.firewall && <FirewallReading firewall={status.firewall} />}
 
       {status.violations.length > 0 && (
         <section aria-label="Connections observed" className="flex flex-col gap-2">

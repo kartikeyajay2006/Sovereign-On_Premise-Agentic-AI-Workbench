@@ -53,7 +53,51 @@ The unauthenticated `GET /` reports the headline: `{"sovereign": true, "external
 
 The screen states this beside the figure, and adds how many network interfaces have a non-loopback address. *"The figure above is about the workbench's own connections; it is not a statement that the machine is physically isolated."*
 
-For a deployment that must be provably air-gapped, put an operating-system control underneath: a host firewall (for example nftables) that permits only loopback for the workbench's user, or a machine with no route out. The monitor is then a second, independent witness.
+For a deployment that must be provably air-gapped, put an operating-system control underneath: the nftables table below, or a machine with no route out. The monitor is then a second, independent witness.
+
+## The host firewall underneath
+
+`infrastructure/firewall/aegis.nft` is a default-deny egress table for Linux. Its `output` chain has `policy drop` and accepts only:
+
+- loopback (the API, the console, a local Ollama);
+- replies on connections accepted inbound (a browser on the plant LAN), since a connection this host tries to open is never established;
+- IPv6 neighbour discovery, link-local only;
+- new TCP connections to the model server, when it is on another host (`AEGIS_MODEL_SERVER`, `AEGIS_MODEL_PORT`).
+
+Everything else is counted in a named counter and dropped: `egress_denied_dns`, `egress_denied_v4`, `egress_denied_v6`, `egress_denied_other`. `egress_allowed_model` counts the one permitted destination. The table is host-wide, so it also covers Ollama, Next.js and every other program the monitor cannot see. It also drops DHCP, NTP and updates; use a static address.
+
+```bash
+sudo infrastructure/firewall/apply.sh      # syntax-checks, loads, prints policy, hash, counters
+sudo infrastructure/firewall/remove.sh     # prints the final counters, deletes the table
+```
+
+Applying again restarts the counters from zero. Neither script makes the table persistent across reboot.
+
+### What the monitor reads
+
+Every `sovereignty.firewall.poll_interval_seconds` (10 s), `backend/security/egress_firewall.py` runs `nft -j list table inet aegis_egress` and puts the result in `GET /api/sovereignty` as `firewall`:
+
+| `firewall.state` | Meaning | Figures |
+|---|---|---|
+| `enforced` | The table is loaded and its output chain's policy is `drop` | `denied_packets`, `denied_bytes`, `allowed_packets`, each counter, `ruleset_sha256` |
+| `not_default_deny` | Loaded, but the policy is not `drop` | As above, with the reason |
+| `not_present` | `nft` answered and the table is not loaded | None |
+| `not_measurable` | Not Linux, no `nft`, or `nft` refused (reading needs CAP_NET_ADMIN) | None, with the reason |
+
+A host that could not be read reports no counters, **never zero**. `ruleset_sha256` is a digest of the loaded rules with counter values and handles removed, so it stays the same while the rules do. New drops since the last reading are written to the audit log as `egress_blocked_by_firewall`; state changes as `egress_firewall_state`; a reload as `egress_firewall_counters_reset`. Blocked packets do not change `sovereign`: a dropped packet did not leave.
+
+The API normally runs unprivileged, and `nft` refuses to list a table without CAP_NET_ADMIN. `infrastructure/firewall/aegis-nft-read.sudoers` allows the service account exactly one command, `nft -j list table inet aegis_egress`; set `sovereignty.firewall.nft_command` to `[sudo, -n, /usr/sbin/nft]`.
+
+### What is enforced, and where
+
+| Host | Enforced | Reported |
+|---|---|---|
+| Linux, table applied | Kernel default-deny for every process on the host | `enforced`, with counters |
+| Linux, table not applied | Nothing below the monitor | `not_present` |
+| Linux, API cannot read `nft` | Whatever is loaded; the API cannot tell | `not_measurable`, with nft's refusal |
+| Windows or macOS (including the development host) | Nothing: nftables does not exist there | `not_measurable`: *firewall not present / not measurable on this host* |
+
+Not verified on a live host: no machine in this project's development environment has nftables. The parser is tested against a sample written to the `libnftables-json` schema, and the unavailable paths are tested directly (`tests/test_egress_firewall.py`). Run `apply.sh` on the target and compare `GET /api/sovereignty` with `nft list counters` before relying on the figures.
 
 ## Settings declared but not used
 

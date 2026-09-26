@@ -57,10 +57,10 @@ const getNoRuns = () => NO_RUNS
 const TOP_K = ['3', '5', '10'] as const
 
 const MODE_SCORE: Record<SearchResponse['retrieval_mode'], { unit: string; meaning: string }> = {
-  embedding: {
-    unit: 'cosine',
+  hybrid: {
+    unit: 'rrf rel.',
     meaning:
-      "Cosine similarity between the query's embedding and each passage's, computed by the embedding model registered on this host.",
+      "Reciprocal rank fusion of two rankings: cosine similarity from the embedding model registered on this host, and BM25 term matching. Divided by the most a passage can earn (first in both), so 1.000 means first in both; these scores rank the passages, they do not measure similarity. Each passage's own ranks are in its evidence record.",
   },
   lexical: {
     unit: 'bm25 rel.',

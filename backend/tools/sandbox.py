@@ -67,6 +67,7 @@ import psutil
 
 from backend.core.config import get_config
 from backend.core.schemas import SandboxResult
+from backend.tools import container_sandbox
 
 # --------------------------------------------------------- platform capability
 # RLIMIT_CPU, RLIMIT_AS, RLIMIT_FSIZE and RLIMIT_NPROC are POSIX. Windows has
@@ -604,6 +605,30 @@ _READABLE_ROOTS = tuple(
 )
 
 
+def _system_data_paths():
+    # Public, read-only data the standard library itself goes looking for on
+    # Linux: the timezone database (zoneinfo, dateutil, pandas) and the MIME
+    # tables (mimetypes, which openpyxl initialises at import). The lists are
+    # the stdlib's own, so nothing here is a path this guard invented.
+    paths = ["/etc/localtime", "/etc/timezone"]
+    try:
+        import zoneinfo
+
+        paths.extend(zoneinfo.TZPATH)
+    except Exception:
+        pass
+    try:
+        import mimetypes
+
+        paths.extend(mimetypes.knownfiles)
+    except Exception:
+        pass
+    return tuple(sorted({os.path.realpath(p) for p in paths if os.path.isabs(p)}))
+
+
+_READABLE_SYSTEM_PATHS = _system_data_paths() if os.name == "posix" else ()
+
+
 def _record(target):
     try:
         with _REAL_OPEN(_ATTEMPT_LOG, "a", encoding="utf-8") as handle:
@@ -670,7 +695,10 @@ def _within_read_scope(path):
         return False
     if _within_workspace(resolved):
         return True
-    return any(resolved == root or resolved.startswith(root + os.sep) for root in _READABLE_ROOTS)
+    return any(
+        resolved == root or resolved.startswith(root + os.sep)
+        for root in _READABLE_ROOTS + _READABLE_SYSTEM_PATHS
+    )
 
 
 def _path_text(path):
@@ -938,6 +966,11 @@ class Sandbox:
         cap on this host; otherwise None, and execution is refused. The probe
         result is cached, so a host is only exercised once.
         """
+        selection, probe = self._container_selection()
+        if selection == "container" and probe is not None:
+            return f"{probe.runtime}_container"
+        if selection == "refused":
+            return None
         if not RESOURCE_LIMITS_AVAILABLE:
             return None
         if _POSIX_RLIMITS:
@@ -960,14 +993,62 @@ class Sandbox:
         and the enforcement backend named is the one that was probed to work.
         """
         configured = str(self._settings.get("runtime", "subprocess"))
-        if configured != "subprocess":
+        selection, probe = self._container_selection()
+        if selection == "container" and probe is not None:
+            mode = {True: "rootless", False: "rootful", None: "rootless unknown"}[probe.rootless]
+            return f"{probe.runtime} ({mode} container, isolation probed on this host)"
+        if selection == "refused" and probe is not None:
+            return (
+                f"none ({probe.runtime} unavailable and sandbox.container_fallback "
+                f"is refuse: {probe.reason})"
+            )
+        if configured not in ("subprocess", *container_sandbox.CONTAINER_RUNTIMES):
             return f"subprocess (config requests {configured!r}, not implemented)"
         backend = self._enforcement_backend()
         if backend == "posix_rlimit":
-            return "subprocess"
-        if backend == "windows_job_object":
-            return "subprocess (Windows Job Object)"
-        return "subprocess (unlimited: no enforced resource limits on this host)"
+            label = "subprocess"
+        elif backend == "windows_job_object":
+            label = "subprocess (Windows Job Object)"
+        else:
+            label = "subprocess (unlimited: no enforced resource limits on this host)"
+        if selection == "fallback" and probe is not None:
+            # Labelled, never silent: the operator asked for a container and
+            # is told they are not getting one, and exactly why.
+            return f"{label} (fallback: {probe.runtime} unavailable: {probe.reason})"
+        return label
+
+    # -- container runtime selection ----------------------------------------
+    def container_settings(self) -> container_sandbox.ContainerSettings:
+        return container_sandbox.ContainerSettings.from_config(self._settings)
+
+    def _container_selection(self) -> tuple[str, container_sandbox.ContainerProbe | None]:
+        """Decide between a container, a labelled fallback, and refusal.
+
+        Returns ``("subprocess", None)`` when no container runtime is
+        configured. When ``podman`` or ``docker`` is configured the probe
+        decides: ``"container"`` only if the binary exists and the probe proved
+        the isolation holds here; otherwise ``"fallback"`` (the subprocess
+        sandbox, labelled as such) or ``"refused"``, per
+        ``sandbox.container_fallback``. The probe is cached, so this is cheap
+        after the first call.
+        """
+        configured = str(self._settings.get("runtime", "subprocess")).lower()
+        if configured not in container_sandbox.CONTAINER_RUNTIMES:
+            return "subprocess", None
+        settings = self.container_settings()
+        probe = container_sandbox.probe_container_runtime(configured, settings)
+        if probe.usable:
+            return "container", probe
+        return ("fallback" if settings.fallback == "subprocess" else "refused"), probe
+
+    def container_probe(self) -> dict[str, Any] | None:
+        """The container probe result for the limits and self-test endpoints."""
+        _, probe = self._container_selection()
+        if probe is None:
+            return None
+        report = probe.to_dict()
+        report["fallback"] = self.container_settings().fallback
+        return report
 
     @property
     def execution_allowed(self) -> tuple[bool, str]:
@@ -980,6 +1061,16 @@ class Sandbox:
         """
         if not self.enabled:
             return False, "The sandbox is disabled in configuration."
+        selection, probe = self._container_selection()
+        if selection == "container":
+            return True, ""
+        if selection == "refused" and probe is not None:
+            return False, (
+                f"The configured container runtime ({probe.runtime}) is not usable "
+                f"on this host: {probe.reason}. sandbox.container_fallback is "
+                "refuse, so execution is refused rather than run without "
+                "container isolation."
+            )
         if not RESOURCE_LIMITS_AVAILABLE:
             return False, (
                 "This host cannot apply resource limits to a child process, so "
@@ -1229,6 +1320,9 @@ class Sandbox:
                 if source.exists():
                     shutil.copy2(source, target)
 
+            selection, probe = self._container_selection()
+            if selection == "container" and probe is not None and probe.binary:
+                return self._run_container(code, workspace, memory_limit, probe)
             if _POSIX_RLIMITS:
                 return self._run_posix(code, workspace, memory_limit)
             return self._run_windows(code, workspace, memory_limit)
@@ -1421,6 +1515,79 @@ class Sandbox:
         )
         return ExecutionOutcome(result=result, limits=limits, accounting=accounting)
 
+    def _run_container(
+        self,
+        code: str,
+        workspace: Path,
+        memory_limit: int,
+        probe: container_sandbox.ContainerProbe,
+    ) -> ExecutionOutcome:
+        """The container path: the probed runtime confines the program.
+
+        Peak memory and CPU time are left unmeasured (``None``): the container
+        is gone by the time they could be read, and the runtime's own stats
+        are a sampled figure, not a reading of the whole run.
+        """
+        settings = self.container_settings()
+        max_output = int(self._settings.get("max_output_bytes", 262144))
+        before = {path.name for path in workspace.iterdir()}
+        started = time.perf_counter()
+        measurement = container_sandbox.run_in_container(
+            str(probe.binary),
+            probe.runtime,
+            code=code,
+            workspace=workspace,
+            settings=settings,
+            guard_source=SITECUSTOMIZE,
+        )
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        reason = container_sandbox.classify_container_exit(measurement)
+        stderr = measurement.stderr
+        if reason == "memory_limit_exceeded":
+            stderr += (
+                f"\nThe container was killed by the kernel for exceeding the "
+                f"{memory_limit} MB memory limit (OOMKilled reported by {probe.runtime})."
+            )
+        elif reason == "cpu_time_limit_exceeded":
+            stderr += (
+                f"\nSandbox terminated the process with SIGXCPU: the "
+                f"{settings.cpu_seconds}s CPU-time limit was reached."
+            )
+        elif reason == "container_runtime_error":
+            stderr += f"\n{probe.runtime} failed to run the container (exit {measurement.exit_code})."
+
+        result = SandboxResult(
+            ok=(measurement.exit_code == 0 and not measurement.timed_out),
+            exit_code=measurement.exit_code,
+            stdout=measurement.stdout[:max_output],
+            stderr=stderr[:max_output],
+            duration_ms=duration_ms,
+            timed_out=measurement.timed_out,
+            memory_limit_mb=memory_limit,
+            static_validation_passed=True,
+            static_violations=[],
+            generated_files=self._generated_files(
+                workspace, before | {"program.py", "sitecustomize.py"}
+            ),
+            network_attempts_blocked=self._count_network_attempts(workspace),
+        )
+        limits = LimitsApplied(
+            mechanism=f"{probe.runtime}_container",
+            memory_mb=memory_limit,
+            cpu_seconds=settings.cpu_seconds,
+            active_process_limit=settings.pids_limit,
+            wall_timeout_seconds=settings.timeout_seconds,
+        )
+        accounting = ExecutionAccounting(
+            assessable=not measurement.runtime_error,
+            termination_reason=reason,
+            output_truncated=(
+                len(measurement.stdout) > max_output or len(stderr) > max_output
+            ),
+        )
+        return ExecutionOutcome(result=result, limits=limits, accounting=accounting)
+
     @staticmethod
     def _classify_windows(
         measurement: _WindowsRunMeasurement, memory_limit_mb: int, cpu_seconds: int
@@ -1532,6 +1699,8 @@ class Sandbox:
                 "reason": refusal,
                 "all_passed": False,
                 "backend": "none",
+                "runtime": self.runtime,
+                "container_probe": self.container_probe(),
                 "duration_ms": int((time.perf_counter() - started) * 1000),
                 "ran_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -1548,6 +1717,8 @@ class Sandbox:
             "total": len(checks),
             "assessable": True,
             "backend": backend,
+            "runtime": self.runtime,
+            "container_probe": self.container_probe(),
             "overall": (
                 f"{passed} of {len(checks)} containment checks held on this host"
                 if passed == len(checks)
@@ -1660,9 +1831,39 @@ class Sandbox:
         configured limits and the wall clock; the check still reports what
         actually happened.
         """
+        selection, _ = self._container_selection()
+        if selection == "container":
+            return self._limit_checks_container()
         if _POSIX_RLIMITS:
             return self._limit_checks_posix()
         return self._limit_checks_windows()
+
+    def _limit_checks_container(self) -> list[dict[str, Any]]:
+        """Re-run the isolation probe now, then the CPU and memory payloads.
+
+        The probe is forced rather than read from the startup cache, so the
+        report is about this host at this moment. The CPU and memory payloads
+        are the POSIX ones: inside the container they meet the cgroup memory
+        cap and the CPU-time ulimit, and each reports what actually happened.
+        """
+        configured = str(self._settings.get("runtime", "subprocess")).lower()
+        probe = container_sandbox.probe_container_runtime(
+            configured, self.container_settings(), force=True
+        )
+        checks = [
+            {**check, "name": f"Container: {check['name']}"} for check in probe.checks
+        ]
+        if not probe.usable:
+            checks.append(
+                {
+                    "name": "Container isolation probe",
+                    "target": f"{configured} probe container",
+                    "passed": False,
+                    "detail": probe.reason,
+                }
+            )
+            return checks
+        return checks + self._limit_checks_posix()
 
     def _limit_checks_windows(self) -> list[dict[str, Any]]:
         checks: list[dict[str, Any]] = []

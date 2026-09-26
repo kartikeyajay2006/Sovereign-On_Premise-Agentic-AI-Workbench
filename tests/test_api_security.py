@@ -157,7 +157,8 @@ class TestDeliverableDownload:
         directory = get_config().settings.path("deliverables") / task_id
         directory.mkdir(parents=True, exist_ok=True)
         body = "# recorded\n"
-        (directory / filename).write_text(body, encoding="utf-8")
+        # Bytes, not text: Windows text mode writes CRLF and breaks the hash.
+        (directory / filename).write_bytes(body.encode("utf-8"))
 
         now = datetime.now(timezone.utc)
         task = Task(

@@ -8,9 +8,16 @@ final answer can show *where* each claim came from.
 
 Retrieval has two real modes:
 
-* ``embedding`` - cosine similarity over locally computed vectors.
-* ``lexical``   - BM25 over the same chunks, used when no embedding model is
-  installed. Lower quality, but real retrieval rather than a stub.
+* ``hybrid``  - cosine similarity over locally computed vectors *and* BM25
+  over the same chunks, fused by Reciprocal Rank Fusion. Each ranker covers
+  the other's blind spot: embeddings find a paraphrase, BM25 finds an exact
+  identifier ("SOP-INS-014 Clause 4.4") that a vector blurs into its
+  neighbours.
+* ``lexical`` - BM25 alone, used when no embedding model is installed (or the
+  query cannot be embedded). Lower quality, but real retrieval, not a stub.
+
+Every hit records its ranks in ``extraction_data["retrieval"]``, so the
+evidence shows why it was retrieved.
 """
 
 from __future__ import annotations
@@ -37,6 +44,32 @@ from backend.rag.parsing import ParsedDocument, extract_title, parse_document
 TOKEN_PATTERN = re.compile(r"[a-z0-9][a-z0-9\-_/.]*")
 BM25_K1 = 1.5
 BM25_B = 0.75
+# The constant of Reciprocal Rank Fusion (Cormack et al., 2009). 60 is the
+# published default: large enough that rank 1 and rank 2 in one list do not
+# outweigh a passage both rankers placed well.
+RRF_K = 60
+
+
+def rrf_fuse(
+    rankings: dict[str, list[str]], k: int = RRF_K
+) -> list[tuple[str, float, dict[str, int]]]:
+    """Fuse ranked lists of keys by Reciprocal Rank Fusion.
+
+    Returns ``(key, fused score, {ranker: 1-based rank})`` best first. A key
+    earns ``1 / (k + rank)`` from every list it appears in. Ties are broken by
+    the best rank the key reached, then by the key itself, so the same inputs
+    always give the same order.
+    """
+    ranks: dict[str, dict[str, int]] = {}
+    for ranker, keys in rankings.items():
+        for position, key in enumerate(keys, start=1):
+            ranks.setdefault(key, {}).setdefault(ranker, position)
+    fused = [
+        (key, sum(1.0 / (k + rank) for rank in by_ranker.values()), by_ranker)
+        for key, by_ranker in ranks.items()
+    ]
+    fused.sort(key=lambda entry: (-entry[1], min(entry[2].values()), entry[0]))
+    return fused
 
 
 def _pack(vector: list[float]) -> bytes:
@@ -125,10 +158,11 @@ class KnowledgeBase:
             return None, None
         return vectors, descriptor.id
 
-    async def retrieval_mode(self) -> Literal["embedding", "lexical", "unavailable"]:
+    async def retrieval_mode(self) -> Literal["hybrid", "lexical", "unavailable"]:
+        """What a search will do on this host: fuse both rankers, or BM25 alone."""
         descriptor = await self.registry.embedding_model()
         if descriptor is not None:
-            return "embedding"
+            return "hybrid"
         if bool(self._kb_config.get("lexical_fallback_enabled", True)):
             return "lexical"
         return "unavailable"
@@ -257,7 +291,7 @@ class KnowledgeBase:
 
     # -- retrieval ---------------------------------------------------------
     def _to_evidence(
-        self, row: dict[str, Any], score: float, index: int
+        self, row: dict[str, Any], score: float, index: int, retrieval: dict[str, Any]
     ) -> EvidenceItem:
         return EvidenceItem(
             id=f"S{index}",
@@ -278,6 +312,8 @@ class KnowledgeBase:
             document_code=row.get("document_code"),
             revision_status=row.get("revision_status") or ACTIVE,
             superseded_by=row.get("superseded_by"),
+            extraction_method=f"{retrieval['mode']} retrieval",
+            extraction_data={"retrieval": retrieval},
         )
 
     @staticmethod
@@ -324,7 +360,7 @@ class KnowledgeBase:
         min_score: float | None = None,
         max_classification: str | None = None,
         include_history: bool = False,
-    ) -> tuple[list[EvidenceItem], Literal["embedding", "lexical"], int]:
+    ) -> tuple[list[EvidenceItem], Literal["hybrid", "lexical"], int]:
         started = time.perf_counter()
         limit = int(top_k or self._kb_config.get("default_top_k", 6))
         floor = float(min_score if min_score is not None else self._kb_config.get("min_score", 0.15))
@@ -349,32 +385,70 @@ class KnowledgeBase:
         if not rows:
             return [], "lexical", int((time.perf_counter() - started) * 1000)
 
-        mode: Literal["embedding", "lexical"] = "lexical"
-        scored: list[tuple[dict[str, Any], float]] = []
+        rrf_k = int(self._kb_config.get("rrf_k", RRF_K))
 
+        def key(row: dict[str, Any]) -> str:
+            # Stable across runs, unlike the order SQLite happens to return.
+            return f"{row['document_id']}:{int(row.get('ordinal') or 0):06d}"
+
+        # Each ranker keeps only what clears the floor on its own scale -- the
+        # rule each mode applied before fusion -- so a passage BM25 matched on
+        # one common word does not ride into the results on its fused rank.
+        lexical = sorted(
+            ((row, score) for row, score in self._bm25(query, rows) if score >= floor),
+            key=lambda item: (-item[1], key(item[0])),
+        )
+        vector: list[tuple[dict[str, Any], float]] = []
         embedded_rows = [row for row in rows if row.get("embedding")]
         if embedded_rows:
             vectors, _ = await self._embed([query])
             if vectors:
-                mode = "embedding"
                 query_vector = vectors[0]
                 for row in embedded_rows:
                     similarity = _cosine(query_vector, _unpack(row["embedding"]))
-                    if similarity > 0:
-                        scored.append((row, similarity))
+                    if similarity > 0 and similarity >= floor:
+                        vector.append((row, similarity))
+                vector.sort(key=lambda item: (-item[1], key(item[0])))
 
-        if not scored:
-            mode = "lexical"
-            scored = self._bm25(query, rows)
+        results: list[EvidenceItem] = []
+        if not vector:
+            # No embedding model, no stored vectors, or nothing similar
+            # enough: BM25 alone, and every hit says so rather than implying
+            # a fusion that did not happen.
+            for index, (row, score) in enumerate(lexical[:limit], start=1):
+                results.append(self._to_evidence(row, score, index, {
+                    "mode": "lexical",
+                    "lexical_rank": index,
+                    "lexical_score": round(score, 4),
+                    "vector_rank": None,
+                    "vector_similarity": None,
+                    "fused_score": None,
+                    "note": "no embedding model or query vector was available; BM25 only",
+                }))
+            return results, "lexical", int((time.perf_counter() - started) * 1000)
 
-        scored.sort(key=lambda item: item[1], reverse=True)
-        results = [
-            self._to_evidence(row, score, index)
-            for index, (row, score) in enumerate(
-                [item for item in scored if item[1] >= floor][:limit], start=1
-            )
-        ]
-        return results, mode, int((time.perf_counter() - started) * 1000)
+        by_key = {key(row): row for row, _ in [*vector, *lexical]}
+        similarity = {key(row): score for row, score in vector}
+        lexical_score = {key(row): score for row, score in lexical}
+        fused = rrf_fuse(
+            {"vector": [key(row) for row, _ in vector], "lexical": [key(row) for row, _ in lexical]},
+            rrf_k,
+        )
+        # The reported score is the fused score over the most a passage could
+        # earn (first in both lists), so it reads on 0..1 like the other
+        # mode's. It ranks the passages; it is not a similarity.
+        best = 2.0 / (rrf_k + 1)
+        for index, (chunk, score, ranks) in enumerate(fused[:limit], start=1):
+            results.append(self._to_evidence(by_key[chunk], score / best, index, {
+                "mode": "hybrid",
+                "vector_rank": ranks.get("vector"),
+                "vector_similarity": round(similarity[chunk], 4) if chunk in similarity else None,
+                "lexical_rank": ranks.get("lexical"),
+                "lexical_score": round(lexical_score[chunk], 4) if chunk in lexical_score else None,
+                "fused_score": round(score, 6),
+                "rrf_k": rrf_k,
+            }))
+        return results, "hybrid", int((time.perf_counter() - started) * 1000)
 
     # -- management --------------------------------------------------------
     def list_documents(self) -> list[KnowledgeDocument]:

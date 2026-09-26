@@ -24,7 +24,7 @@ def sign_in(client: TestClient, username: str) -> dict[str, str]:
 def test_the_catalogue_lists_versioned_clause_cited_formulas(client: TestClient) -> None:
     body = client.get("/api/engineering/formulas", headers=sign_in(client, "auditor")).json()
     keys = {entry["key"] for entry in body}
-    assert {"corrosion.short_term_rate@1", "integrity.remaining_life@1", "severity.vessel_finding@1"} <= keys
+    assert {"corrosion.short_term_rate@1", "integrity.remaining_life@1", "severity.vessel_finding@2"} <= keys
 
 
 def test_a_formula_is_evaluated_with_units_normalised(client: TestClient) -> None:

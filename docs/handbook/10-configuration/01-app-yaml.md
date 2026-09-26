@@ -48,7 +48,8 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `embedding_model_role` | `embedding` | ⚠️ | Not read; the embedding model is found by its registry role |
 | `lexical_fallback_enabled` | `true` | ✅ | Use BM25 when no embedding model is installed |
 | `default_top_k` | `6` | ✅ | Passages returned per search |
-| `min_score` | `0.15` | ✅ | Floor below which passages are dropped |
+| `min_score` | `0.15` | ✅ | Floor below which a passage is left out of a ranking, on that ranker's own scale |
+| `rrf_k` | `60` | ✅ | Reciprocal Rank Fusion constant: each ranking contributes `1 / (rrf_k + rank)` |
 | `supported_ingest_extensions` | `.txt .md .pdf .docx .csv .xlsx` | ⚠️ | Not read; the parsers decide what can be ingested |
 
 ## `sandbox`
@@ -56,7 +57,7 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | Key | Default | | Meaning |
 |---|---|:--:|---|
 | `enabled` | `true` | ✅ | When false, no code runs |
-| `runtime` | `subprocess` | ✅ | Only `subprocess` is implemented. Any other value is reported as *config requests '…', not implemented* |
+| `runtime` | `subprocess` | ✅ | `subprocess`, `podman` or `docker`. A container runtime is used only when its binary exists and the startup probe proves isolation holds; see [9.3](../09-security/03-sandbox.md#the-container-runtime). Any other value is reported as *config requests '…', not implemented* |
 | `timeout_seconds` | `45` | ✅ | Wall-clock limit |
 | `max_memory_mb` | `1024` | ✅ | Address space (Linux), resident memory (macOS watchdog), or committed memory (Windows Job Object) |
 | `max_cpu_seconds` | `30` | ✅ | CPU time |
@@ -64,7 +65,11 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `max_written_file_bytes` | `26214400` | ✅ | Largest file the code may write |
 | `process_headroom` | `64` | ✅ | Processes allowed above the user's current count |
 | `network_enabled` | `false` | ✅ | Reported on the Sandbox screen. The shim blocks sockets regardless |
-| `docker_image`, `docker_network`, `docker_read_only_rootfs` | | ⚠️ | Reserved for a container runtime that is not implemented |
+| `container_image` | `localhost/aegis-sandbox:1` | ✅ | Built by `infrastructure/sandbox/build.sh`. Never pulled: a missing image fails the probe |
+| `container_fallback` | `subprocess` | ✅ | When the container runtime fails its probe: `subprocess` (labelled fallback) or `refuse`. Any other value means `refuse` |
+| `container_require_rootless` | `true` | ✅ | A runtime that is not rootless (or cannot say) fails the probe |
+| `container_cpus`, `container_pids_limit`, `container_tmpfs_mb` | `1.0`, `64`, `64` | ✅ | `--cpus`, `--pids-limit`, size of the `noexec` `/tmp` tmpfs |
+| `container_probe_timeout_seconds` | `90` | ✅ | Wall limit for the probe container |
 | `denied_imports` | 19 modules | ✅ | See [9.3](../09-security/03-sandbox.md#layer-1--static-validation) |
 | `denied_calls` | 12 names | ✅ | Including `open_host` |
 | `denied_attributes` | 5 dunders | ✅ | |
@@ -77,8 +82,16 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `default_step_budget` | `8` | ✅ | Step budget when the complexity class has none |
 | `max_step_budget` | `20` | ✅ | Cap on any step budget |
 | `max_replans` | `2` | ⚠️ | Not read. Code retries use `verification.max_replans` in `policies/approval-rules.yaml` |
+| `template_plan_min_confidence` | `0.6` | ✅ | When a run needs a plan, it is taken from the task shape (no model call) if code is already required, or if the classification is at least this confident and no CSV/XLSX is attached ([7.3](../07-agents/03-planning-prompts.md#who-makes-the-plan)). Above 1.0 always asks the model |
 | `step_timeout_seconds` | `600` | ⚠️ | Not read; model calls are bounded by `inference.request_timeout_seconds` |
 | `stream_tokens` | `true` | ⚠️ | Not read; answers always stream |
+
+## `vision_cache`
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `enabled` | `true` | ✅ | Reuse a vision reading of the same image by the same model weights with the same prompt ([6.2](../06-knowledge-and-retrieval/02-parsing-and-vision.md#the-vision-cache)). Tests run with it off (`SOVEREIGN_VISION_CACHE__ENABLED=false` in `tests/conftest.py`) |
+| `path` | `vision-cache` | ✅ | Where entries are kept. A relative path is under `storage.root`, so the default is `storage/vision-cache` |
 
 ## `sovereignty`
 
@@ -89,6 +102,10 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `allowed_cidrs` | `127.0.0.0/8`, `::1/128` | ✅ | Remote addresses that count as local |
 | `known_local_ports` | `8000, 3000, 11434, 5432, 6379` | ⚠️ | Not read |
 | `violation_action` | `record_and_alert` | ⚠️ | Not read; violations are always recorded and published |
+| `firewall.enabled` | `true` | ✅ | Read the nftables egress table back into the status |
+| `firewall.family`, `firewall.table` | `inet`, `aegis_egress` | ✅ | The table `infrastructure/firewall/aegis.nft` loads |
+| `firewall.nft_command` | `[nft]` | ✅ | Reading needs CAP_NET_ADMIN; `[sudo, -n, /usr/sbin/nft]` with `infrastructure/firewall/aegis-nft-read.sudoers` for an unprivileged service account |
+| `firewall.poll_interval_seconds`, `firewall.timeout_seconds` | `10`, `5` | ✅ | How often the counters are read, and how long `nft` may take |
 
 ## `audit`
 
@@ -109,7 +126,14 @@ Every value here can be overridden by an environment variable: `SOVEREIGN_` + th
 | `self_registration_default_role` | `operator` | ✅ | Role given to self-registered accounts |
 | `self_registration_default_department` | `operations` | ✅ | Their department, if none is given |
 | `secret_key` | `""` | ⚠️ | Not read; sessions are random tokens stored in the database |
-| `seed_user_password` | `workbench` | ✅ | Password for the five seed accounts, used only when the user table is empty. **Change before first start** |
+| `seed_user_password` | `workbench` | ✅ | Password given to a seed account when it is created: on first start, and for any declared seed account that does not exist yet (the Head of Inspection and Plant Manager on an older install). **Change before first start** |
+
+## `demo`
+
+| Key | Default | | Meaning |
+|---|---|:--:|---|
+| `enabled` | `true` | ✅ | Serve the sample files the console's golden-demo cards attach (`GET /api/samples`). **Set false on a production install** |
+| `samples` | four ids | ✅ | Id → path of each sample, under `sample_data/` only; a path outside it is never served ([11.2](../11-api/02-files-tasks.md#sample-files)) |
 
 <!-- nav:start -->
 

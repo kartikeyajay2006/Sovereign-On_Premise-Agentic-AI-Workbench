@@ -176,10 +176,13 @@ Checked on 2026-09-23:
 
 ## The rule this exists to enforce
 
-`config/app.yaml` advertises a `docker` sandbox runtime that no code reads —
-`Sandbox.runtime` reports the backend that was actually *probed to work*, and
-setting `runtime: docker` yields `subprocess (config requests 'docker', not
-implemented)`, never a false "docker".
+`Sandbox.runtime` reports the backend that was actually *probed to work*, not
+the configured string. `runtime: podman` or `runtime: docker` is honoured only
+when the binary exists and a probe container demonstrates no network, a
+read-only root, a non-root user and no capabilities on this host; otherwise it
+reports, for example, `subprocess (fallback: podman unavailable: the podman
+binary was not found on PATH)`, never a false "podman". Any other value yields
+`subprocess (config requests '…', not implemented)`.
 
 **Enforcement level must be probed, never read from configuration, and the
 interface must never state an isolation level the host did not demonstrate.**

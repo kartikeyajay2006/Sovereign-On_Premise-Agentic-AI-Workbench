@@ -16,6 +16,7 @@ This section takes you from nothing installed to a working workbench with the de
 | [1.6 Seed the corpus and run](06-seed-and-run.md) | Load the synthetic SOP corpus and start both services |
 | [1.7 Your first hour](07-first-hour.md) | A guided tour: ask, cite, hold, approve, audit |
 | [1.8 Installation troubleshooting](08-install-troubleshooting.md) | What goes wrong on a first install, and how to fix it |
+| [1.9 Install on an air-gapped host](09-offline-install.md) | Build an offline bundle on a connected machine; verify every hash and model digest, then install without a network |
 
 > [!IMPORTANT]
 > AEGIS needs a local model runtime, [Ollama](https://ollama.com), running on the same machine. Without it the workbench starts, but every question fails with a local inference error. Install it before anything else.

@@ -20,6 +20,7 @@ This section describes every security control in AEGIS: what it enforces, where 
 | [9.7 Ingestion guard](07-ingestion-guard.md) | Upload quarantine by bytes and structure; instruction screening of document text |
 | [9.8 Red team](08-red-team.md) | 30 attacks run against a live host; verdicts that are measurements; the hashed report |
 | [9.9 Signed proof](09-proof.md) | Ed25519-signed Merkle roots, run certificates, digest-bound approval, deliverable re-hashing |
+| [9.10 Content scanning](10-content-scanning.md) | Secrets, personal data and markings found at upload, prompt, answer and deliverable; allow, redact, hold or block per `policies/dlp.yaml`; keyed fingerprints, never the value |
 
 ## Controls at a glance
 
@@ -29,6 +30,7 @@ This section describes every security control in AEGIS: what it enforces, where 
 | Ingestion | Type from bytes; PDF, Office and archive inspection; instruction screening of evidence | `security/file_guard.py`, `security/injection.py` |
 | Authorisation | Default-deny RBAC with role inheritance and department rules | `policy/gateway.py`, `api/dependencies.py` |
 | Data | Classification ceilings; clearance applied before ranking; runs raised by their evidence | `rag/knowledge_base.py`, `agents/orchestrator.py` |
+| Content | Secrets, Aadhaar/PAN, emails, phones and classification markings scanned at every boundary; redacted, held or refused per policy; files and runs raised by what they carry | `security/dlp.py`, `policies/dlp.yaml` |
 | Models | Registered-only; approved per classification; loopback-only inference | `models_layer/` |
 | Tools | Registered-only; per-role; per-classification | `tools/registry.py`, `policy/gateway.py` |
 | Execution | AST validation; OS resource limits; socket and write shim; scrubbed environment | `tools/sandbox.py` |
@@ -39,7 +41,7 @@ This section describes every security control in AEGIS: what it enforces, where 
 
 ## Tests
 
-The security properties are held by tests in `tests/`, including `test_security.py`, `test_api_security.py`, `test_authz_gaps.py`, `test_sandbox_api.py`, `test_sandbox_windows.py`, `test_retrieval_clearance.py`, `test_classification_escalation.py`, `test_egress_audit.py`, `test_sovereignty_monitor.py`, `test_proof.py`, and the adversarial suite in `tests/adversarial/`. Run them with `python -m pytest -q tests/test_security.py tests/test_api_security.py`.
+The security properties are held by tests in `tests/`, including `test_security.py`, `test_api_security.py`, `test_authz_gaps.py`, `test_sandbox_api.py`, `test_sandbox_windows.py`, `test_retrieval_clearance.py`, `test_classification_escalation.py`, `test_egress_audit.py`, `test_sovereignty_monitor.py`, `test_proof.py`, and the adversarial suite in `tests/adversarial/` (including `test_dlp.py` for content scanning). Run them with `python -m pytest -q tests/test_security.py tests/test_api_security.py`.
 
 <!-- nav:start -->
 

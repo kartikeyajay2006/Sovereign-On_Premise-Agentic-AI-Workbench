@@ -65,7 +65,7 @@ If no limit mechanism works on a host, `execution_allowed` is false and code is 
 A `sitecustomize.py` is written into each workspace, so the interpreter loads it before user code:
 
 - `socket.socket`, **and** the C primitive `_socket.socket` it is built on, plus `socketpair`, are replaced with functions that raise `SovereignNetworkBlocked`, and each attempt is logged. Patching only `socket.socket` would leave `import _socket; _socket.socket().connect(…)` live.
-- `builtins.open` and `os.open` are replaced with guards that raise `SovereignFilesystemBlocked` for any **write** (modes `w`, `a`, `x`, `+`, or write flags) outside the workspace. Reads pass through unchanged, which is the gap described below.
+- `builtins.open` and `os.open` are replaced with guards that raise `SovereignFilesystemBlocked` for any **write** (modes `w`, `a`, `x`, `+`, or write flags) outside the workspace, and for any **read** outside the workspace and its read scope. The read scope is the Python installation (packages import their own files lazily) and, on Linux, the public data files the standard library itself lists: the timezone database (`zoneinfo.TZPATH`, `/etc/localtime`, `/etc/timezone`) and the MIME tables (`mimetypes.knownfiles`). pandas needs the first for timezones, and openpyxl reads the second at import. All of these are read-only.
 
 The result reports **network attempts blocked**, read back from the attempt log.
 
@@ -76,7 +76,7 @@ The Assurance screen's self-test submits real payloads (a static socket import, 
 ## What the sandbox does not stop
 
 > [!WARNING]
-> This is application-level isolation inside a subprocess: static rules, OS resource limits and an interpreter shim. It is **not** a container, a virtual machine, a namespace or a seccomp filter, and the child runs as the **same operating-system user** as the API.
+> With `runtime: subprocess` (the default, and the only runtime verified on the Windows development host), this is application-level isolation inside a subprocess: static rules, OS resource limits and an interpreter shim. It is **not** a container, a virtual machine, a namespace or a seccomp filter, and the child runs as the **same operating-system user** as the API.
 
 Concretely, verified on the demonstration host:
 
@@ -85,19 +85,66 @@ Concretely, verified on the demonstration host:
 | Write outside the workspace with `open()` or `os.open()` | ✅ Refused |
 | Open a socket, even with `_socket` | ✅ Refused |
 | `os.system`, `subprocess`, `getattr` tricks | ✅ Refused before running |
-| **Read** a host file, e.g. `Path('/etc/hostname').read_text()` | ❌ **Allowed** |
-| **List** host directories, e.g. `Path('/home').iterdir()` | ❌ **Allowed** |
-| **Read the workbench's own database**, `storage/workbench.db` | ❌ **Allowed**, even as `operator` |
+| **Read** a host file, e.g. `Path('/etc/hostname').read_text()` | ✅ Refused |
+| **Read the workbench's own database**, `storage/workbench.db` | ✅ Refused |
+| **List** host directories, e.g. `Path('/home').iterdir()` | ❌ **Allowed**: names only, not contents |
 
-The last one matters most. The database holds every run's content, including runs from other departments and above the reader's clearance, and live session tokens. Code submitted by the lowest-privilege role can read it and print it back. **Until reads are confined, do not expose the sandbox to users you do not trust with everything on the host.**
+Listing is the remaining leak: generated code can learn file and folder names on the host, though not what they contain. Session tokens are stored hashed, so even a leaked database would not leak live sessions. The shim is still interpreter-level: a native extension making raw syscalls is outside its reach.
 
 ## Closing the gap
 
 In order of effort:
 
-1. **Confine reads in the shim** the same way writes are: refuse `open` for reading, `Path.read_*`, `os.listdir`, `os.scandir` and `os.open` outside the workspace and the Python installation. Cheap, and it closes the demonstrated path, though an interpreter shim can in principle be bypassed.
-2. **Hash session tokens at rest**, so a leaked database does not leak live sessions.
-3. **Run each execution in a container** (rootless Podman or Docker) with `--network none`, a read-only root filesystem, a non-root user, `--cap-drop ALL`, `no-new-privileges`, CPU, memory, PID and time limits, and only the workspace mounted. That turns application-level containment into OS-enforced isolation. `config/app.yaml` already reserves `sandbox.runtime: docker` and its options, and the code reports *config requests 'docker', not implemented* rather than pretending. See `docs/RUNTIME-ENVIRONMENT.md`.
+1. **Confine listing in the shim** as reads are: refuse `os.listdir`, `os.scandir` and `os.walk` outside the read scope.
+2. **Run each execution in a container.** Implemented: set `sandbox.runtime: podman` (or `docker`) on a Linux host with the image built. See [the container runtime](#the-container-runtime) below.
+
+## The container runtime
+
+`backend/tools/container_sandbox.py` runs each execution in a fresh container when `sandbox.runtime` is `podman` or `docker`. The three layers above still apply; the container replaces the same-user child process of layer 2 with OS-enforced isolation. The command is:
+
+```
+podman run --name aegis-sbx-<id> --pull never --network none --read-only
+  --user <api uid>:<api gid> --userns keep-id --cap-drop ALL
+  --security-opt no-new-privileges --memory 1024m --memory-swap 1024m
+  --cpus 1 --pids-limit 64 --ulimit cpu=30:30 --ulimit fsize=26214400:26214400
+  --ulimit core=0:0 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m
+  --volume <workspace>:/workspace:rw,Z --workdir /workspace --hostname sandbox
+  --env … localhost/aegis-sandbox:1 python /workspace/program.py
+```
+
+| Control | How |
+|---|---|
+| No network | `--network none`: the namespace has only `lo` |
+| Read-only root | `--read-only`; writable: the workspace and a `noexec` `/tmp` tmpfs |
+| Not root | The API's own uid (mapped by `--userns keep-id` under rootless Podman), or `nobody` if the API runs as root |
+| No privileges | `--cap-drop ALL`, `no-new-privileges` |
+| Limits | cgroup memory with no swap, `--cpus`, `--pids-limit`, CPU-time and file-size ulimits, and the parent's wall timeout (`kill`, then `rm -f`) |
+| Mounts | The per-run workspace only. The image is never pulled |
+| Memory kill | Read from `State.OOMKilled` after exit, so a cgroup OOM kill is told apart from any other `SIGKILL` |
+
+Peak memory and CPU time are **not measured** on this path and are reported as `null`.
+
+### When it is used
+
+The runtime is used only when **all** of these hold, checked by a probe at API startup and cached:
+
+1. The binary is on `PATH`.
+2. The runtime reports itself rootless (`podman info`, or `rootless` in Docker's security options), unless `container_require_rootless: false`.
+3. The image is present locally.
+4. A probe container, started with exactly the flags above but **without** the interpreter shim, demonstrates: only `lo` exists, a connect to `192.0.2.1` and a DNS lookup fail, writes to `/`, `/etc` and `/usr` fail, a write to the workspace succeeds, uid and euid are not 0, `CapEff` is zero and `NoNewPrivs` is 1.
+
+If any step fails, the reason is recorded in the audit log (`sandbox_runtime_probe`) and shown in `GET /api/sandbox/limits` (`runtime`, `configured_runtime`, `container`) and in the self-test (`runtime`, `container_probe`). Then `sandbox.container_fallback` decides: `subprocess` runs the sandbox above and labels it, for example *subprocess (fallback: podman unavailable: the podman binary was not found on PATH)*; `refuse` refuses to run code. The fallback is never silent.
+
+With a container in use, the self-test re-runs the probe and reports each probe check alongside the CPU and memory payloads.
+
+### Where it has been verified
+
+| Host | Status |
+|---|---|
+| The Windows 11 development host | **Not verified.** No Podman, Docker or WSL. The command construction, probe verdict and selection are unit-tested with the runtime mocked (`tests/test_container_sandbox.py`); the real-runtime test skips with its reason |
+| Linux with rootless Podman | The intended deployment. Build the image with `infrastructure/sandbox/build.sh`, set `sandbox.runtime: podman`, and read the startup probe's verdict before relying on it |
+
+The image is `infrastructure/sandbox/Containerfile`: Python 3.11 slim with `numpy`, `pandas` and `openpyxl` pinned to `requirements.txt`, and no shell, package manager, `curl` or `wget`. `matplotlib` is on the import allow-list but is not installed in either runtime.
 
 <!-- nav:start -->
 

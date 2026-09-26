@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { RotateCw } from 'lucide-react'
 import type { StreamEvent, Task, TaskSummary } from '@/lib/types'
 import { useEventStream } from '@/hooks/use-event-stream'
-import { APPROVALS_CHANGED_EVENT } from '@/components/navigation'
+import { APPROVALS_CHANGED_EVENT, RUNS_CHANGED_EVENT } from '@/components/navigation'
 import { PageHeader } from '@/components/page-header'
 import { useToast } from '@/components/toast'
 import { useRole } from '@/components/role-context'
@@ -22,7 +22,15 @@ import {
 import { cn } from '@/lib/utils'
 import { readHeld, readRuns, readTask, recordDecision } from './api'
 import { DecisionDialog, type DecisionKind } from './decision-dialog'
-import { SENSITIVITY_ORDER, mergeQueue, type Decision, type QueueItem } from './model'
+import {
+  SENSITIVITY_ORDER,
+  awaitingSignature,
+  interimSignature,
+  mergeQueue,
+  signatureRefusal,
+  type Decision,
+  type QueueItem,
+} from './model'
 import { QueueRow } from './queue-list'
 import { ReviewPane, type DetailRead } from './review-pane'
 
@@ -78,6 +86,7 @@ export function ApprovalsView() {
   const canDecide = can('approval.decide')
   const canReadAll = can('task.read.all')
   const reviewer = user?.display_name || role.label
+  const viewer = user ? { id: user.id, role: user.role } : null
 
   const queue = useReading<QueueData>(
     async (signal) => {
@@ -121,7 +130,7 @@ export function ApprovalsView() {
       if (!Number.isNaN(at) && at < mountedAt.current) return
       const held =
         event.event === 'task.stage' && String(event.data?.status ?? '').toLowerCase() === 'awaiting_approval'
-      if (!held && event.event !== 'task.approval_decided') return
+      if (!held && event.event !== 'task.approval_decided' && event.event !== 'task.approval_signed') return
       if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
       reloadTimer.current = window.setTimeout(() => {
         reloadTimer.current = null
@@ -293,6 +302,7 @@ export function ApprovalsView() {
 
   const openDialog = (kind: DecisionKind) => {
     if (!selected || selected.decision !== 'held' || !canDecide || ownRun) return
+    if (kind === 'approve' && signatureRefusal(selectedTask, viewer)) return
     setDialog({ kind, id: selected.id })
   }
 
@@ -361,9 +371,19 @@ export function ApprovalsView() {
       // The service has recorded it, so the header's held count re-reads
       // now rather than at the next navigation.
       window.dispatchEvent(new Event(APPROVALS_CHANGED_EVENT))
+      // The run's state changed: the sidebar's held marker has to follow.
+      window.dispatchEvent(new Event(RUNS_CHANGED_EVENT))
       const released = task.deliverables.filter((d) => d.released).map((d) => d.filename)
+      // One signature of several: the run is still held for the next one.
+      const awaiting = awaitingSignature(task)
       push(
-        kind === 'approve'
+        kind === 'approve' && awaiting
+          ? {
+              title: 'Signature recorded',
+              detail: `Nothing was released. Waiting for the ${awaiting.authority}, who ${awaiting.capacity} it. Recorded in the audit chain.`,
+              tone: 'default',
+            }
+          : kind === 'approve'
           ? {
               title: released.length > 0 ? 'Approved and released' : 'Approved',
               detail:
@@ -579,6 +599,7 @@ export function ApprovalsView() {
                     canDecide={canDecide}
                     ownRun={ownRun}
                     reviewer={reviewer}
+                    viewer={viewer}
                     onApprove={() => openDialog('approve')}
                     onReject={() => openDialog('reject')}
                     onRevise={() => openDialog('revise')}
@@ -606,6 +627,7 @@ export function ApprovalsView() {
           kind={dialog.kind}
           item={dialogItem}
           filename={dialogTask?.deliverables[0]?.filename ?? null}
+          signature={interimSignature(dialogTask)}
           reviewer={reviewer}
           onCancel={() => setDialog(null)}
           onConfirm={(note) => confirmDecision(dialog.kind, dialog.id, note)}

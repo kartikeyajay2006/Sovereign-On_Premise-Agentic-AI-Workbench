@@ -6,6 +6,7 @@ import { memo, Suspense, useEffect, useRef, useState, type ComponentType } from 
 import {
   Activity,
   BookOpen,
+  Gauge,
   Box,
   ClipboardCheck,
   Layers,
@@ -79,12 +80,13 @@ export const PLACES: Place[] = [
     label: 'Assurance',
     key: 'p',
     hint: 'what this host can show about its own conduct',
-    paths: ['/security', '/sandbox', '/audit'],
+    paths: ['/security', '/sandbox', '/audit', '/measurements'],
     icon: ShieldCheck,
     children: [
       { href: '/security', label: 'Posture', key: 'p', hint: 'egress as measured, and the policy', icon: Activity },
       { href: '/sandbox', label: 'Sandbox', key: 's', hint: "run code under this host's limits", icon: Box },
       { href: '/audit', label: 'Audit', key: 'l', hint: 'the hash-chained record', icon: Link2 },
+      { href: '/measurements', label: 'Measurements', key: 'm', hint: 'every figure, with the artifact it came from', icon: Gauge },
     ],
   },
 ]
@@ -268,8 +270,10 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
 
   useEffect(() => {
     const onChanged = (event: Event) => {
+      // A plain Event (an approval decided elsewhere) re-reads the list but
+      // says nothing about which run is live, so it leaves that alone.
       const detail = (event as CustomEvent<RunsChangedDetail>).detail
-      setRunning(detail?.running ?? null)
+      if (detail) setRunning(detail.running ?? null)
       setTick((n) => n + 1)
     }
     window.addEventListener(RUNS_CHANGED_EVENT, onChanged)

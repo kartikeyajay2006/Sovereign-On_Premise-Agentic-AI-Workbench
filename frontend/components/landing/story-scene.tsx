@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { AegisMark } from '@/components/aegis-logo'
 
 export interface SceneStep {
   key: string
@@ -218,11 +219,7 @@ export function StoryScene({ data, hero }: { data: SceneData; hero: ReactNode })
             <div className="body">
               <div className="side">
                 <p className="brand">
-                  <svg viewBox="0 0 24 24" width="15" height="15">
-                    <path d="M11 1.9 3.2 4.3v6.9c0 5.1 3.3 9.3 7.8 11V1.9Z" fill="currentColor" />
-                    <path d="M13 1.9l7.8 2.4v6.9c0 5.1-3.3 9.3-7.8 11V1.9Z" fill="currentColor" />
-                    <rect x="11.45" y="6.2" width="1.1" height="10.6" rx="0.55" fill="#ff5b1a" />
-                  </svg>
+                  <AegisMark size={15} />
                   AEGIS
                 </p>
                 <p className="new">New run</p>

@@ -41,6 +41,20 @@ So a mixed PDF, with typed pages and a scanned appendix, has both halves read pr
 
 Standalone images (`.png`, `.jpg`, `.webp`, `.bmp`, `.tiff`, `.gif`) are read one per call, and their findings are recorded per location.
 
+## The vision cache
+
+`backend/agents/vision_cache.py`. Reading is the slowest stage, and a repeated demo re-read pages it had already read. The same image shown to the same weights with the same instructions is the same question, so the earlier answer is reused, and the reuse is on the record.
+
+- **Key.** SHA-256 over the SHA-256 of every image in the call (the upload, or the page image rendered from a scan), the vision model's **runtime digest** (the weights, not the name), the prompt library's `prompts_version`, and the SHA-256 of the exact system prompt and prompt sent. Other weights, another prompt version or an edited template is a different key. The page prompt names the file, so the same scan under another file name is read again.
+- **Never without a digest.** A model the runtime reports no digest for is never cached.
+- **Re-checked before serving.** An entry is served only if the digest, prompt hashes and image hashes stored in it are the call's; an edited or unreadable entry is a miss.
+- **Admitted like a model call.** A hit is routed and policy-checked for this run's classification, exactly as the call would have been; only the inference is skipped. A cache is never a way round model policy.
+- **Audited.** A hit writes `model / vision_cache_hit` with the cache key, the model and digest, the image hashes, and when (and for which run) the reading was originally made. A fresh reading that is stored writes `model / vision_cache_stored`. The run certificate counts hits under the model that made the reading ([9.9](../09-security/09-proof.md#provenance)).
+- **Same evidence, marked.** The evidence's `extraction_model` is the model that originally produced the reading; `extraction_data.vision_cache` carries `hit`, the key, `extracted_at` and the original run.
+- **Retries ask the model.** A page whose reading fails validation is asked again with the cache bypassed, and the fresh reading replaces the entry.
+
+Switched by `vision_cache.enabled` and kept under `vision_cache.path` ([10.1](../10-configuration/01-app-yaml.md#vision_cache)); entries are JSON files, one per key. Deleting the directory empties it. `tests/test_vision_cache.py` holds hit, miss, invalidation by digest and prompt, no-digest, edited entry, policy and retry behaviour.
+
 ## Why vision before planning
 
 Visual inputs are read **before** the plan is made. On a host that holds one model at a time, planning first would load the reasoning model, evict it for vision, then load it again: a multi-gigabyte round trip. And a plan made after reading the report is a better plan.

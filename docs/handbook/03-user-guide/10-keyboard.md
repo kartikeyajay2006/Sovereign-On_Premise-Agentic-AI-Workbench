@@ -16,6 +16,7 @@ Press <kbd>G</kbd>, then within about a second one of these letters:
 | <kbd>G</kbd> <kbd>P</kbd> | **Assurance · Posture** |
 | <kbd>G</kbd> <kbd>S</kbd> | **Assurance · Sandbox** |
 | <kbd>G</kbd> <kbd>L</kbd> | **Assurance · Audit** (the *log*) |
+| <kbd>G</kbd> <kbd>M</kbd> | **Assurance · Measurements** |
 
 The sequence is taken before a screen's own single-key shortcuts see it, so <kbd>G</kbd> <kbd>A</kbd> goes to Approvals rather than approving something. It is ignored while a dialog is open or while you are typing in a field.
 

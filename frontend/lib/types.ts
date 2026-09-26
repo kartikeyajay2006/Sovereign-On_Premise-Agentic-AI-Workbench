@@ -1,4 +1,11 @@
-export type RoleId = 'operator' | 'engineer' | 'reviewer' | 'auditor' | 'admin'
+export type RoleId =
+  | 'operator'
+  | 'engineer'
+  | 'reviewer'
+  | 'head_of_inspection'
+  | 'plant_manager'
+  | 'auditor'
+  | 'admin'
 
 export type TaskStatus =
   | 'received'
@@ -233,6 +240,8 @@ export interface DeliverableContent {
   findings?: Array<{ description?: string; severity?: string; reference?: string }>
   recommendation?: string
   approval_statement?: string
+  /** Who recommends and who approves, from the severity formula (SOP-OPS-008). */
+  authority?: string
 }
 
 export interface ApprovalRecord {
@@ -246,6 +255,30 @@ export interface ApprovalRecord {
   reviewer_name?: string | null
   comment?: string | null
   decided_at?: string | null
+  /** A High finding's signatures, in order (policies/approval-rules.yaml). */
+  required_signatures?: RequiredSignature[]
+  signatures?: ApprovalSignature[]
+}
+
+export interface RequiredSignature {
+  role: string
+  authority: string
+  capacity: 'recommends' | 'approves'
+  clause?: string | null
+  rule?: string | null
+}
+
+export interface ApprovalSignature {
+  role: string
+  authority: string
+  capacity: 'recommends' | 'approves'
+  user_id: string
+  username: string
+  name: string
+  comment?: string | null
+  signed_at: string
+  /** The version this signature was given on; a change voids it. */
+  review_digest: string
 }
 
 export interface PlanStep {
@@ -318,6 +351,8 @@ export interface ModelUsage {
   /** Registry id, e.g. "qwen2.5:3b". */
   model: string
   display_name: string | null
+  /** The digest the runtime reported for the model when it served the call. */
+  model_digest?: string | null
   prompt_tokens: number | null
   output_tokens: number | null
   /** Wall clock around the whole call, timed by the orchestrator. */
@@ -376,7 +411,7 @@ export interface CalculationRecord {
 
 /** The asset-integrity decision a run's calculations add up to. */
 export interface IntegrityAssessment {
-  kind: 'vessel' | 'piping'
+  kind: 'vessel' | 'piping' | 'stated'
   subject: string
   status: 'calculated' | 'cannot_calculate' | 'conflicted'
   report?: string | null
@@ -391,6 +426,11 @@ export interface IntegrityAssessment {
   severity_basis?: string | null
   required_action?: string | null
   approver?: string | null
+  /** SOP-OPS-008: who recommends and who approves; the workbench is neither. */
+  recommended_by?: string[]
+  approved_by?: string[]
+  /** At or below t-min: withdrawn, so next_due and interval_months are empty. */
+  withdraw_from_service?: boolean
   ffs_triggers: string[]
   next_due?: string | null
   interval_months?: number | null
@@ -419,6 +459,8 @@ export interface Task {
   preferred_model: string | null
   /** Set when the request came from a skill: `prompt` is its rendering. */
   skill?: SkillInvocation | null
+  /** The run this one re-ran, when it was made by POST /api/runs/{id}/rerun. */
+  parent_task_id?: string | null
   routing: RoutingDecision[]
   /** One record per model call, in the order they ran. Persisted. */
   usage: ModelUsage[]
@@ -451,6 +493,7 @@ export interface TaskSummary {
   prompt: string
   /** The skill the request went through; `prompt` is then its rendering. */
   skill?: SkillInvocation | null
+  parent_task_id?: string | null
   status: TaskStatus
   task_type?: string | null
   sensitivity?: string | null
@@ -523,7 +566,7 @@ export interface ConflictResolution {
 /** Two sources disagree about something a decision depends on. */
 export interface ConflictRecord {
   id: string
-  kind: 'input' | 'revision'
+  kind: 'input' | 'revision' | 'fact'
   subject: string | null
   field: string
   label: string
@@ -536,7 +579,7 @@ export interface ConflictRecord {
 
 export interface KnowledgeSearchResponse {
   query: string
-  retrieval_mode: 'embedding' | 'lexical'
+  retrieval_mode: 'hybrid' | 'lexical'
   results: EvidenceItem[]
   took_ms: number
 }
@@ -657,6 +700,27 @@ export interface SovereigntyStatus {
   /** Why the last sample took no reading, when it did not. */
   monitor_error?: string | null
   interfaces: Record<string, any>
+  /** The host's nftables egress table as read back from the kernel. Absent from older backends. */
+  firewall?: EgressFirewallStatus | null
+}
+
+/**
+ * Every figure is null unless it was read: a host that could not be asked
+ * (not Linux, no nft, nft refused) reports `not_measurable`, never zero.
+ */
+export interface EgressFirewallStatus {
+  state: 'enforced' | 'not_default_deny' | 'not_present' | 'not_measurable'
+  measurable: boolean
+  present: boolean | null
+  reason: string | null
+  table: string
+  output_policy: string | null
+  denied_packets: number | null
+  denied_bytes: number | null
+  allowed_packets: number | null
+  counters: Record<string, { packets: number; bytes: number }>
+  ruleset_sha256: string | null
+  read_at: string
 }
 
 export interface ModelDescriptor {
@@ -737,7 +801,7 @@ export interface SystemHealth {
   models_available: number
   knowledge_documents: number
   knowledge_chunks: number
-  retrieval_mode: 'embedding' | 'lexical' | 'unavailable'
+  retrieval_mode: 'hybrid' | 'lexical' | 'unavailable'
   sandbox_runtime: string
   sandbox_ready: boolean
   audit_chain_valid: boolean

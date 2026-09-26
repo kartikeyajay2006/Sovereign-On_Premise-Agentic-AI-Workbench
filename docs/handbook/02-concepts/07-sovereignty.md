@@ -50,7 +50,7 @@ Being exact about this matters.
 - ❌ It does **not** cover the **Ollama** process or the **Next.js** server, which are separate programs, not children of the API.
 - ❌ It is **not** a statement that the machine is physically isolated. The Assurance screen says so beside the figure, and lists the host's network interfaces.
 
-For a deployment that must be provably air-gapped, the right answer is an operating-system control underneath AEGIS: a host firewall that permits only loopback, or a machine with no route out. AEGIS's measurement is then the second witness, not the only one.
+For a deployment that must be provably air-gapped, the right answer is an operating-system control underneath AEGIS: a host firewall that permits only loopback, or a machine with no route out. AEGIS ships one for Linux, `infrastructure/firewall/aegis.nft`, and reads its drop counters back from the kernel where it is applied; on any other host it reports the firewall as not measurable. AEGIS's measurement is then the second witness, not the only one. See [9.4](../09-security/04-sovereignty-monitor.md#the-host-firewall-underneath).
 
 ## The ten actions no role can take
 

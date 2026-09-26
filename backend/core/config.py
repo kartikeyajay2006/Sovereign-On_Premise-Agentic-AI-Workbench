@@ -187,6 +187,9 @@ class ConfigBundle:
         self.tool_permissions = _read_yaml(POLICY_DIR / "tool-permissions.yaml")
         self.data_classification = _read_yaml(POLICY_DIR / "data-classification.yaml")
         self.approval_rules = _read_yaml(POLICY_DIR / "approval-rules.yaml")
+        # Shape checked by backend/security/dlp.py, which owns the detectors
+        # the policy names.
+        self.dlp = _read_yaml(POLICY_DIR / "dlp.yaml")
         self._validate()
 
     def _validate(self) -> None:

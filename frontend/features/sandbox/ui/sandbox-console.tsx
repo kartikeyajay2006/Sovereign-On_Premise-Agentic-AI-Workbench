@@ -119,6 +119,7 @@ export function SandboxConsole() {
         title="Sandbox"
         description="Run Python under this host's limits and see exactly what it did — through the same gateway, checks and audit trail as an agent's own code."
         meta={[
+          { label: 'Runtime', value: limits ? limits.runtime : '—', hint: limits?.configured_runtime && `configured: ${limits.configured_runtime}` },
           { label: 'Limits enforced by', value: limits ? sandboxMechanism(limits.backend) : '—', hint: limits?.backend },
           { label: 'Memory', value: limits ? `≤ ${limits.memory_mb} MB` : '—' },
           { label: 'CPU', value: limits ? `≤ ${limits.cpu_seconds} s` : '—' },
@@ -131,6 +132,22 @@ export function SandboxConsole() {
       />
 
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-4 pt-6 sm:px-6">
+        {/* A container runtime was asked for and its probe did not prove the
+            isolation: say why, and what the host does instead, rather than
+            letting "subprocess" in the header read as the configured choice. */}
+        {limits?.container && !limits.container.usable && (
+          <div className="rounded-[16px] bg-approval-surface px-4 py-3">
+            <p className="text-[14px] text-approval-text">
+              {limits.container.runtime} container not in use: {limits.container.reason}
+            </p>
+            <p className="mt-1 text-[12.5px] text-foreground-muted">
+              {limits.container.fallback === 'subprocess'
+                ? 'Code runs in the subprocess sandbox instead, and every result says so.'
+                : 'Execution is refused until the container probe passes.'}
+            </p>
+          </div>
+        )}
+
         {limits && !limits.execution_allowed && (
           <div className="rounded-[16px] bg-approval-surface px-4 py-3">
             <p className="text-[14px] text-approval-text">{limits.reason}</p>
