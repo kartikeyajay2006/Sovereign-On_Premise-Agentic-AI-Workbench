@@ -28,6 +28,7 @@ import { CITE_CHIP } from './cite-chip'
 import { CiteButton, EvidenceCardScope } from './evidence-card'
 import { HeldBlock } from './held-block'
 import { followUps, type FollowUp } from '../model/follow-ups'
+import { STAGE_ACTIVE } from '../model/board'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -617,6 +618,7 @@ export const AssistantTurn = memo(function AssistantTurn({
       : null
   const heldForReview = held && turn.deliverable !== null && !turn.deliverable.released
   const nextSteps = followUps(turn)
+  const failedStage = failed ? turn.stages.find((s) => s.status === 'failed') ?? null : null
 
   /*
     The work log is open while the run is live and folds to one line when an
@@ -809,11 +811,30 @@ export const AssistantTurn = memo(function AssistantTurn({
             </p>
           </div>
         ) : failed ? (
+          /* Names the stage the board marked failed, in the transcript's own
+             words, and carries its own Run again: the reader should not have
+             to find the actions row under a failure to try once more. */
           <ErrorState
-            headline="The run did not complete."
-            nextAction="The stage that failed is marked above. Dispatch again once the cause is resolved."
-            detail={turn.error ?? undefined}
+            headline={
+              failedStage
+                ? `The run failed while ${(STAGE_ACTIVE[failedStage.id] ?? failedStage.name).toLowerCase()}.`
+                : turn.taskId
+                  ? 'The run did not complete.'
+                  : 'The run did not start.'
+            }
+            nextAction={
+              failedStage
+                ? `${failedStage.name} is marked failed in the log above. Run it again once the cause below is resolved.`
+                : 'Nothing was marked as having run. Run it again once the cause below is resolved.'
+            }
+            // A run opened from the record carries its error as the record's
+            // `error` field, which the turn keeps as denialReason.
+            detail={turn.error ?? turn.denialReason ?? undefined}
             identifier={turn.taskId ? { label: 'Task', value: turn.taskId } : undefined}
+            retry={turn.request && onRerun ? () => onRerun(turn.id) : undefined}
+            retryLabel="Run again"
+            retryDisabled={busy}
+            retryTitle={busy ? 'One run at a time: this is available when the current run ends.' : 'Sends the same request again as a new run'}
           />
         ) : cancelled ? (
           <div className="border-l-2 border-line-strong pl-4">
