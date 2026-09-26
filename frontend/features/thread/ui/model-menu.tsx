@@ -14,7 +14,7 @@ export function selectableModels(models: readonly ModelDescriptor[] | null): Mod
 }
 
 const ITEM = cn(
-  'grid cursor-default grid-cols-[14px_minmax(0,1fr)] items-start gap-x-2 rounded-[10px] px-2.5 py-2 outline-none select-none',
+  'grid cursor-default grid-cols-[14px_minmax(0,1fr)] items-start gap-x-2 rounded-[var(--radius-menu-row)] px-2.5 py-2 outline-none select-none',
   'data-[highlighted]:bg-surface-sunken',
 )
 
@@ -51,7 +51,7 @@ export function ModelMenu({
     <Menu.Root>
       <Menu.Trigger
         aria-label={`Model: ${label}`}
-        className="flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-foreground-secondary transition-colors hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none data-[popup-open]:bg-surface-sunken"
+        className="flex h-8 items-center gap-1.5 rounded-[var(--radius-xs)] px-2.5 font-mono text-[11px] uppercase tracking-[var(--ls-ledger)] text-foreground-secondary transition-colors hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none data-[popup-open]:bg-surface-sunken"
       >
         <span className="max-w-[18ch] truncate">{label}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-70" aria-hidden />
@@ -60,7 +60,7 @@ export function ModelMenu({
         <Menu.Positioner side="top" align="start" sideOffset={6} className="z-[var(--z-menu)] outline-none">
           <Menu.Popup
             className={cn(
-              'w-[300px] max-w-[calc(100vw-32px)] origin-[var(--transform-origin)] rounded-[16px] border border-line-subtle bg-surface p-1.5 shadow-[var(--elev-2)] outline-none',
+              'w-[300px] max-w-[calc(100vw-32px)] origin-[var(--transform-origin)] rounded-[var(--radius-md-token)] border border-line-subtle bg-surface p-1.5 shadow-[var(--elev-2)] outline-none',
               // It settles at full opacity, as the palette does: a menu of
               // model names is content, and content never fades in.
               'transition-[scale] duration-[var(--micro)] ease-[var(--ease-micro)]',

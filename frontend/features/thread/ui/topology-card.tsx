@@ -30,7 +30,7 @@ export function TopologyCard({ topology, onCite }: { topology: TopologyResult; o
           <button
             type="button"
             onClick={() => onCite(topology.evidence_id!)}
-            className="hover-decay inline-flex h-5 items-center rounded-full bg-surface-sunken px-1.5 font-mono text-[11px] font-semibold text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+            className="hover-decay inline-flex h-5 items-center rounded-[var(--radius-xs)] bg-surface-sunken px-1.5 font-mono text-[11px] font-semibold text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
           >
             {topology.evidence_id}
           </button>

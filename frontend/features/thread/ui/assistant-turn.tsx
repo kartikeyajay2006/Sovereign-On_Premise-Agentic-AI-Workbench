@@ -1,9 +1,19 @@
 'use client'
 
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
-import { DimScope, Disclose, Light, Refused, Release, Seal, useSecondClock } from '@/shared/motion'
+import {
+  AppendScope,
+  DimScope,
+  Disclose,
+  Light,
+  Refused,
+  Release,
+  Seal,
+  useReducedMotion,
+  useSecondClock,
+} from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import type { DeliverableContent, EvidenceItem, ModelDescriptor } from '@/lib/types'
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
@@ -14,6 +24,11 @@ import { TopologyCard } from './topology-card'
 import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
+import { CITE_CHIP } from './cite-chip'
+import { CiteButton, EvidenceCardScope } from './evidence-card'
+import { HeldBlock } from './held-block'
+import { followUps, type FollowUp } from '../model/follow-ups'
+import { STAGE_ACTIVE } from '../model/board'
 import { UsageFooter } from './usage-footer'
 
 /**
@@ -50,6 +65,9 @@ function RunElapsed({ startedAt }: { startedAt: string }) {
   if (Number.isNaN(started)) return null
   return <span className="tabular">{Math.floor(Math.max(0, now - started) / 1000)}s</span>
 }
+
+/** The draft's exit, matched to --micro in globals.css (.thread-draft-leave). */
+const DRAFT_LEAVE_MS = 120
 
 const OUTCOME_LABEL: Record<AssistantTurnModel['outcome'], string> = {
   running: 'Working',
@@ -178,16 +196,15 @@ function Inline({
           )
         }
         return (
-          <button
+          <CiteButton
             key={i}
-            type="button"
-            onClick={() => onCite(id)}
-            // TRACE: pairs the chip with its row in the evidence rail.
-            data-trace={trace ? `${trace}:${id}` : undefined}
-            className="mx-0.5 inline-flex h-[19px] items-center rounded-[6px] bg-surface-sunken px-1.5 align-[2px] text-[11px] font-semibold leading-none text-foreground-secondary transition-colors hover:bg-foreground hover:text-background focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+            id={id}
+            onCite={onCite}
+            trace={trace}
+            className={cn(CITE_CHIP, 'mx-0.5 h-[19px] align-[2px] text-[11px]')}
           >
             {id}
-          </button>
+          </CiteButton>
         )
       })}
     </>
@@ -357,32 +374,36 @@ function SourcesRow({
   onCite: (id: string) => void
   trace: string
 }) {
-  const ids = Array.from(new Set((text.match(/\[[SFVCEHT]\d+\]/g) ?? []).map((m) => m.slice(1, -1))))
+  const ids = Array.from(new Set((text.match(/\[[A-Z]{1,3}\d+(?:\.\d+)*\]/g) ?? []).map((m) => m.slice(1, -1))))
   const cited = ids
     .map((id) => evidence.find((e) => e.id === id))
     .filter((e): e is EvidenceItem => e !== undefined)
-  if (cited.length === 0) return null
+  if (evidence.length === 0) return null
   const shown = cited.slice(0, 3)
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-label="Sources this answer cites">
+      {/* Both counts from the record: what the run recorded, and how many
+          of the ids the answer cites resolve to it. */}
+      <span className="mr-1 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+        {evidence.length} source{evidence.length === 1 ? '' : 's'} · {cited.length} cited
+      </span>
       {shown.map((item) => (
-        <button
+        <CiteButton
           key={item.id}
-          type="button"
-          onClick={() => onCite(item.id)}
-          data-trace={`${trace}:${item.id}`}
-          title={item.source_document ?? undefined}
-          className="hover-decay inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 text-[12.5px] text-foreground-secondary hover:bg-[color-mix(in_oklab,var(--foreground)_9%,var(--background))] hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+          id={item.id}
+          onCite={onCite}
+          trace={trace}
+          className="hover-decay inline-flex h-7 max-w-full items-center gap-1.5 rounded-[var(--radius-xs)] border border-line-subtle px-2 text-[12.5px] text-foreground-secondary hover:border-line-default hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
         >
-          <span className="font-semibold text-foreground">{item.id}</span>
+          <span className={cn(CITE_CHIP, 'h-[18px] px-1')}>{item.id}</span>
           <span className="truncate">{citeLabel(item)}</span>
-        </button>
+        </CiteButton>
       ))}
       {cited.length > shown.length && (
         <button
           type="button"
           onClick={() => onCite(cited[shown.length].id)}
-          className="hover-decay inline-flex h-7 items-center rounded-full px-2 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+          className="hover-decay inline-flex h-7 items-center rounded-[var(--radius-xs)] px-2 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
         >
           +{cited.length - shown.length} more
         </button>
@@ -391,20 +412,32 @@ function SourcesRow({
   )
 }
 
-/** The folded log's one line: what was checked, against how much, at a glance. */
+/** "2m 14s", "48s": the run's measured duration, as a person says it. */
+function workedFor(ms: number): string {
+  const seconds = Math.round(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
+}
+
+/**
+ * The folded log's one line: how long it worked, what was checked, against
+ * how much. Each part only when the record measured it -- a run with no
+ * duration on record does not get one made up.
+ */
 function workSummary(turn: AssistantTurnModel): string {
   const parts: string[] = []
+  if (turn.elapsedMs !== null) parts.push(`Worked ${workedFor(turn.elapsedMs)}`)
   const checks = turn.verification
   if (checks.length > 0) {
     const passed = checks.filter((c) => c.passed).length
     parts.push(
       passed === checks.length
-        ? `${passed} of ${checks.length} checks passed`
+        ? `${passed} of ${checks.length} checks`
         : `${checks.length - passed} of ${checks.length} checks failed`,
     )
   }
   const sources = turn.evidence.filter((e) => /^S\d+$/.test(e.id)).length
-  if (sources > 0) parts.push(`${sources} source${sources === 1 ? '' : 's'} searched`)
+  if (sources > 0) parts.push(`${sources} source${sources === 1 ? '' : 's'}`)
   if (parts.length === 0) parts.push('How it was answered')
   return parts.join(' · ')
 }
@@ -544,10 +577,16 @@ export const AssistantTurn = memo(function AssistantTurn({
   busy = false,
   canReview = false,
   models = null,
+  onReleased,
+  onFollowUp,
 }: {
   turn: AssistantTurnModel
+  /** A follow-up chip was picked: fill the composer with it. Never sends. */
+  onFollowUp?: (turnId: string, followUp: FollowUp) => void
   onCite?: (turnId: string, evidenceId: string) => void
   onRerun?: (turnId: string) => void
+  /** The checked answer of a live release is in place, at `element`. */
+  onReleased?: (turnId: string, element: HTMLElement) => void
   /** Another run is in flight, so this one cannot be re-run yet. */
   busy?: boolean
   canReview?: boolean
@@ -578,6 +617,8 @@ export const AssistantTurn = memo(function AssistantTurn({
       ? 'sovereign'
       : null
   const heldForReview = held && turn.deliverable !== null && !turn.deliverable.released
+  const nextSteps = followUps(turn)
+  const failedStage = failed ? turn.stages.find((s) => s.status === 'failed') ?? null : null
 
   /*
     The work log is open while the run is live and folds to one line when an
@@ -589,12 +630,59 @@ export const AssistantTurn = memo(function AssistantTurn({
   const foldable = !running && (turn.outcome === 'delivered' || held || turn.outcome === 'rejected')
   const [logOpen, setLogOpen] = useState(!foldable)
   const wasRunning = useRef(running)
+  const foldRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
-    if (wasRunning.current && !running) setLogOpen(!foldable)
+    if (wasRunning.current && !running) {
+      // Not out from under the reader: a log being pointed at or read with
+      // the keyboard when the answer lands stays open. Its toggle folds it.
+      const log = foldRef.current
+      const inUse = Boolean(log && (log.matches(':hover') || log.contains(document.activeElement)))
+      if (!inUse) setLogOpen(!foldable)
+    }
     wasRunning.current = running
   }, [running, foldable])
 
+  /*
+    The hand-over from draft to answer. The draft does not vanish in the
+    frame the checked answer arrives: it fades (120ms, ease-exit) inside a
+    box held at its measured height, so the column does not collapse under
+    the reader, and then the answer mounts and rises into the same place.
+    Only on a live release; a run read from the record has no draft.
+  */
+  const reduced = useReducedMotion()
+  const draftBoxRef = useRef<HTMLDivElement | null>(null)
+  const draftHeightRef = useRef(0)
+  const lastDraftRef = useRef<string | null>(null)
+  if (turn.streamingDraft) lastDraftRef.current = turn.streamingDraft
+  useLayoutEffect(() => {
+    if (draftBoxRef.current) draftHeightRef.current = draftBoxRef.current.offsetHeight
+  })
+  const [leavingDraft, setLeavingDraft] = useState<{ text: string; height: number } | null>(null)
+  const [answerShown, setAnswerShown] = useState(showsAnswer)
+  if (answerShown !== showsAnswer) {
+    setAnswerShown(showsAnswer)
+    if (showsAnswer && turn.releasedLive && lastDraftRef.current && !reduced) {
+      setLeavingDraft({ text: lastDraftRef.current, height: draftHeightRef.current })
+    }
+  }
+  useEffect(() => {
+    if (!leavingDraft) return
+    const timer = window.setTimeout(() => setLeavingDraft(null), DRAFT_LEAVE_MS)
+    return () => window.clearTimeout(timer)
+  }, [leavingDraft])
+
+  // Once the released answer is in place, the thread brings its top into
+  // view. Once per mount: a re-read of the record does not move the page.
+  const answerRef = useRef<HTMLDivElement | null>(null)
+  const announcedRef = useRef(false)
+  useEffect(() => {
+    if (announcedRef.current || leavingDraft || !showsAnswer || !turn.releasedLive || !answerRef.current) return
+    announcedRef.current = true
+    onReleased?.(turn.id, answerRef.current)
+  }, [leavingDraft, showsAnswer, turn.releasedLive, turn.id, onReleased])
+
   return (
+    <EvidenceCardScope turn={turn} onOpen={cite}>
     <article className="flex flex-col gap-4">
       {/* ── Zone 1 — run header ───────────────────────────────────────── */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -607,15 +695,15 @@ export const AssistantTurn = memo(function AssistantTurn({
           tone={held ? 'approval' : null}
           bloomKey={held ? turn.taskId : null}
           className={cn(
-            'inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium',
+            'inline-flex h-[22px] items-center gap-1.5 rounded-[var(--radius-xs)] px-2 font-mono text-[10.5px] font-semibold uppercase tracking-[var(--ls-ledger)]',
             OUTCOME_PILL[turn.outcome],
           )}
         >
-          <span aria-hidden className={cn('size-1.5 rounded-full bg-current', running && 'animate-pulse motion-reduce:animate-none')} />
+          <span aria-hidden className={cn('size-1.5 bg-current', running && 'animate-pulse motion-reduce:animate-none')} />
           {running && turn.stopRequested ? 'Stopping' : OUTCOME_LABEL[turn.outcome]}
         </Light>
 
-        <span className="flex items-center gap-3 text-[12.5px] text-foreground-muted">
+        <span className="flex items-center gap-3 font-mono text-[10.5px] tracking-[var(--ls-ledger)] text-foreground-muted">
           {running && turn.stream === 'live' ? (
             <RunElapsed startedAt={turn.startedAt} />
           ) : !running && turn.elapsedMs !== null ? (
@@ -626,7 +714,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               us otherwise. On a finished turn it said nothing a reader
               needed, and on every one of them. */}
           {running && turn.stream === 'closed' && (
-            <span title="This turn is not attached to the event stream, so it is not updating.">
+            <span className="uppercase" title="This turn is not attached to the event stream, so it is not updating.">
               detached
             </span>
           )}
@@ -637,7 +725,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             type="button"
             aria-expanded={logOpen}
             onClick={() => setLogOpen((open) => !open)}
-            className="hover-decay -mx-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[12.5px] text-foreground-muted hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+            className="hover-decay -mx-1.5 inline-flex items-center gap-1 rounded-[var(--radius-xs)] px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
           >
             {workSummary(turn)}
             <ChevronRight
@@ -670,10 +758,14 @@ export const AssistantTurn = memo(function AssistantTurn({
           that it can be checked. The answer gets to be the biggest thing on
           the screen, which for an answering product it always should have been.
         */}
-        <div data-dim-item className={cn('ae-fold', logOpen && 'open')} inert={!logOpen}>
+        <div ref={foldRef} data-dim-item className={cn('ae-fold', logOpen && 'open')} inert={!logOpen}>
           <div className="min-h-0 overflow-hidden">
             <div className="flex flex-col gap-2 pb-4">
-              <RunTranscript turn={turn} />
+              {/* Mounted with the turn, so a line an event adds later is an
+                  arrival and one read from the record is not. */}
+              <AppendScope>
+                <RunTranscript turn={turn} onCite={onCite ? cite : undefined} />
+              </AppendScope>
               {/* What it cost, folded with the steps it was spent on. */}
               {!running && (
                 <UsageFooter usage={turn.usage} choices={[]} models={models} workedMs={turn.elapsedMs} withNotes={false} />
@@ -719,11 +811,30 @@ export const AssistantTurn = memo(function AssistantTurn({
             </p>
           </div>
         ) : failed ? (
+          /* Names the stage the board marked failed, in the transcript's own
+             words, and carries its own Run again: the reader should not have
+             to find the actions row under a failure to try once more. */
           <ErrorState
-            headline="The run did not complete."
-            nextAction="The stage that failed is marked above. Dispatch again once the cause is resolved."
-            detail={turn.error ?? undefined}
+            headline={
+              failedStage
+                ? `The run failed while ${(STAGE_ACTIVE[failedStage.id] ?? failedStage.name).toLowerCase()}.`
+                : turn.taskId
+                  ? 'The run did not complete.'
+                  : 'The run did not start.'
+            }
+            nextAction={
+              failedStage
+                ? `${failedStage.name} is marked failed in the log above. Run it again once the cause below is resolved.`
+                : 'Nothing was marked as having run. Run it again once the cause below is resolved.'
+            }
+            // A run opened from the record carries its error as the record's
+            // `error` field, which the turn keeps as denialReason.
+            detail={turn.error ?? turn.denialReason ?? undefined}
             identifier={turn.taskId ? { label: 'Task', value: turn.taskId } : undefined}
+            retry={turn.request && onRerun ? () => onRerun(turn.id) : undefined}
+            retryLabel="Run again"
+            retryDisabled={busy}
+            retryTitle={busy ? 'One run at a time: this is available when the current run ends.' : 'Sends the same request again as a new run'}
           />
         ) : cancelled ? (
           <div className="border-l-2 border-line-strong pl-4">
@@ -738,28 +849,35 @@ export const AssistantTurn = memo(function AssistantTurn({
               released on.
             </p>
           </div>
+        ) : showsAnswer && leavingDraft ? (
+          /* The draft leaving, at the height it had, for 120ms. */
+          <div style={{ minHeight: leavingDraft.height }} aria-hidden>
+            <div className="thread-draft-leave border-l-2 border-line-default pl-4">
+              <p className="font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Draft</p>
+              <div className="mt-2">
+                <Prose text={leavingDraft.text} known={NO_EVIDENCE} onCite={null} className="text-body text-foreground-secondary" />
+              </div>
+            </div>
+          </div>
         ) : showsAnswer ? (
           /*
-            RELEASE: settle() -- the checked answer arrives once. It rises into
-            place at full opacity and its verdict blooms around it and lets
-            go. A run opened from the record was read, not released, so its
-            answer is simply there. The padding gives the light room; the
-            negative margin keeps the text on the column's edge.
+            RELEASE: settle() -- the checked answer arrives once. It rises 8px
+            into place over 300ms (ease-spatial) and its verdict blooms around
+            it once and lets go. A run opened from the record was read, not
+            released, so its answer is simply there. The padding gives the
+            light room; the negative margin keeps the text on the column's edge.
           */
+          <div ref={answerRef}>
           <Release verdict={verdict} released={turn.releasedLive} className="-mx-3 -my-2 flex flex-col gap-3 px-3 py-2">
-            {turn.outcome === 'rejected' && (
-              <p className="border-l-2 border-critical-border pl-3 text-body text-foreground-secondary">
-                <span className="text-critical-text">
-                  {turn.approval?.decision === 'revision_requested' ? 'Returned for revision' : 'Rejected at review'}
-                </span>
-                {turn.approval?.reviewerName ? ` by ${turn.approval.reviewerName}` : ''}
-                {turn.approval?.comment ? `: “${turn.approval.comment}”.` : '.'}
-                {turn.deliverable ? ' Its deliverable was not released.' : ''}
-              </p>
-            )}
             <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
             <SourcesRow text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
           </Release>
+          {/* Directly under the answer: why it is held, who releases it,
+              what is withheld -- and, once decided, the decision. */}
+          <div className="mt-4 empty:hidden">
+            <HeldBlock turn={turn} canReview={canReview} />
+          </div>
+          </div>
         ) : !running ? (
           <p className="text-body text-foreground-secondary">This run finished without an answer.</p>
         ) : turn.streamingDraft ? (
@@ -770,8 +888,8 @@ export const AssistantTurn = memo(function AssistantTurn({
             replaced when the checked answer arrives. What it buys is the four
             minutes of a CPU run not being a blank rectangle.
           */
-          <div className="border-l-2 border-line-default pl-4">
-            <p className="text-[12.5px] text-foreground-muted">
+          <div ref={draftBoxRef} className="border-l-2 border-line-default pl-4">
+            <p className="font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
               {verifying ? 'Draft · checking every claim before it is released' : 'Draft · not checked yet'}
             </p>
             <div className="mt-2">
@@ -919,12 +1037,23 @@ export const AssistantTurn = memo(function AssistantTurn({
               evidence={turn.evidence}
               onRerun={turn.request && onRerun ? () => onRerun(turn.id) : undefined}
               rerunDisabled={busy}
-              held={turn.outcome === 'held'}
-              approverRoles={turn.approval?.approverRoles ?? []}
-              reasons={turn.approval?.reasons ?? []}
-              canReview={canReview}
               taskId={turn.taskId}
             />
+          )}
+          {!running && onFollowUp && nextSteps.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" aria-label="Ask next">
+              {nextSteps.map((step) => (
+                <button
+                  key={step.key}
+                  type="button"
+                  onClick={() => onFollowUp(turn.id, step)}
+                  title="Puts this in the composer. Nothing is sent until you press Run."
+                  className="hover-decay inline-flex h-7 max-w-full items-center rounded-[var(--radius-xs)] border border-line-default px-2.5 text-[12.5px] text-foreground-secondary hover:border-line-strong hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+                >
+                  <span className="truncate">{step.label}</span>
+                </button>
+              ))}
+            </div>
           )}
           {/* Only what the reader did not expect -- a model request that was
               not honoured, an answer cut off at its limit. The figures are in
@@ -933,5 +1062,6 @@ export const AssistantTurn = memo(function AssistantTurn({
         </footer>
       )}
     </article>
+    </EvidenceCardScope>
   )
 })

@@ -109,9 +109,13 @@ export const DEFAULT_PIPELINE: PipelineStage[] = [
   stage('plan', '02', 'Plan'),
   stage('read', '03', 'Read'),
   stage('retrieve', '04', 'Retrieve'),
-  stage('sandbox', '05', 'Compute'),
-  stage('draft', '06', 'Draft'),
-  stage('verify', '07', 'Verify'),
+  // Two rows, because they are two different claims: the formula registry
+  // computing from the evidence, and generated code running in the sandbox.
+  // One row for both said "sandbox" about work that never touched it.
+  stage('compute', '05', 'Compute'),
+  stage('sandbox', '06', 'Sandbox'),
+  stage('draft', '07', 'Draft'),
+  stage('verify', '08', 'Verify'),
 ]
 
 /**

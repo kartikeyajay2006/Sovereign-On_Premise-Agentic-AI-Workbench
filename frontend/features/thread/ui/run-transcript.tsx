@@ -1,12 +1,13 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from '@/lib/types'
 import { checkLabel } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
-import { useSecondClock } from '@/shared/motion'
-import { MODEL_STAGE_TO_ROW } from '../model/board'
+import { Append, useSecondClock } from '@/shared/motion'
+import { MODEL_STAGE_TO_ROW, STAGE_ACTIVE, STAGE_DONE } from '../model/board'
 import type { AssistantTurn } from '../model/types'
+import { CiteChip } from './cite-chip'
 import { formatCount, formatRate, formatSeconds } from '../model/usage'
 
 /**
@@ -22,26 +23,26 @@ import { formatCount, formatRate, formatSeconds } from '../model/usage'
  * as it has been doing it.
  */
 
-/** A stage, said once it has happened. */
-const DONE: Record<string, string> = {
-  classify: 'Classified the request',
-  plan: 'Planned the run',
-  read: 'Read the attachments',
-  retrieve: 'Searched the knowledge base',
-  sandbox: 'Ran code in the sandbox',
-  draft: 'Drafted the answer',
-  verify: 'Checked every claim',
-}
+const DONE = STAGE_DONE
+const ACTIVE = STAGE_ACTIVE
 
-/** A stage, said while it happens. */
-const ACTIVE: Record<string, string> = {
-  classify: 'Reading the request',
-  plan: 'Planning',
-  read: 'Reading the attachments',
-  retrieve: 'Searching the knowledge base',
-  sandbox: 'Running code in the sandbox',
-  draft: 'Drafting',
-  verify: 'Checking every claim',
+/**
+ * The compute row's words, from what the registry actually did. The
+ * engineering phase also walks a drawing's graph and records where sources
+ * contradict each other; "Computed with registered formulas" over a run that
+ * withheld every figure, or only read a P&ID, would say something it did not.
+ */
+function computeTitle(turn: AssistantTurn, active: boolean): string {
+  if (turn.assessment?.status === 'conflicted') {
+    return active ? 'Checking the formula inputs' : 'Withheld the calculation: sources disagree'
+  }
+  if (turn.assessment?.status === 'cannot_calculate') {
+    return active ? 'Checking the formula inputs' : 'Could not calculate from the evidence'
+  }
+  if (turn.topology && !turn.assessment) {
+    return active ? "Walking the drawing's graph" : "Walked the drawing's graph"
+  }
+  return active ? ACTIVE.compute : DONE.compute
 }
 
 /** The verifier's checks, in the words a reader uses: see lib/presentation. */
@@ -98,15 +99,98 @@ function callLine(call: ModelUsage): string {
   return parts.join(' · ')
 }
 
-function Result({ children, tone }: { children: React.ReactNode; tone?: 'critical' }) {
-  return (
-    <div className={cn('flex gap-2 pl-[0.35rem]', tone === 'critical' ? 'text-critical-text' : 'text-foreground-muted')}>
+const RESULT_TONE = {
+  critical: 'text-critical-text',
+  approval: 'text-approval-text',
+} as const
+
+function Result({
+  children,
+  tone,
+  title,
+  arrival,
+}: {
+  children: React.ReactNode
+  tone?: keyof typeof RESULT_TONE
+  title?: string
+  /**
+   * Set for a line an event added while the reader watched: its place in
+   * the batch that arrived with it. It mounts with the Append motion; a
+   * line read from the record (outside a live AppendScope) lands still.
+   */
+  arrival?: number
+}) {
+  const body = (
+    <>
       <span aria-hidden className="select-none">
         ⎿
       </span>
-      <span className="min-w-0 flex-1 break-words">{children}</span>
-    </div>
+      <span className="min-w-0 flex-1 break-words" title={title}>
+        {children}
+      </span>
+    </>
   )
+  const className = cn('flex gap-2 pl-[0.35rem]', tone ? RESULT_TONE[tone] : 'text-foreground-muted')
+  if (arrival === undefined) return <div className={className}>{body}</div>
+  return (
+    <Append index={arrival} className={cn('thread-sub', className)}>
+      {body}
+    </Append>
+  )
+}
+
+/**
+ * Each new line's place in the batch it arrived with, for the stagger.
+ * A line seen in an earlier render is not new; the ones first seen in this
+ * render are numbered in order. Append fixes the number at mount, so a
+ * later batch does not renumber a line still settling.
+ */
+function useArrival(): (key: string) => number {
+  const committed = useRef(new Set<string>())
+  const fresh: string[] = []
+  useEffect(() => {
+    for (const key of fresh) committed.current.add(key)
+  })
+  return (key: string) => {
+    if (committed.current.has(key)) return 0
+    const at = fresh.indexOf(key)
+    if (at !== -1) return at
+    fresh.push(key)
+    return fresh.length - 1
+  }
+}
+
+/** Sources listed one per line before the rest are counted. */
+const SOURCES_SHOWN = 5
+
+function figure(value: number, digits = 2): string {
+  return String(Number(value.toFixed(digits)))
+}
+
+/**
+ * The registry's result as one line: only the fields it computed, and the C
+ * item that carries the governing figure. A decision withheld for a conflict
+ * says so and computes nothing; one missing an input names the input.
+ */
+function calculationLine(turn: AssistantTurn): { text: string; cite: string | null } | null {
+  const a = turn.assessment
+  if (!a) return null
+  const governing =
+    turn.calculations.find((r) => a.governing_location && r.subject === `${a.subject} · ${a.governing_location}`)
+      ?.evidence_id ?? a.evidence_ids?.[0] ?? null
+  if (a.status === 'conflicted') return { text: 'withheld: sources disagree', cite: null }
+  if (a.status === 'cannot_calculate') {
+    return { text: `cannot calculate: missing ${a.missing.join(', ') || 'required inputs'}`, cite: governing }
+  }
+  const parts: string[] = []
+  if (a.governing_location) parts.push(a.governing_location)
+  if (typeof a.governing_rate_mm_yr === 'number') parts.push(`${figure(a.governing_rate_mm_yr, 4)} mm/y`)
+  if (typeof a.remaining_life_years === 'number') parts.push(`${figure(a.remaining_life_years)} y remaining`)
+  if (a.severity) parts.push(a.severity.charAt(0).toUpperCase() + a.severity.slice(1))
+  if (a.withdraw_from_service) parts.push('withdraw from service')
+  else if (a.next_due) parts.push(`next ${a.next_due}`)
+  if (parts.length === 0) return null
+  return { text: parts.join(' · '), cite: governing }
 }
 
 function Checks({ checks }: { checks: VerificationCheck[] }) {
@@ -138,18 +222,55 @@ const SCAN_DECISION: Record<string, string> = {
   deny: 'blocked',
 }
 
-export const RunTranscript = memo(function RunTranscript({ turn }: { turn: AssistantTurn }) {
+export const RunTranscript = memo(function RunTranscript({
+  turn,
+  onCite,
+}: {
+  turn: AssistantTurn
+  /** Opens a cited item in the rail. */
+  onCite?: (id: string) => void
+}) {
   const conversation = turn.profile?.taskType === 'conversation'
-  const lines = turn.stages.filter((s) => SHOWN.has(s.status))
-  const waiting = turn.outcome === 'running' && turn.queue !== null && turn.queue.ahead > 0
+  const known = new Set(turn.evidence.map((e) => e.id))
+  const calculation = calculationLine(turn)
+  const running = turn.outcome === 'running'
+  const arrival = useArrival()
+  const noted = new Set(turn.notes.map((n) => n.stage))
+  // A skipped stage is shown only when the backend said why: that is a
+  // decision the run made, and the reason is the record of it. One the
+  // end-of-run sweep marked skipped because nothing reported it stays out.
+  // A stage with no stage event of its own -- reading a text attachment is a
+  // tool call -- is shown as working once an event under it has arrived.
+  const lines = turn.stages.filter(
+    (s) =>
+      SHOWN.has(s.status) ||
+      (s.status === 'skipped' && Boolean(s.detail)) ||
+      (s.status === 'pending' && running && noted.has(s.id)),
+  )
+  const waiting = running && turn.queue !== null && turn.queue.ahead > 0
+  // Once the run has ended, a content-scanning finding is listed in full
+  // under "Content scanned"; its live line would say it twice.
+  const scanReasons = running ? [] : turn.scans.map((scan) => scan.reason).filter(Boolean)
+  const notesFor = (row: string) =>
+    turn.notes.filter(
+      (n) => n.stage === row && !(n.kind === 'policy' && scanReasons.some((r) => (n.title ?? n.text).includes(r))),
+    )
 
   if (lines.length === 0 && !waiting) return null
 
   return (
     <ol
       aria-label="What the run did"
-      className="thread-log m-0 flex list-none flex-col gap-1.5 rounded-[14px] border border-line-subtle px-3.5 py-3 font-mono text-[12.5px] leading-[1.6]"
+      className="thread-log m-0 flex list-none flex-col gap-1.5 rounded-[var(--radius-xs)] border border-line-default px-3.5 pb-3 pt-0 font-mono text-[12px] leading-[1.6]"
     >
+      {/* The panel's caption strip: what this is, and whose record. */}
+      <li
+        aria-hidden
+        className="-mx-3.5 mb-1 flex items-center justify-between border-b border-line-subtle px-3.5 py-1.5 text-[10px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted"
+      >
+        <span>Run log</span>
+        {turn.taskId && <span className="tabular">{turn.taskId.slice(0, 8)}</span>}
+      </li>
       {waiting && turn.queue && (
         <li className="flex items-baseline gap-2 text-foreground-secondary">
           <Spinner />
@@ -159,17 +280,24 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
         </li>
       )}
       {lines.map((stage) => {
-        const active = stage.status === 'active' && turn.outcome === 'running'
+        const active = (stage.status === 'active' || stage.status === 'pending') && running
         const failed = stage.status === 'failed' || stage.status === 'denied'
+        const skipped = stage.status === 'skipped'
         // The checks ran, and found something: the line says so in its bullet.
         const flagged = stage.id === 'verify' && !active && turn.verification.some((c) => !c.passed)
         const calls = callsFor(turn.usage, stage.id)
         let title = active ? ACTIVE[stage.id] ?? stage.name : DONE[stage.id] ?? stage.name
+        if (stage.id === 'compute') title = computeTitle(turn, active)
         if (stage.id === 'draft' && conversation) title = active ? 'Replying' : 'Replied'
         if (failed) title = `${ACTIVE[stage.id] ?? stage.name} failed`
+        // Skipped by the run's own decision, or cut off by a stop.
+        // A backend skip enters with no start time; a stopped stage had one.
+        if (skipped) title = turn.outcome === 'cancelled' && stage.at ? `${stage.name} stopped` : `${stage.name} skipped`
 
         let note: string | null = null
-        if (stage.id === 'classify' && turn.profile) {
+        if (skipped) {
+          note = null
+        } else if (stage.id === 'classify' && turn.profile) {
           note = `${turn.profile.taskType.replace(/_/g, ' ')} · ${turn.profile.sensitivity}`
         } else if (stage.id === 'retrieve' && !active) {
           const passages = turn.evidence.filter((e) => e.kind === 'knowledge_base' || /^S\d+$/.test(e.id)).length
@@ -181,7 +309,10 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
           note = `${turn.request.attachments.length} file${turn.request.attachments.length === 1 ? '' : 's'}`
         }
 
-        const sources = stage.id === 'retrieve' && !active ? turn.evidence.filter((e) => /^S\d+$/.test(e.id)) : []
+        // Listed as they arrive, not when the stage closes: what retrieval
+        // found is on screen while the run goes on to use it.
+        const sources = stage.id === 'retrieve' ? turn.evidence.filter((e) => /^S\d+$/.test(e.id)) : []
+        const notes = notesFor(stage.id)
 
         return (
           <li key={stage.id} className="flex flex-col gap-0.5">
@@ -191,12 +322,20 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
               ) : (
                 <span
                   aria-hidden
-                  className={cn('inline-block w-[1ch] text-center', failed || flagged ? 'text-critical-text' : 'text-sovereign-text')}
+                  className={cn(
+                    'inline-block w-[1ch] text-center',
+                    skipped ? 'text-foreground-muted' : failed || flagged ? 'text-critical-text' : 'text-sovereign-text',
+                  )}
                 >
-                  ●
+                  {skipped ? '○' : '●'}
                 </span>
               )}
-              <span className={cn('min-w-0 flex-1', active ? 'ae-shimmer font-medium' : failed ? 'text-critical-text' : 'text-foreground')}>
+              <span
+                className={cn(
+                  'min-w-0 flex-1',
+                  active ? 'ae-shimmer font-medium' : failed ? 'text-critical-text' : skipped ? 'text-foreground-secondary' : 'text-foreground',
+                )}
+              >
                 {title}
                 {active ? '…' : ''}
                 {note && <span className="text-foreground-muted"> · {note}</span>}
@@ -206,11 +345,38 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
               </span>
             </div>
 
-            {sources.length > 0 && (
-              <Result>
-                {sources.slice(0, 4).map(citeLabel).join(' · ')}
-                {sources.length > 4 ? ` · +${sources.length - 4} more` : ''}
+            {/* The backend's own words for what the stage is doing, or why it
+                did not run. Never templated here. */}
+            {(active || skipped) && stage.detail && <Result>{stage.detail}</Result>}
+            {stage.id === 'compute' && calculation && (
+              <Result
+                key={`calc:${calculation.text}`}
+                arrival={arrival(`calc:${calculation.text}`)}
+                tone={turn.assessment?.status === 'calculated' ? undefined : 'approval'}
+              >
+                <span className={turn.assessment?.status === 'calculated' ? 'text-foreground' : undefined}>
+                  {calculation.text}
+                </span>
+                {calculation.cite && (
+                  <>
+                    {' '}
+                    <CiteChip id={calculation.cite} resolved={known.has(calculation.cite)} onCite={onCite} trace={turn.id} />
+                  </>
+                )}
               </Result>
+            )}
+            {notes.map((n) => (
+              <Result key={n.key} tone={n.tone} title={n.title} arrival={arrival(n.key)}>
+                {n.text}
+              </Result>
+            ))}
+            {sources.slice(0, SOURCES_SHOWN).map((item) => (
+              <Result key={`source:${item.id}`} arrival={arrival(`source:${item.id}`)} title={item.source_document}>
+                <span className="text-foreground-secondary">{item.id}</span> {citeLabel(item)}
+              </Result>
+            ))}
+            {sources.length > SOURCES_SHOWN && (
+              <Result>+{sources.length - SOURCES_SHOWN} more</Result>
             )}
             {calls.map((call, i) => (
               <Result key={`${call.started_at}-${i}`}>{callLine(call)}</Result>

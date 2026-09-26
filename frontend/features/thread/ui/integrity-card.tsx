@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Calculator, ChevronDown, CircleSlash } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CalculationRecord, ConflictRecord, IntegrityAssessment } from '@/lib/types'
+import { CITE_CHIP } from './cite-chip'
 
 /**
  * The asset-integrity decision, as the formula registry computed it.
@@ -35,7 +36,8 @@ function CiteChip({ id, onCite }: { id: string | null | undefined; onCite: (id: 
     <button
       type="button"
       onClick={() => onCite(id)}
-      className="hover-decay inline-flex h-5 items-center rounded-full bg-surface-sunken px-1.5 font-mono text-[11px] font-semibold text-foreground hover:bg-[color-mix(in_oklab,var(--foreground)_9%,var(--background))] focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
+      // Lime: a C item is recorded evidence, and the chip opens it.
+      className={cn(CITE_CHIP, 'h-5 text-[11px]')}
       title={`Open ${id}`}
     >
       {id}

@@ -2839,3 +2839,54 @@ textarea.hv-input { height: auto; min-height: 92px; padding: 10px 12px; resize: 
 @media (prefers-reduced-motion: reduce) {
   .hv-input, .hv-btn, .hv-link { transition: none; }
 }
+
+/* ==================================================================== */
+/* THE THREAD'S INTERACTIONS                                             */
+/* Unlayered, so they sit over the signature motions they refine.        */
+/* ==================================================================== */
+
+/* A transcript sub-line an event added while the reader watched: the    */
+/* Append motion at the spatial distance, rising 8px out of nothing over */
+/* 200ms, staggered 40ms within its batch and capped at five. Reduced    */
+/* motion zeroes the distance, the duration and the stagger, and the     */
+/* rule below takes the animation off outright.                          */
+.aegis-append.thread-sub {
+  --rise: var(--shift-md);
+  animation-name: thread-sub-in;
+}
+@keyframes thread-sub-in {
+  from { opacity: 0; transform: translateY(var(--rise)); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aegis-append.thread-sub { animation: none; }
+}
+
+/* A citation that resolves to recorded evidence is something the reader */
+/* can act on, so it takes the one accent: a ~12% lime tint with lime    */
+/* text at night. By day lime text on paper is unreadable (about 1.3:1), */
+/* so the tint is stronger and the ink is a deep olive of the same hue:  */
+/* 8.2:1 on its own tint. At night lime on its tint measures ~12:1.     */
+:root,
+[data-theme='light'] {
+  --cite-wash: color-mix(in oklab, #d4f24a 40%, var(--background));
+  --cite-wash-hover: color-mix(in oklab, #d4f24a 62%, var(--background));
+  --cite-ink: #3d4c00;
+}
+html[data-theme='dark'],
+[data-theme='dark'] {
+  --cite-wash: color-mix(in oklab, #d4f24a 12%, transparent);
+  --cite-wash-hover: color-mix(in oklab, #d4f24a 22%, transparent);
+  --cite-ink: #d4f24a;
+}
+
+/* The draft stepping aside for the checked answer: opacity only, on the */
+/* exit curve, inside a box held at the draft's height. The component    */
+/* skips this entirely under reduced motion; --micro is zero there too.  */
+.thread-draft-leave {
+  animation: thread-fade-out var(--micro) var(--ease-exit) forwards;
+}
+@keyframes thread-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
