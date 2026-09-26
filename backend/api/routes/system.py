@@ -230,6 +230,9 @@ def policies(user: CurrentUser) -> dict[str, Any]:
     config = get_config()
     return {
         "roles": config.access_control.get("roles", {}),
+        # The departments an account can be placed in, so the People screen
+        # offers the policy's list rather than one copied into the interface.
+        "departments": config.access_control.get("departments", []),
         "tools": config.tool_permissions.get("tools", {}),
         "hard_denied_actions": config.tool_permissions.get("hard_denied_actions", []),
         "classification_levels": config.data_classification.get("levels", []),

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Loader2, LogOut } from 'lucide-react'
+import { Check, ChevronDown, Loader2, LogOut, Users } from 'lucide-react'
 import { ROLES } from '@/lib/presentation'
 import type { RoleId } from '@/lib/types'
 import { useRole } from './role-context'
@@ -185,6 +185,22 @@ export function RoleSwitcher({ placement = 'below' }: { placement?: 'below' | 'a
           </ul>
 
           <div className="border-t border-line-subtle p-1">
+            {/* People, for whoever the policy lets provision accounts. Read
+                from the session's permissions, so it appears exactly where
+                the service would answer rather than 403. */}
+            {user?.permissions?.includes('users.manage') && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  router.push('/admin/access')
+                }}
+                className="hover-decay flex w-full items-center gap-2 rounded-[var(--radius-menu-row)] px-3 py-2 text-ui text-foreground-secondary hover:bg-surface-sunken hover:text-foreground focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+              >
+                <Users className="h-3.5 w-3.5" aria-hidden /> People
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"
