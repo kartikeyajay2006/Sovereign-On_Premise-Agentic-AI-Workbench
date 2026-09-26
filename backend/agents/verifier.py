@@ -36,6 +36,19 @@ from backend.core.schemas import (
 from backend.tools.sandbox import get_sandbox
 
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+# A citation written after the full stop -- "... applies. [S5]" -- belongs to
+# the sentence before it. Split as it stood, the marker landed in a fragment of
+# its own: the claim looked uncited, fell back to "does any passage agree", was
+# corroborated by a different passage, and a wrong citation passed every check.
+# The markers are moved inside the full stop before splitting.
+_TRAILING_CITATIONS = re.compile(r"([.!?])((?:\s*\[[A-Z]{1,3}\d+(?:\.\d+)*\])+)")
+
+
+def _sentences(text: str) -> list[str]:
+    """The text's sentences, each carrying the citations written after its full stop."""
+    return SENTENCE_SPLIT.split(_TRAILING_CITATIONS.sub(r"\2\1", text or ""))
+
+
 # Figures an answer states, for comparison with the formula registry.
 RATE_IN_TEXT = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*(?:/|per)\s*(?:yr|year|y)\b", re.IGNORECASE)
 LIFE_IN_TEXT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b", re.IGNORECASE)
@@ -121,7 +134,7 @@ def _registry_summary(assessment: IntegrityAssessment) -> str:
 def _stated_conclusions(text: str) -> list[str]:
     """Rates, remaining lives and severity bands an answer asserts."""
     stated = [f"{match.group(1)} mm/year" for match in RATE_IN_TEXT.finditer(text or "")]
-    for sentence in SENTENCE_SPLIT.split(text or ""):
+    for sentence in _sentences(text):
         if re.search(r"remaining\s+life", sentence, re.IGNORECASE):
             stated += [f"a remaining life of {m.group(1)} years" for m in LIFE_IN_TEXT.finditer(sentence)]
         anchor = sentence.lower().find("severity")
@@ -291,7 +304,7 @@ class VerificationEngine:
             for pattern in self._rules.get("material_claim_patterns", [])
         ]
         claims: list[str] = []
-        for sentence in SENTENCE_SPLIT.split(text or ""):
+        for sentence in _sentences(text):
             candidate = sentence.strip()
             if len(candidate) < 15:
                 continue
@@ -419,7 +432,7 @@ class VerificationEngine:
         by_id = {item.id: item for item in evidence}
         problems: list[str] = []
         used: set[str] = set()
-        for sentence in SENTENCE_SPLIT.split(text or ""):
+        for sentence in _sentences(text):
             cited = PAGE_CITATION_PATTERN.findall(sentence)
             if not cited:
                 continue
@@ -675,7 +688,7 @@ class VerificationEngine:
                     f"{assessment.governing_rate_mm_yr:g} mm/year at the governing location "
                     f"({assessment.governing_location})"
                 )
-        for sentence in SENTENCE_SPLIT.split(text or ""):
+        for sentence in _sentences(text):
             if not re.search(r"remaining\s+life|life\s+of", sentence, re.IGNORECASE):
                 continue
             for match in LIFE_IN_TEXT.finditer(sentence):
@@ -688,7 +701,7 @@ class VerificationEngine:
                         else f"the answer states a remaining life of {value:g} years that no formula produced"
                     )
         if assessment.severity:
-            for sentence in SENTENCE_SPLIT.split(text or ""):
+            for sentence in _sentences(text):
                 anchor = sentence.lower().find("severity")
                 bands = list(SEVERITY_WORD.finditer(sentence))
                 if anchor < 0 or not bands:

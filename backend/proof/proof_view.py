@@ -371,7 +371,7 @@ def _certificate(certificate: dict[str, Any] | None, verification: dict[str, Any
             empty=(
                 f"No certificate has been issued. Certificates are issued for finished runs; this one is {status}."
                 if status not in ("delivered", "rejected", "revision_requested", "awaiting_approval")
-                else "No certificate is stored for this run. Opening its certificate issues one."
+                else "No certificate is stored for this run yet. Issuing one signs the run as it is recorded now."
             ),
         )
     signature = certificate.get("signature") or {}

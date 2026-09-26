@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { BookOpenText, Calculator, FileScan, Gauge, Paperclip, ShieldAlert, Split, type LucideIcon } from 'lucide-react'
 import { CONSOLE_TEMPLATES } from '@/lib/presentation'
+import { cn } from '@/lib/utils'
 
 export type StarterTemplate = (typeof CONSOLE_TEMPLATES)[number]
 
@@ -33,18 +34,25 @@ const SAMPLE_NAMES: Record<string, string> = {
  */
 export const StarterPrompts = memo(function StarterPrompts({
   onPick,
-  visionReady = false,
+  visionReady = null,
 }: {
   onPick: (template: StarterTemplate) => void
-  /** A vision model is installed, so a scanned report can be read here. */
-  visionReady?: boolean
+  /**
+   * A vision model is installed, so a scanned report can be read here; null
+   * while the model list has not arrived. Guessing "no" showed the survey
+   * card and then swapped it for the scan a moment later.
+   */
+  visionReady?: boolean | null
 }) {
+  const pending = visionReady === null
   // Four cards, two by two: the scanned report where a vision model can read
   // it, the survey where it cannot, then the conflict, the attack and the
   // relief valve.
-  const shown = CONSOLE_TEMPLATES.filter((t) => (t.needs === 'vision' ? visionReady : t.needs === 'no-vision' ? !visionReady : true))
+  const shown = CONSOLE_TEMPLATES.filter((t) => (t.needs === 'vision' ? visionReady === true : t.needs === 'no-vision' ? !visionReady : true))
   return (
-    <ul aria-label="Starter requests" className="grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-2">
+    // Until it is known, the cards hold their place unseen, so the greeting
+    // above them does not move when they appear.
+    <ul aria-label="Starter requests" aria-hidden={pending || undefined} className={cn('grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-2', pending && 'invisible')}>
       {shown.map((template, i) => {
         const card = CARD[template.id]
         const Icon = card?.icon ?? BookOpenText
@@ -64,9 +72,9 @@ export const StarterPrompts = memo(function StarterPrompts({
               </span>
               <span className="text-[12.5px] leading-[1.5] text-foreground-muted">{card?.blurb}</span>
               {template.samples.length > 0 ? (
-                <span className="mt-auto flex flex-col gap-0.5 pt-1 text-[11.5px] text-foreground-muted">
+                <span className="mt-auto flex w-full min-w-0 flex-col gap-0.5 pt-1 text-[11.5px] text-foreground-muted">
                   {template.samples.map((id) => (
-                    <span key={id} className="inline-flex items-center gap-1.5">
+                    <span key={id} className="flex min-w-0 items-center gap-1.5" title={SAMPLE_NAMES[id] ?? id}>
                       <Paperclip className="size-3 shrink-0" aria-hidden />
                       <span className="truncate">{SAMPLE_NAMES[id] ?? id}</span>
                     </span>

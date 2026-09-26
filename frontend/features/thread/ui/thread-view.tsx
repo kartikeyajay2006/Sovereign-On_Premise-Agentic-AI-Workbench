@@ -231,6 +231,9 @@ export function ThreadView() {
   const skillsRef = useRef<Skill[] | null>(null)
   skillsRef.current = skills
   const [hint, setHint] = useState<string | null>(null)
+  // A run asked for by URL that could not be read: the empty thread comes
+  // back instead of an "opening" line that never ends.
+  const [failedRun, setFailedRun] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [focusEvidenceId, setFocusEvidenceId] = useState<string | null>(null)
   // Whose evidence the rail shows. It showed the newest turn's whatever was
@@ -1049,6 +1052,7 @@ export function ThreadView() {
         task = await api.getTask(taskId)
       } catch (err: any) {
         openedRef.current = previous
+        setFailedRun(taskId)
         push({
           title: 'Could not open that run',
           detail: err?.detail || err?.message || 'Its record could not be read.',
@@ -1151,6 +1155,10 @@ export function ThreadView() {
   useEffect(() => {
     if (requestedRun && requestedRun !== openedRef.current) void openRun(requestedRun)
   }, [requestedRun, openRun])
+  // Opened from the sidebar, Proof or Compare, a run's page showed the empty
+  // thread's greeting and starter cards until its record arrived: for a
+  // moment it looked as if the run did not exist.
+  const openingRun = Boolean(requestedRun) && turns.length === 0 && failedRun !== requestedRun
 
   const pickStarter = useCallback((template: StarterTemplate) => {
     // A skill starter puts the skill in the composer and its input in the
@@ -1228,7 +1236,13 @@ export function ThreadView() {
           good chat product opens. The readings that used to sit above it
           live in the header's egress popover, where they come from the API.
         */}
-        {turns.length === 0 && (
+        {openingRun && (
+          <p role="status" className="text-center font-mono text-meta text-foreground-muted">
+            Opening run {requestedRun?.slice(0, 8)}…
+          </p>
+        )}
+
+        {turns.length === 0 && !openingRun && (
           <div className="thread-hello text-center">
             <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
               What should we <em className="font-serif text-[1.08em] font-normal italic tracking-[-0.01em]">check</em> today?
@@ -1298,10 +1312,10 @@ export function ThreadView() {
             the end adds no space after the composer. */}
         <div ref={endRef} aria-hidden className="-mt-6" />
 
-        {turns.length === 0 && (
+        {turns.length === 0 && !openingRun && (
           <StarterPrompts
             onPick={pickStarter}
-            visionReady={Boolean(models?.some((m) => m.available && m.capabilities.includes('vision')))}
+            visionReady={models === null ? null : models.some((m) => m.available && m.capabilities.includes('vision'))}
           />
         )}
 

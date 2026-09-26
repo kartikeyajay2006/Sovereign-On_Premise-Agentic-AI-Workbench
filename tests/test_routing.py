@@ -295,6 +295,27 @@ class TestVerificationEngine:
         )
         assert check.passed
 
+    def test_a_citation_after_the_full_stop_is_checked_against_its_passage(self, engine) -> None:
+        """A recorded run: the sentence is S4's, the citation says S5.
+
+        Written "... applies. [S5]", the marker was split into a fragment of its
+        own, the claim read as uncited, S4 corroborated it, and the run was
+        delivered with every check passed and a citation that led elsewhere.
+        """
+        evidence = [
+            EvidenceItem(id="S4", source_document="SOP-INS-021", classification=Sensitivity.CONFIDENTIAL,
+                         excerpt="An FFS assessment shall be raised when any one of the triggers in Clauses 2.1 "
+                                 "to 2.6 applies. Piping circuits are referred under SOP-INS-017 Clause 7.3."),
+            EvidenceItem(id="S5", source_document="SOP-INS-014", classification=Sensitivity.CONFIDENTIAL,
+                         excerpt="Any recommendation that a vessel continue in service with a Medium finding "
+                                 "shall record the compensating measures applied."),
+        ]
+        wrong = "An FFS assessment shall be raised when any one of the triggers in Clauses 2.1 to 2.6 applies. [S5]"
+        assert engine.material_claims(wrong)[0].endswith("[S5].")
+        assert not engine.check_sources(wrong, evidence).passed
+        right = wrong.replace("[S5]", "[S4]")
+        assert engine.check_sources(right, evidence).passed
+
     @pytest.mark.skipif(
         not RESOURCE_LIMITS_AVAILABLE,
         reason=(
