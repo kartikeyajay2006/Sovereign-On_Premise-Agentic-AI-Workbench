@@ -391,20 +391,32 @@ function SourcesRow({
   )
 }
 
-/** The folded log's one line: what was checked, against how much, at a glance. */
+/** "2m 14s", "48s": the run's measured duration, as a person says it. */
+function workedFor(ms: number): string {
+  const seconds = Math.round(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
+}
+
+/**
+ * The folded log's one line: how long it worked, what was checked, against
+ * how much. Each part only when the record measured it -- a run with no
+ * duration on record does not get one made up.
+ */
 function workSummary(turn: AssistantTurnModel): string {
   const parts: string[] = []
+  if (turn.elapsedMs !== null) parts.push(`Worked ${workedFor(turn.elapsedMs)}`)
   const checks = turn.verification
   if (checks.length > 0) {
     const passed = checks.filter((c) => c.passed).length
     parts.push(
       passed === checks.length
-        ? `${passed} of ${checks.length} checks passed`
+        ? `${passed} of ${checks.length} checks`
         : `${checks.length - passed} of ${checks.length} checks failed`,
     )
   }
   const sources = turn.evidence.filter((e) => /^S\d+$/.test(e.id)).length
-  if (sources > 0) parts.push(`${sources} source${sources === 1 ? '' : 's'} searched`)
+  if (sources > 0) parts.push(`${sources} source${sources === 1 ? '' : 's'}`)
   if (parts.length === 0) parts.push('How it was answered')
   return parts.join(' · ')
 }
@@ -589,8 +601,15 @@ export const AssistantTurn = memo(function AssistantTurn({
   const foldable = !running && (turn.outcome === 'delivered' || held || turn.outcome === 'rejected')
   const [logOpen, setLogOpen] = useState(!foldable)
   const wasRunning = useRef(running)
+  const foldRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
-    if (wasRunning.current && !running) setLogOpen(!foldable)
+    if (wasRunning.current && !running) {
+      // Not out from under the reader: a log being pointed at or read with
+      // the keyboard when the answer lands stays open. Its toggle folds it.
+      const log = foldRef.current
+      const inUse = Boolean(log && (log.matches(':hover') || log.contains(document.activeElement)))
+      if (!inUse) setLogOpen(!foldable)
+    }
     wasRunning.current = running
   }, [running, foldable])
 
@@ -670,7 +689,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           that it can be checked. The answer gets to be the biggest thing on
           the screen, which for an answering product it always should have been.
         */}
-        <div data-dim-item className={cn('ae-fold', logOpen && 'open')} inert={!logOpen}>
+        <div ref={foldRef} data-dim-item className={cn('ae-fold', logOpen && 'open')} inert={!logOpen}>
           <div className="min-h-0 overflow-hidden">
             <div className="flex flex-col gap-2 pb-4">
               {/* Mounted with the turn, so a line an event adds later is an
