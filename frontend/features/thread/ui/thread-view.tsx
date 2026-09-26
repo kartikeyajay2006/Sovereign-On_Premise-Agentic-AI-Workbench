@@ -112,6 +112,7 @@ function recordFields(task: Task) {
     conflicts: task.conflicts ?? [],
     claims: task.verification?.claims ?? [],
     scans: contentScans(task.policy_events),
+    policyEvents: (task.policy_events ?? []).length,
     topology: task.topology ?? null,
     denialReason: task.error || null,
     elapsedMs: task.duration_ms ?? null,
@@ -200,6 +201,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     conflicts: [],
     claims: [],
     scans: [],
+    policyEvents: null,
     topology: null,
     denialReason: null,
     error: null,
@@ -1486,8 +1488,11 @@ export function ThreadView() {
         window's edge.
       */}
       <TraceScope
+        // Read by the Brief: with the evidence rail docked, its margin has
+        // no room to move out into (globals.css, THE BRIEF).
+        data-rail-docked={drawerOpen ? '' : undefined}
         className={cn(
-          'mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
+          'thread-column mx-auto flex w-full max-w-[768px] flex-col gap-6 px-5 sm:px-6',
           // With a run on screen the column fills the window, so the composer
           // below it sits at the window's foot even under a short answer.
           turns.length === 0 ? 'thread-empty min-h-[calc(100dvh-var(--shell-top))] justify-center pb-[12vh] pt-8' : 'min-h-[calc(100dvh-var(--shell-top))] pt-8',
@@ -1519,8 +1524,10 @@ export function ThreadView() {
 
         {turns.length === 0 && !openingRun && (
           <div className="thread-hello text-center">
-            <h1 className="text-[clamp(1.7rem,3vw,2.2rem)] font-semibold tracking-[-0.035em] text-foreground">
-              What should we <em className="font-serif text-[1.08em] font-normal italic tracking-[-0.01em]">check</em> today?
+            {/* Hi-Vis display voice: light, semi-condensed Archivo, and one
+                word in weight for the one thing the product does. */}
+            <h1 className="text-[clamp(1.9rem,3.4vw,2.5rem)] font-light leading-[1.05] tracking-[-0.03em] text-foreground [font-stretch:92%]">
+              What should we <b className="font-semibold">check</b> today?
             </h1>
             <p className="mx-auto mt-2 max-w-[52ch] text-[0.98rem] leading-[1.55] text-foreground-secondary">
               Ask about a procedure, a report or a calculation. Every answer is cited, checked against policy and

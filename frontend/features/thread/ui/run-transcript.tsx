@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef } from 'react'
 import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from '@/lib/types'
 import { checkLabel } from '@/lib/presentation'
+import { CREW_BY_STAGE } from '@/lib/crew'
 import { cn } from '@/lib/utils'
 import { Append, useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW, STAGE_ACTIVE, STAGE_DONE } from '../model/board'
@@ -313,6 +314,8 @@ export const RunTranscript = memo(function RunTranscript({
         // found is on screen while the run goes on to use it.
         const sources = stage.id === 'retrieve' ? turn.evidence.filter((e) => /^S\d+$/.test(e.id)) : []
         const notes = notesFor(stage.id)
+        // The crew member the stage is, by its call-sign: quiet, beside the words.
+        const crew = CREW_BY_STAGE[stage.id as keyof typeof CREW_BY_STAGE] ?? null
 
         return (
           <li key={stage.id} className="flex flex-col gap-0.5">
@@ -336,6 +339,11 @@ export const RunTranscript = memo(function RunTranscript({
                   active ? 'ae-shimmer font-medium' : failed ? 'text-critical-text' : skipped ? 'text-foreground-secondary' : 'text-foreground',
                 )}
               >
+                {crew && (
+                  <span className="mr-1.5 text-[10px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                    {crew.callsign} ·
+                  </span>
+                )}
                 {title}
                 {active ? '…' : ''}
                 {note && <span className="text-foreground-muted"> · {note}</span>}
