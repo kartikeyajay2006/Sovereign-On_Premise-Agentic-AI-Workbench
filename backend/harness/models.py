@@ -184,6 +184,13 @@ class HarnessReportRecord(BaseModel):
     # made the report out of date.
     child_statuses: dict[str, str] = Field(default_factory=dict)
     tally: HarnessTally
+    # The audit chain's head when this version was written: the sequence and
+    # hash of the report_generated record, which carries the file hashes
+    # above. Anyone holding the export can find that record and walk the
+    # chain from it. None when auditing is off, and on records written
+    # before the head was kept -- never a made-up value.
+    audit_seq: int | None = None
+    audit_hash: str | None = None
 
 
 class HarnessRun(BaseModel):
@@ -227,6 +234,22 @@ class CheckSummary(BaseModel):
     detail: str
 
 
+class ClaimView(BaseModel):
+    """One material claim the verifier judged, with the passages it rests on.
+
+    Carried so the claim -> evidence graph of a reopened run is rebuilt from
+    the record, not from events that have left the replay buffer. The ids
+    name entries in the child's ``citations`` or ``claim_evidence``.
+    """
+
+    id: str
+    text: str
+    kind: str
+    verdict: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    reason: str
+
+
 class HarnessChildView(BaseModel):
     index: int
     key: str
@@ -251,6 +274,12 @@ class HarnessChildView(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     unretrieved_citations: list[str] = Field(default_factory=list)
     unsupported_claims: list[str] = Field(default_factory=list)
+    # Every material claim with its verdict and evidence ids -- released
+    # children only, like the citations, since a claim's text is answer text.
+    claims: list[ClaimView] = Field(default_factory=list)
+    # Passages a claim rests on that the answer's own markers do not cite,
+    # so every id in ``claims`` resolves to a document and a section.
+    claim_evidence: list[Citation] = Field(default_factory=list)
     approval_reasons: list[str] = Field(default_factory=list)
     reviewer_name: str | None = None
     error: str | None = None

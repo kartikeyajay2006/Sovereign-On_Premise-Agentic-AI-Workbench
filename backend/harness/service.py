@@ -13,7 +13,9 @@ up front would not finish any sooner -- it would put a person's next thread
 question behind all twenty. Submitting as each settles leaves at most one
 harness child ahead of anyone else.
 
-Progress is published on the event bus as ``harness.*`` events, and every
+Progress is published on the event bus as ``harness.*`` events --
+started, child, aggregating (every child settled, report not yet written),
+report_written (files, hashes and the audit head), finished -- and every
 consequential step is appended to the audit chain: run started, each child
 submitted (linked by task id), cancel requested, run finished or cancelled,
 each report version with its hashes, each approval decision and download.
@@ -506,7 +508,15 @@ class HarnessService:
                 await self._submit(run, item, owner)
                 if item.state == ItemState.SUBMITTED:
                     await self._await_settled(run, item, owner)
+            # Every child has settled and the report is not yet on disk. Said
+            # on the bus so the interface can name the gap between the last
+            # child and the seal, instead of showing a finished rail beside a
+            # report that does not exist yet.
+            await self._publish("harness.aggregating", run)
+            written_before = run.report.version if run.report else None
             self._finish(run)
+            if run.report is not None and run.report.version != written_before:
+                await self._publish_report_written(run)
             await self._publish(
                 "harness.finished",
                 run,
@@ -542,6 +552,31 @@ class HarnessService:
             self._cancellers.pop(run_id, None)
             self._cancel_sent.pop(run_id, None)
             self._runners.pop(run_id, None)
+
+    async def _publish_report_written(self, run: HarnessRun) -> None:
+        """Announce a report version that is now on disk and on the chain.
+
+        Run-level, so ids, hashes and counts only: the filenames are built
+        from the harness id and the run id, and the hashes are of files the
+        viewer may or may not be entitled to download -- a hash discloses
+        nothing of what it hashes. The audit head is the report_generated
+        record's own sequence and hash, read back from the record, never
+        computed here.
+        """
+        report = run.report
+        if report is None:
+            return
+        await self._publish(
+            "harness.report_written",
+            run,
+            {
+                "report_version": report.version,
+                "released": report.released,
+                "files": [{"filename": f.filename, "sha256": f.sha256} for f in report.files],
+                "audit_seq": report.audit_seq,
+                "audit_hash": report.audit_hash,
+            },
+        )
 
     def _current_identity(self, owner: User) -> User:
         """The person who started the run, as the identity store has them now.
@@ -843,7 +878,7 @@ class HarnessService:
         if run.report is not None:
             run.previous_reports.append(run.report)
         run.report = record
-        self.audit.record(
+        sealed = self.audit.record(
             category="harness",
             action="report_generated",
             actor=generated_by,
@@ -865,6 +900,12 @@ class HarnessService:
                 },
             },
         )
+        # The chain head at the moment of writing is the record just
+        # appended: it carries this version's file hashes, so its sequence
+        # and hash are what the seal names. None when auditing is off.
+        if sealed is not None:
+            record.audit_seq = sealed.sequence
+            record.audit_hash = sealed.hash
         return record
 
     # -------------------------------------------------------------- views
@@ -1077,6 +1118,7 @@ class HarnessService:
             # other error (an interruption, a runner failure) stays on record.
             run.error = None
         self._save(run)
+        await self._publish_report_written(run)
         await self._publish(
             "harness.report",
             run,

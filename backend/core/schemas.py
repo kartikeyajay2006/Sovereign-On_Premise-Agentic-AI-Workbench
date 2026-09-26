@@ -629,6 +629,23 @@ class PolicyEvent(BaseModel):
     at: datetime
 
 
+class StageMark(BaseModel):
+    """One ``task.stage`` announcement, kept on the record with its time.
+
+    The stage events themselves live in a shared 400-event replay buffer, so
+    a run reopened an hour later had no way to say when it planned, retrieved
+    or verified -- only what each model call and tool call cost. Kept here,
+    the stage strip of a settled run is drawn from the same timestamps the
+    live one was, and a stage nobody marked is simply absent.
+    """
+
+    status: str
+    phase: str | None = None
+    message: str = ""
+    skipped: bool = False
+    at: datetime
+
+
 class Task(BaseModel):
     model_config = ConfigDict(use_enum_values=False)
 
@@ -658,6 +675,10 @@ class Task(BaseModel):
     # what it said.
     usage: list[ModelUsage] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
+    # Every stage the orchestrator entered, in order, with the time it did.
+    # Empty on records written before it was kept; a replay shows only what
+    # a record holds and does not reconstruct a missing stage.
+    stage_log: list[StageMark] = Field(default_factory=list)
     evidence: list[EvidenceItem] = Field(default_factory=list)
     verification: VerificationReport | None = None
     approval: ApprovalRecord | None = None

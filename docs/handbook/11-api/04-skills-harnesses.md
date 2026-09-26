@@ -67,7 +67,9 @@ If the definition changed since the preview, or no longer produces a selected it
 
 ### Following a run
 
-`harness.started`, `harness.child` (one per settled item), `harness.report` and `harness.finished` arrive on the event stream, or poll `GET /api/harness-runs/{id}`.
+`harness.started`, `harness.child` (submitted, running, settled), `harness.aggregating`, `harness.report_written`, `harness.report` and `harness.finished` arrive on the event stream, or poll `GET /api/harness-runs/{id}`. The stages of the child in flight arrive as ordinary `task.*` events for its `task_id`, scoped by the stream's ownership check.
+
+Each child in the run view carries, for a **released** child only, `claims[]` (id, clipped text, kind, verdict, `evidence_ids`, reason) and `claim_evidence[]` (the passages those ids name that the answer's own citation markers do not), so the claim to evidence graph of a finished run is rebuilt from the record. A held child carries neither. The report record carries `audit_seq` and `audit_hash`: the chain head when that version was written, or `null` when auditing was off.
 
 <!-- nav:start -->
 

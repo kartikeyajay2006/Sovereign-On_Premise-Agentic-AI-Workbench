@@ -25,6 +25,7 @@ from backend.harness.models import (
     UNSETTLED_OUTCOMES,
     CheckSummary,
     Citation,
+    ClaimView,
     HarnessChildView,
     HarnessItem,
     HarnessOutcome,
@@ -194,17 +195,7 @@ def cited_evidence(task: Task) -> tuple[list[Citation], list[str]]:
         if item is None:
             unretrieved.append(marker)
             continue
-        citations.append(
-            Citation(
-                id=item.id,
-                source_document=item.source_document,
-                location=item.location,
-                excerpt=clip(item.excerpt, CITATION_EXCERPT_CHARS),
-                score=item.score,
-                classification=item.classification,
-                kind=item.kind,
-            )
-        )
+        citations.append(_citation(item))
     return citations, unretrieved
 
 
@@ -223,6 +214,51 @@ def unsupported_claims(task: Task) -> list[str]:
     return []
 
 
+def _citation(item: Any) -> Citation:
+    return Citation(
+        id=item.id,
+        source_document=item.source_document,
+        location=item.location,
+        excerpt=clip(item.excerpt, CITATION_EXCERPT_CHARS),
+        score=item.score,
+        classification=item.classification,
+        kind=item.kind,
+    )
+
+
+def claim_graph(task: Task, cited: list[Citation]) -> tuple[list[ClaimView], list[Citation]]:
+    """The verifier's claims and the passages they rest on, from the record.
+
+    Returns each claim with its verdict and evidence ids, and the passages
+    those ids name that ``cited`` does not already hold. An id the run never
+    retrieved is left on the claim and resolves to nothing: the graph shows
+    it as an unresolved id rather than inventing a document for it.
+    """
+    if task.verification is None:
+        return [], []
+    evidence = {item.id: item for item in task.evidence}
+    have = {citation.id for citation in cited}
+    extra: list[Citation] = []
+    claims: list[ClaimView] = []
+    for claim in task.verification.claims:
+        claims.append(
+            ClaimView(
+                id=claim.id,
+                text=clip(claim.text, CLAIM_EXCERPT_CHARS),
+                kind=claim.kind,
+                verdict=claim.verdict,
+                evidence_ids=list(claim.evidence_ids),
+                reason=clip(claim.reason, CLAIM_EXCERPT_CHARS),
+            )
+        )
+        for evidence_id in claim.evidence_ids:
+            item = evidence.get(evidence_id)
+            if item is not None and evidence_id not in have:
+                have.add(evidence_id)
+                extra.append(_citation(item))
+    return claims, extra
+
+
 def child_view(
     item: HarnessItem, task: Task | None, *, queue: dict[str, Any] | None = None
 ) -> HarnessChildView:
@@ -234,9 +270,12 @@ def child_view(
     citations: list[Citation] = []
     unretrieved: list[str] = []
     claims: list[str] = []
+    verdicts: list[ClaimView] = []
+    claim_evidence: list[Citation] = []
     if task is not None and released:
         citations, unretrieved = cited_evidence(task)
         claims = unsupported_claims(task)
+        verdicts, claim_evidence = claim_graph(task, citations)
 
     error = item.error
     if task is not None and outcome in {
@@ -277,6 +316,8 @@ def child_view(
         citations=citations,
         unretrieved_citations=unretrieved,
         unsupported_claims=claims,
+        claims=verdicts,
+        claim_evidence=claim_evidence,
         approval_reasons=list(approval.reasons) if approval and approval.required else [],
         reviewer_name=approval.reviewer_name if approval else None,
         error=error,
