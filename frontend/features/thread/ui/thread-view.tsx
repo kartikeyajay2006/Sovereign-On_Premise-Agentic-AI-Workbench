@@ -571,9 +571,24 @@ export function ThreadView() {
           }
           return
 
-        // The integrity decision, as the formula registry computed it.
+        // The integrity decision, as the formula registry computed it, with
+        // its records and the C items that carry them: the result is shown
+        // and citable the moment it is computed, not when the run ends.
         case 'task.calculation':
-          if (data.assessment) patchTask(id, (t) => ({ ...t, assessment: data.assessment }))
+          if (data.assessment) {
+            patchTask(id, (t) => {
+              const known = new Set(t.evidence.map((e) => e.id))
+              const carriers: EvidenceItem[] = Array.isArray(data.evidence)
+                ? data.evidence.filter((item: EvidenceItem) => item && !known.has(item.id))
+                : []
+              return {
+                ...t,
+                assessment: data.assessment,
+                calculations: Array.isArray(data.records) ? data.records : t.calculations,
+                evidence: carriers.length ? [...t.evidence, ...carriers] : t.evidence,
+              }
+            })
+          }
           return
 
         // A drawing question, answered from the P&ID graph.

@@ -676,7 +676,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               {/* Mounted with the turn, so a line an event adds later is an
                   arrival and one read from the record is not. */}
               <AppendScope>
-                <RunTranscript turn={turn} />
+                <RunTranscript turn={turn} onCite={onCite ? cite : undefined} />
               </AppendScope>
               {/* What it cost, folded with the steps it was spent on. */}
               {!running && (

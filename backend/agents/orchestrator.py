@@ -2501,14 +2501,12 @@ class AgentOrchestrator:
         self._persist_evidence(task)
         self._checkpoint(task)
         calculated = [record for record in records if record.status == "calculated"]
-        await self._emit(task, "task.calculation", {
-            "assessment": assessment.model_dump(mode="json"),
-            "calculated": len(calculated),
+        await self._emit(task, "task.calculation", self._calculation_payload(task, {
             "not_calculated": [
                 {"formula": record.formula_id, "subject": record.subject, "reason": record.reason}
                 for record in records if record.status != "calculated"
             ],
-        })
+        }))
         self.audit.record(
             category="engineering",
             action={"calculated": "assessed", "conflicted": "withheld"}.get(assessment.status, "cannot_calculate"),
@@ -2532,6 +2530,25 @@ class AgentOrchestrator:
         # The registry is the authority for a conflicted record too: no
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
+
+    @staticmethod
+    def _calculation_payload(task: Task, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+        """What `task.calculation` carries: the decision, its records, and their C items.
+
+        The records and the C evidence items that hold them travel with the
+        decision so a client can show the governing figure, cite the C item
+        that carries it and open that item, the moment it is computed rather
+        than once the run has finished and the record is read back.
+        """
+        assert task.assessment is not None
+        carriers = set(task.assessment.evidence_ids)
+        return {
+            "assessment": task.assessment.model_dump(mode="json"),
+            "calculated": sum(1 for record in task.calculations if record.status == "calculated"),
+            "records": [record.model_dump(mode="json") for record in task.calculations],
+            "evidence": [item.model_dump(mode="json") for item in task.evidence if item.id in carriers],
+            **(extra or {}),
+        }
 
     async def _fact_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
         """Record where the sources contradict each other about a stated fact.
@@ -3019,10 +3036,7 @@ class AgentOrchestrator:
             "evidence": human.model_dump(mode="json"),
         })
         if task.assessment is not None:
-            await self._emit(task, "task.calculation", {
-                "assessment": task.assessment.model_dump(mode="json"),
-                "calculated": sum(1 for r in task.calculations if r.status == "calculated"),
-            })
+            await self._emit(task, "task.calculation", self._calculation_payload(task))
         if task.verification is not None:
             await self._emit(task, "task.verified", task.verification.model_dump(mode="json"))
         self.audit.record(

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { Append, useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW, STAGE_ACTIVE, STAGE_DONE } from '../model/board'
 import type { AssistantTurn } from '../model/types'
+import { CiteChip } from './cite-chip'
 import { formatCount, formatRate, formatSeconds } from '../model/usage'
 
 /**
@@ -162,6 +163,36 @@ function useArrival(): (key: string) => number {
 /** Sources listed one per line before the rest are counted. */
 const SOURCES_SHOWN = 5
 
+function figure(value: number, digits = 2): string {
+  return String(Number(value.toFixed(digits)))
+}
+
+/**
+ * The registry's result as one line: only the fields it computed, and the C
+ * item that carries the governing figure. A decision withheld for a conflict
+ * says so and computes nothing; one missing an input names the input.
+ */
+function calculationLine(turn: AssistantTurn): { text: string; cite: string | null } | null {
+  const a = turn.assessment
+  if (!a) return null
+  const governing =
+    turn.calculations.find((r) => a.governing_location && r.subject === `${a.subject} · ${a.governing_location}`)
+      ?.evidence_id ?? a.evidence_ids?.[0] ?? null
+  if (a.status === 'conflicted') return { text: 'withheld: sources disagree', cite: null }
+  if (a.status === 'cannot_calculate') {
+    return { text: `cannot calculate: missing ${a.missing.join(', ') || 'required inputs'}`, cite: governing }
+  }
+  const parts: string[] = []
+  if (a.governing_location) parts.push(a.governing_location)
+  if (typeof a.governing_rate_mm_yr === 'number') parts.push(`${figure(a.governing_rate_mm_yr, 4)} mm/y`)
+  if (typeof a.remaining_life_years === 'number') parts.push(`${figure(a.remaining_life_years)} y remaining`)
+  if (a.severity) parts.push(a.severity.charAt(0).toUpperCase() + a.severity.slice(1))
+  if (a.withdraw_from_service) parts.push('withdraw from service')
+  else if (a.next_due) parts.push(`next ${a.next_due}`)
+  if (parts.length === 0) return null
+  return { text: parts.join(' · '), cite: governing }
+}
+
 function Checks({ checks }: { checks: VerificationCheck[] }) {
   return (
     <span className="flex flex-wrap gap-x-3 gap-y-0.5">
@@ -191,8 +222,17 @@ const SCAN_DECISION: Record<string, string> = {
   deny: 'blocked',
 }
 
-export const RunTranscript = memo(function RunTranscript({ turn }: { turn: AssistantTurn }) {
+export const RunTranscript = memo(function RunTranscript({
+  turn,
+  onCite,
+}: {
+  turn: AssistantTurn
+  /** Opens a cited item in the rail. */
+  onCite?: (id: string) => void
+}) {
   const conversation = turn.profile?.taskType === 'conversation'
+  const known = new Set(turn.evidence.map((e) => e.id))
+  const calculation = calculationLine(turn)
   const running = turn.outcome === 'running'
   const arrival = useArrival()
   const noted = new Set(turn.notes.map((n) => n.stage))
@@ -300,6 +340,23 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
             {/* The backend's own words for what the stage is doing, or why it
                 did not run. Never templated here. */}
             {(active || skipped) && stage.detail && <Result>{stage.detail}</Result>}
+            {stage.id === 'compute' && calculation && (
+              <Result
+                key={`calc:${calculation.text}`}
+                arrival={arrival(`calc:${calculation.text}`)}
+                tone={turn.assessment?.status === 'calculated' ? undefined : 'approval'}
+              >
+                <span className={turn.assessment?.status === 'calculated' ? 'text-foreground' : undefined}>
+                  {calculation.text}
+                </span>
+                {calculation.cite && (
+                  <>
+                    {' '}
+                    <CiteChip id={calculation.cite} resolved={known.has(calculation.cite)} onCite={onCite} trace={turn.id} />
+                  </>
+                )}
+              </Result>
+            )}
             {notes.map((n) => (
               <Result key={n.key} tone={n.tone} title={n.title} arrival={arrival(n.key)}>
                 {n.text}
