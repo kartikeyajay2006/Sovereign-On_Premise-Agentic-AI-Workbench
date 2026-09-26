@@ -40,6 +40,7 @@ import { notesFromEvent, notesFromTask } from '../model/notes'
 import type { FollowUp } from '../model/follow-ups'
 import {
   MODEL_STAGE_TO_ROW,
+  STAGE_ACTIVE,
   TERMINAL,
   closeStages,
   enterStage,
@@ -64,6 +65,17 @@ import {
  */
 
 const PREFERRED_MODEL_KEY = 'aegis.console.preferred-model'
+
+/** A settled run in the words of a tab title and an announcement. */
+const SETTLED_WORDS: Partial<Record<AssistantTurnModel['outcome'], string>> = {
+  delivered: 'Answer ready',
+  held: 'Held',
+  rejected: 'Rejected at review',
+  denied: 'Refused by policy',
+  failed: 'Failed',
+  blocked: 'Blocked',
+  cancelled: 'Stopped',
+}
 
 const NO_EVIDENCE: EvidenceItem[] = []
 
@@ -808,6 +820,69 @@ export function ThreadView() {
     }
   }, [heldTaskId, visible, patchTask])
 
+  /*
+    What a reader who is not looking needs to know. A run takes minutes, and
+    the tab is often in the background for them: while it is hidden, its
+    title names the stage the run is in, then "Answer ready" or "Held" once
+    it settles, and it goes back to what it was when the tab is seen again.
+    A polite live region says the same to a screen reader -- each stage as
+    the run enters it, and the release -- without taking focus.
+  */
+  let followed: AssistantTurnModel | undefined
+  for (let i = turns.length - 1; i >= 0 && !followed; i -= 1) {
+    const t = turns[i]
+    if (t.role === 'assistant') followed = t
+  }
+  const followedRunning = followed?.outcome === 'running' && followed.stream === 'live'
+  const followedStage = followedRunning ? followed?.stages.find((s) => s.status === 'active')?.id ?? null : null
+  const stageWords = followedStage ? STAGE_ACTIVE[followedStage] ?? followedStage : followedRunning ? 'Working' : null
+  const settledWords = followed && !followedRunning ? SETTLED_WORDS[followed.outcome] ?? null : null
+
+  const [announcement, setAnnouncement] = useState('')
+  const lastOutcomeRef = useRef<{ id: string; outcome: string } | null>(null)
+  useEffect(() => {
+    // Stage entries only; the moments between two stages are not news.
+    if (followedStage && stageWords) setAnnouncement(`${stageWords}.`)
+  }, [followedStage, stageWords])
+  useEffect(() => {
+    if (!followed) return
+    const previous = lastOutcomeRef.current
+    lastOutcomeRef.current = { id: followed.id, outcome: followed.outcome }
+    // Only a run seen ending here: opening a finished run is a read.
+    if (previous?.id !== followed.id || previous.outcome !== 'running' || followed.outcome === 'running') return
+    const checks = followed.verification
+    const passed = checks.filter((c) => c.passed).length
+    const detail = checks.length ? ` ${passed} of ${checks.length} checks passed.` : ''
+    setAnnouncement(`${settledWords ?? 'The run ended'}.${followed.outcome === 'delivered' || followed.outcome === 'held' ? detail : ''}`)
+  }, [followed, settledWords])
+
+  const titleRef = useRef<string | null>(null)
+  const watchedHiddenRef = useRef(false)
+  useEffect(() => {
+    if (visible) {
+      if (titleRef.current !== null) document.title = titleRef.current
+      titleRef.current = null
+      watchedHiddenRef.current = false
+      return
+    }
+    let label: string | null = null
+    if (stageWords) {
+      label = stageWords
+      watchedHiddenRef.current = true
+    } else if (watchedHiddenRef.current && settledWords) {
+      label = settledWords
+    }
+    if (!label) return
+    if (titleRef.current === null) titleRef.current = document.title
+    document.title = `${label} · AEGIS`
+  }, [visible, stageWords, settledWords])
+  useEffect(
+    () => () => {
+      if (titleRef.current !== null) document.title = titleRef.current
+    },
+    [],
+  )
+
   // Follow the run while the reader is at the end, and let go the moment they
   // move away from it -- by intent, not by distance. Following used to hold
   // until the page was 160px from the end, and it re-pinned on every frame of
@@ -1432,6 +1507,10 @@ export function ThreadView() {
           good chat product opens. The readings that used to sit above it
           live in the header's egress popover, where they come from the API.
         */}
+        <p aria-live="polite" role="status" className="sr-only">
+          {announcement}
+        </p>
+
         {openingRun && (
           <p role="status" className="text-center font-mono text-meta text-foreground-muted">
             Opening run {requestedRun?.slice(0, 8)}…
