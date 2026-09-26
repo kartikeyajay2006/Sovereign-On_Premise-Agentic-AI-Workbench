@@ -108,6 +108,10 @@ function recordFields(task: Task) {
       ? {
           reasons: task.approval.reasons || [],
           approverRoles: task.approval.approver_roles || [],
+          signatures: (task.approval.required_signatures ?? []).map((required) => ({
+            authority: required.authority,
+            signedBy: task.approval?.signatures?.find((given) => given.role === required.role)?.name ?? null,
+          })),
           decision: task.approval.decision ?? null,
           reviewerName: task.approval.reviewer_name ?? null,
           comment: task.approval.comment ?? null,

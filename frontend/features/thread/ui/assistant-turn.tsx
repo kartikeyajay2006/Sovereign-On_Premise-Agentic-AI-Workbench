@@ -921,6 +921,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               rerunDisabled={busy}
               held={turn.outcome === 'held'}
               approverRoles={turn.approval?.approverRoles ?? []}
+              signatures={turn.approval?.signatures ?? []}
               reasons={turn.approval?.reasons ?? []}
               canReview={canReview}
               taskId={turn.taskId}

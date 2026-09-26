@@ -211,6 +211,8 @@ export interface AssistantTurn {
   approval: {
     reasons: string[]
     approverRoles: string[]
+    /** A High finding's signatures in the order they are given, and who gave each so far. */
+    signatures: { authority: string; signedBy: string | null }[]
     decision: 'pending' | 'approved' | 'rejected' | 'revision_requested' | null
     reviewerName: string | null
     comment: string | null
