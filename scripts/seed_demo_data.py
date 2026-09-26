@@ -823,7 +823,7 @@ async def index_corpus(
 
     knowledge_base = get_knowledge_base()
     mode = await knowledge_base.retrieval_mode()
-    if mode != "embedding" and not allow_lexical:
+    if mode != "hybrid" and not allow_lexical:
         print(
             "\nNo embedding model is available, so passages would be stored without "
             "vectors.\nWhile other documents carry vectors, embedding search cannot see "
@@ -872,7 +872,7 @@ async def index_corpus(
                         f"from {Path(old.source_path).name})"
                     )
 
-    if mode == "embedding" and indexed_ids:
+    if mode == "hybrid" and indexed_ids:
         missing = [
             row for row in knowledge_base.db.iter_chunks()
             if row["document_id"] in indexed_ids and not row.get("embedding")
@@ -958,6 +958,13 @@ def main() -> int:
     print(f"  data     {write_thickness_csv().relative_to(ROOT)}")
     print(f"  data     {write_inspection_history_csv().relative_to(ROOT)}")
     print(f"  answers  {write_expected_answers().relative_to(ROOT)}")
+    from scripts.make_sample_pid_image import render as render_pid
+
+    print(f"  drawing  {render_pid().relative_to(ROOT)}")
+    from backend.connectors import historian_path
+    from backend.connectors.historian import build_simulated_historian
+
+    print(f"  historian {build_simulated_historian(historian_path())} (simulated)")
 
     failures = 0
     if not arguments.files_only:

@@ -229,6 +229,11 @@ class ModelUsage(BaseModel):
     #: The registry id that served the call, e.g. ``qwen2.5:3b``.
     model: str
     display_name: str | None = None
+    #: The digest the runtime reported for that model when it served the
+    #: call. A name can be re-pulled to different weights; this cannot, so
+    #: it is what Proof Mode and run comparison name. None when the runtime
+    #: reported none, and on runs recorded before it was kept.
+    model_digest: str | None = None
     #: Tokens the runtime reports for the prompt (``prompt_eval_count``).
     prompt_tokens: int | None = None
     #: Tokens the runtime reports generating (``eval_count``). Includes any
@@ -283,7 +288,8 @@ class EvidenceItem(BaseModel):
     classification: Sensitivity = Sensitivity.NORMAL
     version: str | None = None
     ingested_at: datetime | None = None
-    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human", "topology"] = (
+    kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human", "topology",
+                  "historian"] = (
         "knowledge_base"
     )
     # For procedure passages: which document this revision belongs to, and
@@ -375,11 +381,14 @@ class ConflictRecord(BaseModel):
     over a formula input withholds every figure that depends on it until a
     person resolves it; a `revision` conflict (a record written against a
     superseded procedure) is resolved automatically in favour of the revision
-    in force, and says so.
+    in force, and says so. A `fact` conflict (two sources state different
+    values for one attribute of one tag or clause, outside the formula
+    inputs) withholds every claim that takes one of the values until a
+    person resolves it.
     """
 
     id: str
-    kind: Literal["input", "revision"]
+    kind: Literal["input", "revision", "fact"]
     subject: str | None = None
     field: str
     label: str
@@ -399,7 +408,7 @@ class ConflictResolveRequest(BaseModel):
 class IntegrityAssessment(BaseModel):
     """The asset-integrity decision a run's calculations add up to."""
 
-    kind: Literal["vessel", "piping"]
+    kind: Literal["vessel", "piping", "stated"]
     subject: str
     # `conflicted`: the evidence disagrees about an input, and no figure that
     # depends on it is stated until a person resolves the conflict.
@@ -416,6 +425,13 @@ class IntegrityAssessment(BaseModel):
     severity_basis: str | None = None
     required_action: str | None = None
     approver: str | None = None
+    # SOP-OPS-008 names who recommends a decision and who approves it. The
+    # workbench is neither: it prepares the recommendation for these people.
+    recommended_by: list[str] = Field(default_factory=list)
+    approved_by: list[str] = Field(default_factory=list)
+    # At or below t-min: the equipment is withdrawn (SOP-INS-014 Clause 3.3),
+    # so next_due and interval_months are deliberately empty.
+    withdraw_from_service: bool = False
     ffs_triggers: list[str] = Field(default_factory=list)
     next_due: str | None = None
     interval_months: int | None = None
@@ -513,11 +529,42 @@ class VerificationReport(BaseModel):
 
 
 # ------------------------------------------------------------------ approval
+class RequiredSignature(BaseModel):
+    """One signature policy demands, in order (approval-rules.yaml `signatures`)."""
+
+    role: str
+    authority: str
+    # SOP-OPS-008 names who recommends and who approves; both sign.
+    capacity: Literal["recommends", "approves"]
+    clause: str | None = None
+    rule: str | None = None
+
+
+class ApprovalSignature(BaseModel):
+    """A signature given: who, in what capacity, against which version."""
+
+    role: str
+    authority: str
+    capacity: Literal["recommends", "approves"]
+    user_id: str
+    username: str
+    name: str
+    comment: str | None = None
+    signed_at: datetime
+    # A signature is for the version read. If the run changes, it is void.
+    review_digest: str
+
+
 class ApprovalRecord(BaseModel):
     required: bool
     reasons: list[str] = Field(default_factory=list)
     approver_roles: list[str] = Field(default_factory=list)
     decision: Literal["pending", "approved", "rejected", "revision_requested"] | None = None
+    # A High finding needs more than one signature (SOP-OPS-008 Clause 3.5).
+    # Until every one is given the run stays held, and the interface reads
+    # WAITING FOR SECOND AUTHORITY. Empty for a single-approver task.
+    required_signatures: list[RequiredSignature] = Field(default_factory=list)
+    signatures: list[ApprovalSignature] = Field(default_factory=list)
     reviewer_id: str | None = None
     reviewer_name: str | None = None
     comment: str | None = None
@@ -602,6 +649,9 @@ class Task(BaseModel):
     # Set when the request came from a skill: the prompt above is the skill's
     # rendering, and this is what the person typed and which skill made it.
     skill: SkillInvocation | None = None
+    # The run this one re-ran (POST /api/runs/{id}/rerun), so the two can be
+    # compared and the new one never passes for an unrelated first attempt.
+    parent_task_id: str | None = None
     routing: list[RoutingDecision] = Field(default_factory=list)
     # One record per model call, in the order they ran. Persisted with the
     # task, so a run reopened later reports what it cost rather than only
@@ -653,6 +703,7 @@ class TaskSummary(BaseModel):
     # The skill the request went through, so a list can show "/clause" and
     # what was typed rather than the skill's whole rendering.
     skill: SkillInvocation | None = None
+    parent_task_id: str | None = None
 
 
 # ----------------------------------------------------------------- knowledge
@@ -687,7 +738,7 @@ class KnowledgeSearchRequest(BaseModel):
 
 class KnowledgeSearchResponse(BaseModel):
     query: str
-    retrieval_mode: Literal["embedding", "lexical"]
+    retrieval_mode: Literal["hybrid", "lexical"]
     results: list[EvidenceItem]
     took_ms: int
 
@@ -726,6 +777,36 @@ class NetworkConnection(BaseModel):
     reason: str
 
 
+class FirewallCounter(BaseModel):
+    packets: int
+    bytes: int
+
+
+class EgressFirewallStatus(BaseModel):
+    """The host egress firewall as read back from the kernel, or why it was not.
+
+    ``state`` is one of ``enforced`` (the table is loaded and its output chain
+    drops by default), ``not_default_deny`` (loaded, but the policy is not
+    drop), ``not_present`` (nft answered and the table is not loaded) or
+    ``not_measurable`` (not Linux, no nft, or nft refused). Every figure is
+    None unless it was read: a host that could not be asked reports no
+    counters, never zero.
+    """
+
+    state: Literal["enforced", "not_default_deny", "not_present", "not_measurable"]
+    measurable: bool
+    present: bool | None = None
+    reason: str | None = None
+    table: str
+    output_policy: str | None = None
+    denied_packets: int | None = None
+    denied_bytes: int | None = None
+    allowed_packets: int | None = None
+    counters: dict[str, FirewallCounter] = Field(default_factory=dict)
+    ruleset_sha256: str | None = None
+    read_at: datetime
+
+
 class SovereigntyStatus(BaseModel):
     sovereign: bool
     external_api_calls: int = 0
@@ -741,6 +822,9 @@ class SovereigntyStatus(BaseModel):
     monitor_active: bool = True
     monitor_error: str | None = None
     interfaces: dict[str, Any] = Field(default_factory=dict)
+    # The kernel-enforced layer underneath the monitor: the nftables egress
+    # table and its drop counters. None until the first read.
+    firewall: EgressFirewallStatus | None = None
 
 
 # ---------------------------------------------------------------- sse events
@@ -760,7 +844,7 @@ class SystemHealth(BaseModel):
     models_available: int
     knowledge_documents: int
     knowledge_chunks: int
-    retrieval_mode: Literal["embedding", "lexical", "unavailable"]
+    retrieval_mode: Literal["hybrid", "lexical", "unavailable"]
     sandbox_runtime: str
     sandbox_ready: bool
     audit_chain_valid: bool

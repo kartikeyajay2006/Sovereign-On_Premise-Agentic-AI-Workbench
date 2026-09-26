@@ -8,7 +8,11 @@ verification verdicts, the approval and the digest it was given against,
 and the deliverables' bytes. It carries the signed audit root taken when it
 was issued and a Merkle inclusion proof for each of the run's audit events,
 so a holder of the public key alone can show the events existed under a
-root this host signed. Online, verification also re-reads the log and the
+root this host signed. From version 2 it also carries the run's provenance
+(proof/provenance.py): the digest of every model that served it, the config
+and policy files it ran under, the prompt library version, what the egress
+monitor and the sandbox measured, and the formula sources behind its figures.
+Online, verification also re-reads the log and the
 deliverable files, and says which of them no longer match.
 """
 
@@ -24,6 +28,7 @@ from backend.core.audit import AuditLog
 from backend.core.schemas import Task
 from backend.proof.audit_roots import AuditSeal
 from backend.proof.merkle import inclusion_proof, merkle_root, verify_inclusion
+from backend.proof.provenance import from_audit, run_provenance
 from backend.proof.signer import HostSigner, canonical, verify
 
 
@@ -50,7 +55,12 @@ def review_digest(task: Task) -> str:
     return hashlib.sha256(canonical(body)).hexdigest()
 
 
-def _body(task: Task) -> dict[str, Any]:
+#: The certificate format issued now. Version 1 (no provenance) still
+#: verifies: the checks that read provenance run only on version 2 and later.
+CERTIFICATE_VERSION = 2
+
+
+def _body(task: Task, records: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     verification = task.verification
     claims: dict[str, int] = {}
     for claim in verification.claims if verification else []:
@@ -97,13 +107,23 @@ def _body(task: Task) -> dict[str, Any]:
             {"required": task.approval.required, "decision": task.approval.decision,
              "reviewer_id": task.approval.reviewer_id,
              "decided_at": task.approval.decided_at.isoformat() if task.approval.decided_at else None,
-             "bound_digest": getattr(task.approval, "bound_digest", None)}
+             "bound_digest": getattr(task.approval, "bound_digest", None),
+             # Each signature of a multi-signature approval, with the digest
+             # it was given on (SOP-OPS-008 Clause 3.5).
+             "signatures": [
+                 {"authority": s.authority, "capacity": s.capacity, "user_id": s.user_id,
+                  "signed_at": s.signed_at.isoformat(), "review_digest": s.review_digest}
+                 for s in task.approval.signatures
+             ]}
             if task.approval else None
         ),
         "review_digest": review_digest(task),
         "deliverables": [{"filename": d.filename, "sha256": d.sha256, "released": d.released}
                          for d in task.deliverables],
         "policy_events": len(task.policy_events),
+        # Inside the run body, so it is under the content hash and the
+        # signature: an edited digest or config hash fails both.
+        **({"provenance": run_provenance(task, records)} if records is not None else {}),
     }
 
 
@@ -118,9 +138,9 @@ def issue_certificate(task: Task, audit: AuditLog, seal: AuditSeal, signer: Host
     ]
     content = {
         "type": "aegis.run-certificate",
-        "version": 1,
+        "version": CERTIFICATE_VERSION,
         "issued_at": datetime.now(timezone.utc).isoformat(),
-        "run": _body(task),
+        "run": _body(task, records),
         "audit": {"root": root, "events": events},
     }
     content_sha256 = hashlib.sha256(canonical(content)).hexdigest()
@@ -164,6 +184,13 @@ def verify_certificate(
     check("audit inclusion", bool(events) and all(included),
           f"{sum(included)} of {len(events)} run events proven under the signed root")
 
+    version = int(certificate.get("version") or 1)
+    provenance = (certificate.get("run") or {}).get("provenance")
+    if version >= 2:
+        check("provenance present", isinstance(provenance, dict),
+              "the run's model digests, config hashes, egress and sandbox record are in the signed body"
+              if isinstance(provenance, dict) else f"a version {version} certificate must carry provenance")
+
     if audit is not None:
         # The leaves are the events' stored hashes, so the root alone cannot
         # see an event whose content was edited and whose hash was left be;
@@ -179,6 +206,30 @@ def verify_certificate(
         check("log reproduces the root", reproduced,
               "the current log's first events still produce the certified root" if reproduced
               else "the log no longer produces the certified root: it was rewritten or truncated")
+        if version >= 2 and isinstance(provenance, dict):
+            # The audit-derived provenance is a function of the certified
+            # events alone, so the log must still produce exactly it.
+            task_id = (certificate.get("run") or {}).get("task_id", "")
+            derived = from_audit(task_id, records[:count])
+            stated = {"models": provenance.get("models"), "config": provenance.get("config"),
+                      "egress_monitor": (provenance.get("egress") or {}).get("monitor")}
+            differing = [key for key in stated if canonical(stated[key]) != canonical(derived[key])]
+            check("provenance matches the log", not differing,
+                  "model digests, config snapshot and egress reading are what the log recorded"
+                  if not differing else f"the log records different {', '.join(differing)}")
+    if version >= 2 and isinstance(provenance, dict) and provenance.get("formulas"):
+        from backend.engineering.formulas import FORMULAS
+
+        changed = [
+            f"{item['formula']}@{item['version']}" for item in provenance["formulas"]
+            if (current := FORMULAS.get(item["formula"])) is not None
+            and current.version == item["version"] and current.source_hash != item["source_sha256"]
+        ]
+        # A newer version is a legitimate supersession; the same version with
+        # a different source is a formula edited without a version bump.
+        check("formula sources", not changed,
+              "each certified formula version still has the certified source on this host"
+              if not changed else f"changed without a version bump: {', '.join(changed)}")
     if deliverables_dir is not None:
         task_id = (certificate.get("run") or {}).get("task_id", "")
         for deliverable in (certificate.get("run") or {}).get("deliverables", []):

@@ -188,6 +188,15 @@ export const api = {
     await request<void>(`/skills/${encodeURIComponent(skillId)}`, { method: 'DELETE' })
   },
 
+  /**
+   * Submit a finished run's request again. The API rebuilds it from the
+   * record -- prompt or skill input, files, format, model choice -- and the
+   * new run carries the original as its parent, so the two can be compared.
+   */
+  async rerunTask(taskId: string): Promise<Task> {
+    return request<Task>(`/runs/${encodeURIComponent(taskId)}/rerun`, { method: 'POST' })
+  },
+
   async cancelTask(taskId: string): Promise<Task> {
     return request<Task>(`/tasks/${taskId}/cancel`, { method: 'POST' })
   },
@@ -230,6 +239,24 @@ export const api = {
     }
 
     return res.json()
+  },
+
+  /**
+   * One of the demo's sample files (GET /api/samples/{id}), as a File the
+   * composer then uploads through POST /files like any other: the sample is
+   * quarantined, scanned and classified exactly as a chosen file would be.
+   */
+  async readSample(id: string): Promise<File> {
+    const token = getAuthToken()
+    const res = await fetch(`${API_BASE}/samples/${encodeURIComponent(id)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new ApiError(res.status, err.detail || 'Sample not available')
+    }
+    const name = /filename="?([^";]+)"?/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? id
+    return new File([await res.blob()], name)
   },
 
   // ----------------------------------------------------------- sovereignty

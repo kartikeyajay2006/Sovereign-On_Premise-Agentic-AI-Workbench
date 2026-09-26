@@ -2,7 +2,9 @@ name: sovereign-workbench
 
 services:
   model-server:
-    image: ollama/ollama:0.5.7
+    # The version the demo host serves the pinned model digests from
+    # (config/models.yaml). qwen3 and qwen2.5vl do not load on 0.5.x.
+    image: ollama/ollama:0.34.4
     restart: unless-stopped
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
@@ -48,6 +50,9 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      # Baked into the /api rewrite at build time; see frontend/Dockerfile.
+      args:
+        WORKBENCH_API_URL: http://model-server:8000
     restart: unless-stopped
     environment:
       WORKBENCH_API_URL: http://model-server:8000

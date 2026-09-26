@@ -22,7 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api.routes import engineering, harnesses, proof, sandbox, skills, system, tasks
+from backend.api.routes import engineering, harnesses, proof, runs, samples, sandbox, skills, system, tasks
 from backend.api.task_service import get_task_service
 from backend.core.analyzer import get_task_analyzer
 from backend.core.audit import get_audit_log
@@ -118,6 +118,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         },
     )
 
+    # A configured container runtime is probed once at startup, off the event
+    # loop: a probe container is started with the production flags and must
+    # prove no network, a read-only root, non-root and no capabilities before
+    # the sandbox will use it. The verdict, pass or fail, goes on the record.
+    if str(config.settings.sandbox.get("runtime", "subprocess")).lower() in {"podman", "docker"}:
+        from backend.tools.sandbox import get_sandbox
+
+        sandbox = get_sandbox()
+        effective = await asyncio.to_thread(lambda: sandbox.runtime)
+        audit.record(
+            category="system",
+            action="sandbox_runtime_probe",
+            actor="system",
+            detail={"runtime": effective, "probe": sandbox.container_probe()},
+        )
+        print(f"[workbench] sandbox runtime: {effective}")
+
     created = get_identity_service().ensure_seed_users()
     if created:
         print(f"[workbench] seeded identities: {', '.join(created)}")
@@ -181,6 +198,8 @@ def create_app() -> FastAPI:
     application.include_router(skills.router)
     application.include_router(engineering.router)
     application.include_router(proof.router)
+    application.include_router(runs.router)
+    application.include_router(samples.router)
 
     @application.exception_handler(NonLocalEndpointError)
     async def non_local_endpoint_handler(

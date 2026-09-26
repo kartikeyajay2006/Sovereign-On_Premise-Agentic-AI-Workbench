@@ -24,12 +24,15 @@ from itertools import groupby
 from pathlib import Path
 from typing import Any, Awaitable, Callable, TypeVar
 
+from backend.agents.code_extraction import extract_python
 from backend.agents.verifier import get_verification_engine
+from backend.agents.vision_cache import VisionCache, identity as vision_cache_identity
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
 from backend.engineering.stage import (
     as_deliverable_calculations,
+    authority_statement,
     assess_with_conflicts,
     conflict_records,
     decision_lines,
@@ -38,15 +41,20 @@ from backend.engineering.stage import (
     revision_conflicts,
     unresolved,
 )
+from backend.engineering.stated import assess_stated, bind_stated, extraction_request as stated_variables
 from backend.knowledge.revisions import ACTIVE, DOC_CODE, HISTORY_REQUEST
+from backend.engineering.facts import fact_block, fact_conflicts
 from backend.engineering.pid import DrawingError, get_drawing_library, summary_lines
+from backend.security import dlp
 from backend.security.injection import neutralise, screen
 from backend.core.schemas import (
     AgentPlan,
     ApprovalRecord,
+    CalculationRecord,
     ConflictRecord,
     ConflictResolution,
     EvidenceItem,
+    IntegrityAssessment,
     ModelDescriptor,
     ModelUsage,
     PlanStep,
@@ -78,8 +86,12 @@ from backend.rag.parsing import inspect_pdf_pages
 from backend.tools.registry import ToolContext, get_tool_registry
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
-CODE_FENCE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
 JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+# A question about wall thickness or remaining life, whose values may be
+# written in the request itself rather than in an inspection record.
+STATED_SUBJECT = re.compile(
+    r"thick|wall loss|t[-_ ]?min|remaining life|corrosion rate|retirement", re.IGNORECASE
+)
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 # A numeric result worth recomputing: a figure carrying a unit, or an explicit
 # equality. Prose with no such assertion needs no calculation check.
@@ -155,6 +167,7 @@ def _usage_record(
         stage=stage,
         model=descriptor.id,
         display_name=descriptor.display_name,
+        model_digest=descriptor.actual_digest,
         prompt_tokens=result.prompt_eval_count if result else None,
         output_tokens=result.eval_count if result else None,
         latency_ms=latency_ms,
@@ -187,6 +200,29 @@ def _needs_plan(profile: TaskProfile, files: list[StoredFile]) -> bool:
         or profile.produces_deliverable
         or files
     )
+
+
+DATA_SUFFIXES = {".csv", ".xlsx", ".xls"}
+
+
+def _template_plan_reason(
+    profile: TaskProfile, files: list[StoredFile], min_confidence: float
+) -> str | None:
+    """Why the plan can come from the task shape, or None to ask the model.
+
+    The pipeline runs from the profile; a model plan's only effect on it is
+    adding code execution the classifier did not require. Where that cannot
+    happen, or would be a guess against a confident classification, the
+    model call is 40 seconds spent reproducing the template.
+    """
+    if profile.requires_code_execution:
+        return "code execution is already required"
+    if any(Path(stored.filename).suffix.lower() in DATA_SUFFIXES for stored in files):
+        # A spreadsheet may want code the classifier did not see a need for.
+        return None
+    if profile.confidence >= min_confidence:
+        return f"classified {profile.task_type.value} at confidence {profile.confidence:.2f}"
+    return None
 
 
 @dataclass(frozen=True)
@@ -251,14 +287,25 @@ def _topology_block(task: Task) -> str:
 
 
 def _model_text(item: EvidenceItem) -> str:
-    """An excerpt as the model may see it: instruction-like sentences withheld.
+    """An excerpt as the model may see it: sensitive values and instructions withheld.
 
-    The sentences stay on the evidence item, whole, for a reviewer; the model
-    is shown a marker saying what kind of instruction was removed.
+    Content scanning runs first, at the prompt boundary of policies/dlp.yaml:
+    a value the policy redacts is replaced by a marker naming its detector,
+    and an item carrying a value the policy blocks is not shown at all. Then
+    instruction-like sentences are replaced by a marker saying what kind of
+    instruction was removed. The excerpt itself stays whole on the evidence
+    item for a reviewer. The scan is repeated here, on every use, rather than
+    trusted from a flag, so no prompt can be built from an unscanned excerpt.
     """
+    text = item.excerpt or ""
+    content = dlp.scan(text, "prompt")
+    if content.action == "block":
+        withheld = ", ".join(sorted({f.detector for f in content.acting("block")}))
+        return f"[evidence withheld from the model by content scanning: it contains {withheld}]"
+    text = dlp.redact(text, content, actions=("redact",))
     if (item.extraction_data or {}).get("instruction_like"):
-        return neutralise(item.excerpt or "")
-    return item.excerpt or ""
+        return neutralise(text)
+    return text
 
 
 def _resolved_value(
@@ -402,6 +449,35 @@ def _raised_reason(items: list[EvidenceItem], level: Sensitivity) -> str:
     return (
         f"classification_raised: Evidence {source} {verb} {level.value}, "
         f"so the run is {level.value} too."
+    )
+
+
+def _prompt_safe(text: str) -> str:
+    """Tool output bound for a prompt, with what the prompt boundary redacts or blocks masked.
+
+    Evidence excerpts go through `_model_text`; this is for the few prompt
+    inputs that are not evidence items -- a spreadsheet's structure, a
+    program's stdout -- which may quote a cell verbatim.
+    """
+    return dlp.redact(text or "", dlp.scan(text or "", "prompt"))
+
+
+def _dlp_holds(task: Task) -> int:
+    """Content-scanning events that hold the run for an approving authority.
+
+    A value whose policy is require_approval, anywhere; and a block of the
+    answer or the deliverable, which leaves a person to decide what is
+    released. A block at the prompt boundary only withholds an excerpt from
+    the model, and the run continues without it.
+    """
+    return sum(
+        1
+        for event in task.policy_events
+        if event.action.startswith("dlp.")
+        and (
+            event.decision == PolicyDecision.REQUIRE_APPROVAL
+            or (event.decision == PolicyDecision.DENY and event.action != "dlp.prompt")
+        )
     )
 
 
@@ -655,6 +731,10 @@ class AgentOrchestrator:
                 "stage": stage,
                 "model": descriptor.id,
                 "model_version": descriptor.quantization,
+                # The runtime's digest of the weights that answer, so the run
+                # certificate pins an artifact rather than a re-pullable name.
+                "model_digest": descriptor.actual_digest,
+                "integrity": descriptor.integrity,
                 "routing_reason": decision.reason,
                 "provider": descriptor.provider,
                 "memory_admission": admission,
@@ -810,10 +890,12 @@ class AgentOrchestrator:
         last_flush = 0.0
         FLUSH_INTERVAL = 0.05
 
-        async def flush() -> None:
+        async def flush(final: bool = False) -> None:
             nonlocal sent
-            visible = _visible_so_far(raw)
-            if len(visible) > len(sent):
+            # Masked as the answer boundary masks the finished answer, every
+            # frame, because every frame is the whole text so far.
+            visible = dlp.mask_stream(_visible_so_far(raw), final=final)
+            if visible != sent:
                 sent = visible
                 # The whole visible text, not the delta since the last frame.
                 #
@@ -856,7 +938,7 @@ class AgentOrchestrator:
                     last_flush = now
                     await flush()
 
-        await flush()
+        await flush(final=True)
 
         return GenerationResult.from_runtime(
             text=raw,
@@ -1012,12 +1094,17 @@ class AgentOrchestrator:
                 f"Vision extraction left pages empty in {batch[0].source.filename}; retrying individually"
             )
 
+        cache_marker = extraction.get("_vision_cache") if isinstance(extraction, dict) else None
         ordered: list[dict[str, Any]] = []
         for item in batch:
             number = item.page_number
             assert number is not None
             reported = source_pages[number]
             page = {**reported, "page_number": number}
+            if cache_marker:
+                # Read earlier by the same weights with the same prompt; the
+                # evidence says so, and names when.
+                page["vision_cache"] = cache_marker
             unlabelled = page.pop("_unlabelled", False)
             if unlabelled:
                 page["model_reported_page_number"] = None
@@ -1100,12 +1187,14 @@ class AgentOrchestrator:
                 observations.append(("transcribed content", str(extraction["transcription"])[:1500]))
         if not observations:
             observations.append(("transcribed content", raw[:1500]))
+        cache_marker = extraction.get("_vision_cache") if isinstance(extraction, dict) else None
         added_ids: list[str] = []
         for location, content in observations:
             added = ledger.add(EvidenceItem(
                 id="pending", source_document=item.source.filename,
                 document_id=item.source.id, location=location,
                 excerpt=content, extraction_method="vision", extraction_model=model_id,
+                extraction_data={"vision_cache": cache_marker} if cache_marker else None,
                 source_sha256=item.source.sha256,
                 classification=task.profile.sensitivity, kind="vision_extraction",
             ))
@@ -1120,9 +1209,14 @@ class AgentOrchestrator:
         user: User,
         *,
         extraction: dict[str, Any] | None = None,
+        template_reason: str | None = None,
     ) -> AgentPlan:
         assert task.profile is not None
         profile = task.profile
+        if template_reason is not None:
+            return await self._record_plan(
+                task, user, self._fallback_plan(profile), {}, source="template", reason=template_reason
+            )
         available = self.tools.available_for(user, profile.sensitivity)
         catalogue = "\n".join(
             f"- {entry['name']}: {entry['description']}"
@@ -1191,11 +1285,27 @@ class AgentOrchestrator:
                 )
             )
 
+        source = "model"
         if not steps:
             # A deterministic plan derived from the profile, used when the model
             # returns nothing usable. The workflow is never left undefined.
             steps = self._fallback_plan(profile)
+            source = "fallback"
+        return await self._record_plan(task, user, steps, parsed, source=source)
 
+    async def _record_plan(
+        self,
+        task: Task,
+        user: User,
+        steps: list[PlanStep],
+        parsed: dict[str, Any],
+        *,
+        source: str,
+        reason: str | None = None,
+    ) -> AgentPlan:
+        """Store, announce and audit a plan, whoever made it."""
+        assert task.profile is not None
+        profile = task.profile
         plan = AgentPlan(
             steps=steps[: profile.step_budget],
             expected_outputs=[str(item) for item in (parsed.get("expected_outputs") or [])],
@@ -1211,6 +1321,7 @@ class AgentOrchestrator:
                 "steps": [step.model_dump(mode="json") for step in plan.steps],
                 "expected_outputs": plan.expected_outputs,
                 "risks": plan.risks,
+                "source": source,
             },
         )
         self.audit.record(
@@ -1219,7 +1330,12 @@ class AgentOrchestrator:
             actor=user.username,
             actor_role=user.role,
             task_id=task.id,
-            detail={"step_count": len(plan.steps), "plan_version": plan.version},
+            detail={
+                "step_count": len(plan.steps),
+                "plan_version": plan.version,
+                "source": source,
+                **({"reason": reason} if reason else {}),
+            },
         )
         return plan
 
@@ -1273,8 +1389,14 @@ class AgentOrchestrator:
         return steps
 
     async def _vision_extraction(
-        self, task: Task, user: User, batch: list[VisualInput]
+        self, task: Task, user: User, batch: list[VisualInput], *, refresh: bool = False,
     ) -> tuple[dict[str, Any] | None, str, str]:
+        """Read one batch of images with the vision model, or from the cache.
+
+        `refresh` skips the cache look-up (the fresh reading still replaces
+        the entry): a retry after a reading failed validation must ask the
+        model again, not be handed the same cached answer.
+        """
         if batch[0].page_number is not None:
             labels = "; ".join(
                 f"image {index} = page {item.page_number}"
@@ -1293,17 +1415,150 @@ class AgentOrchestrator:
             )
         else:
             prompt = self.config.prompt("task.vision_extract", prompt=task.prompt)
+        system_prompt = self.config.system_prompt("vision")
+        images = [item.path for item in batch]
+
+        cached = await self._vision_cache_lookup(task, user, images, system_prompt, prompt, refresh=refresh)
+        if cached is not None and cached[0] == "hit":
+            entry, marker = cached[1], cached[2]
+            parsed = _parse_json(entry["text"])
+            if isinstance(parsed, dict):
+                parsed["_vision_cache"] = marker
+            # The model that produced the reading, not whatever is loaded now.
+            return parsed, entry["text"], str(entry["model"])
+
         text, decision = await self._generate(
             task,
             user,
             stage="vision_extraction",
-            system_prompt=self.config.system_prompt("vision"),
+            system_prompt=system_prompt,
             prompt=prompt,
-            images=[item.path for item in batch],
+            images=images,
             format_json=True,
         )
+        if cached is not None and cached[0] == "miss":
+            self._vision_cache_store(task, user, cached[1], cached[2], text, decision)
         parsed = _parse_json(text)
         return parsed, text, decision.selected_model or "unknown"
+
+    def _vision_cache(self) -> VisionCache | None:
+        settings = self.config.settings.get("vision_cache") or {}
+        if not settings.get("enabled", True):
+            return None
+        path = Path(str(settings.get("path") or "vision-cache"))
+        return VisionCache(path if path.is_absolute() else self.config.settings.storage_root / path)
+
+    async def _vision_route(self, task: Task) -> tuple[RoutingDecision, Any] | None:
+        """The model a vision call would be routed to, without making the call.
+
+        Routed the way `_generate` routes it, so the key names the weights
+        that would read the page. None when routing cannot say: the call then
+        goes to `_generate`, which reports the failure properly.
+        """
+        assert task.profile is not None
+        try:
+            decision = await self.router.route(
+                task.profile, stage="vision_extraction", extra_capabilities=["vision"],
+                preferred_model=task.preferred_model,
+            )
+            if not decision.selected_model:
+                return None
+            return decision, await self.router.resolve_descriptor(decision)
+        except Exception:
+            return None
+
+    async def _vision_cache_lookup(
+        self, task: Task, user: User, images: list[Path], system_prompt: str, prompt: str,
+        *, refresh: bool = False,
+    ) -> tuple[str, Any, Any] | None:
+        """("hit", entry, marker), ("miss", cache, identity), or None when not cacheable.
+
+        A hit is admitted exactly as a model call would be -- the routing
+        decision recorded, the model policy checked against this run's
+        classification -- because a cache must never be a way to read a page
+        the run could not have sent to that model. Only the inference is
+        skipped, and the audit says so.
+        """
+        cache = self._vision_cache()
+        if cache is None:
+            return None
+        routed = await self._vision_route(task)
+        if routed is None:
+            return None
+        decision, descriptor = routed
+        digest = getattr(descriptor, "actual_digest", None)
+        if not digest:
+            # No runtime digest, nothing to prove the weights are the same.
+            return None
+        ident = vision_cache_identity(
+            images, digest, self.config.prompts.get("prompts_version"), system_prompt, prompt,
+        )
+        entry = None if refresh else cache.get(ident)
+        if entry is None:
+            return "miss", cache, (ident, descriptor)
+
+        assert task.profile is not None
+        task.routing.append(decision)
+        self._checkpoint(task)
+        policy_event = self.gateway.check_model(
+            user, descriptor.id, approved_classifications=descriptor.approved_classifications,
+            registered=descriptor.registered, sensitivity=task.profile.sensitivity, task_id=task.id,
+        )
+        task.policy_events.append(policy_event)
+        if policy_event.decision != PolicyDecision.ALLOW:
+            raise NoEligibleModelError(policy_event.reason)
+        marker = {"hit": True, "key": ident.key, "extracted_at": entry["extracted_at"],
+                  "extracted_for_task": entry.get("extracted_for_task"), "model_digest": digest}
+        self.audit.record(
+            category="model",
+            action="vision_cache_hit",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={
+                "stage": "vision_extraction",
+                "model": entry["model"],
+                "model_digest": digest,
+                "integrity": descriptor.integrity,
+                "cache_key": ident.key,
+                "original_extracted_at": entry["extracted_at"],
+                "original_task_id": entry.get("extracted_for_task"),
+                "prompts_version": ident.prompts_version,
+                "image_sha256": list(ident.image_sha256),
+                "local_only": True,
+            },
+        )
+        await self._emit(task, "task.vision_cache_hit", {
+            "model": entry["model"], "key": ident.key, "extracted_at": entry["extracted_at"],
+            "images": len(images),
+        })
+        return "hit", entry, marker
+
+    def _vision_cache_store(
+        self, task: Task, user: User, cache: VisionCache, pending: tuple[Any, Any],
+        text: str, decision: RoutingDecision,
+    ) -> None:
+        """Keep a fresh reading, when it came from the weights the key names."""
+        ident, descriptor = pending
+        if decision.selected_model != descriptor.id:
+            # Routed to another model between the look-up and the call: the
+            # key's digest is not this reading's, so it is not stored.
+            return
+        try:
+            cache.put(ident, text=text, model=descriptor.id, task_id=task.id)
+        except OSError as exc:
+            # A full disk costs the next run time, never this run its reading.
+            self.audit.record(
+                category="model", action="vision_cache_store_failed", actor=user.username,
+                actor_role=user.role, task_id=task.id,
+                detail={"cache_key": ident.key, "reason": f"{type(exc).__name__}: {exc}"[:300]},
+            )
+            return
+        self.audit.record(
+            category="model", action="vision_cache_stored", actor=user.username,
+            actor_role=user.role, task_id=task.id,
+            detail={"model": descriptor.id, "model_digest": ident.model_digest, "cache_key": ident.key},
+        )
 
     async def _extract_pdf_batch(
         self, task: Task, user: User, ledger: EvidenceLedger,
@@ -1317,7 +1572,7 @@ class AgentOrchestrator:
                 # A small vision model is not deterministic: one malformed
                 # answer about one page is asked again once before the run
                 # is failed on it.
-                parsed, _, model_id = await self._vision_extraction(task, user, batch)
+                parsed, _, model_id = await self._vision_extraction(task, user, batch, refresh=True)
                 return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
             # Do not discard a whole batch because its page labels or count
             # were ambiguous. Single-image calls have an unambiguous source.
@@ -1396,6 +1651,7 @@ class AgentOrchestrator:
         extraction: dict[str, Any] | None = None
         sandbox_result: SandboxResult | None = None
         draft_content: dict[str, Any] | None = None
+        deliverable_floor: str | None = None
         answer_text = ""
         limitations: list[str] = []
 
@@ -1472,10 +1728,23 @@ class AgentOrchestrator:
             needs_plan = _needs_plan(profile, task.files)
 
             if needs_plan:
-                await self._stage(
-                    task, TaskStatus.PLANNED, "Producing an execution plan", phase="planning"
+                template = _template_plan_reason(
+                    profile,
+                    task.files,
+                    float(self.config.settings.agent.get("template_plan_min_confidence", 0.6)),
                 )
-                task.plan = await self._plan(task, user, extraction=extraction)
+                await self._stage(
+                    task,
+                    TaskStatus.PLANNED,
+                    "Producing an execution plan"
+                    if template is None
+                    else f"Plan taken from the task shape: {template}",
+                    None if template is None else {"template": True},
+                    phase="planning",
+                )
+                task.plan = await self._plan(
+                    task, user, extraction=extraction, template_reason=template
+                )
                 planned_actions = {step.action for step in task.plan.steps}
             else:
                 # Said, not silently skipped. A stage that did not run must
@@ -1575,10 +1844,17 @@ class AgentOrchestrator:
             # A question about the plant's piping -- how to isolate a vessel,
             # what feeds it -- is answered from the drawing's graph.
             await self._topology_stage(task, user, ledger)
+            # Two sources stating different values for one attribute of one
+            # tag or clause, outside the formula inputs: a fact conflict.
+            await self._fact_stage(task, user, ledger)
             # Document text is evidence, never instruction. Sentences in it
             # addressed to the model are kept for the reviewer and withheld
             # from every prompt from here on.
             await self._screen_evidence(task, user)
+            # What the evidence carries -- a credential, a personal number, a
+            # marking -- is recorded, and redacted or withheld from every
+            # prompt as policies/dlp.yaml says (`_model_text`).
+            await self._scan_evidence(task, user)
 
             # ------------------------------------------ code execution
             #
@@ -1607,6 +1883,9 @@ class AgentOrchestrator:
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "running")
                 sandbox_result = await self._run_code_stage(task, user, context, ledger)
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "done")
+                # The program's output is evidence too, and may quote a
+                # spreadsheet cell; record what it carries.
+                await self._scan_evidence(task, user)
 
             # ---------------------------------------------- reasoning
             await self._stage(
@@ -1617,6 +1896,9 @@ class AgentOrchestrator:
             )
             self._mark_step(task, {"reason", "analysis"}, "running")
             answer_text = await self._reason(task, user, evidence, extraction, sandbox_result)
+            limitations.extend(
+                f"Content scanning: {event.reason}" for event in task.policy_events if event.action == "dlp.answer"
+            )
             answer_text, restored = _complete_topology(answer_text, task.topology)
             if restored:
                 limitations.append(
@@ -1743,12 +2025,25 @@ class AgentOrchestrator:
                     task, user, answer_text, evidence,
                     [*as_deliverable_calculations(task.calculations), *checked_calculations],
                 )
+                # The release boundary: what the document would carry,
+                # redacted or withheld as policies/dlp.yaml says, before it
+                # is kept or rendered.
+                if draft_content is not None:
+                    draft_content, deliverable_floor = await self._scan_deliverable(
+                        task, user, draft_content, evidence, limitations
+                    )
                 # Persist the exact structured source that is handed to the
                 # renderer. The workbench can now offer an in-place reading
                 # view next to the file without reverse-engineering a DOCX or
                 # pretending the shorter chat answer is the document itself.
+                # The authority line is added here as well as at render, so the
+                # stored source still is what the renderer is handed.
+                authority = authority_statement(task.assessment) if task.assessment is not None else None
+                if draft_content is not None and authority:
+                    draft_content = {**draft_content, "authority": authority}
                 task.deliverable_content = draft_content
-                checks.append(self.verifier.check_document(draft_content, evidence))
+                if draft_content is not None:
+                    checks.append(self.verifier.check_document(draft_content, evidence))
                 self._mark_step(task, {"document_generate"}, "done")
 
             task.verification = self.verifier.compile_report(
@@ -1816,6 +2111,45 @@ class AgentOrchestrator:
                     },
                 )
 
+            # What leaves -- the answer and the deliverable, after redaction --
+            # is at least as sensitive as the values content scanning found
+            # still in it. Only rises, like the evidence rule above.
+            released_floors = [
+                level for level in (dlp.scan(answer_text, "answer").floor, deliverable_floor) if level
+            ]
+            content_level = (
+                max(released_floors, key=self.config.classification_rank) if released_floors else None
+            )
+            content_raised: str | None = None
+            if content_level is not None and self.config.classification_rank(
+                content_level
+            ) > self.config.classification_rank(profile.sensitivity.value):
+                previous = profile.sensitivity
+                profile = profile.model_copy(update={"sensitivity": Sensitivity(content_level)})
+                task.profile = profile
+                self._checkpoint(task)
+                content_raised = (
+                    f"classification_raised: Content scanning found values classified {content_level} "
+                    f"in what this run releases, so the run is {content_level} too."
+                )
+                self.audit.record(
+                    category="policy",
+                    action="classification_raised",
+                    actor=user.username,
+                    actor_role=user.role,
+                    task_id=task.id,
+                    detail={"from": previous.value, "to": content_level, "because": ["content scanning"]},
+                )
+                await self._emit(
+                    task,
+                    "task.classified",
+                    {
+                        "sensitivity": content_level,
+                        "raised_from": previous.value,
+                        "reason": "content scanning found sensitive values in the output",
+                    },
+                )
+
             # ------------------------------------------------- approval
             required, reasons, approvers = self.gateway.approval_requirement(
                 profile,
@@ -1829,6 +2163,8 @@ class AgentOrchestrator:
                 decision_claims=sum(
                     1 for claim in task.verification.claims if claim.verdict == "REQUIRES_HUMAN_DECISION"
                 ),
+                severity=_calculated_severity(task),
+                dlp_findings=_dlp_holds(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -1838,11 +2174,16 @@ class AgentOrchestrator:
             # rule it triggered.
             if raised_by and any(r.startswith("sensitive_classification") for r in reasons):
                 reasons = [_raised_reason(raised_by, profile.sensitivity), *reasons]
+            if content_raised and any(r.startswith("sensitive_classification") for r in reasons):
+                reasons = [content_raised, *reasons]
             task.approval = ApprovalRecord(
                 required=required,
                 reasons=reasons,
                 approver_roles=approvers,
                 decision="pending" if required else None,
+                required_signatures=(
+                    self.gateway.required_signatures(_calculated_severity(task)) if required else []
+                ),
             )
 
             if required:
@@ -1968,7 +2309,7 @@ class AgentOrchestrator:
                 prompt=self.config.prompt("task.converse", prompt=task.prompt),
                 stream_to_user=True,
             )
-            text = text.strip()
+            text = await self._release_text(task, user, text.strip())
             await self._emit(task, "task.answer", {"answer": text})
             task.answer = text
             task.verification = VerificationReport(
@@ -1976,11 +2317,22 @@ class AgentOrchestrator:
                 checks=[],
                 limitations=[
                     "Conversational reply: nothing was retrieved and no claims were checked, "
-                    "because the message asked for none."
+                    "because the message asked for none.",
+                    *(f"Content scanning: {e.reason}" for e in task.policy_events if e.action == "dlp.answer"),
                 ],
                 completed_at=datetime.now(timezone.utc),
             )
             task.approval = ApprovalRecord(required=False)
+            if _dlp_holds(task) and task.profile is not None:
+                # A reply is short, but not exempt: what content scanning
+                # holds is held here as anywhere.
+                required, reasons, approvers = self.gateway.approval_requirement(
+                    task.profile, prompt=task.prompt, dlp_findings=_dlp_holds(task)
+                )
+                task.approval = ApprovalRecord(
+                    required=required, reasons=reasons, approver_roles=approvers,
+                    decision="pending" if required else None,
+                )
             self.audit.record(
                 category="agent",
                 action="conversational_reply",
@@ -1989,8 +2341,14 @@ class AgentOrchestrator:
                 task_id=task.id,
                 detail={"characters": len(text)},
             )
-            await self._stage(task, TaskStatus.DELIVERED, "Replied")
-            task.completed_at = datetime.now(timezone.utc)
+            if task.approval.required:
+                await self._stage(
+                    task, TaskStatus.AWAITING_APPROVAL, "Held for human approval before release",
+                    {"reasons": task.approval.reasons, "approver_roles": task.approval.approver_roles},
+                )
+            else:
+                await self._stage(task, TaskStatus.DELIVERED, "Replied")
+                task.completed_at = datetime.now(timezone.utc)
         except TaskCancelled:
             task.status = TaskStatus.CANCELLED
             task.error = "Stopped at your request."
@@ -2032,6 +2390,63 @@ class AgentOrchestrator:
             ):
                 step.status = status  # type: ignore[assignment]
 
+    async def _assess_stated(
+        self, task: Task, user: User, ledger: EvidenceLedger
+    ) -> tuple[list[CalculationRecord], IntegrityAssessment, list[Any]] | None:
+        """A remaining-life question whose values are written in the request.
+
+        The model only says which number is which variable; ``bind_stated``
+        keeps a value only when the question writes it with a unit of the
+        right dimension, and the registry computes. The request becomes H
+        evidence, so every input cites where it was read.
+        """
+        assert task.profile is not None
+        if not STATED_SUBJECT.search(task.prompt) or len(re.findall(r"\d", task.prompt)) < 2:
+            return None
+        try:
+            text, _ = await self._generate(
+                task,
+                user,
+                stage="verification",
+                system_prompt=self.config.system_prompt("reasoning"),
+                prompt=self.config.prompt(
+                    "task.identify_stated_inputs",
+                    question=task.prompt[:2000],
+                    variables=stated_variables(),
+                ),
+                format_json=True,
+            )
+        except (InferenceError, NoEligibleModelError):
+            return None
+        proposal = _parse_json(text) or {}
+        stated = bind_stated(task.prompt, proposal, None)
+        if not stated.bound:
+            return None
+        request = ledger.add(EvidenceItem(
+            id="pending",
+            kind="human",
+            source_document=f"Request by {user.display_name} ({user.role})",
+            location="values stated in the request",
+            excerpt=task.prompt[:2000],
+            extraction_method="stated in the request",
+            extraction_model="engineering/stated.py",
+            extraction_data={
+                "bound": {name: bound.stated for name, bound in stated.bound.items()},
+                "refused": stated.refused,
+            },
+            classification=task.profile.sensitivity,
+        ))
+        stated.source_evidence_id = request.id
+        for bound in stated.bound.values():
+            bound.evidence_id = request.id
+        assessed = assess_stated(stated)
+        if assessed is None:
+            return None
+        records, assessment = assessed
+        if stated.refused:
+            assessment.missing += [f"{name}: {why}" for name, why in stated.refused.items()]
+        return records, assessment, []
+
     async def _engineering_stage(
         self, task: Task, user: User, ledger: EvidenceLedger, profile: TaskProfile
     ) -> bool:
@@ -2052,6 +2467,8 @@ class AgentOrchestrator:
         result = assess_with_conflicts(
             ledger.items, include_retrieved=profile.task_type == TaskType.CALCULATION
         )
+        if result is None and profile.task_type == TaskType.CALCULATION:
+            result = await self._assess_stated(task, user, ledger)
         if result is None:
             await self._announce_conflicts(task, user, known)
             if profile.task_type == TaskType.CALCULATION:
@@ -2065,7 +2482,7 @@ class AgentOrchestrator:
             return False
         records, assessment, disputes = result
         task.conflicts = conflict_records(disputes, assessment.subject, ledger.items, task.conflicts)
-        assessment.conflicts = [record.id for record in unresolved(task.conflicts)]
+        assessment.conflicts = [record.id for record in unresolved(task.conflicts) if record.kind == "input"]
         await self._stage(
             task,
             TaskStatus.EXECUTING,
@@ -2116,8 +2533,38 @@ class AgentOrchestrator:
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
 
+    async def _fact_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
+        """Record where the sources contradict each other about a stated fact.
+
+        Extraction is deterministic (tags, clauses, quantities, dates), so no
+        model decides what disagrees. A contradiction becomes a ``fact``
+        conflict: announced and audited like an input conflict, told to the
+        model, and every claim that takes one side is CONFLICTED until a
+        person resolves it.
+        """
+        known = {record.id for record in task.conflicts}
+        task.conflicts = fact_conflicts(ledger.items, task.conflicts)
+        fresh = [record for record in task.conflicts if record.id not in known]
+        if not fresh:
+            return
+        await self._stage(
+            task,
+            TaskStatus.EXECUTING,
+            "Sources contradict each other on "
+            + ", ".join(record.label for record in fresh)
+            + ": held for a human resolution",
+            phase="engineering",
+        )
+        await self._announce_conflicts(task, user, known)
+
     async def _topology_stage(self, task: Task, user: User, ledger: EvidenceLedger) -> None:
         """Answer a P&ID question from the drawing's graph, as cited T evidence."""
+        # An attached drawing is read as a graph and answers first, with the
+        # authored graph as its cross-check rather than a silent substitute.
+        from backend.engineering.pid_extraction import topology_from_image
+
+        if await topology_from_image(self, task, user, ledger):
+            return
         try:
             result = get_drawing_library().question(task.prompt)
         except DrawingError as exc:
@@ -2204,6 +2651,203 @@ class AgentOrchestrator:
         if flagged:
             self._checkpoint(task)
         return flagged
+
+    # -- content scanning (policies/dlp.yaml) -------------------------------
+    async def _record_dlp(
+        self,
+        task: Task,
+        user: User,
+        *,
+        boundary: str,
+        subject: str,
+        entries: list[tuple[dlp.DlpFinding, str | None]],
+        reason: str,
+    ) -> PolicyEvent:
+        """One policy event, one audit record and one stream event for a scan.
+
+        The record names each detector, where it fired and the value's keyed
+        fingerprint. The value itself is never passed in, so it cannot be
+        written out.
+        """
+        strongest = max(
+            (finding for finding, _ in entries), key=lambda f: dlp.ACTIONS.index(f.action)
+        )
+        decision = {
+            "allow": PolicyDecision.ALLOW,
+            "redact": PolicyDecision.ALLOW,
+            "require_approval": PolicyDecision.REQUIRE_APPROVAL,
+            "block": PolicyDecision.DENY,
+        }[strongest.action]
+        event = PolicyEvent(
+            subject=subject,
+            action=f"dlp.{boundary}",
+            decision=decision,
+            reason=reason,
+            rule=f"dlp.yaml:detectors.{strongest.detector}.actions.{boundary}",
+            at=datetime.now(timezone.utc),
+        )
+        task.policy_events.append(event)
+        records = [finding.record(where) for finding, where in entries]
+        self.audit.record(
+            category="security",
+            action=f"dlp_{boundary}",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={"subject": subject, "action": strongest.action, "findings": records},
+        )
+        await self._emit(task, "task.policy", {
+            "subject": subject,
+            "decision": decision.value,
+            "reason": reason,
+            "findings": records,
+        })
+        return event
+
+    async def _scan_evidence(self, task: Task, user: User) -> int:
+        """Content-scan every evidence excerpt at the prompt boundary. Returns items found.
+
+        What the model is shown is decided by `_model_text`, which applies
+        the same policy on every use; this records what was found, once per
+        item, and raises an item's classification to what it was found to
+        carry -- the run inherits it at the classification stage.
+        """
+        found = 0
+        for item in task.evidence:
+            data = dict(item.extraction_data or {})
+            if "dlp" in data:
+                continue
+            content = dlp.scan(item.excerpt or "", "prompt").beyond(item.classification.value)
+            if not content.findings:
+                continue
+            data["dlp"] = [finding.record() for finding in content.findings]
+            item.extraction_data = data
+            found += 1
+            raised_from: str | None = None
+            floor = content.floor
+            if floor is not None and self.config.classification_rank(floor) > self.config.classification_rank(
+                item.classification.value
+            ):
+                raised_from = item.classification.value
+                item.classification = Sensitivity(floor)
+            effect = {
+                "allow": "It is shown to the model as written.",
+                "redact": "Each value is redacted from every prompt.",
+                "require_approval": "It is shown to the model, and the run is held for review.",
+                "block": "The item is withheld from every prompt.",
+            }[content.action]
+            reason = (
+                f"{item.id} ({item.source_document}) contains {content.summary()}. {effect}"
+                + (f" Classified {item.classification.value} (was {raised_from})." if raised_from else "")
+            )
+            await self._record_dlp(
+                task, user, boundary="prompt", subject=item.id,
+                entries=[(finding, item.id) for finding in content.findings], reason=reason,
+            )
+        if found:
+            self._checkpoint(task)
+        return found
+
+    async def _release_text(self, task: Task, user: User, text: str, *, boundary: str = "answer") -> str:
+        """Model output as it may leave: scanned, and redacted or withheld per policy."""
+        content = dlp.scan(text, boundary).beyond(
+            task.profile.sensitivity.value if task.profile else Sensitivity.NORMAL.value
+        )
+        if not content.findings:
+            return text
+        if content.action == "block":
+            blocked = ", ".join(sorted({f.detector for f in content.acting("block")}))
+            released = (
+                f"[The answer was withheld by content scanning: it contained {blocked} "
+                "(policies/dlp.yaml). The run is held for an approving authority.]"
+            )
+            reason = f"The answer contained {content.summary()}; it was withheld and the run is held."
+        else:
+            released = dlp.redact(text, content, actions=("redact",))
+            redacted = content.acting("redact")
+            reason = (
+                f"The answer contained {content.summary()}."
+                + (f" {len(redacted)} value(s) were redacted before it was shown or kept." if redacted else "")
+                + (" The run is held for review." if content.action == "require_approval" else "")
+            )
+        await self._record_dlp(
+            task, user, boundary=boundary, subject=boundary,
+            entries=[(finding, boundary) for finding in content.findings], reason=reason,
+        )
+        return released
+
+    def _deliverable_copy(
+        self, content: dict[str, Any], evidence: list[EvidenceItem]
+    ) -> tuple[dict[str, Any], list[EvidenceItem], list[tuple[dlp.DlpFinding, str | None]]]:
+        """A deliverable's content and evidence as they may be released, and what was found.
+
+        Values the deliverable boundary redacts or blocks are masked in both
+        the drafted content and the evidence excerpts the document quotes;
+        whether a block stops the render is the caller's decision.
+        """
+        released, found = dlp.redact_value(content, "deliverable")
+        entries: list[tuple[dlp.DlpFinding, str | None]] = [(finding, "content") for finding in found]
+        quoted: list[EvidenceItem] = []
+        for item in evidence:
+            scanned = dlp.scan(item.excerpt or "", "deliverable")
+            entries.extend((finding, item.id) for finding in scanned.findings)
+            quoted.append(
+                item.model_copy(update={"excerpt": dlp.redact(item.excerpt, scanned)}) if scanned.findings else item
+            )
+        return released, quoted, entries
+
+    async def _scan_deliverable(
+        self,
+        task: Task,
+        user: User,
+        content: dict[str, Any],
+        evidence: list[EvidenceItem],
+        limitations: list[str],
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """The drafted deliverable at the release boundary: (content or None, floor).
+
+        None when the policy blocks it: nothing is rendered and the run is
+        held. The floor is the classification of what is still released, so
+        a value redacted out of the document does not raise it.
+        """
+        released, _, entries = self._deliverable_copy(content, evidence)
+        level = task.profile.sensitivity.value if task.profile else Sensitivity.NORMAL.value
+        material = dlp.DlpScan("deliverable", [finding for finding, _ in entries]).beyond(level).findings
+        entries = [(finding, where) for finding, where in entries if finding in material]
+        if not entries:
+            return content, None
+        actions = {finding.action for finding, _ in entries}
+        summary = dlp.DlpScan("deliverable", [finding for finding, _ in entries]).summary()
+        if "block" in actions:
+            blocked = ", ".join(sorted({f.detector for f, _ in entries if f.action == "block"}))
+            reason = f"The deliverable would have carried {summary}; it was not rendered, and the run is held."
+            limitations.append(
+                f"No deliverable was rendered: content scanning found {blocked}, which policies/dlp.yaml "
+                "does not release in a document."
+            )
+            released_content: dict[str, Any] | None = None
+        else:
+            redacted = sum(1 for finding, _ in entries if finding.action == "redact")
+            reason = (
+                f"The deliverable carried {summary}."
+                + (f" {redacted} value(s) were redacted from it." if redacted else "")
+                + (" It is held for review." if "require_approval" in actions else "")
+            )
+            if redacted:
+                limitations.append(
+                    f"{redacted} value(s) were redacted from the deliverable by content scanning "
+                    f"({', '.join(sorted({f.detector for f, _ in entries if f.action == 'redact'}))})."
+                )
+            released_content = released
+        await self._record_dlp(
+            task, user, boundary="deliverable", subject="deliverable", entries=entries, reason=reason,
+        )
+        floors = [
+            finding.raises_to for finding, _ in entries
+            if finding.raises_to and finding.action in ("allow", "require_approval")
+        ]
+        floor = max(floors, key=self.config.classification_rank) if floors and released_content else None
+        return released_content, floor
 
     def _active_revisions(self, evidence: list[EvidenceItem]) -> dict[str, tuple[str, str]]:
         """The revision in force of every procedure the run's files refer to."""
@@ -2333,7 +2977,7 @@ class AgentOrchestrator:
         if result is not None:
             records, assessment, disputes = result
             task.conflicts = conflict_records(disputes, assessment.subject, task.evidence, task.conflicts)
-            assessment.conflicts = [record.id for record in unresolved(task.conflicts)]
+            assessment.conflicts = [record.id for record in unresolved(task.conflicts) if record.kind == "input"]
             if records:
                 register_evidence(records, assessment, ledger.items, ledger.add)
             task.calculations = records
@@ -2500,7 +3144,7 @@ class AgentOrchestrator:
                 task, context, "spreadsheet_analyze", {"file_id": spreadsheets[0].id}
             )
             if call.ok:
-                context_lines.append("Spreadsheet structure:\n" + call.output.get("stdout", "")[:2000])
+                context_lines.append("Spreadsheet structure:\n" + _prompt_safe(call.output.get("stdout", ""))[:2000])
         for item in ledger.items[:4]:
             context_lines.append(f"[{item.id}] {_model_text(item)[:400]}")
 
@@ -2533,28 +3177,33 @@ class AgentOrchestrator:
             except (InferenceError, NoEligibleModelError):
                 return result
 
-            match = CODE_FENCE.search(text)
-            code = match.group(1).strip() if match else text.strip()
-            if not code:
-                return result
+            extraction = extract_python(text)
+            if extraction.code is None:
+                # Nothing that parses: say so to the model rather than spend a
+                # sandbox run on a syntax error it did not write.
+                problem = extraction.problem
+            else:
+                await self._emit(
+                    task,
+                    "task.code_generated",
+                    {"code": extraction.code, "attempt": attempt, "extraction": extraction.method},
+                )
+                call = await self._call_tool(
+                    task, context, "python_exec", {"code": extraction.code}
+                )
+                payload = call.output.get("result")
+                if not payload:
+                    return result
 
-            await self._emit(
-                task, "task.code_generated", {"code": code, "attempt": attempt}
-            )
-            call = await self._call_tool(task, context, "python_exec", {"code": code})
-            payload = call.output.get("result")
-            if not payload:
-                return result
+                result = SandboxResult(**payload)
+                if result.ok:
+                    break
 
-            result = SandboxResult(**payload)
-            if result.ok:
-                break
-
-            problem = (
-                "\n".join(result.static_violations)
-                if not result.static_validation_passed
-                else result.stderr.strip()[:800]
-            )
+                problem = (
+                    "\n".join(result.static_violations)
+                    if not result.static_validation_passed
+                    else result.stderr.strip()[:800]
+                )
             if not problem or attempt >= attempts:
                 break
 
@@ -2621,11 +3270,12 @@ class AgentOrchestrator:
             # [V...] identifier; repeating it here as JSON would only cost tokens.
             extraction_block = "\nVisual content is recorded in the page-labelled evidence below.\n"
         extraction_block += prompt_block(task.assessment, task.calculations, task.conflicts)
+        extraction_block += fact_block(task.conflicts)
         extraction_block += _topology_block(task)
         if sandbox_result and sandbox_result.ok and sandbox_result.stdout.strip():
             extraction_block += (
                 "\nOutput of code executed in the secure sandbox:\n"
-                + sandbox_result.stdout[:2000]
+                + _prompt_safe(sandbox_result.stdout)[:2000]
                 + "\n"
             )
 
@@ -2663,7 +3313,9 @@ class AgentOrchestrator:
         # Still emitted: `task.token` carries the text as it arrives, but a
         # client that joined late, missed frames, or reloaded has no way to
         # rebuild it. This is the authoritative copy and the one that is
-        # persisted.
+        # persisted -- after content scanning, so it replaces whatever the
+        # stream showed.
+        text = await self._release_text(task, user, text)
         await self._emit(task, "task.answer", {"answer": text})
         return text
 
@@ -2737,6 +3389,25 @@ class AgentOrchestrator:
         calculations: list[dict[str, Any]],
     ) -> None:
         assert task.profile is not None
+        # The recommend/approve split comes from the severity formula
+        # (SOP-OPS-008), never from the model's draft.
+        authority = authority_statement(task.assessment) if task.assessment is not None else None
+        if authority:
+            content = {**content, "authority": authority}
+
+        # Enforced here as well as where the draft was scanned, because this
+        # is also reached by re-rendering after a conflict is resolved, with
+        # evidence the first scan never saw. A value the policy will not
+        # release in a document stops the render; the rest are redacted.
+        content, evidence, entries = self._deliverable_copy(content, evidence)
+        blocked = [(finding, where) for finding, where in entries if finding.action == "block"]
+        if blocked:
+            detectors = ", ".join(sorted({finding.detector for finding, _ in blocked}))
+            await self._record_dlp(
+                task, context.user, boundary="deliverable", subject="deliverable", entries=blocked,
+                reason=f"The deliverable was not rendered: it would have carried {detectors}.",
+            )
+            return
         call = await self._call_tool(
             task,
             context,
@@ -2771,6 +3442,14 @@ class AgentOrchestrator:
                     "released": deliverable.released,
                 },
             )
+
+
+def _calculated_severity(task: Task) -> str | None:
+    """The severity the formula registry computed, never one a model wrote."""
+    assessment = task.assessment
+    if assessment is None or assessment.status != "calculated":
+        return None
+    return assessment.severity
 
 
 def _summarise(arguments: dict[str, Any]) -> dict[str, Any]:

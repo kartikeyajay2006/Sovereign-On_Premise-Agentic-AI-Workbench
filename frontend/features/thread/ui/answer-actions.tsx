@@ -2,10 +2,11 @@
 
 import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Check, Copy, Quote, RotateCcw } from 'lucide-react'
+import { ArrowUpRight, Check, Copy, FileCheck2, GitCompare, Quote, RotateCcw } from 'lucide-react'
 import type { EvidenceItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { expandCitations } from '../model/usage'
+import { roleName } from '@/lib/presentation'
 
 /**
  * What a reader does with an answer once it has landed.
@@ -14,7 +15,9 @@ import { expandCitations } from '../model/usage'
  * the second spells every citation out as source and location, which is what
  * makes the claim checkable once it has left this screen. Run again re-sends
  * the exact request -- same files, same format, same model choice -- as a new
- * run with its own record; it does not overwrite this one.
+ * run with its own record; it does not overwrite this one, and the new run
+ * names this one as its parent. Proof opens the run's chain on one screen;
+ * Compare sets it beside another run with every difference named.
  */
 
 /** How long "Copied" stays: a label's read time, not an animation. */
@@ -74,6 +77,7 @@ export const AnswerActions = memo(function AnswerActions({
   approverRoles,
   reasons = [],
   canReview,
+  taskId = null,
 }: {
   /** The verified answer, or null when there is none to copy. */
   answer: string | null
@@ -93,6 +97,8 @@ export const AnswerActions = memo(function AnswerActions({
   reasons?: string[]
   /** Whether this person can open the approval queue at all. */
   canReview: boolean
+  /** The run's id, once the API has issued one: Proof Mode opens by it. */
+  taskId?: string | null
 }) {
   const [copied, setCopied] = useState<CopyState>('idle')
 
@@ -119,7 +125,7 @@ export const AnswerActions = memo(function AnswerActions({
     setCopied(copyBySelection(text) ? kind : 'blocked')
   }
 
-  if (!answer && !onRerun && !held) return null
+  if (!answer && !onRerun && !held && !taskId) return null
 
   return (
     <div className="flex flex-wrap items-center gap-1" aria-label="Answer actions">
@@ -158,11 +164,32 @@ export const AnswerActions = memo(function AnswerActions({
         </button>
       )}
 
+      {taskId && (
+        <Link
+          href={`/proof?run=${taskId}`}
+          className={ACTION}
+          title="The run's chain on one screen: request, policy, models, evidence, formulas, claims, approval and certificate"
+        >
+          <FileCheck2 className="size-3.5" aria-hidden />
+          Proof
+        </Link>
+      )}
+      {taskId && (
+        <Link
+          href={`/compare?b=${taskId}`}
+          className={ACTION}
+          title="Set this run beside another -- the run it re-ran, if it is a re-run -- with every difference named"
+        >
+          <GitCompare className="size-3.5" aria-hidden />
+          Compare
+        </Link>
+      )}
+
       {held && (
         <span className="ml-auto flex items-center gap-2 text-meta">
           {approverRoles.length > 0 && (
             <span className="text-approval-text" title={reasons.join('\n') || undefined}>
-              Held for {approverRoles.map((r) => r.replace(/_/g, ' ')).join(' or ')}
+              Held for {approverRoles.map(roleName).join(' or ')}
               {reasons.length > 0 && (
                 <span className="text-foreground-muted">
                   {' · '}

@@ -1,0 +1,102 @@
+# Continuous integration: the backend suite, the red-team suite and the
+# frontend build, on every push and pull request.
+#
+# No job needs a model. The tests replace every model call with a fake
+# (docs/handbook/13-development/02-testing.md), and nothing here installs or
+# reaches Ollama. The Linux job is the one that exercises the POSIX sandbox:
+# on a Windows host those tests skip because there are no resource limits,
+# so a sandbox regression would pass unnoticed without it.
+#
+# Actions are pinned to a full commit SHA; the tag each SHA was taken from is
+# noted beside it. Moving a tag upstream cannot change what runs here.
+
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  # Next.js sends build telemetry by default; this product claims nothing
+  # leaves the host, and its own postinstall opts out too.
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  backend-linux:
+    name: backend (ubuntu, Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # The version the Dockerfile ships.
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile every module
+        # Catches a syntax error in a module no test imports.
+        run: python -m compileall -q backend scripts tests
+      - name: Sandbox containment is assessable here
+        # The containment tests skip, rather than fail, on a host without
+        # POSIX resource limits. On this runner they must run: if the probe
+        # ever says otherwise, fail here instead of passing on skips.
+        run: >-
+          python -c "from backend.tools.sandbox import RESOURCE_LIMITS_AVAILABLE as ok;
+          print('resource limits available:', ok); raise SystemExit(0 if ok else 1)"
+      - name: Tests (including the red-team suite in tests/adversarial)
+        run: python -m pytest -q -p no:cacheprovider -rs
+
+  backend-windows:
+    name: backend (windows, Python 3.11)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      # The team develops on Windows, where the sandbox runs under a Job
+      # Object instead of POSIX limits (tests/test_sandbox_windows.py). The
+      # whole suite runs here: the two tests that failed on Windows only
+      # (text-mode line endings, POSIX key permissions) are fixed.
+      - name: Tests
+        run: python -m pytest -q -p no:cacheprovider -rs
+
+  frontend:
+    name: frontend (typecheck and build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (from the lockfile)
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+      # There is no lint script in package.json; add a step here when one is.
+      - name: Build
+        run: npx next build

@@ -141,6 +141,6 @@ The vision model returned nothing, and Tesseract is not installed to fall back o
 
 | | | |
 |:--|:--:|--:|
-| [← 1.7 · Your first hour](07-first-hour.md) | [↑ 01 · Getting started](README.md) | [02 · Core concepts →](../02-concepts/README.md) |
+| [← 1.7 · Your first hour](07-first-hour.md) | [↑ 01 · Getting started](README.md) | [1.9 · Install on an air-gapped host →](09-offline-install.md) |
 
 <!-- nav:end -->

@@ -25,6 +25,8 @@ from backend.core.events import get_event_bus
 from backend.core.schemas import (
     SkillInvocation,
     ApprovalRecord,
+    ApprovalSignature,
+    RequiredSignature,
     InputType,
     PolicyDecision,
     Sensitivity,
@@ -36,6 +38,8 @@ from backend.core.schemas import (
 )
 from backend.policy.gateway import get_policy_gateway
 from backend.proof.certificate import review_digest
+from backend.security import dlp
+from backend.security.dlp import readable_text
 from backend.security.file_guard import inspect_upload
 from backend.security.injection import screen
 
@@ -97,6 +101,17 @@ def _egress_over_run(
 
 class TaskError(RuntimeError):
     """Raised for task-level failures that map to a client error."""
+
+
+# A run in one of these is still being worked; it has no outcome to re-run.
+_ACTIVE_STATUSES = frozenset({
+    TaskStatus.RECEIVED.value,
+    TaskStatus.CLASSIFIED.value,
+    TaskStatus.PLANNED.value,
+    TaskStatus.RETRIEVING.value,
+    TaskStatus.EXECUTING.value,
+    TaskStatus.VERIFYING.value,
+})
 
 
 class TaskService:
@@ -181,13 +196,6 @@ class TaskService:
                 f"'{Path(filename).name}' was refused at quarantine: " + "; ".join(verdict.reasons)
             )
         notes.extend(verdict.notes)
-        if verdict.detected == "text":
-            findings = screen(payload[:2_000_000].decode("utf-8", errors="replace"))
-            if findings:
-                notes.append(
-                    f"contains {len(findings)} instruction-like sentence(s) ({findings[0].label}); "
-                    "they are kept as evidence and withheld from the model"
-                )
         file_id = str(uuid.uuid4())
         safe_name = Path(filename).name
         target_dir = self.config.settings.path("uploads") / user.id
@@ -200,6 +208,63 @@ class TaskService:
             target.unlink(missing_ok=True)
             raise TaskError(confinement.reason)
 
+        # What the file says, read once and screened twice: for sentences
+        # addressed to the model, and for what it carries (policies/dlp.yaml).
+        # Documents are read with the retrieval parsers, so what is screened
+        # is what a model would later be shown.
+        text = readable_text(target, payload, verdict.detected)
+        if text:
+            findings = screen(text[:2_000_000])
+            if findings:
+                notes.append(
+                    f"contains {len(findings)} instruction-like sentence(s) ({findings[0].label}); "
+                    "they are kept as evidence and withheld from the model"
+                )
+        content = dlp.scan(text, "upload").beyond((classification or Sensitivity.NORMAL).value) if text else None
+        dlp_detail: dict[str, Any] = (
+            {"scanned": True, "truncated": content.truncated,
+             "findings": [finding.record() for finding in content.findings]}
+            if content is not None
+            else {"scanned": False, "reason": "no extractable text" if verdict.detected in {"text", "pdf", "ooxml"}
+                  else f"{verdict.detected} content carries no text until it is read as evidence"}
+        )
+        if content is not None and content.action == "block":
+            target.unlink(missing_ok=True)
+            reasons = [
+                f"it contains {content.summary()}, which policies/dlp.yaml does not admit "
+                f"({', '.join(sorted({f.detector for f in content.acting('block')}))})"
+            ]
+            self.audit.record(
+                category="file",
+                action="quarantined",
+                actor=user.username,
+                actor_role=user.role,
+                detail={
+                    "filename": Path(filename).name,
+                    "sha256": digest,
+                    "size_bytes": len(payload),
+                    "detected": verdict.detected,
+                    "reasons": reasons,
+                    "dlp": dlp_detail,
+                },
+            )
+            raise TaskError(f"'{Path(filename).name}' was refused at quarantine: " + "; ".join(reasons))
+
+        declared = classification or Sensitivity.NORMAL
+        effective = declared
+        if content is not None and content.findings:
+            floor = content.floor
+            raised = floor is not None and self.config.classification_rank(floor) > self.config.classification_rank(
+                declared.value
+            )
+            if raised:
+                effective = Sensitivity(floor)
+            notes.append(
+                f"content scanning found {content.summary()}"
+                + (f"; classified {effective.value} (declared {declared.value})" if raised else "")
+                + ("; the first part of the file was scanned" if content.truncated else "")
+            )
+
         media_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
         stored = StoredFile(
             id=file_id,
@@ -209,7 +274,7 @@ class TaskService:
             size_bytes=len(payload),
             sha256=digest,
             input_type=self._input_type_for(safe_name),
-            classification=classification or Sensitivity.NORMAL,
+            classification=effective,
             owner_id=user.id,
             department=user.department,
             quarantine_passed=True,
@@ -232,6 +297,8 @@ class TaskService:
                 "quarantine_passed": True,
                 "detected": verdict.detected,
                 "notes": notes,
+                "classification": effective.value,
+                "dlp": dlp_detail,
             },
         )
         return stored
@@ -301,6 +368,7 @@ class TaskService:
                     approval_required=bool(task.approval and task.approval.required),
                     user_display_name=task.user_display_name,
                     skill=task.skill,
+                    parent_task_id=task.parent_task_id,
                 )
             )
         return summaries
@@ -323,6 +391,7 @@ class TaskService:
         deliverable_format: str | None = None,
         preferred_model: str | None = None,
         skill_id: str | None = None,
+        parent_task_id: str | None = None,
     ) -> Task:
         # A skill turns what was typed into the request. Everything below
         # then sees only that request, so a skill meets every gate a typed
@@ -374,6 +443,7 @@ class TaskService:
             profile=profile,
             preferred_model=preferred_model,
             skill=skill,
+            parent_task_id=parent_task_id,
         )
 
         required, reasons, approvers = self.gateway.approval_requirement(
@@ -400,6 +470,7 @@ class TaskService:
                 "preferred_model": preferred_model,
                 "skill": skill.id if skill else None,
                 "skill_sha256": skill.sha256 if skill else None,
+                "rerun_of": parent_task_id,
             },
         )
         self.audit.record(
@@ -436,6 +507,28 @@ class TaskService:
         await self._queue.put((task.id, user.id))
         await self._publish_queue()
         return task
+
+    async def rerun(self, original: Task, user: User) -> Task:
+        """Submit a finished run's request again, as a new run linked to it.
+
+        Goes through create_task like any request, so the re-run meets every
+        gate afresh -- file access, classification, approval rules, routing
+        -- under today's configuration. That is the point: comparing the two
+        runs shows what changed. A skill run is re-rendered from what was
+        typed, so a skill edited since shows up as a different hash.
+        """
+        if original.status.value in _ACTIVE_STATUSES:
+            raise TaskError("This run has not finished; re-run it once it has.")
+        requested_format = original.profile.deliverable_format if original.profile else None
+        return await self.create_task(
+            user,
+            original.skill.input if original.skill else original.prompt,
+            [stored.id for stored in original.files],
+            requested_format,
+            preferred_model=original.preferred_model,
+            skill_id=original.skill.id if original.skill else None,
+            parent_task_id=original.id,
+        )
 
     async def _publish_queue(self) -> None:
         """Announce the waiting line so nobody is left guessing."""
@@ -558,11 +651,12 @@ class TaskService:
                 user = identity.get_user(user_id)
                 if task is None or user is None:
                     continue
+                self._snapshot_config(task, user)
                 egress_before = _egress_reading()
                 task = await self.orchestrator.run(task, user, persist=self._persist)
                 self._persist(task)
-                if task.status == TaskStatus.DELIVERED:
-                    self._certify(task, user)
+                # Recorded before the certificate is issued: the egress
+                # reading in this record is what the certificate reports.
                 self.audit.record(
                     category="task",
                     action=f"finished:{task.status.value}",
@@ -579,6 +673,8 @@ class TaskService:
                         "egress": _egress_over_run(egress_before, _egress_reading()),
                     },
                 )
+                if task.status == TaskStatus.DELIVERED:
+                    self._certify(task, user)
             except Exception as exc:  # a worker must never die silently
                 await self.events.publish(
                     "task.failed",
@@ -668,6 +764,8 @@ class TaskService:
         permission = self.gateway.check_permission(user, "approval.decide", task_id=task_id)
         if permission.decision != PolicyDecision.ALLOW:
             raise TaskError(permission.reason)
+        current = review_digest(task)
+        plan = self._refresh_signatures(task, user, current)
         if task.approval.approver_roles and user.role not in task.approval.approver_roles:
             raise TaskError(
                 f"Role '{user.role}' is not an approving authority for this task "
@@ -691,7 +789,6 @@ class TaskService:
         # Bound to what the reviewer read. A resolution, a re-render or a
         # re-run between opening the run and deciding it changes the digest,
         # and the decision is refused rather than applied to an unseen version.
-        current = review_digest(task)
         if review_digest_seen is not None and review_digest_seen != current:
             raise TaskError(
                 "This run has changed since you opened it (its review digest is now "
@@ -712,6 +809,23 @@ class TaskService:
                 + ", ".join(f"{c.id} ({c.label})" for c in open_conflicts)
                 + " before approving: the decision it withholds has not been made."
             )
+        if approved and plan:
+            # One signature of several. It is recorded and audited; the run
+            # is released only by the last one.
+            if not self._sign(task, user, plan, comment, current):
+                self._persist(task)
+                waiting = plan[len(task.approval.signatures)]
+                await self.events.publish(
+                    "task.approval_signed",
+                    task_id=task.id,
+                    data={
+                        "signed_by": user.display_name,
+                        "signatures": [s.model_dump(mode="json") for s in task.approval.signatures],
+                        "awaiting": waiting.model_dump(mode="json"),
+                        "status": task.status.value,
+                    },
+                )
+                return task
         revise = decision == "request_revision"
         task.approval.decision = "approved" if approved else "revision_requested" if revise else "rejected"
         task.approval.reviewer_id = user.id
@@ -743,6 +857,11 @@ class TaskService:
                 "review_digest": current,
                 "deliverables_released": [d.filename for d in task.deliverables] if approved else [],
                 "evidence_presented": len(task.evidence),
+                "signatures": [
+                    {"authority": s.authority, "capacity": s.capacity, "username": s.username,
+                     "review_digest": s.review_digest}
+                    for s in task.approval.signatures
+                ],
             },
         )
         await self.events.publish(
@@ -757,6 +876,134 @@ class TaskService:
         )
         self._certify(task, user)
         return task
+
+    def _snapshot_config(self, task: Task, user: User) -> None:
+        """Record the config and policy the run starts under, for its certificate.
+
+        Hashed now rather than when the certificate is issued, which can be
+        days later after a review: a file edited in between must not be
+        certified as what governed this run. A failure is audited, never fatal.
+        """
+        from backend.proof.provenance import CONFIG_SNAPSHOT_ACTION, config_snapshot
+
+        try:
+            detail = config_snapshot()
+        except Exception as exc:
+            self.audit.record(
+                category="proof", action="config_snapshot_failed", actor=user.username,
+                actor_role=user.role, task_id=task.id, detail={"reason": f"{type(exc).__name__}: {exc}"[:300]},
+            )
+            return
+        self.audit.record(
+            category="proof", action=CONFIG_SNAPSHOT_ACTION, actor=user.username,
+            actor_role=user.role, task_id=task.id, detail=detail,
+        )
+
+    def _refresh_signatures(self, task: Task, user: User, current: str) -> list[RequiredSignature]:
+        """The signatures this run needs now, voiding any given to another version.
+
+        Read from policy against the run's computed severity at the moment of
+        deciding, not only at the gate: a conflict resolution can recompute
+        the finding while it is held, and a Medium that became High needs the
+        High signatures. A signature binds the digest it was given on; if the
+        run has changed since, every signature so far is void -- the Plant
+        Manager approves the recommendation the Head of Inspection signed,
+        not a later one -- and the voiding is audited.
+        """
+        approval = task.approval
+        assert approval is not None
+        severity = (
+            task.assessment.severity
+            if task.assessment is not None and task.assessment.status == "calculated" else None
+        )
+        if severity is not None:
+            approval.required_signatures = [
+                RequiredSignature(**signature) for signature in self.gateway.required_signatures(severity)
+            ]
+        plan = list(approval.required_signatures)
+        if plan:
+            approval.approver_roles = sorted({signature.role for signature in plan})
+        stale = [s for s in approval.signatures if s.review_digest != current]
+        if stale or (approval.signatures and not plan):
+            voided = approval.signatures
+            approval.signatures = []
+            self._persist(task)
+            self.audit.record(
+                category="approval",
+                action="signatures_voided",
+                actor=user.username,
+                actor_role=user.role,
+                task_id=task.id,
+                detail={
+                    "reason": "the run changed after these signatures were given" if stale
+                    else "the finding no longer needs more than one signature",
+                    "voided": [
+                        {"authority": s.authority, "username": s.username, "review_digest": s.review_digest}
+                        for s in voided
+                    ],
+                    "review_digest": current,
+                },
+            )
+        return plan
+
+    def _sign(
+        self, task: Task, user: User, plan: list[RequiredSignature], comment: str | None, current: str
+    ) -> bool:
+        """Record the next signature; True when it was the last one needed.
+
+        The next signature is the next one in policy order, by a person who
+        has not signed this run: SOP-OPS-008 Clause 3.2 forbids approving a
+        recommendation one authored, so one account cannot fill both places.
+        """
+        approval = task.approval
+        assert approval is not None
+        given = approval.signatures
+        earlier = next((s for s in given if s.user_id == user.id), None)
+        if earlier is not None:
+            raise TaskError(
+                f"{user.display_name} has already signed this run as {earlier.authority} "
+                f"({earlier.capacity}). The same person cannot sign twice: an approver shall not "
+                "approve a recommendation they authored (SOP-OPS-008 Clause 3.2)."
+            )
+        if len(given) >= len(plan):
+            raise TaskError("Every required signature has already been given.")
+        needed = plan[len(given)]
+        if user.role != needed.role:
+            raise TaskError(
+                f"The next signature on this finding is the {needed.authority}'s, who "
+                f"{needed.capacity} it ({needed.clause or needed.rule}); role '{user.role}' cannot give it."
+            )
+        signature = ApprovalSignature(
+            role=user.role,
+            authority=needed.authority,
+            capacity=needed.capacity,
+            user_id=user.id,
+            username=user.username,
+            name=user.display_name,
+            comment=comment,
+            signed_at=datetime.now(timezone.utc),
+            review_digest=current,
+        )
+        given.append(signature)
+        complete = len(given) == len(plan)
+        task.updated_at = signature.signed_at
+        self.audit.record(
+            category="approval",
+            action="signature_recorded",
+            actor=user.username,
+            actor_role=user.role,
+            task_id=task.id,
+            detail={
+                "authority": needed.authority,
+                "capacity": needed.capacity,
+                "clause": needed.clause,
+                "position": f"{len(given)} of {len(plan)}",
+                "comment": comment,
+                "review_digest": current,
+                "awaiting": None if complete else plan[len(given)].authority,
+            },
+        )
+        return complete
 
     def _certify(self, task: Task, user: User) -> dict | None:
         """Issue and store the run's signed certificate. A failure is audited, never fatal."""
@@ -834,6 +1081,10 @@ class TaskService:
             )
         except ValueError as exc:
             raise TaskError(str(exc)) from exc
+        # The resolution changed what was signed: say so now, not only when
+        # the next signer tries.
+        if task.approval is not None:
+            self._refresh_signatures(task, user, review_digest(task))
         self._persist(task)
         return task
 

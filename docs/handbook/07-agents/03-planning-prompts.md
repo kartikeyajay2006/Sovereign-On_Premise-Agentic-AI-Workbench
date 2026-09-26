@@ -11,6 +11,15 @@ A plan earns its cost only when the work branches. `_needs_plan` is true when th
 
 Otherwise planning is **skipped and says so**: *No plan required: a single retrieval step with no code, files or deliverable.* The decision is deliberately not keyed on the step budget, which is a ceiling the analyzer allows, not an estimate of what a task needs.
 
+### Who makes the plan
+
+The pipeline runs from the task profile. A model plan affects it in one way only: it can add code execution that the classifier did not require. So `_template_plan_reason` takes the plan from the task shape, meaning the same steps as the deterministic fallback plan with no model call (about 40 s on CPU), when:
+
+- code execution is already required, so the model has nothing to add, or
+- the classification confidence is at least `agent.template_plan_min_confidence` (0.6 in `config/app.yaml`) and no CSV or XLSX is attached.
+
+A spreadsheet or a low-confidence classification still asks the model. The transcript says which happened (*Plan taken from the task shape: code execution is already required*). `task.planned` and the `plan_created` audit record carry `source`, which is `template`, `model` or `fallback`.
+
 ## What a plan is
 
 The planning prompt gives the model the request, the profile, the attached files and the available tools, and asks for JSON only:
@@ -55,7 +64,7 @@ Every prompt is in `config/prompts/prompts.yaml`. No prompt text lives in Python
 |---|---|---|
 | `base` | Included in all | Ground every claim in evidence, or say it is absent. Never claim internet access. Precise, industrial tone. Quantities carry units; standards carry clause references |
 | `planning` | Planning | An explicit, minimal plan; each step one tool or direct reasoning |
-| `reasoning` | Answers | The first sentence is the answer. Answer only what was asked. Every factual sentence ends with the identifier of its evidence, `[S2]`. Figures and clause numbers exactly as stated; never invent one. One to four sentences. If the evidence does not settle it, say so and name the document that would |
+| `reasoning` | Answers | The first sentence is the answer. Answer only what was asked. Every factual sentence ends with the identifier of its evidence, `[S2]`. Figures and clause numbers exactly as stated; never invent one. One to four connected sentences, never one labelled field per sentence. For a document request, the document's conclusion: what is recommended, on which figures, and who decides, not the headings a procedure requires the document to carry. If the evidence does not settle it, say so and name the document that would |
 | `coding` | Code | Dependency-light Python 3 for an offline sandbox; standard library plus pandas, numpy, openpyxl; never import socket, requests, urllib or subprocess; print results |
 | `vision` | Reading scans | Transcribe what is visible; mark unreadable values `[illegible]` rather than infer them |
 | `drafting` | Deliverables | Formal industrial documents citing each factual statement inline as `[S1]` |

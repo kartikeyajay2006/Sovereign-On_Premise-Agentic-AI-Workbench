@@ -59,16 +59,20 @@ class Drawing:
 
     @classmethod
     def load(cls, path: Path) -> "Drawing":
-        data = json.loads(path.read_text())
+        return cls.from_data(json.loads(path.read_text()), path.name)
+
+    @classmethod
+    def from_data(cls, data: dict[str, Any], name: str) -> "Drawing":
+        """A drawing from its graph, authored or extracted, refused if any reference dangles."""
         nodes = {node["id"]: node for node in data["nodes"]}
         for edge in data["edges"]:
             for end in (edge["from"], edge["to"]):
                 if end not in nodes:
-                    raise DrawingError(f"{path.name}: line {edge.get('line')} joins unknown element {end}")
+                    raise DrawingError(f"{name}: line {edge.get('line')} joins unknown element {end}")
         for node in nodes.values():
             for key in ("measures", "controls"):
                 if node.get(key) and node[key] not in nodes:
-                    raise DrawingError(f"{path.name}: {node['id']} {key} unknown element {node[key]}")
+                    raise DrawingError(f"{name}: {node['id']} {key} unknown element {node[key]}")
         meta = {k: v for k, v in data.items() if k not in ("nodes", "edges")}
         return cls(data["id"], data["title"], str(data.get("revision", "")), nodes, data["edges"], meta)
 
@@ -338,6 +342,13 @@ class DrawingLibrary:
     def __init__(self, directory: Path) -> None:
         self.directory = directory
         self._drawings: dict[str, Drawing] | None = None
+
+    @classmethod
+    def of(cls, drawings: list[Drawing]) -> "DrawingLibrary":
+        """A library over drawings held in memory, e.g. one read from an image."""
+        library = cls(Path())
+        library._drawings = {drawing.id: drawing for drawing in drawings}
+        return library
 
     @property
     def drawings(self) -> dict[str, Drawing]:

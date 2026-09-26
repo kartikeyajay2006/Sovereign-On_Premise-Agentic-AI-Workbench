@@ -1,4 +1,4 @@
-import type { Task, TaskSummary } from '@/lib/types'
+import type { RequiredSignature, Task, TaskSummary } from '@/lib/types'
 
 /**
  * The approval queue, as the backend actually records it.
@@ -101,6 +101,56 @@ export function mergeQueue(
     if (byId.has(task.id)) byId.set(task.id, fromTask(task))
   }
   return [...byId.values()].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+}
+
+/**
+ * The signature a held run is still waiting for, or null.
+ *
+ * A High finding needs the Head of Inspection's recommendation and then the
+ * Plant Manager's approval (policies/approval-rules.yaml). Read from the
+ * record's own signatures, never counted from this screen's history.
+ */
+export function awaitingSignature(task: Task | null | undefined): RequiredSignature | null {
+  if (!task || String(task.status).toLowerCase() !== 'awaiting_approval') return null
+  const plan = task.approval?.required_signatures ?? []
+  const signed = task.approval?.signatures ?? []
+  return plan.length > signed.length ? plan[signed.length] : null
+}
+
+/**
+ * Why this viewer cannot give the next signature on a signed finding, or
+ * null when they can (or no signature is awaited).
+ *
+ * The service refuses a second signature from the same person
+ * (SOP-OPS-008 Clause 3.2) and a signature from any role but the next
+ * signatory's. Offering Approve to either would only lead to that refusal:
+ * right after signing, the Head of Inspection was shown "Approve & release".
+ */
+export function signatureRefusal(
+  task: Task | null | undefined,
+  viewer: { id: string; role: string } | null | undefined,
+): string | null {
+  const next = awaitingSignature(task)
+  if (!next || !viewer) return null
+  const earlier = (task?.approval?.signatures ?? []).find((s) => s.user_id === viewer.id)
+  if (earlier) {
+    return `You signed this as the ${earlier.authority}. The next signature is the ${next.authority}'s; the same person cannot sign twice (SOP-OPS-008 Clause 3.2).`
+  }
+  if (viewer.role !== next.role) {
+    return `The next signature is the ${next.authority}'s, who ${next.capacity} this finding; your role cannot give it.`
+  }
+  return null
+}
+
+/**
+ * The signature an approval would give when it is not the last one needed,
+ * or null. Approving then records a signature and releases nothing.
+ */
+export function interimSignature(task: Task | null | undefined): RequiredSignature | null {
+  const next = awaitingSignature(task)
+  const needed = task?.approval?.required_signatures?.length ?? 0
+  const given = task?.approval?.signatures?.length ?? 0
+  return next && given < needed - 1 ? next : null
 }
 
 /** "4m", "3h", "2d": how long ago, from a measured timestamp. */

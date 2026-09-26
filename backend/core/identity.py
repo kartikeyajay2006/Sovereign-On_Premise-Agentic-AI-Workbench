@@ -83,14 +83,24 @@ class IdentityService:
 
     # -- provisioning ------------------------------------------------------
     def ensure_seed_users(self) -> list[str]:
-        """Create the identities declared in access-control.yaml, once."""
-        if self.db.count_users() > 0:
+        """Create each identity declared in access-control.yaml, once.
+
+        Per identity rather than only on an empty table: an install seeded
+        before the Head of Inspection and Plant Manager were declared would
+        otherwise never gain them, and a High finding it holds for their two
+        signatures could never be released.
+        """
+        pending = [
+            seed for seed in self.config.access_control.get("seed_users", [])
+            if self.db.get_user_by_username(seed["username"]) is None
+        ]
+        if not pending:
             return []
         password = str(self.config.settings.security.get("seed_user_password") or "")
         if not password:
             password = secrets.token_urlsafe(12)
         created: list[str] = []
-        for seed in self.config.access_control.get("seed_users", []):
+        for seed in pending:
             record = {
                 "id": str(uuid.uuid4()),
                 "username": seed["username"],

@@ -39,6 +39,21 @@ roles:
       - deliverable.download.all
     max_data_classification: restricted
 
+  # The plant authorities SOP-INS-014 Clause 5.1 and SOP-OPS-008 Clauses
+  # 2.3 and 3.5 name for a High finding. Each is a reviewer, and is also the
+  # only role that can give its signature under approval-rules.yaml.
+  head_of_inspection:
+    description: Head of Inspection; recommends a High finding and approves a Medium one (SOP-OPS-008).
+    inherits: reviewer
+    permissions: []
+    max_data_classification: restricted
+
+  plant_manager:
+    description: Plant Manager; approves a High finding after the Head of Inspection recommends it (SOP-OPS-008 Clause 2.3).
+    inherits: reviewer
+    permissions: []
+    max_data_classification: restricted
+
   auditor:
     description: Read-only oversight; can read every trace but cannot execute work.
     permissions:
@@ -90,6 +105,14 @@ seed_users:
     display_name: Approving Authority
     role: reviewer
     department: engineering
+  - username: head_of_inspection
+    display_name: Head of Inspection
+    role: head_of_inspection
+    department: inspection
+  - username: plant_manager
+    display_name: Plant Manager
+    role: plant_manager
+    department: operations
   - username: auditor
     display_name: Internal Auditor
     role: auditor
@@ -103,6 +126,6 @@ file_access:
   # A user may read a document when department matches, or the document is
   # marked shareable, or the user's role appears in override_roles.
   department_isolation: true
-  override_roles: [reviewer, auditor, administrator]
+  override_roles: [reviewer, head_of_inspection, plant_manager, auditor, administrator]
   # Uploads are always owned by, and readable by, their uploader.
   owner_always_allowed: true

@@ -76,7 +76,7 @@ curl -s http://127.0.0.1:8000/api/health -H "Authorization: Bearer $TOKEN" | jq
   "models_available": 4,
   "knowledge_documents": 15,
   "knowledge_chunks": 207,
-  "retrieval_mode": "embedding",
+  "retrieval_mode": "hybrid",
   "sandbox_runtime": "subprocess",
   "sandbox_ready": true,
   "audit_chain_valid": true,

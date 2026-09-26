@@ -52,6 +52,21 @@ The self-test is audited as `security / sandbox_self_test`.
 
 The ten hard-denied actions, the tools each role may invoke, and the approval rules, read from the policy files. This section says what the policy files *say should happen*. The audit chain records what actually did.
 
+## Measurements
+
+**Assurance · Measurements** (`/measurements`, <kbd>G</kbd> <kbd>M</kbd>) lists every figure the workbench can show about itself, computed when the screen is read (`GET /api/measurements`, `backend/proof/measurements.py`). Each figure names the artifact it came from underneath it, with a link where there is one:
+
+| Figure | Computed from |
+|---|---|
+| Model call latency, vision latency, generation speed, model load time | The `usage` records on runs (median and p95; per model) |
+| Runs passing verification, claims supported or calculated, formula evaluations calculated | Verification reports, claim verdicts and calculation records on runs |
+| Red team: attacks held | The newest `storage/reports/red-team-*.json` (written by `scripts/red_team.py`), re-hashed: an edited report is flagged |
+| Sandbox self-test | The newest `security / sandbox_self_test` audit event |
+| Unapproved egress during runs | The egress window on each `task / finished:*` audit event; runs the monitor did not watch are counted separately, never as clean |
+| Run certificates verifying | Every stored certificate in `storage/proofs`, re-verified offline against this host's key |
+
+Golden-answer accuracy, retrieval top-1/top-3 and formula accuracy read **Not measured**: no evaluator writes a report for them yet, and a figure without one would be a claim. The runs figures cover every run for a role with `task.read.all`, and your own otherwise; the screen says which.
+
 <!-- nav:start -->
 
 ---

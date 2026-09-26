@@ -1,27 +1,33 @@
 'use client'
 
 import { memo } from 'react'
-import { BookOpenText, Calculator, FileScan, Paperclip, Quote, type LucideIcon } from 'lucide-react'
+import { BookOpenText, Calculator, FileScan, Paperclip, ShieldAlert, Split, type LucideIcon } from 'lucide-react'
 import { CONSOLE_TEMPLATES } from '@/lib/presentation'
 
 export type StarterTemplate = (typeof CONSOLE_TEMPLATES)[number]
 
 /** What each starter produces, said plainly, and the icon that stands for it. */
 const CARD: Record<string, { icon: LucideIcon; blurb: string }> = {
-  'approval-note': { icon: FileScan, blurb: 'Scanned PDF in, a cited Word approval note out, held for sign-off.' },
-  'corrosion-calc': { icon: Calculator, blurb: 'Survey CSV in, rates and remaining life computed in the sandbox.' },
-  'procedure-question': { icon: BookOpenText, blurb: 'A cited answer from your procedures, checked before release.' },
-  'clause-skill': { icon: Quote, blurb: 'The /clause skill, ready to run: the clause that governs, cited and checked.' },
+  'golden-asset': { icon: FileScan, blurb: 'A scanned report in: figures by registered formulas, a cited approval note held for sign-off.' },
+  'golden-asset-survey': { icon: Calculator, blurb: 'A thickness survey in: rates, remaining life and severity by registered formulas, not the model.' },
+  'golden-conflict': { icon: Split, blurb: 'Two records give different readings: no figure is stated until a person chooses which governs.' },
+  'golden-attack': { icon: ShieldAlert, blurb: 'The note tells the model to approve it. The order is withheld and a person reviews the run.' },
+}
+
+/** The sample files each card attaches, by the id config/app.yaml gives them. */
+const SAMPLE_NAMES: Record<string, string> = {
+  'v2104-scan': 'scanned-inspection-report-V-2104.pdf',
+  'v2104-survey': 'V-2104-thickness-survey.csv',
+  'v2104-field-sheet': 'V-2104-contractor-field-sheet.md',
+  'v2104-injected-note': 'V-2104-contractor-note-with-injection.md',
 }
 
 /**
- * Three real requests to start from, for an empty thread.
+ * The three golden demos, for an empty thread.
  *
- * They fill the composer and nothing else. Two of them are about a file, and
- * choosing one does not pretend to have attached it -- the composer names the
- * sample file to attach, because a prompt that says "the attached report"
- * dispatched with no report would send the model looking for a document that
- * is not there.
+ * A card fills the composer and attaches its sample files through the
+ * ordinary upload, so the run starts from exactly what a person would send.
+ * Nothing is dispatched until Run is pressed.
  */
 export const StarterPrompts = memo(function StarterPrompts({
   onPick,
@@ -31,8 +37,9 @@ export const StarterPrompts = memo(function StarterPrompts({
   /** A vision model is installed, so a scanned report can be read here. */
   visionReady?: boolean
 }) {
-  // Three cards: the scanned report where it can run, the skill where not.
-  const shown = CONSOLE_TEMPLATES.filter((t) => (t.needs === 'vision' ? visionReady : t.id !== 'clause-skill' || !visionReady))
+  // Three cards: the scanned report where a vision model can read it, the
+  // survey where it cannot.
+  const shown = CONSOLE_TEMPLATES.filter((t) => (t.needs === 'vision' ? visionReady : t.needs === 'no-vision' ? !visionReady : true))
   return (
     <ul aria-label="Starter requests" className="grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-3">
       {shown.map((template, i) => {
@@ -53,10 +60,14 @@ export const StarterPrompts = memo(function StarterPrompts({
                 {template.title}
               </span>
               <span className="text-[12.5px] leading-[1.5] text-foreground-muted">{card?.blurb}</span>
-              {template.attach ? (
-                <span className="mt-auto inline-flex items-center gap-1.5 pt-1 text-[11.5px] text-foreground-muted">
-                  <Paperclip className="size-3" aria-hidden />
-                  {template.attach.split('/').pop()}
+              {template.samples.length > 0 ? (
+                <span className="mt-auto flex flex-col gap-0.5 pt-1 text-[11.5px] text-foreground-muted">
+                  {template.samples.map((id) => (
+                    <span key={id} className="inline-flex items-center gap-1.5">
+                      <Paperclip className="size-3 shrink-0" aria-hidden />
+                      <span className="truncate">{SAMPLE_NAMES[id] ?? id}</span>
+                    </span>
+                  ))}
                 </span>
               ) : null}
             </button>
@@ -66,10 +77,3 @@ export const StarterPrompts = memo(function StarterPrompts({
     </ul>
   )
 })
-
-/** The file name a starter expects, from its sample-data path. */
-export function starterAttachment(template: StarterTemplate): { name: string; path: string } | null {
-  if (!template.attach) return null
-  const name = template.attach.split('/').pop() || template.attach
-  return { name, path: template.attach }
-}

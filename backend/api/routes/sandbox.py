@@ -119,6 +119,12 @@ class SandboxLimits(BaseModel):
     execution_allowed: bool
     reason: str
     runtime: str
+    # What config/app.yaml asks for (subprocess | podman | docker), beside
+    # ``runtime``, which is what this host actually does.
+    configured_runtime: str
+    # The container isolation probe (binary, rootless, each check and the
+    # verdict), or None when no container runtime is configured.
+    container: dict | None = None
     backend: str
     memory_mb: int
     cpu_seconds: int
@@ -140,11 +146,15 @@ def sandbox_limits(user: CurrentUser) -> SandboxLimits:
     active_limit: int | None = None
     if backend == "windows_job_object":
         active_limit = max(2, int(settings.get("max_active_processes", 8)))
+    elif backend.endswith("_container"):
+        active_limit = sandbox.container_settings().pids_limit
     return SandboxLimits(
         enabled=sandbox.enabled,
         execution_allowed=allowed,
         reason=reason,
         runtime=sandbox.runtime,
+        configured_runtime=str(settings.get("runtime", "subprocess")),
+        container=sandbox.container_probe(),
         backend=backend,
         memory_mb=int(settings.get("max_memory_mb", 1024)),
         cpu_seconds=int(settings.get("max_cpu_seconds", 30)),

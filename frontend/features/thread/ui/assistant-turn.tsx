@@ -419,13 +419,11 @@ function workSummary(turn: AssistantTurnModel): string {
  */
 function DeliverableReader({
   content,
-  answer,
   evidence,
   onCite,
   trace,
 }: {
   content: DeliverableContent | null
-  answer: string | null
   evidence: EvidenceItem[]
   onCite: (id: string) => void
   trace: string
@@ -438,13 +436,13 @@ function DeliverableReader({
     content?.title || content?.summary || sections.length || findings.length || content?.recommendation || content?.approval_statement,
   )
 
-  // Older records predate structured preview storage. They still deserve a
-  // useful in-place reading path, but are labelled as the verified answer so
-  // nobody mistakes it for a recovered copy of the generated document.
-  const heading = hasDocumentContent ? 'Read the note here' : 'Read the verified answer here'
-  const description = hasDocumentContent
-    ? 'This is the structured source rendered into the attached file.'
-    : 'This run predates document previews; the checked answer is shown here instead.'
+  // Older records predate structured preview storage. Their fallback was the
+  // verified answer again, directly under the same answer in the turn: the
+  // reader saw every sentence twice and learned nothing new. With no document
+  // source to show, the file card stands alone.
+  if (!hasDocumentContent) return null
+  const heading = 'Read the note here'
+  const description = 'This is the structured source rendered into the attached file.'
 
   return (
     <div className="basis-full border-t border-line-default pt-3">
@@ -469,69 +467,70 @@ function DeliverableReader({
 
       {open && (
         <section className="mt-3 border-l-2 border-line-strong pl-4 pr-1" aria-label={heading}>
-          {hasDocumentContent ? (
-            <div className="flex flex-col gap-5">
-              {content?.title && (
-                <div>
-                  <h3 className="text-heading font-medium tracking-[-0.018em] text-foreground">{content.title}</h3>
-                  {content.reference && <p className="mt-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Reference · {content.reference}</p>}
-                </div>
-              )}
-              {content?.summary && (
-                <div>
-                  <p className="mb-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Executive summary</p>
-                  <Prose text={content.summary} known={known} onCite={onCite} trace={trace} className="text-body leading-[var(--lh-answer)] text-foreground" />
-                </div>
-              )}
-              {sections.map((section, index) => (
-                <div key={`${section.heading ?? 'section'}-${index}`}>
-                  {section.heading && <h4 className="mb-1.5 text-ui font-medium text-foreground">{section.heading}</h4>}
-                  {section.body && <Prose text={section.body} known={known} onCite={onCite} trace={trace} className="text-body leading-[var(--lh-answer)] text-foreground" />}
-                  {section.bullets && section.bullets.length > 0 && (
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-body leading-[var(--lh-answer)] text-foreground">
-                      {section.bullets.map((bullet, bulletIndex) => (
-                        <li key={bulletIndex}><Inline text={bullet} known={known} onCite={onCite} trace={trace} /></li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-              {findings.length > 0 && (
-                <div>
-                  <p className="mb-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Findings</p>
-                  <ul className="divide-y divide-line-subtle border-y border-line-subtle">
-                    {findings.map((finding, index) => (
-                      <li key={index} className="py-2.5 text-body text-foreground">
-                        {finding.description && <Inline text={finding.description} known={known} onCite={onCite} trace={trace} />}
-                        {(finding.severity || finding.reference) && (
-                          <span className="mt-1 flex flex-wrap gap-x-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-                            {finding.severity && <span>{finding.severity}</span>}
-                            {finding.reference && <Inline text={finding.reference} known={known} onCite={onCite} trace={trace} />}
-                          </span>
-                        )}
-                      </li>
+          <div className="flex flex-col gap-5">
+            {content?.title && (
+              <div>
+                <h3 className="text-heading font-medium tracking-[-0.018em] text-foreground">{content.title}</h3>
+                {content.reference && <p className="mt-1 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Reference · {content.reference}</p>}
+              </div>
+            )}
+            {content?.summary && (
+              <div>
+                <p className="mb-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Executive summary</p>
+                <Prose text={content.summary} known={known} onCite={onCite} trace={trace} className="text-body leading-[var(--lh-answer)] text-foreground" />
+              </div>
+            )}
+            {sections.map((section, index) => (
+              <div key={`${section.heading ?? 'section'}-${index}`}>
+                {section.heading && <h4 className="mb-1.5 text-ui font-medium text-foreground">{section.heading}</h4>}
+                {section.body && <Prose text={section.body} known={known} onCite={onCite} trace={trace} className="text-body leading-[var(--lh-answer)] text-foreground" />}
+                {section.bullets && section.bullets.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-body leading-[var(--lh-answer)] text-foreground">
+                    {section.bullets.map((bullet, bulletIndex) => (
+                      <li key={bulletIndex}><Inline text={bullet} known={known} onCite={onCite} trace={trace} /></li>
                     ))}
                   </ul>
-                </div>
-              )}
-              {content?.recommendation && (
-                <div>
-                  <p className="mb-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Recommendation</p>
-                  <Prose text={content.recommendation} known={known} onCite={onCite} trace={trace} className="text-body leading-[var(--lh-answer)] text-foreground" />
-                </div>
-              )}
-              {content?.approval_statement && (
-                <div className="border-l-2 border-approval pl-3">
-                  <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-approval-text">Approval sought</p>
-                  <p className="mt-1 text-body leading-[var(--lh-answer)] text-foreground"><Inline text={content.approval_statement} known={known} onCite={onCite} trace={trace} /></p>
-                </div>
-              )}
-            </div>
-          ) : answer ? (
-            <AnswerProse text={answer} evidence={evidence} onCite={onCite} trace={trace} />
-          ) : (
-            <p className="text-body text-foreground-muted">No readable content was recorded for this file.</p>
-          )}
+                )}
+              </div>
+            ))}
+            {findings.length > 0 && (
+              <div>
+                <p className="mb-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Findings</p>
+                <ul className="divide-y divide-line-subtle border-y border-line-subtle">
+                  {findings.map((finding, index) => (
+                    <li key={index} className="py-2.5 text-body text-foreground">
+                      {finding.description && <Inline text={finding.description} known={known} onCite={onCite} trace={trace} />}
+                      {(finding.severity || finding.reference) && (
+                        <span className="mt-1 flex flex-wrap gap-x-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
+                          {finding.severity && <span>{finding.severity}</span>}
+                          {finding.reference && <Inline text={finding.reference} known={known} onCite={onCite} trace={trace} />}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {content?.recommendation && (
+              <div>
+                <p className="mb-1.5 font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-foreground-muted">Recommendation</p>
+                <Prose text={content.recommendation} known={known} onCite={onCite} trace={trace} className="text-body leading-[var(--lh-answer)] text-foreground" />
+              </div>
+            )}
+            {content?.approval_statement && (
+              <div className="border-l-2 border-approval pl-3">
+                <p className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-approval-text">Approval sought</p>
+                <p className="mt-1 text-body leading-[var(--lh-answer)] text-foreground"><Inline text={content.approval_statement} known={known} onCite={onCite} trace={trace} /></p>
+              </div>
+            )}
+            {/* Written from the severity formula (SOP-OPS-008), never by the model. */}
+            {content?.authority && (
+              <p className="text-meta leading-[var(--lh-answer)] text-foreground-secondary">
+                <span className="font-medium text-foreground">Who decides.</span>{' '}
+                <Inline text={content.authority} known={known} onCite={onCite} trace={trace} />
+              </p>
+            )}
+          </div>
         </section>
       )}
     </div>
@@ -904,7 +903,6 @@ export const AssistantTurn = memo(function AssistantTurn({
 
           <DeliverableReader
             content={turn.deliverableContent}
-            answer={showsAnswer ? turn.answer : null}
             evidence={turn.evidence}
             onCite={cite}
             trace={turn.id}
@@ -925,6 +923,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               approverRoles={turn.approval?.approverRoles ?? []}
               reasons={turn.approval?.reasons ?? []}
               canReview={canReview}
+              taskId={turn.taskId}
             />
           )}
           {/* Only what the reader did not expect -- a model request that was

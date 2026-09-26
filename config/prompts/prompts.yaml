@@ -1,7 +1,7 @@
 # Prompt library. Templates use Python str.format-style {placeholders}.
 # No prompt text lives in Python source.
 
-prompts_version: 1
+prompts_version: 2
 
 system:
   base: |
@@ -42,6 +42,14 @@ system:
       role.
     - One to four sentences, plus a list only where the procedure itself
       enumerates one.
+    - Write connected sentences, the way a colleague would say them. Never
+      one labelled field per sentence ("The equipment is V-2104. The
+      finding is Medium. The approving authority is ...").
+    - When the request asks for a document (an approval note, a report, a
+      handover), the answer is that document's conclusion: what is
+      recommended, on which figures, and who decides. Do not restate the
+      headings a procedure requires the document to contain; the document
+      carries them.
     - If the evidence does not settle the question, say so in one sentence
       and name the document that would. Never soften a stated requirement
       with "typically" or "may vary".
@@ -126,6 +134,35 @@ task:
 
     Message: {prompt}
 
+  # Reading a P&ID image as a graph (backend/engineering/pid_extraction.py).
+  # What comes back is a proposal: every tag, type and connection is checked
+  # before it is queried, and low-confidence items are held for review.
+  pid_extract: |
+    This image is a piping and instrumentation diagram (P&ID). Read it as a
+    graph. List only what you can see; never add an element that is not
+    drawn, and never guess a tag you cannot read.
+
+    Return a JSON object only, no prose, matching exactly:
+    {{"drawing": {{"number": "<drawing number from the title block, or null>",
+                  "title": "<title, or null>", "revision": "<revision, or null>"}},
+      "elements": [{{"tag": "<tag exactly as printed, e.g. V-2104>",
+                     "type": "<one of: {types}>",
+                     "label": "<description printed beside it, or null>",
+                     "bbox": [x1, y1, x2, y2],
+                     "confidence": <0 to 1>,
+                     "measures": "<for an instrument: the tag it measures, or null>",
+                     "controls": "<for an instrument: the valve it acts on, or null>",
+                     "car_sealed": "<'open' if marked CSO, else null>"}}],
+      "lines": [{{"from": "<upstream tag>", "to": "<downstream tag>",
+                  "line": "<line number printed on it, or null>",
+                  "service": "<hydrocarbon | water | sour water | steam | other, or null>",
+                  "bbox": [x1, y1, x2, y2], "confidence": <0 to 1>}}]}}
+
+    bbox is in image pixels. "from" and "to" follow the flow arrow. A line
+    that passes through a valve is two connections: into the valve and out
+    of it. Confidence is how sure you are of the tag and its type.
+    User's request about this drawing: {prompt}
+
   vision_extract_pages: |
     Transcribe every supplied page of the same industrial PDF independently.
     Read all visible text on every image, even if it seems unrelated to a
@@ -198,6 +235,21 @@ task:
     Only include calculations where the text asserts a concrete numeric result.
     If there are none, return {{"calculations": []}}.
 
+  identify_stated_inputs: |
+    Say which values in this question are which variable. Do not calculate
+    anything: a formula registry does the arithmetic.
+
+    Question:
+    {question}
+
+    Variables:
+    {variables}
+
+    Return a JSON object only, one key per variable, each the value exactly
+    as the question writes it with its unit (for example "9.4 mm" or
+    "4 years"), or null when the question does not state it. Never derive,
+    convert or estimate a value.
+
   draft_deliverable: |
     Prepare the content for a formal {format} deliverable.
 
@@ -211,6 +263,12 @@ task:
     {evidence}
 
     {calculations_block}
+
+    The workbench recommends; a named person approves (SOP-OPS-008). Write
+    "recommendation" as a recommendation to the approving authority, never
+    as a decision taken or an approval given. Where the results say the
+    equipment is below minimum thickness and withdrawn from service, do not
+    state a next inspection date or interval.
 
     Return a JSON object only, no prose, matching exactly:
     {{"title": "<document title>",
