@@ -1,0 +1,47 @@
+# Tier (a): demo minimum. 8 GB RAM, 2-4 cores, no GPU -- the SIH laptop.
+#
+# Selected with SOVEREIGN_PROFILE=laptop-8gb. Overlaid on config/app.yaml
+# (the `app` section) and config/routing.yaml (`routing`), key by key; a
+# list replaces rather than extends. SOVEREIGN_* variables still win.
+#
+# Measured here: qwen2.5:3b reads the prompt at ~35 tok/s and writes at
+# ~6.5 tok/s; a cited answer takes 38-56 s, a scan run ~100 s with the
+# V-2104 vision cache warm and ~290 s cold. Keep qwen2.5:3b and nomic
+# resident; load the vision model only on a cache miss; never qwen3:8b.
+# Start Ollama with scripts/start-ollama.ps1 -Profile laptop-8gb.
+description: Demo minimum -- 8 GB, CPU only, one user
+
+app:
+  inference:
+    # Between judge visits a 30-minute lull cost a 7-14 s reload. A duration,
+    # not a bare -1: a model that never expires cannot be evicted by Ollama
+    # when the vision model needs the room.
+    keep_alive: 24h
+    prewarm: true
+    # The 3B and the vision model do not fit together in 8 GB.
+    single_model_residency: true
+    memory_headroom_mb: 1024
+    max_context_tokens: 8192
+  agent:
+    # One run at a time: a second concurrent run would load a second
+    # model's cache and push the host into swap.
+    worker_count: 1
+  readiness:
+    min_free_memory_mb: 1024
+
+routing:
+  # Every text stage shares one window so the 3B is never reloaded to
+  # resize its cache; vision needs room for the image tokens.
+  stage_context_tokens:
+    vision_extraction: 8192
+    planning: 5120
+    code_generation: 5120
+    verification: 5120
+    drafting: 5120
+  # At ~6.5 tok/s every 100 tokens is 15 s of wall clock.
+  stage_output_tokens:
+    planning: 350
+    vision_extraction: 2400
+    code_generation: 700
+    verification: 250
+    drafting: 900

@@ -148,6 +148,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         actor="system",
         detail={
             "application": config.settings.app.get("name"),
+            # Which hardware-tier profile shaped residency and budgets.
+            "profile": config.profile,
             "inference_provider": config.settings.inference.get("provider"),
             "inference_base_url": config.settings.inference.get("base_url"),
             "sandbox_runtime": config.settings.sandbox.get("runtime"),
@@ -171,6 +173,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             detail={"runtime": effective, "probe": sandbox.container_probe()},
         )
         print(f"[workbench] sandbox runtime: {effective}")
+
+    if config.profile:
+        print(f"[workbench] hardware profile: {config.profile}")
 
     created = get_identity_service().ensure_seed_users()
     if created:
