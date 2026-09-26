@@ -119,6 +119,138 @@ class Session(BaseModel):
     expires_at: datetime
 
 
+# ---------------------------------------------------------------- accounts
+# Provisioning (backend/core/accounts.py, backend/api/routes/accounts.py).
+# Every one-time code below is returned exactly once, in the response that
+# issued it; the database keeps only its hash.
+class SetupStatus(BaseModel):
+    needs_setup: bool
+
+
+class OwnerSetupRequest(BaseModel):
+    token: str
+    username: str
+    display_name: str
+    password: str
+
+
+class InviteCreateRequest(BaseModel):
+    role: str
+    department: str
+    display_name: str | None = None
+    expires_hours: int = Field(default=72, ge=1, le=24 * 30)
+
+
+class InviteRecord(BaseModel):
+    id: str
+    role: str
+    department: str
+    display_name: str | None = None
+    status: Literal["open", "used", "expired", "revoked"]
+    created_by: str
+    created_at: datetime
+    expires_at: datetime
+    used_at: datetime | None = None
+    used_by: str | None = None
+    revoked_at: datetime | None = None
+    revoked_by: str | None = None
+
+
+class InviteIssued(BaseModel):
+    invite: InviteRecord
+    code: str
+    accept_path: str
+
+
+class InviteAcceptRequest(BaseModel):
+    code: str
+    username: str
+    password: str
+    display_name: str | None = None
+
+
+class AccessRequestCreate(BaseModel):
+    username: str
+    display_name: str
+    requested_role: str
+    reason: str
+    password: str
+
+
+class AccessRequestRecord(BaseModel):
+    id: str
+    username: str
+    display_name: str
+    requested_role: str
+    reason: str
+    status: Literal["pending", "approved", "rejected"]
+    created_at: datetime
+    decided_at: datetime | None = None
+    decided_by: str | None = None
+    granted_role: str | None = None
+    granted_department: str | None = None
+    decision_reason: str | None = None
+
+
+class AccessRequestStatus(BaseModel):
+    """What the requester may see: the state, and a rejection's reason."""
+
+    id: str
+    status: Literal["pending", "approved", "rejected"]
+    created_at: datetime
+    decided_at: datetime | None = None
+    reason: str | None = None
+
+
+class AccessRequestApproval(BaseModel):
+    role: str
+    department: str
+
+
+class AccessRequestRejection(BaseModel):
+    reason: str
+
+
+class AccountRecord(BaseModel):
+    """An account as the administrator's user list shows it."""
+
+    id: str
+    username: str
+    display_name: str
+    role: str
+    department: str
+    active: bool
+    created_at: datetime
+    origin: str | None = None
+    provisioned_by: str | None = None
+    pending_request: bool = False
+
+
+class PasswordResetRequest(BaseModel):
+    expires_hours: int = Field(default=24, ge=1, le=24 * 7)
+
+
+class PasswordResetIssued(BaseModel):
+    user_id: str
+    username: str
+    code: str
+    accept_path: str
+    expires_at: datetime
+
+
+class PasswordResetAccept(BaseModel):
+    code: str
+    password: str
+
+
+class DirectoryStatus(BaseModel):
+    enabled: bool
+    configured: bool
+    url: str | None = None
+    base_dn: str | None = None
+    detail: str
+
+
 # --------------------------------------------------------------------- files
 class StoredFile(BaseModel):
     id: str

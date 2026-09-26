@@ -291,10 +291,32 @@ security:
   login_window_seconds: 300
   login_lockout_seconds: 300
 
+# Who can have an account, and how it comes to exist (backend/core/accounts.py).
+# With demo.enabled false a fresh host has no accounts: startup writes a
+# one-time setup token (24 h) to <storage.root>/setup-token and the console,
+# and /setup uses it to create the first administrator. After that, accounts
+# come only from an administrator's invitation or an approved access request.
+identity:
+  # The role the first-run owner receives. It must grant users.manage.
+  owner_role: administrator
+  # The plant directory is the preferred path for a plant that has one:
+  # sign-in against AD/LDAP, role from group membership. This build has no
+  # directory client, so these values are declared, shown to administrators
+  # as "not configured", and not used (backend/core/directory.py).
+  directory:
+    enabled: false
+    url: ""                 # e.g. ldaps://dc01.plant.local:636
+    base_dn: ""             # e.g. OU=Staff,DC=plant,DC=local
+    user_filter: "(sAMAccountName={username})"
+    # Directory group (DN or name) -> role in policies/access-control.yaml.
+    group_role_map: {}
+
 # The demonstration's sample files, which the console's starter cards attach
 # in one click (backend/api/routes/samples.py). Served by id only, only from
 # sample_data/, and uploaded through the ordinary quarantine and scanning.
-# Turn off on a production install.
+# The same switch seeds the demonstration accounts in
+# policies/access-control.yaml, which share one password, and lists them on
+# the sign-in screen. Turn off on a production install.
 demo:
   enabled: true
   samples:

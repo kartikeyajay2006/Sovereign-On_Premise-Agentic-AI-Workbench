@@ -91,25 +91,44 @@ class LoginThrottle:
             self._locked_until.pop(f"account:{account}", None)
 
 
-_throttle: LoginThrottle | None = None
+_throttles: dict[str, LoginThrottle] = {}
 
 
-def get_login_throttle() -> LoginThrottle:
-    global _throttle
-    if _throttle is None:
+def get_throttle(purpose: str) -> LoginThrottle:
+    """One throttle per purpose, all with the sign-in limits from config.
+
+    Separate counters, so guessing at one door cannot close another. Behind
+    the console's proxy every browser is 127.0.0.1: a script trying
+    invitation codes locks that client out of redeeming codes for the
+    lockout period, not out of signing in.
+
+    * ``login``   -- passwords, keyed by the account named.
+    * ``codes``   -- setup tokens, invitation and reset codes. Each wrong code
+      is keyed by itself, so only the per-client spray rule bites: a client
+      that tries ``spray_accounts`` wrong codes in the window is stopped.
+    * ``requests`` -- access requests, which are not failures but are
+      unauthenticated writes; every submission counts, so one client cannot
+      fill the administrator's queue.
+    """
+    throttle = _throttles.get(purpose)
+    if throttle is None:
         from backend.core.config import get_config
 
         security = get_config().settings.security
-        _throttle = LoginThrottle(
+        throttle = LoginThrottle(
             max_failures=int(security.get("login_max_failures", 5)),
             spray_accounts=int(security.get("login_spray_accounts", 10)),
             window_seconds=float(security.get("login_window_seconds", 300)),
             lockout_seconds=float(security.get("login_lockout_seconds", 300)),
         )
-    return _throttle
+        _throttles[purpose] = throttle
+    return throttle
+
+
+def get_login_throttle() -> LoginThrottle:
+    return get_throttle("login")
 
 
 def reset_login_throttle() -> None:
     """Forget every count and lockout (tests; an operator restart does the same)."""
-    global _throttle
-    _throttle = None
+    _throttles.clear()
