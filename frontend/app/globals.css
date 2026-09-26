@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+/* The Hi-Vis motion system: hv-tick, hv-roll, hv-scan, hv-lock, hv-trace,
+   hv-seal, hv-wipe, hv-caret, each with its reduced-motion fallback. */
+@import './hv-motion.css';
 
 @custom-variant dark (&:is([data-theme='dark'] *));
 

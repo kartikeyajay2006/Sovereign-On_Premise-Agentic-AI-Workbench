@@ -442,6 +442,15 @@ export interface IntegrityAssessment {
   source_evidence_ids: string[]
 }
 
+/** backend/core/schemas.py StageMark: one `task.stage`, kept on the record. */
+export interface StageMark {
+  status: string
+  phase: string | null
+  message: string
+  skipped: boolean
+  at: string
+}
+
 export interface Task {
   id: string
   prompt: string
@@ -465,6 +474,11 @@ export interface Task {
   /** One record per model call, in the order they ran. Persisted. */
   usage: ModelUsage[]
   tool_calls: ToolCall[]
+  /**
+   * Every stage the orchestrator entered, with the server time it did.
+   * Absent or empty on records written before it was kept.
+   */
+  stage_log?: StageMark[]
   evidence: EvidenceItem[]
   verification?: VerificationReport | null
   approval?: ApprovalRecord | null

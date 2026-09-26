@@ -95,6 +95,8 @@ export function useEventStream(options: EventStreamOptions = {}) {
       'task.token',
       'task.answer',
       'task.verified',
+      'task.classified',
+      'task.policy',
       'task.deliverable',
       'task.approval_decided',
       'task.finished',
@@ -106,6 +108,8 @@ export function useEventStream(options: EventStreamOptions = {}) {
       'harness.started',
       'harness.child',
       'harness.cancelling',
+      'harness.aggregating',
+      'harness.report_written',
       'harness.finished',
       'harness.report',
     ]

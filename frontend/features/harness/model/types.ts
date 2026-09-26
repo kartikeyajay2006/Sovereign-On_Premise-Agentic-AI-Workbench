@@ -128,6 +128,13 @@ export interface HarnessReportRecord {
   released: boolean
   child_statuses: Record<string, string>
   tally: HarnessTally
+  /**
+   * The audit chain head when this version was written: the sequence and
+   * hash of its report_generated record. Null when auditing is off or on a
+   * record written before the head was kept.
+   */
+  audit_seq: number | null
+  audit_hash: string | null
 }
 
 export interface Citation {
@@ -144,6 +151,16 @@ export interface CheckSummary {
   name: string
   passed: boolean
   detail: string
+}
+
+/** One material claim with its verdict and the passage ids it rests on. */
+export interface ClaimView {
+  id: string
+  text: string
+  kind: string
+  verdict: string
+  evidence_ids: string[]
+  reason: string
 }
 
 export interface HarnessChildView {
@@ -168,6 +185,10 @@ export interface HarnessChildView {
   citations: Citation[]
   unretrieved_citations: string[]
   unsupported_claims: string[]
+  /** Released children only, like the citations. */
+  claims: ClaimView[]
+  /** Passages the claims name that the answer's markers do not cite. */
+  claim_evidence: Citation[]
   approval_reasons: string[]
   reviewer_name: string | null
   error: string | null

@@ -8,7 +8,9 @@ import { ClassificationTag } from '@/components/primitives'
 import { useToast } from '@/components/toast'
 import { Button } from '@/shared/ui/controls/button'
 import { harnessApi } from '../api'
+import type { ReportWritten } from '../hooks/use-harness-run'
 import type { HarnessRunView } from '../model/types'
+import { AuditSeal } from './control/audit-seal'
 import { ACTIVE_RUN } from './outcome'
 import { CopyValue, Ledger, Panel } from './parts'
 import { formatBytes, formatDateTime, plural } from './format'
@@ -20,9 +22,20 @@ function message(err: unknown): string {
 export function ReportPanel({
   run,
   onReplace,
+  written = null,
+  aggregating = false,
+  sealAnimate = false,
+  className,
 }: {
   run: HarnessRunView
   onReplace: (next: HarnessRunView) => void
+  /** harness.report_written, held until the re-read carries the same version. */
+  written?: ReportWritten | null
+  /** harness.aggregating heard: every child settled, the report not yet on disk. */
+  aggregating?: boolean
+  /** Run the seal sequence: this version was released while the page watched. */
+  sealAnimate?: boolean
+  className?: string
 }) {
   const { push } = useToast()
   const [regenerating, setRegenerating] = useState(false)
@@ -78,8 +91,9 @@ export function ReportPanel({
 
   return (
     <Panel
-      title="Report"
+      title="Report / seal"
       id="harness-report"
+      className={className}
       aside={
         record ? (
           <span className="flex items-center gap-3">
@@ -95,8 +109,9 @@ export function ReportPanel({
         {!record ? (
           active ? (
             <p className="text-body text-foreground-secondary">
-              Written when the run ends, as markdown and JSON. Each file is sha256-hashed, and the
-              hashes are recorded on the run and in the audit log.
+              {aggregating
+                ? 'Every child has settled; the report is being written now.'
+                : 'Written when the run ends, as markdown and JSON. Each file is sha256-hashed, and the hashes are recorded on the run and in the audit log.'}
             </p>
           ) : (
             <>
@@ -126,6 +141,16 @@ export function ReportPanel({
               <span className="font-mono text-foreground">{record.classification}</span>: the highest
               classification among the released answers and the passages they cite.
             </p>
+
+            {/* The audit head, from the record; from the report_written event
+                only for the moment before the re-read carries it. */}
+            <AuditSeal
+              key={record.version}
+              seq={record.audit_seq ?? (written?.report_version === record.version ? written.audit_seq : null)}
+              hash={record.audit_hash ?? (written?.report_version === record.version ? written.audit_hash : null)}
+              released={record.released}
+              animate={sealAnimate}
+            />
 
             {/* Sign-off */}
             {record.approval.required ? (

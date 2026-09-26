@@ -63,6 +63,7 @@ from backend.core.schemas import (
     RoutingDecision,
     SandboxResult,
     Sensitivity,
+    StageMark,
     StoredFile,
     Task,
     TaskProfile,
@@ -590,6 +591,17 @@ class AgentOrchestrator:
             raise TaskCancelled(task.id)
         task.status = status
         task.updated_at = datetime.now(timezone.utc)
+        # Kept on the record so a settled run's stage strip can be replayed
+        # from the record rather than from a replay buffer that has moved on.
+        task.stage_log.append(
+            StageMark(
+                status=status.value,
+                phase=phase,
+                message=message,
+                skipped=bool((data or {}).get("skipped")),
+                at=task.updated_at,
+            )
+        )
         self._checkpoint(task)
         payload: dict[str, Any] = {"status": status.value, "message": message, **(data or {})}
         if phase:
@@ -967,6 +979,10 @@ class AgentOrchestrator:
                 "summary": call.output_summary,
                 "duration_ms": call.duration_ms,
                 "policy_decision": call.policy_decision.value,
+                # The tool's own start, so a live tool block is placed where
+                # the record will place it, not where the event happened to
+                # arrive.
+                "started_at": call.started_at.isoformat(),
             },
         )
         self.audit.record(

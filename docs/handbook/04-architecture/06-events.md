@@ -28,11 +28,11 @@ There are **32** event types.
 | `task.queued` | Its place in the queue changed | Position, how many are ahead, which task is running |
 | `task.classified` | The analyzer profiled it, or later, the evidence raised its class | Profile; or `sensitivity`, `raised_from`, `reason` |
 | `task.planned` | A plan was made, or planning was skipped | Steps, or `skipped` |
-| `task.stage` | A stage began | Status, message, phase |
+| `task.stage` | A stage began | Status, message, phase. The same mark is kept on the task record as `stage_log[]`, so a settled run's stages replay from the record |
 | `task.model_selected` | A model was chosen for a stage | Stage, model, reason, candidates |
 | `task.model_swapped` | The residency manager evicted a model to load another | Evicted, loaded, memory |
 | `task.model_completed` | A model call finished | Usage: tokens, load, evaluation, first-token time, done reason |
-| `task.tool_started` / `task.tool_completed` | A tool ran | Tool, arguments summary, outcome |
+| `task.tool_started` / `task.tool_completed` | A tool ran | Tool, arguments summary, outcome; the completion carries the tool's own `started_at` and `duration_ms` |
 | `task.extraction` | A batch of pages or an image was read | File, pages, evidence IDs |
 | `task.evidence` | Retrieval returned | Mode, count, the evidence items |
 | `task.code_generated` | A script was written | Code, attempt |
@@ -49,9 +49,11 @@ There are **32** event types.
 | `task.finished` | The run ended, whatever the outcome | Final status, duration |
 | `task.approval_decided` | A reviewer decided | Decision, reviewer, comment, status |
 
-### Harness events (5)
+### Harness events (7)
 
-`harness.started`, `harness.child` (one item settled), `harness.report` (a report version was written), `harness.cancelling`, `harness.finished`.
+`harness.started`, `harness.child` (an item was submitted, started running or settled), `harness.cancelling`, `harness.aggregating` (every item has settled and the report is being written), `harness.report_written` (a report version is on disk: `report_version`, `released`, `files[{filename, sha256}]`, and the audit chain head `audit_seq` / `audit_hash` at the time of writing), `harness.report` (a report was regenerated or decided), `harness.finished`.
+
+A run-level harness event carries ids, hashes and counts only, because it reaches every signed-in session. The same `audit_seq` and `audit_hash` are kept on the report record: they are the sequence and hash of that version's `report_generated` audit record, which carries the file hashes.
 
 ### Sovereignty events (2)
 
