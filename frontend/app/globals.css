@@ -42,7 +42,7 @@
   --approval: #d97706;
   --critical: #dc2626;
 
-  --radius: 7px;
+  --radius: 2px;
 
   /* shadcn compatibility mappings */
   --card: var(--surface);
@@ -249,12 +249,12 @@
 
   /* House radius stays 4px. The rest exist for nesting: an inner radius
      is the outer radius minus the padding. */
-  --radius-xs: 4px;
-  --radius-sm-token: 6px;
-  --radius-md-token: 10px;   /* floating: menu, popover, toast */
-  --radius-lg-token: 14px;   /* sheets, modals, the composer */
+  --radius-xs: 2px;
+  --radius-sm-token: 2px;
+  --radius-md-token: 3px;    /* floating: menu, popover, toast */
+  --radius-lg-token: 4px;    /* sheets, modals, the composer */
   --menu-pad: 4px;
-  --radius-menu-row: 6px;
+  --radius-menu-row: 2px;
 
   /* Exactly three control sizes, so no component invents a fourth. */
   --control-sm: 32px;
@@ -435,16 +435,16 @@ html[data-theme='dark'],
   /* Grounds. Elevation rises toward light, the opposite of the light
      theme where a raised surface is whiter than paper but a sunken one
      is greyer. */
-  --background: #141413;        /* warm night */
-  --surface: #1d1c1a;           /* raised, one step above the ground */
-  --surface-sunken: #0f0f0e;    /* recessed */
+  --background: #070707;        /* hi-vis night: neutral, not warm */
+  --surface: #111111;           /* raised, one step above the ground */
+  --surface-sunken: #000000;    /* recessed */
 
   /* Inks. Not pure white: #ffffff on a dark ground haloes, and leaves no
      headroom above body text. Worst-case ratio across all three grounds
      is quoted. */
-  --foreground: #f2f1ec;            /* 16.1:1 */
-  --foreground-secondary: #afada7;  /*  8.2:1 */
-  --foreground-muted: #8d8b85;      /*  5.00:1 — clears AA body, which the
+  --foreground: #f7f7f4;            /* 19.4:1 */
+  --foreground-secondary: #b8b8b2;  /*  9.9:1 */
+  --foreground-muted: #9a9a95;      /*  5.00:1 — clears AA body, which the
                                        light theme's #8a8783 never did at
                                        3.33:1 despite carrying most of the
                                        small mono labels in the product. */
@@ -457,26 +457,27 @@ html[data-theme='dark'],
   --ink-border: #d8d5d0;
 
   /* Ink inverted: the primary control is an ivory pill at night. */
-  --action: #f2f1ec;
-  --action-hover: #dcdad3;
-  --action-text: #f2f1ec;
-  --action-ink: #141413;
+  /* Hi-Vis: the one accent. Lime means "you can act" or "this is cited". */
+  --action: #d4f24a;
+  --action-hover: #c3e236;
+  --action-text: #d4f24a;
+  --action-ink: #050505;
 
   /* Status fills are unchanged — a fill is a fill on any ground. */
 
   /* Status TEXT, recomputed for dark. Two of the four base colours turn
      out to work as text here without modification, which is the exact
      inverse of the light theme where all four failed. */
-  --sovereign-text: #16a34a;   /* 5.43:1 worst — the base colour, unchanged */
-  --active-text:    #0f87c9;   /* 4.54:1 worst — lifted from #0284c7 */
-  --approval-text:  #d97708;   /* 5.62:1 worst — the base colour, unchanged */
-  --critical-text:  #e9443c;   /* 4.56:1 worst — lifted from #dc2626 */
+  --sovereign-text: #4cc38a;   /* 8.9:1 on #070707 */
+  --active-text:    #8fb7d4;   /* 9.6:1 */
+  --approval-text:  #ffb224;   /* 11.0:1 */
+  --critical-text:  #ff5a4f;   /* 6.2:1 */
 
   /* On-fill inks are unchanged: a solid fill's luminance did not move. */
 
   /* Lines. The donor is now LIGHT and still warm, and the alphas are
      solved rather than carried over. */
-  --line-ink: oklch(0.92 0.0080 84.57);   /* ~#e7e4df */
+  --line-ink: oklch(0.92 0 0);   /* neutral: hi-vis has no warm cast */
 
   --line-subtle:  oklch(from var(--line-ink) l c h / calc(9%  + 6%  * var(--contrast-lines)));
   --line-default: oklch(from var(--line-ink) l c h / calc(16% + 10% * var(--contrast-lines)));
@@ -760,8 +761,8 @@ html[data-theme='dark'],
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), 'Geist Fallback', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
+  --font-sans: var(--font-archivo), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian), var(--font-geist-mono), ui-monospace, monospace;
 
   --color-background: var(--background);
   --color-surface: var(--surface);
