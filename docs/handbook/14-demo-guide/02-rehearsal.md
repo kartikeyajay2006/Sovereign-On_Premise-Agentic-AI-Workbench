@@ -5,7 +5,8 @@
 - [ ] **Power** connected; sleep and screen lock disabled
 - [ ] **Memory**: close browsers with many tabs, IDEs, container runtimes. `free -h` shows several GB available and little swap in use
 - [ ] **One API process**: `pgrep -af "uvicorn backend.api.main"` shows exactly one
-- [ ] **Ollama** answers; `ollama list` shows `qwen2.5:3b`, `qwen2.5vl:3b`, `nomic-embed-text`
+- [ ] **Ollama** started with the tier's variables (`scripts/start-ollama.ps1`) and answering; `ollama list` shows `qwen2.5:3b`, `qwen2.5vl:3b`, `nomic-embed-text`
+- [ ] **`scripts/warmup.ps1`** (or `warmup.py`) ends **READY**: digests verified, the 3B resident at 5,120 tokens, free memory above the threshold, the V-2104 vision cache warm, the audit chain valid. The countdown is in [14.3](03-demo-day.md)
 - [ ] `./scripts/run.sh --status`: all three ✓
 - [ ] `GET /api/health`: `inference_reachable`, `retrieval_mode: hybrid`, `sandbox_ready`, `audit_chain_valid`, `sovereignty_ok` all good
 - [ ] **Corpus** seeded: 15 documents, 207 passages
@@ -53,7 +54,7 @@ What it costs the target: two new model runs (the scanned-report run is the ~6 m
 | An answer is wrong | Open its checks and held reason; reject it as `reviewer` with a note | *"This is exactly why the release gate exists: the model is not trusted, and here is the record of it being caught."* |
 | A run is **Refused** | Read the reason aloud | *"Policy found no approved model for this data. It refuses rather than guessing."* |
 | The console errors | `./scripts/run.sh` restarts both services in about 20 s | |
-| Ollama stops | `ollama serve`, then warm with one question | |
+| Ollama stops | `scripts/start-ollama.ps1` (not a bare `ollama serve`, which starts without the variables), then `scripts/warmup.ps1` | |
 | Egress is not zero | Open the violation; it names the process and address | *"It is measured, and it tells us exactly what connected."* |
 | Chain verification fails | Do not edit anything. Show the failing sequence number | *"It detected a change. That is the control working."* |
 
@@ -68,6 +69,6 @@ What it costs the target: two new model runs (the scanned-report run is the ~6 m
 
 | | | |
 |:--|:--:|--:|
-| [← 14.1 · The golden path](01-golden-path.md) | [↑ 14 · Demo guide](README.md) | [15 · Reference →](../15-reference/README.md) |
+| [← 14.1 · The golden path](01-golden-path.md) | [↑ 14 · Demo guide](README.md) | [14.3 · Demo day on the 8 GB laptop →](03-demo-day.md) |
 
 <!-- nav:end -->
