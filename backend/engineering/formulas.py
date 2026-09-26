@@ -369,6 +369,141 @@ def _ffs_triggers(v: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ----------------------------------------------------- pressure relief devices
+# Bench-test intervals by service, SOP-INS-025 Clauses 2.1-2.2.
+RELIEF_TEST_INTERVAL_MONTHS = {"clean": 48, "fouling_or_corrosive": 24}
+
+# Pressures are compared in MPa. Six decimal places is far below any gauge's
+# resolution and removes the binary-fraction noise that would otherwise fail
+# the Clause 3.2 worked example (10.5 × 1.10 is not exactly 11.55 in floats).
+_PRESSURE_PLACES = 6
+
+
+def relief_service_key(text: str) -> str | None:
+    lowered = text.lower()
+    # "non-fouling, non-corrosive" is the clean service of Clause 2.1, not the
+    # fouling or corrosive service of Clause 2.2, so the negations go first.
+    stripped = lowered
+    for negation in ("non-fouling", "non fouling", "non-corrosive", "non corrosive"):
+        stripped = stripped.replace(negation, "")
+    if "fouling" in stripped or "corrosive" in stripped:
+        return "fouling_or_corrosive"
+    if "clean" in lowered or stripped != lowered:
+        return "clean"
+    return None
+
+
+def _bar(mpa: float) -> str:
+    return f"{_num(round(mpa * 10, 4))} bar"
+
+
+def _relief_test_due(v: dict[str, Any]) -> dict[str, Any]:
+    service = relief_service_key(str(v["service"]))
+    if service is None:
+        raise ValueError(
+            f"service {v['service']!r} is not one of SOP-INS-025 Clauses 2.1-2.2 "
+            "(clean, or fouling or corrosive)"
+        )
+    months = RELIEF_TEST_INTERVAL_MONTHS[service]
+    due = add_months(v["last_test_date"], months)
+    as_of = v.get("as_of")
+    overdue = None if as_of is None else as_of > due
+    days_overdue = None if as_of is None else max((as_of - due).days, 0)
+    display = (
+        f"{months} months after {v['last_test_date'].isoformat()} = {due.isoformat()} "
+        f"({'clean' if service == 'clean' else 'fouling or corrosive'} service)"
+    )
+    if overdue:
+        display += f"; overdue by {days_overdue} days on {as_of.isoformat()}"
+    return {
+        "interval_months": (months, "month"),
+        "due": (due.isoformat(), None),
+        "overdue": (overdue, None),
+        "days_overdue": (days_overdue, "day"),
+        "_display": display,
+    }
+
+
+def _relief_as_received(v: dict[str, Any]) -> dict[str, Any]:
+    set_p = v["set_pressure"].value
+    fail_above = round(set_p * 1.10, _PRESSURE_PLACES)
+    if v.get("did_not_open"):
+        passed, seen = False, "did not open"
+    elif v.get("opening_pressure") is not None:
+        opening = round(v["opening_pressure"].value, _PRESSURE_PLACES)
+        passed, seen = opening <= fail_above, f"opened at {_bar(opening)}"
+    else:
+        raise ValueError(
+            "give the as-received opening pressure, or record that the valve did not open "
+            "(SOP-INS-025 Clause 3.2)"
+        )
+    result: dict[str, Any] = {
+        "fail_above": (fail_above, "MPa"),
+        "passed": (passed, None),
+        "severity": (None, None),
+        "required_action": (None, None),
+        "approver": (None, None),
+        "report": (None, None),
+    }
+    if not passed:
+        result.update({
+            "severity": ("high", None),
+            "required_action": (
+                "Withdraw the protected equipment from service within 24 hours (SOP-INS-025 Clause 3.3)", None,
+            ),
+            "approver": ("Head of Inspection + Plant Manager (SOP-INS-025 Clause 3.3)", None),
+            "report": ("Report as a near miss within 24 hours (SOP-HSE-004 Clause 2.3)", None),
+        })
+    result["_display"] = (
+        f"{seen}; fails above {_bar(fail_above)} = 1.10 × set {_bar(set_p)}: "
+        + ("passed" if passed else "FAILED, a High finding on the protected equipment")
+    )
+    return result
+
+
+def _relief_set_limit(v: dict[str, Any]) -> dict[str, Any]:
+    set_p = round(v["set_pressure"].value, _PRESSURE_PLACES)
+    mawp = round(v["mawp"].value, _PRESSURE_PLACES)
+    within = set_p <= mawp
+    return {
+        "within_limit": (within, None),
+        "margin": (round(mawp - set_p, _PRESSURE_PLACES), "MPa"),
+        "_display": f"set {_bar(set_p)} {'≤' if within else '>'} MAWP {_bar(mawp)}",
+    }
+
+
+def _relief_post_overhaul(v: dict[str, Any]) -> dict[str, Any]:
+    set_p = v["set_pressure"].value
+    popping = v["popping_pressure"].value
+    # ±0.14 bar at or below 4.8 bar(g); ±3% above it.
+    low_set = round(set_p, _PRESSURE_PLACES) <= 0.48
+    tolerance = 0.014 if low_set else round(0.03 * set_p, _PRESSURE_PLACES)
+    deviation = round(abs(popping - set_p), _PRESSURE_PLACES)
+    within = deviation <= tolerance
+    return {
+        "tolerance": (tolerance, "MPa"),
+        "deviation": (deviation, "MPa"),
+        "within_tolerance": (within, None),
+        "_display": (
+            f"|{_bar(popping)} − {_bar(set_p)}| = {_bar(deviation)} {'≤' if within else '>'} "
+            f"{'±0.14 bar' if low_set else '±3% = ' + _bar(tolerance)}"
+        ),
+    }
+
+
+def _relief_inlet_loss(v: dict[str, Any]) -> dict[str, Any]:
+    set_p = v["set_pressure"].value
+    loss = v["inlet_loss"].value
+    limit = round(0.03 * set_p, _PRESSURE_PLACES)
+    within = round(loss, _PRESSURE_PLACES) <= limit
+    percent = round(loss / set_p * 100, 1)
+    return {
+        "loss_percent": (percent, "%"),
+        "within_limit": (within, None),
+        "_display": f"{_bar(loss)} = {percent:g}% of set {_bar(set_p)}; limit 3% = {_bar(limit)}",
+    }
+
+
 def _q(name: str, dimension: Dimension, description: str, optional: bool = False) -> Parameter:
     return Parameter(name, "quantity", description, dimension, optional)
 
@@ -511,6 +646,58 @@ FORMULAS: dict[str, Formula] = {
                 Parameter("local_metal_loss_percent", "number", "local metal loss at the governing location", optional=True),
             ),
             _ffs_triggers, ("triggers",),
+        ),
+        Formula(
+            "relief.test_due", 1, "Next relief-device bench test",
+            "SOP-INS-025 Clauses 2.1-2.2",
+            "due = last_test_date + 48 months (clean service) or 24 months (fouling or corrosive service)",
+            (
+                Parameter("last_test_date", "date", "date of the last bench test"),
+                Parameter("service", "text", "service of the protected equipment"),
+                Parameter("as_of", "date", "date to judge overdue against", optional=True),
+            ),
+            _relief_test_due, ("interval_months", "due", "overdue", "days_overdue"),
+        ),
+        Formula(
+            "relief.as_received_test", 1, "As-received relief-device test",
+            "SOP-INS-025 Clauses 3.2-3.3; SOP-HSE-004 Clause 2.3",
+            "fails if opening_pressure > 1.10 × set_pressure or the valve did not open; a failure is High",
+            (
+                _q("set_pressure", PRESSURE, "set pressure"),
+                _q("opening_pressure", PRESSURE, "as-received opening pressure", optional=True),
+                Parameter("did_not_open", "bool", "the valve did not open on test", optional=True),
+            ),
+            _relief_as_received, ("fail_above", "passed", "severity", "required_action", "approver", "report"),
+        ),
+        Formula(
+            "relief.set_pressure_limit", 1, "Set pressure within MAWP",
+            "SOP-INS-025 Clauses 4.1-4.2",
+            "within_limit = set_pressure ≤ MAWP (including a re-rated MAWP)",
+            (
+                _q("set_pressure", PRESSURE, "set pressure"),
+                _q("mawp", PRESSURE, "MAWP of the protected equipment"),
+            ),
+            _relief_set_limit, ("within_limit", "margin"),
+        ),
+        Formula(
+            "relief.post_overhaul_setting", 1, "Setting tolerance after overhaul",
+            "SOP-INS-025 Clause 3.4",
+            "|popping − set| ≤ 3% of set, or ≤ 0.14 bar where set ≤ 4.8 bar(g)",
+            (
+                _q("set_pressure", PRESSURE, "set pressure"),
+                _q("popping_pressure", PRESSURE, "pressure the valve opened at after setting"),
+            ),
+            _relief_post_overhaul, ("tolerance", "deviation", "within_tolerance"),
+        ),
+        Formula(
+            "relief.inlet_loss", 1, "Relief-device inlet pressure loss",
+            "SOP-INS-025 Clause 5.2",
+            "within_limit = inlet_loss ≤ 3% of set_pressure",
+            (
+                _q("set_pressure", PRESSURE, "set pressure"),
+                _q("inlet_loss", PRESSURE, "inlet pressure loss at relieving flow"),
+            ),
+            _relief_inlet_loss, ("loss_percent", "within_limit"),
         ),
     )
 }

@@ -49,6 +49,9 @@ class AssessResponse(BaseModel):
     calculations: list[CalculationRecord]
 
 
+_YES_NO = {"true": True, "yes": True, "1": True, "false": False, "no": False, "0": False}
+
+
 def _bind(formula_id: str, name: str, raw: InputValue) -> BoundValue:
     formula = FORMULAS[formula_id]
     parameter = next((p for p in formula.parameters if p.name == name), None)
@@ -64,6 +67,12 @@ def _bind(formula_id: str, name: str, raw: InputValue) -> BoundValue:
         value = parse_date(str(raw.value))
         if value is None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{name}: not a date: {raw.value!r}")
+    elif parameter.kind == "bool" and not isinstance(value, bool):
+        # Read, never coerced: bool("false") is True.
+        word = str(value).strip().lower()
+        if word not in _YES_NO:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{name}: not yes or no: {raw.value!r}")
+        value = _YES_NO[word]
     return BoundValue(value, stated=str(raw.value), evidence_id=raw.evidence_id, locator=raw.locator)
 
 

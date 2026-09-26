@@ -70,3 +70,25 @@ def test_the_auditor_cannot_evaluate(client: TestClient) -> None:
     response = client.post("/api/engineering/evaluate", headers=sign_in(client, "auditor"),
                            json={"formula_id": "integrity.remaining_life", "inputs": {}})
     assert response.status_code == 403
+
+
+def test_a_yes_no_input_written_as_text_is_read_as_what_it_says(client: TestClient) -> None:
+    # "false" is a non-empty string, so passing it through unread would make
+    # a valve that opened within its limit fail as one that never opened.
+    body = client.post("/api/engineering/evaluate", headers=sign_in(client, "engineer"), json={
+        "formula_id": "relief.as_received_test",
+        "inputs": {
+            "set_pressure": {"value": "10.5 bar(g)"},
+            "opening_pressure": {"value": "11.0 bar(g)"},
+            "did_not_open": {"value": "false"},
+        },
+    }).json()
+    assert body["status"] == "calculated" and body["outputs"]["passed"]["value"] is True
+
+
+def test_a_yes_no_input_that_is_neither_is_refused(client: TestClient) -> None:
+    response = client.post("/api/engineering/evaluate", headers=sign_in(client, "engineer"), json={
+        "formula_id": "relief.as_received_test",
+        "inputs": {"set_pressure": {"value": "10.5 bar(g)"}, "did_not_open": {"value": "maybe"}},
+    })
+    assert response.status_code == 400 and "did_not_open" in response.json()["detail"]
