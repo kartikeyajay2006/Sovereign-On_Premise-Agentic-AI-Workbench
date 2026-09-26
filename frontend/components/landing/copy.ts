@@ -86,6 +86,29 @@ export const STATS = {
 } as const
 
 // --------------------------------------------------------------------------- //
+// The crew: the pipeline's stages, named (the roster itself is lib/crew.ts)
+// --------------------------------------------------------------------------- //
+
+export const CREW_COPY = {
+  id: 'crew',
+  eyebrow: 'The crew',
+  title: 'Ten stages.',
+  titleKey: 'One orchestrator.',
+  lede: 'A run passes through these stages in this order, driven by one orchestrator: they are named so they can be talked about, not because they act alone. WARDEN and NOTARY work across the whole run. Each card says what the stage runs on, a local model or no model at all.',
+  runsOn: 'Runs on',
+  across: 'across the run',
+  /** Said under every drawing, once, for the grid. */
+  note: 'Drawings are illustrations. Their labels are the recorded run’s, or a stage’s configuration.',
+  relay: {
+    label: 'The recorded run, stage by stage',
+    legend: 'Lit: ran, with what the record measured · Struck: skipped, with the record’s reason',
+    unrecorded: 'not recorded',
+    ran: 'ran',
+    skipped: 'skipped',
+  },
+} as const
+
+// --------------------------------------------------------------------------- //
 // Chapters: 01 retrieve, 02 verify, 03 seal
 // --------------------------------------------------------------------------- //
 

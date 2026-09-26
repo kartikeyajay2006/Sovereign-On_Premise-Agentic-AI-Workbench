@@ -484,6 +484,79 @@
   @media (max-width: 900px) { .lp-start { grid-template-columns: minmax(0, 1fr); } }
 
   /* ==================================================================== */
+  /* THE CREW                                                              */
+  /* Ten cards on 1px rules, each with a drawing in the vessel's manner,   */
+  /* and the relay of the recorded run under them. Everything here is the  */
+  /* finished frame; the plays are in the motion block below.              */
+  /* ==================================================================== */
+  .lp-crew-wrap { margin-top: clamp(40px, 5vw, 56px); }
+  .lp-crew { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; list-style: none; background: var(--lp-line); border: 1px solid var(--lp-line); }
+  .lp-crew-card { display: flex; flex-direction: column; min-width: 0; padding: 16px 16px 18px; background: var(--lp-bg); transition: background-color var(--lp-tick) ease; }
+  .lp-crew-card:hover { background: #0c0c0c; }
+  .lp-crew-card:focus-visible { outline: 2px solid var(--lp-lime); outline-offset: -2px; }
+  .lp-crew-card .ix { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lp-fg-3); }
+  .lp-crew-card .ix span:first-child { color: var(--lp-lime); }
+  .lp-crew-card .vg { position: relative; height: 108px; margin: 12px 0 14px; overflow: hidden; border: 1px solid var(--lp-line-3); background: var(--lp-s0); }
+  .lp-crew-card .cs { margin: 0; font-size: 1.06rem; font-weight: 700; font-stretch: 118%; font-variation-settings: 'wdth' 118; letter-spacing: 0.06em; line-height: 1.2; color: var(--lp-fg); }
+  .lp-crew-card .role { flex: 1; margin: 6px 0 0; font-size: 0.86rem; line-height: 1.45; color: var(--lp-fg-2); text-wrap: pretty; }
+  .lp-crew-card .on { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--lp-line-3); font-family: var(--font-mono); font-size: 9.5px; line-height: 1.6; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lp-fg-3); }
+  .lp-crew-card .on .k { flex-basis: 100%; }
+  .lp-crew-card .on .nm { color: var(--lp-lime); text-transform: none; }
+  .lp-crew-card .on .v { color: var(--lp-fg); }
+  .lp-crew-note { margin-top: 12px; }
+  @media (max-width: 1099px) { .lp-crew { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 599px) { .lp-crew { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---- the drawings: the vessel's strokes and inks ---- */
+  .lp-crew .art { display: block; width: 100%; height: 100%; }
+  .lp-crew .art :is(path, rect) { vector-effect: non-scaling-stroke; }
+  .lp-crew .art :is(path, rect):not([fill]) { fill: none; }
+  .lp-crew .art .a, .lp-crew .art .a path { stroke: #3a3a35; stroke-width: 1; }
+  .lp-crew .art .b, .lp-crew .art .b path { stroke: #c9c9c2; stroke-width: 1.25; }
+  .lp-crew .art .w, .lp-crew .art .w :is(path, rect) { stroke: #5c5c56; stroke-width: 1; }
+  .lp-crew .art .x { stroke: var(--lp-lime); stroke-width: 1.25; }
+  .lp-crew .art rect.xf { fill: var(--lp-lime); stroke: none; }
+  .lp-crew .art rect.ok { fill: var(--lp-ok); stroke: none; }
+  .lp-crew .art rect.no { fill: var(--lp-crit); stroke: none; }
+  .lp-crew .art rect.held { stroke: var(--lp-held); stroke-width: 1.25; }
+  .lp-crew .art text { font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.03em; fill: var(--lp-fg-3); }
+  .lp-crew .art .tx { fill: var(--lp-lime); }
+  .lp-crew .art .fg { fill: var(--lp-fg); }
+  .lp-crew .art .ink { fill: var(--lp-ink); font-weight: 600; }
+  .lp-crew .art .okt { fill: var(--lp-ok); }
+  .lp-crew .art .not { fill: var(--lp-crit); }
+  .lp-crew .art .heldt { fill: var(--lp-held); }
+  .lp-crew .art .fx { font-family: var(--font-sans); font-size: 11.5px; letter-spacing: 0; fill: var(--lp-fg); }
+  /* At rest the scan has passed and gone. */
+  .lp-crew .art .m-scan { opacity: 0; }
+  .lp-crew .art :is(.m-lock, .m-grow-x, .m-grow-y) { transform-box: fill-box; }
+  .lp-crew .art .m-lock { transform-origin: center; }
+  .lp-crew .art .m-grow-x { transform-origin: left center; }
+  .lp-crew .art .m-grow-y { transform-origin: center bottom; }
+
+  /* ---- the relay: the recorded run, stage by stage ---- */
+  .lp-relay-wrap { margin-top: clamp(32px, 4vw, 44px); }
+  .lp-relay-label { margin: 0 0 12px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--lp-fg); }
+  .lp-relay { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; list-style: none; background: var(--lp-line); border: 1px solid var(--lp-line); }
+  .lp-relay li { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px 10px 14px; background: var(--lp-bg); font-family: var(--font-mono); font-size: 9.5px; line-height: 1.45; letter-spacing: 0.05em; color: var(--lp-fg-3); overflow-wrap: anywhere; }
+  .lp-relay .cs { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; }
+  /* Ran: a lime rule on top, the name in ink, the measured value in lime. */
+  .lp-relay li[data-state='ran'] { box-shadow: inset 0 2px 0 var(--lp-lime); }
+  .lp-relay li[data-state='ran'] .cs { color: var(--lp-fg); }
+  .lp-relay li[data-state='ran'] .v { color: var(--lp-lime); }
+  /* Skipped: struck, with the record's reason. */
+  .lp-relay li[data-state='skipped'] .cs { color: #7a7a75; text-decoration: line-through; text-decoration-color: #8a8a85; }
+  .lp-relay li[data-state='skipped'] .v { color: var(--lp-fg-3); }
+  /* Not in the record: neither lit nor struck. */
+  .lp-relay li[data-state='unrecorded'] { box-shadow: inset 0 1px 0 var(--lp-line-2); }
+  .lp-relay li[data-state='unrecorded'] .cs { color: #6d6d68; }
+  .lp-relay li[data-state='unrecorded'] .v { font-style: italic; }
+  .lp-relay-cap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; margin-top: 12px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lp-fg-3); }
+  .lp-relay-cap span:first-child { color: var(--lp-fg-2); }
+  @media (max-width: 1099px) { .lp-relay { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  @media (max-width: 599px) { .lp-relay { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* ==================================================================== */
   /* FOOTER                                                                */
   /* ==================================================================== */
   .lp-footer { position: relative; padding-top: clamp(8px, 2vw, 24px); }
@@ -585,6 +658,57 @@
       26.5%, 88% { opacity: 1; }
       90%, 100% { opacity: 0; }
     }
+
+    /* ---- the crew: each drawing plays once, from its start frame to rest ---- */
+    /* crew.tsx arms a card (data-play="wait": the start frame) and plays it
+       ("in" as it scrolls in, "re" on hover or focus). --d is the card's
+       stagger, --t each part's offset. Every play ends on the static frame
+       above and holds it; nothing loops. */
+    .lp-crew-card[data-play='wait'] .m-draw { stroke-dasharray: 1; stroke-dashoffset: 1; }
+    .lp-crew-card[data-play='wait'] :is(.m-tick, .m-lock) { opacity: 0; }
+    .lp-crew-card[data-play='wait'] .m-grow-x { transform: scaleX(0); }
+    .lp-crew-card[data-play='wait'] .m-grow-y { transform: scaleY(0); }
+    .lp-crew-card[data-play='wait'] .m-move { transform: translateX(var(--from, 0px)); }
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-draw { stroke-dasharray: 1; animation: lp-c-draw 520ms var(--lp-trace-ease) calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    /* jump-none, not end: with a calc() delay Chrome can settle a hair short
+       of 1, and steps(2, end) then rests at half opacity. */
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-tick { animation: lp-c-tick var(--lp-tick) steps(2, jump-none) calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-lock { animation: lp-c-lock var(--lp-lock) var(--lp-lock-ease) calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-grow-x { animation: lp-c-grow-x 360ms var(--lp-wipe-ease) calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-grow-y { animation: lp-c-grow-y 560ms var(--lp-roll-ease) calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-move { animation: lp-c-move 1300ms linear calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    .lp-crew-card:is([data-play='in'], [data-play='re']) .m-scan { animation: lp-c-scan var(--sd, 600ms) linear calc(var(--d, 0ms) + var(--t, 0ms)) both; }
+    @keyframes lp-c-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+    @keyframes lp-c-tick { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes lp-c-lock { from { opacity: 0; transform: scale(1.4); } to { opacity: 1; transform: scale(1); } }
+    @keyframes lp-c-grow-x { from { transform: scaleX(0); } to { transform: none; } }
+    @keyframes lp-c-grow-y { from { transform: scaleY(0); } to { transform: none; } }
+    @keyframes lp-c-move {
+      0% { transform: translateX(var(--from, 0px)); animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1); }
+      35%, 60% { transform: translateX(var(--mid, 0px)); animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0); }
+      100% { transform: none; }
+    }
+    @keyframes lp-c-scan {
+      0% { opacity: 0; transform: translate(0, 0); }
+      6%, 90% { opacity: 1; }
+      100% { opacity: 0; transform: translate(var(--dx, 0px), var(--dy, 0px)); }
+    }
+
+    /* ---- the relay: the lit cell visits each stage that ran, once ---- */
+    .lp-relay[data-play='wait'] li[data-state='ran'] { box-shadow: inset 0 2px 0 var(--lp-line-2); }
+    .lp-relay[data-play='wait'] li[data-state='ran'] :is(.cs, .v, .s) { color: var(--lp-fg-3); }
+    .lp-relay[data-play='on'] li[data-state='ran'] { animation: lp-relay-cell 420ms linear calc(var(--k, 0) * 420ms) both; }
+    .lp-relay[data-play='on'] li[data-state='ran'] .cs { animation: lp-relay-cs 420ms linear calc(var(--k, 0) * 420ms) both; }
+    .lp-relay[data-play='on'] li[data-state='ran'] .v { animation: lp-relay-v 420ms linear calc(var(--k, 0) * 420ms) both; }
+    .lp-relay[data-play='on'] li[data-state='ran'] .s { animation: lp-relay-s 420ms linear calc(var(--k, 0) * 420ms) both; }
+    @keyframes lp-relay-cell {
+      0% { background: var(--lp-bg); box-shadow: inset 0 2px 0 var(--lp-line-2); }
+      1%, 88% { background: var(--lp-lime); box-shadow: inset 0 2px 0 var(--lp-lime); }
+      100% { background: var(--lp-bg); box-shadow: inset 0 2px 0 var(--lp-lime); }
+    }
+    @keyframes lp-relay-cs { 0% { color: var(--lp-fg-3); } 1%, 88% { color: var(--lp-ink); } 100% { color: var(--lp-fg); } }
+    @keyframes lp-relay-v { 0% { color: var(--lp-fg-3); } 1%, 88% { color: var(--lp-ink); } 100% { color: var(--lp-lime); } }
+    @keyframes lp-relay-s { 0% { color: var(--lp-fg-3); } 1%, 88% { color: var(--lp-ink); } 100% { color: var(--lp-fg-3); } }
 
     /* ---- proof sequence ---- */
     /* Scroll-driven where the browser has view timelines. */

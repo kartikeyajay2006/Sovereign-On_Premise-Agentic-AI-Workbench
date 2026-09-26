@@ -10,6 +10,7 @@
 // they need as props, so the fixture is never bundled into client JavaScript
 // whole.
 
+import { CREW, type CrewId } from '@/lib/crew'
 import { checkLabel } from '@/lib/presentation'
 import { clock, documentCode, documentTitle, run, runId, sectionLabel, sectionNumber, seconds, type EvidenceUnit } from './run-fixture'
 
@@ -329,3 +330,84 @@ export const attacksFoot =
   selfTest && selfTest.assessable !== false && selfTest.total > 0
     ? `${selfTest.passed} of ${selfTest.total} held · recorded ${run.sandbox_self_test?.at.slice(0, 10)} · seq ${run.sandbox_self_test?.sequence}`
     : null
+
+// --------------------------------------------------------------------------- //
+// The crew: what each stage did in this run, as the record gives it
+// --------------------------------------------------------------------------- //
+
+/** A stage's entry in the run's timeline, whether it ran or not. Null when the record has none. */
+const stageRecord = (id: string) => run.timeline.stages.find((item) => item.id === id) ?? null
+
+export type RelayState = 'ran' | 'skipped' | 'unrecorded'
+
+export interface RelayCell {
+  id: CrewId
+  callsign: string
+  state: RelayState
+  /** Its measured time or outcome when it ran; the record's reason when it was skipped. */
+  value: string | null
+  /** The model it ran on, or what it counted, when the record says. */
+  sub: string | null
+}
+
+/**
+ * One cell per crew member, in pipeline order. A stage the record lists as
+ * run shows its measured time (or, where it timed nothing, its outcome); one
+ * listed as not run shows the reason the record gives; one the record does
+ * not mention at all is `unrecorded`, and the page says so rather than
+ * supplying a reason. WARDEN reads the run's policy events, NOTARY its audit
+ * records.
+ */
+export const relay: RelayCell[] = CREW.map((member): RelayCell => {
+  const base = { id: member.id, callsign: member.callsign }
+  const unrecorded: RelayCell = { ...base, state: 'unrecorded', value: null, sub: null }
+  if (member.id === 'warden') {
+    const events = run.policy_events
+    if (events.length === 0) return unrecorded
+    const decisions = Array.from(new Set(events.map((event) => event.decision)))
+    return { ...base, state: 'ran', value: decisions.join(' · '), sub: `${events.length} policy ${events.length === 1 ? 'event' : 'events'}` }
+  }
+  if (member.id === 'notary') {
+    if (!auditRange) return unrecorded
+    return { ...base, state: 'ran', value: `#${auditRange.first}–${auditRange.last}`, sub: `${auditRange.count} records` }
+  }
+  const record = member.stage ? stageRecord(member.stage) : null
+  if (!record) return unrecorded
+  if (!record.ran) return { ...base, state: 'skipped', value: record.note || null, sub: null }
+  const time = seconds(record.ms)
+  return { ...base, state: 'ran', value: time ?? (record.note || null), sub: time ? record.model : null }
+})
+
+/** The values the crew's drawings print. Each is the record's; a missing one is drawn without its label. */
+export interface CrewScenes {
+  triage: string[]
+  scout: { count: number; documents: number; cited: string | null }
+  scribe: { cite: string | null }
+  checker: Array<{ label: string; passed: boolean }>
+  warden: { action: string; decision: string; more: number } | null
+  notary: { seqs: number[]; hash8: string | null; first: number | null; last: number | null }
+}
+
+const classified = stageRecord('classify')
+const classifiedParts = classified?.ran && classified.note ? classified.note.split(' · ').map((part) => part.replace(/_/g, ' ')) : []
+
+export const crewScenes: CrewScenes = {
+  // "question_answering · confidential": the task kind and the data class.
+  triage: classifiedParts.map((part) => part.toUpperCase()),
+  scout: { count: retrieve.count, documents: retrieve.documents, cited: cite?.id ?? null },
+  scribe: { cite: cite?.id ?? null },
+  checker: checks.map((check) => ({ label: check.label.toUpperCase(), passed: check.passed })),
+  warden: run.policy_events[0]
+    ? {
+        action: run.policy_events[0].action.toUpperCase(),
+        decision: run.policy_events[0].decision.toUpperCase(),
+        more: run.policy_events.length - 1,
+      }
+    : null,
+  notary: { seqs: audit.tail.map((record) => record.sequence), hash8, first: auditRange?.first ?? null, last: auditRange?.last ?? null },
+}
+
+/** The relay's caption: the run, what was asked, how long it took, how it ended. */
+export const relayCaption = [runId, run.skill ? `/${run.skill.id}` : null, classifiedParts[0] ?? null, total, run.status].filter(
+  (part): part is string => Boolean(part),
+)

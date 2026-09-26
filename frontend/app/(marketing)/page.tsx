@@ -6,7 +6,8 @@ import { ChainTamper } from '@/components/landing/chain-tamper'
 import { ChainVerify } from '@/components/landing/chain-verify'
 import { ChapterTiles } from '@/components/landing/chapter-tiles'
 import { CopyCommands } from '@/components/landing/copy-commands'
-import { BENTO, CHAIN_VERIFY, CHAPTERS, HERO, LIMITS, PROOF, PROOF_SEQ, RAIL, REPLAY, RUN_IT, STATS, USE_CASES } from '@/components/landing/copy'
+import { Crew } from '@/components/landing/crew'
+import { BENTO, CHAIN_VERIFY, CHAPTERS, CREW_COPY, HERO, LIMITS, PROOF, PROOF_SEQ, RAIL, REPLAY, RUN_IT, STATS, USE_CASES } from '@/components/landing/copy'
 import { HeroVessel } from '@/components/landing/hero-vessel'
 import * as R from '@/components/landing/landing-data'
 import { LiveContainment } from '@/components/landing/live-containment'
@@ -362,6 +363,28 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* The crew: the orchestrator's stages, and the run's relay          */}
+      {/* ---------------------------------------------------------------- */}
+      <Section id={CREW_COPY.id}>
+        <Head id={`${CREW_COPY.id}-title`} eyebrow={CREW_COPY.eyebrow} title={CREW_COPY.title} strong={CREW_COPY.titleKey} lede={CREW_COPY.lede} />
+        <Crew
+          scenes={R.crewScenes}
+          relay={R.relay}
+          caption={R.relayCaption}
+          labels={{
+            runsOn: CREW_COPY.runsOn,
+            across: CREW_COPY.across,
+            note: CREW_COPY.note,
+            relayLabel: CREW_COPY.relay.label,
+            legend: CREW_COPY.relay.legend,
+            unrecorded: CREW_COPY.relay.unrecorded,
+            ran: CREW_COPY.relay.ran,
+            skipped: CREW_COPY.relay.skipped,
+          }}
+        />
+      </Section>
 
       {/* ---------------------------------------------------------------- */}
       {/* 01 Retrieve / 02 Verify / 03 Seal                                 */}
