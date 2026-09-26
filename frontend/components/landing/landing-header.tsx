@@ -30,7 +30,7 @@ export function LandingHeader() {
     <header className={`lp-header${scrolled ? ' scrolled' : ''}`}>
       <div className="lp-shell row">
         <Link href="/" aria-label="AEGIS — home" className="lp-home">
-          <Wordmark tone="mono" />
+          <Wordmark intro />
         </Link>
 
         <nav aria-label="Sections" className="lp-nav">
