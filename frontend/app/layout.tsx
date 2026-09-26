@@ -33,6 +33,9 @@ import { AppProviders } from '@/components/app-providers'
 const archivo = localFont({
   src: './fonts/archivo-variable.woff2',
   weight: '100 900',
+  // The width axis has to be declared on the @font-face, or font-stretch
+  // selects nothing and the semi-condensed display stays at normal width.
+  declarations: [{ prop: 'font-stretch', value: '62% 125%' }],
   variable: '--font-archivo',
   display: 'swap',
 })

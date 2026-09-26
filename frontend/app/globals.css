@@ -2683,17 +2683,20 @@ html[data-theme='dark'],
 /* ==================================================================== */
 html[data-theme='dark'],
 [data-theme='dark'] {
-  --background: #0c0c0e;
-  --surface: #151518;
-  --surface-sunken: #08080a;
-  --foreground: #ededef;            /* 16.7:1 */
-  --foreground-secondary: #a8a8b0;  /*  8.3:1 */
-  --foreground-muted: #8b8b94;      /*  5.8:1, 5.4:1 on the surface */
+  /* Hi-Vis Monochrome. This block comes last and wins, so it carries the
+     same values as the night block above: an earlier copy of the old
+     palette here silently undid them. */
+  --background: #070707;
+  --surface: #111111;
+  --surface-sunken: #000000;
+  --foreground: #f7f7f4;            /* 19.4:1 */
+  --foreground-secondary: #b8b8b2;  /*  9.9:1 */
+  --foreground-muted: #9a9a95;      /*  7.0:1, 6.6:1 on the surface */
   --line-ink: oklch(0.92 0 0);
-  --action: #ededef;
-  --action-hover: #d4d4d8;
-  --action-text: #ededef;
-  --action-ink: #0c0c0e;
+  --action: #d4f24a;
+  --action-hover: #c3e236;
+  --action-text: #d4f24a;
+  --action-ink: #050505;
 }
 
 /* The sign-in's brand panel: the public page's night, and its light. */
