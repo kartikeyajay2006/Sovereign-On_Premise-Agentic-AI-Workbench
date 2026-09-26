@@ -6,29 +6,15 @@ import './globals.css'
 import { AppProviders } from '@/components/app-providers'
 
 /*
-  Type: Geist Sans and Geist Mono, both variable, which is what lets the
-  product use weights 425, 510 and 590 rather than rounding to 400/500/600.
-
-  From the `geist` package, Vercel's own distribution, which ships the
-  variable woff2 files and loads them through next/font/local. The product
-  is sold as air-gapped, and next/font/google, which this used before,
-  downloads the files from Google when the app is built: on a machine that
-  could not reach Google the dev server quietly fell back to system faces,
-  and every ledger figure on every screen lost its monospace. Nothing here
-  reaches the network now, at build time or at runtime.
-
-  The package sets the same CSS variables used before, --font-geist-sans and
-  --font-geist-mono, so globals.css needed no change.
-
-  Instrument Serif is the Recall scheme's third voice: the one italic phrase
-  in a heading, in red. Bundled here as woff2 (app/fonts, SIL Open Font
-  License) for the same reason as Geist.
-*/
-/*
   Hi-Vis Monochrome type: Archivo (variable weight and width, so display
   sizes can run semi-condensed and light) and Martian Mono for labels, ids
-  and hashes. Both SIL OFL, bundled in app/fonts like the others, so the
-  air-gapped build fetches nothing.
+  and hashes. Both SIL OFL, bundled in app/fonts, so the air-gapped build
+  fetches nothing: next/font/google downloads at build time, and on a host
+  that could not reach Google the faces silently fell back to system fonts.
+
+  Geist Sans and Geist Mono (the `geist` package, loaded through
+  next/font/local) stay as the fallback faces behind them in globals.css.
+  Instrument Serif sets the one italic word on the empty thread.
 */
 const archivo = localFont({
   src: './fonts/archivo-variable.woff2',
@@ -82,8 +68,8 @@ export const viewport: Viewport = {
   // chrome with, so it tracks the theme the operating system asks for.
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fbfbfa' },
-    { media: '(prefers-color-scheme: dark)', color: '#131210' },
+    { media: '(prefers-color-scheme: light)', color: '#faf9f6' },
+    { media: '(prefers-color-scheme: dark)', color: '#070707' },
   ],
   width: 'device-width',
   initialScale: 1,

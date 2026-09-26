@@ -73,7 +73,6 @@ CITATION_PATTERN = re.compile(r"\[(?:[SFVCEHT])\d+\]")
 CITATION_LIKE_PATTERN = re.compile(r"\[([A-Z]{1,3}\d+(?:\.\d+)*)\]")
 PAGE_CITATION_PATTERN = re.compile(r"\[((?:F|V)\d+)\]")
 PAGE_MENTION_PATTERN = re.compile(r"\bpages?\s+(\d+)\b", re.IGNORECASE)
-NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
 # Where a claim POINTS rather than what it SAYS: clause and section numbers
 # and document codes. They are removed before figures are compared, because
 # a claim reading "Clause 5 requires quarterly lubrication [S3]" shared the
@@ -162,7 +161,6 @@ ENGINEERING_CLAIM = re.compile(
 )
 QUANTITY_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:mm|%|years?|months?|bar|mpa|psi|°c)", re.IGNORECASE)
 PROCEDURAL_CLAIM = re.compile(r"\b(?:shall|must|required|clause|approv\w*\s+authority|approving)\b", re.IGNORECASE)
-ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # A sentence reporting that a conclusion is withheld, not asserting one.
 WITHHOLDING = re.compile(
     r"\b(?:withh[eo]ld|cannot\s+be\s+(?:stated|calculated|determined|confirmed|assessed)"

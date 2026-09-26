@@ -2,14 +2,17 @@
 
 ```text
 .
-├── backend/                 Python API and pipeline (about 16,400 lines)
-├── frontend/                Next.js console (about 24,000 lines)
+├── backend/                 Python API and pipeline (about 32,600 lines)
+├── frontend/                Next.js console (about 33,600 lines)
 ├── config/                  models, routing, classification, prompts, skills/, harnesses/, app settings
 ├── policies/                access control, approval rules, data classification, tool permissions
 ├── sample_data/             the SYNTHETIC corpus: sop/, records/, inspection/, datasets/, coding/, expected-answers.json
-├── scripts/                 run.sh, seed_demo_data.py, demo_e2e.py, audit_tool.py, capture_landing_fixture.py,
-│                            make_sample_inspection_report.py
-├── tests/                   435 tests
+├── scripts/                 run.sh, seed_demo_data.py, seed_historian.py, demo_e2e.py, golden_demo.py,
+│                            red_team.py, warmup.py/.ps1, start-ollama.sh/.ps1, backup.py,
+│                            offline_bundle.py/.sh/.ps1, verify_certificate.py, audit_tool.py,
+│                            capture_landing_fixture.py, make_sample_inspection_report.py,
+│                            make_sample_pid_image.py
+├── tests/                   1,103 tests
 ├── storage/                 runtime data (ignored by git, except .gitkeep)
 ├── infrastructure/          docker-compose.yml
 ├── docs/

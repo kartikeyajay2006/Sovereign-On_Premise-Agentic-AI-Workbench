@@ -46,7 +46,6 @@ function computeTitle(turn: AssistantTurn, active: boolean): string {
 }
 
 /** The verifier's checks, in the words a reader uses: see lib/presentation. */
-export { CHECK_WORDS } from '@/lib/presentation'
 
 /**
  * The glyph a working line carries. It turns on the compositor: the glyph

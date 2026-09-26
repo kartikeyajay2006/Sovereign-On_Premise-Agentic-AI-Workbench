@@ -29,7 +29,6 @@ export const passedChecks = checks.filter((check) => check.passed).length
 
 /** "39.6 s", from the run's own duration. */
 export const total = seconds(run.duration_ms ?? run.timeline.total_ms)
-export const totalMs = run.duration_ms ?? run.timeline.total_ms
 
 /** The seal: the hash the run's last audit record carries. */
 export const hashFull = run.recorded?.hash_full ?? null
