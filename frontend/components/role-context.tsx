@@ -55,7 +55,13 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     // them as signed out — including on the chip that names whoever is about
     // to approve something.
     try {
-      const current = await api.me()
+      const { user: current } = await api.session()
+      if (!current) {
+        // Signed out, or the session expired: forget any stored token.
+        setAuthToken(null)
+        setUser(null)
+        return
+      }
       setUser(current)
       const mappedRole = presentationRole(current.role)
       if (mappedRole) {
