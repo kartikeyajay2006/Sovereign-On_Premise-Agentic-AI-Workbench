@@ -1,10 +1,10 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from '@/lib/types'
 import { checkLabel } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
-import { useSecondClock } from '@/shared/motion'
+import { Append, useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW, STAGE_ACTIVE, STAGE_DONE } from '../model/board'
 import type { AssistantTurn } from '../model/types'
 import { formatCount, formatRate, formatSeconds } from '../model/usage'
@@ -98,16 +98,69 @@ function callLine(call: ModelUsage): string {
   return parts.join(' · ')
 }
 
-function Result({ children, tone }: { children: React.ReactNode; tone?: 'critical' }) {
-  return (
-    <div className={cn('flex gap-2 pl-[0.35rem]', tone === 'critical' ? 'text-critical-text' : 'text-foreground-muted')}>
+const RESULT_TONE = {
+  critical: 'text-critical-text',
+  approval: 'text-approval-text',
+} as const
+
+function Result({
+  children,
+  tone,
+  title,
+  arrival,
+}: {
+  children: React.ReactNode
+  tone?: keyof typeof RESULT_TONE
+  title?: string
+  /**
+   * Set for a line an event added while the reader watched: its place in
+   * the batch that arrived with it. It mounts with the Append motion; a
+   * line read from the record (outside a live AppendScope) lands still.
+   */
+  arrival?: number
+}) {
+  const body = (
+    <>
       <span aria-hidden className="select-none">
         ⎿
       </span>
-      <span className="min-w-0 flex-1 break-words">{children}</span>
-    </div>
+      <span className="min-w-0 flex-1 break-words" title={title}>
+        {children}
+      </span>
+    </>
+  )
+  const className = cn('flex gap-2 pl-[0.35rem]', tone ? RESULT_TONE[tone] : 'text-foreground-muted')
+  if (arrival === undefined) return <div className={className}>{body}</div>
+  return (
+    <Append index={arrival} className={cn('thread-sub', className)}>
+      {body}
+    </Append>
   )
 }
+
+/**
+ * Each new line's place in the batch it arrived with, for the stagger.
+ * A line seen in an earlier render is not new; the ones first seen in this
+ * render are numbered in order. Append fixes the number at mount, so a
+ * later batch does not renumber a line still settling.
+ */
+function useArrival(): (key: string) => number {
+  const committed = useRef(new Set<string>())
+  const fresh: string[] = []
+  useEffect(() => {
+    for (const key of fresh) committed.current.add(key)
+  })
+  return (key: string) => {
+    if (committed.current.has(key)) return 0
+    const at = fresh.indexOf(key)
+    if (at !== -1) return at
+    fresh.push(key)
+    return fresh.length - 1
+  }
+}
+
+/** Sources listed one per line before the rest are counted. */
+const SOURCES_SHOWN = 5
 
 function Checks({ checks }: { checks: VerificationCheck[] }) {
   return (
@@ -140,11 +193,28 @@ const SCAN_DECISION: Record<string, string> = {
 
 export const RunTranscript = memo(function RunTranscript({ turn }: { turn: AssistantTurn }) {
   const conversation = turn.profile?.taskType === 'conversation'
+  const running = turn.outcome === 'running'
+  const arrival = useArrival()
+  const noted = new Set(turn.notes.map((n) => n.stage))
   // A skipped stage is shown only when the backend said why: that is a
   // decision the run made, and the reason is the record of it. One the
   // end-of-run sweep marked skipped because nothing reported it stays out.
-  const lines = turn.stages.filter((s) => SHOWN.has(s.status) || (s.status === 'skipped' && Boolean(s.detail)))
-  const waiting = turn.outcome === 'running' && turn.queue !== null && turn.queue.ahead > 0
+  // A stage with no stage event of its own -- reading a text attachment is a
+  // tool call -- is shown as working once an event under it has arrived.
+  const lines = turn.stages.filter(
+    (s) =>
+      SHOWN.has(s.status) ||
+      (s.status === 'skipped' && Boolean(s.detail)) ||
+      (s.status === 'pending' && running && noted.has(s.id)),
+  )
+  const waiting = running && turn.queue !== null && turn.queue.ahead > 0
+  // Once the run has ended, a content-scanning finding is listed in full
+  // under "Content scanned"; its live line would say it twice.
+  const scanReasons = running ? [] : turn.scans.map((scan) => scan.reason).filter(Boolean)
+  const notesFor = (row: string) =>
+    turn.notes.filter(
+      (n) => n.stage === row && !(n.kind === 'policy' && scanReasons.some((r) => (n.title ?? n.text).includes(r))),
+    )
 
   if (lines.length === 0 && !waiting) return null
 
@@ -162,7 +232,7 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
         </li>
       )}
       {lines.map((stage) => {
-        const active = stage.status === 'active' && turn.outcome === 'running'
+        const active = (stage.status === 'active' || stage.status === 'pending') && running
         const failed = stage.status === 'failed' || stage.status === 'denied'
         const skipped = stage.status === 'skipped'
         // The checks ran, and found something: the line says so in its bullet.
@@ -191,7 +261,10 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
           note = `${turn.request.attachments.length} file${turn.request.attachments.length === 1 ? '' : 's'}`
         }
 
-        const sources = stage.id === 'retrieve' && !active ? turn.evidence.filter((e) => /^S\d+$/.test(e.id)) : []
+        // Listed as they arrive, not when the stage closes: what retrieval
+        // found is on screen while the run goes on to use it.
+        const sources = stage.id === 'retrieve' ? turn.evidence.filter((e) => /^S\d+$/.test(e.id)) : []
+        const notes = notesFor(stage.id)
 
         return (
           <li key={stage.id} className="flex flex-col gap-0.5">
@@ -227,11 +300,18 @@ export const RunTranscript = memo(function RunTranscript({ turn }: { turn: Assis
             {/* The backend's own words for what the stage is doing, or why it
                 did not run. Never templated here. */}
             {(active || skipped) && stage.detail && <Result>{stage.detail}</Result>}
-            {sources.length > 0 && (
-              <Result>
-                {sources.slice(0, 4).map(citeLabel).join(' · ')}
-                {sources.length > 4 ? ` · +${sources.length - 4} more` : ''}
+            {notes.map((n) => (
+              <Result key={n.key} tone={n.tone} title={n.title} arrival={arrival(n.key)}>
+                {n.text}
               </Result>
+            ))}
+            {sources.slice(0, SOURCES_SHOWN).map((item) => (
+              <Result key={`source:${item.id}`} arrival={arrival(`source:${item.id}`)} title={item.source_document}>
+                <span className="text-foreground-secondary">{item.id}</span> {citeLabel(item)}
+              </Result>
+            ))}
+            {sources.length > SOURCES_SHOWN && (
+              <Result>+{sources.length - SOURCES_SHOWN} more</Result>
             )}
             {calls.map((call, i) => (
               <Result key={`${call.started_at}-${i}`}>{callLine(call)}</Result>

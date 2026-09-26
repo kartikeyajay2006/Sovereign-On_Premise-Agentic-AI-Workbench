@@ -106,6 +106,24 @@ export interface ContentScan {
   at: string
 }
 
+/**
+ * One ⎿ line under a stage in the transcript: something the backend reported
+ * about the work while it did it -- a plan step, a model swap, a page read, a
+ * retry. Written from an event's own fields and nothing else.
+ */
+export interface TranscriptNote {
+  /** Unique within the turn, from the event that wrote it. */
+  key: string
+  /** The row it hangs under. */
+  stage: string
+  text: string
+  tone?: 'critical' | 'approval'
+  /** Set for a policy finding, which the settled turn may also list in full. */
+  kind?: 'policy'
+  /** The untrimmed text, when `text` had to be cut to one line. */
+  title?: string
+}
+
 export interface AssistantTurn {
   role: 'assistant'
   id: string
@@ -114,6 +132,8 @@ export interface AssistantTurn {
   /** Every stage, in canonical order, from the moment the turn mounts.
    *  Events mutate rows; nothing appends, so nothing reflows. */
   stages: PipelineStage[]
+  /** What the stages reported as they worked, in arrival order. */
+  notes: TranscriptNote[]
   /**
    * Null until verification completes. Never a partial string.
    *

@@ -36,6 +36,7 @@ import type {
   UserTurn as UserTurnModel,
 } from '../model/types'
 import { appendUsage, choiceFromEvent, choicesFromRouting } from '../model/usage'
+import { notesFromEvent, notesFromTask } from '../model/notes'
 import {
   MODEL_STAGE_TO_ROW,
   TERMINAL,
@@ -168,6 +169,7 @@ function freshAssistantTurn(id: string, request: RunRequest, at: string): Assist
     taskId: null,
     outcome: 'running',
     stages: DEFAULT_PIPELINE.map((s) => ({ ...s, status: 'pending' })),
+    notes: [],
     answer: null,
     releasedLive: false,
     streamingDraft: null,
@@ -523,6 +525,25 @@ export function ThreadView() {
           return
         }
 
+        // What a stage reported while it worked: the plan's steps, a model
+        // swapped in, a page read, a script retried, the sandbox's exit, a
+        // policy finding. Each becomes a ⎿ line under its stage, written from
+        // the event's own fields.
+        case 'task.planned':
+        case 'task.tool_started':
+        case 'task.model_swapped':
+        case 'task.extraction':
+        case 'task.code_retry':
+        case 'task.sandbox_result':
+        case 'task.policy':
+          patchTask(id, (t) => {
+            // Keyed by arrival, not by the dedupe key: that one carries the
+            // whole payload, and a React key need only be unique in the turn.
+            const notes = notesFromEvent(name, data, `${name}|${event.at}|${t.notes.length}`, t)
+            return notes.length ? { ...t, notes: [...t.notes, ...notes] } : t
+          })
+          return
+
         case 'task.tool_completed':
           // Attachments are read by a tool, not announced as a stage, so the
           // Read row learns of them here. A failed read is not a done one.
@@ -642,6 +663,9 @@ export function ThreadView() {
             closeStages(t.stages, outcome, task.completed_at || task.updated_at, task.error),
             recorded,
           ),
+          // The live notes stay; a plan the stream never delivered is read
+          // back from the record, like any other stage it failed to report.
+          notes: t.notes.some((n) => n.stage === 'plan') ? t.notes : [...notesFromTask(task), ...t.notes],
           stream: 'closed',
           // This read is the release: every path to it is the run this
           // thread is following, so the reader is watching the answer land.
@@ -1085,6 +1109,7 @@ export function ThreadView() {
           // for: this one retrieved nothing and executed nothing, and
           // seven green rows would say it did both.
           stages: stagesFromTask(task, inFlight, DEFAULT_PIPELINE),
+          notes: notesFromTask(task),
           error: null,
           startedAt: task.created_at,
           stream: inFlight ? 'live' : 'closed',

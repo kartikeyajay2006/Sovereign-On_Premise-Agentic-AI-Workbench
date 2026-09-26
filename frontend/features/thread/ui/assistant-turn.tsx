@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
-import { DimScope, Disclose, Light, Refused, Release, Seal, useSecondClock } from '@/shared/motion'
+import { AppendScope, DimScope, Disclose, Light, Refused, Release, Seal, useSecondClock } from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import type { DeliverableContent, EvidenceItem, ModelDescriptor } from '@/lib/types'
 import type { AssistantTurn as AssistantTurnModel } from '../model/types'
@@ -673,7 +673,11 @@ export const AssistantTurn = memo(function AssistantTurn({
         <div data-dim-item className={cn('ae-fold', logOpen && 'open')} inert={!logOpen}>
           <div className="min-h-0 overflow-hidden">
             <div className="flex flex-col gap-2 pb-4">
-              <RunTranscript turn={turn} />
+              {/* Mounted with the turn, so a line an event adds later is an
+                  arrival and one read from the record is not. */}
+              <AppendScope>
+                <RunTranscript turn={turn} />
+              </AppendScope>
               {/* What it cost, folded with the steps it was spent on. */}
               {!running && (
                 <UsageFooter usage={turn.usage} choices={[]} models={models} workedMs={turn.elapsedMs} withNotes={false} />

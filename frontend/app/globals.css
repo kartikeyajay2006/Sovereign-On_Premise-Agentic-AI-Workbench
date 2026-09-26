@@ -2727,3 +2727,25 @@ html[data-theme='dark'],
 .side-scroll::-webkit-scrollbar { width: 8px; }
 .side-scroll::-webkit-scrollbar-thumb { border-width: 2px; background-color: color-mix(in oklab, var(--foreground) 14%, transparent); }
 .side-scroll:hover::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--foreground) 26%, transparent); }
+
+/* ==================================================================== */
+/* THE THREAD'S INTERACTIONS                                             */
+/* Unlayered, so they sit over the signature motions they refine.        */
+/* ==================================================================== */
+
+/* A transcript sub-line an event added while the reader watched: the    */
+/* Append motion at the spatial distance, rising 8px out of nothing over */
+/* 200ms, staggered 40ms within its batch and capped at five. Reduced    */
+/* motion zeroes the distance, the duration and the stagger, and the     */
+/* rule below takes the animation off outright.                          */
+.aegis-append.thread-sub {
+  --rise: var(--shift-md);
+  animation-name: thread-sub-in;
+}
+@keyframes thread-sub-in {
+  from { opacity: 0; transform: translateY(var(--rise)); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aegis-append.thread-sub { animation: none; }
+}
