@@ -9,7 +9,9 @@ Boot sequence, in order:
 3. Verify the audit chain and record the boot event.
 4. Seed the identities declared in ``policies/access-control.yaml``.
 5. Start the sovereignty monitor and the task worker.
-6. Load the everyday model in the background, when ``inference.prewarm`` is set.
+6. In the background: reconcile the model manager with what the runtime
+   already holds (``inference.reconcile_on_startup``), then load the everyday
+   model when ``inference.prewarm`` is set.
 """
 
 from __future__ import annotations
@@ -55,12 +57,46 @@ async def _prewarm() -> None:
     descriptor, options = await readiness.drafting_model()
     if descriptor is None:
         return
-    await get_model_manager().admit(descriptor, actor="system")
+    await get_model_manager().admit(
+        descriptor, actor="system", context_tokens=options.get("num_ctx")
+    )
     try:
         await readiness.prewarm_drafting_model(descriptor, options)
         print(f"[workbench] {descriptor.display_name} loaded and ready")
     except InferenceError as exc:
         print(f"[workbench] could not preload {descriptor.display_name}: {exc}")
+
+
+async def _reconcile() -> None:
+    """Adopt what the runtime still holds from before this API started.
+
+    Ollama outlives an API restart. Reconciled before the prewarm, so the
+    prewarm's admission knows what is resident instead of loading the
+    drafting model beside a vision model it cannot see. The drafting model
+    is preferred when resident, since it is the one the prewarm wants.
+    """
+    prefer = None
+    try:
+        descriptor, _ = await readiness.drafting_model()
+        prefer = descriptor.id if descriptor else None
+    except Exception:  # unroutable is reported by the prewarm and by /api/ready
+        pass
+    result = await get_model_manager().reconcile(prefer=prefer)
+    if result["adopted"]:
+        evicted = f"; unloaded {', '.join(result['evicted'])}" if result["evicted"] else ""
+        print(f"[workbench] adopted resident model {result['adopted']}{evicted}")
+    if result["unregistered"]:
+        print(f"[workbench] resident but unregistered (left alone): {', '.join(result['unregistered'])}")
+
+
+async def _settle_models(*, reconcile: bool, prewarm: bool) -> None:
+    if reconcile:
+        try:
+            await _reconcile()
+        except Exception as exc:  # never keep the prewarm from running
+            print(f"[workbench] could not reconcile resident models: {exc}")
+    if prewarm:
+        await _prewarm()
 
 
 @contextlib.asynccontextmanager
@@ -145,8 +181,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await service.start(worker_count=1)
 
     prewarm = None
-    if bool(config.settings.inference.get("prewarm", False)):
-        prewarm = asyncio.create_task(_prewarm())
+    reconcile = bool(config.settings.inference.get("reconcile_on_startup", True))
+    preload = bool(config.settings.inference.get("prewarm", False))
+    if reconcile or preload:
+        prewarm = asyncio.create_task(_settle_models(reconcile=reconcile, prewarm=preload))
 
     try:
         yield

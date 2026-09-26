@@ -726,7 +726,8 @@ class AgentOrchestrator:
         # Memory admission: make room before invoking, evicting the previously
         # resident model when the host cannot hold both.
         admission = await self.manager.admit(
-            descriptor, actor=user.username, task_id=task.id
+            descriptor, actor=user.username, task_id=task.id,
+            context_tokens=self.router.generation_options(descriptor.id, stage=stage).get("num_ctx"),
         )
         if admission.get("evicted"):
             await self._emit(

@@ -76,6 +76,11 @@ inference:
   # multi-gigabyte models at once. Set false on a large GPU server.
   single_model_residency: true
   memory_headroom_mb: 1536
+  # The runtime outlives the API. At startup, read what Ollama still holds
+  # (/api/ps), adopt the resident generation model and, under single
+  # residency, unload the other registered generation models. Unregistered
+  # models are reported and left alone.
+  reconcile_on_startup: true
 
 # What "ready" means, for scripts/warmup.py and GET /api/ready
 # (backend/ops/readiness.py). Free memory is read with the drafting model
