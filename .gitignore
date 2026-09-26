@@ -35,6 +35,9 @@ storage/*.db-shm
 # Offline installer bundles (scripts/offline_bundle.py build)
 dist/
 
+# Backups (scripts/backup.py): they hold the host's private signing key.
+backups/
+
 # Frontend build output and vendored browser tooling
 frontend/.next/
 frontend/out/
