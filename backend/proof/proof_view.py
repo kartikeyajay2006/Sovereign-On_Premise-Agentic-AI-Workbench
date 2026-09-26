@@ -269,6 +269,10 @@ def _formula(task: Task) -> ProofRow:
                                    value=f"{assessment.governing_rate_mm_yr} mm/year", mono=True))
         if assessment.remaining_life_years is not None:
             facts.append(ProofFact(label="Remaining life", value=f"{assessment.remaining_life_years} years", mono=True))
+        # A relief device has no rate or life: its figures are one verdict per clause.
+        for check in assessment.checks:
+            facts.append(ProofFact(label=check.label,
+                                   value=f"{'passed' if check.passed else 'FAILED'}: {check.detail}"))
         if assessment.severity:
             facts.append(ProofFact(label="Severity", value=assessment.severity))
         if assessment.status != "calculated":

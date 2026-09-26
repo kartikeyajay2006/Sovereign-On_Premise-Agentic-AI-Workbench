@@ -61,6 +61,13 @@ function PresetRow({ preset, active, onClick }: { preset: SandboxPreset; active:
   )
 }
 
+/** Who refuses the code's connections: the kernel (a namespace or a container) or only the shim. */
+function networkBoundary(limits: SandboxLimits): string {
+  if (limits.container?.usable) return 'container, no network'
+  if (limits.network_namespace?.usable) return 'private namespace'
+  return 'shim only'
+}
+
 /**
  * The sandbox, as the thing it is: an editor, a run button, and what the
  * host did with the code.
@@ -121,6 +128,7 @@ export function SandboxConsole() {
         meta={[
           { label: 'Runtime', value: limits ? limits.runtime : '—', hint: limits?.configured_runtime && `configured: ${limits.configured_runtime}` },
           { label: 'Limits enforced by', value: limits ? sandboxMechanism(limits.backend) : '—', hint: limits?.backend },
+          { label: 'Network', value: limits ? networkBoundary(limits) : '—', hint: limits?.network_namespace?.usable ? `sees ${limits.network_namespace.interfaces.join(', ')} only` : undefined },
           { label: 'Memory', value: limits ? `≤ ${limits.memory_mb} MB` : '—' },
           { label: 'CPU', value: limits ? `≤ ${limits.cpu_seconds} s` : '—' },
           {
@@ -144,6 +152,21 @@ export function SandboxConsole() {
               {limits.container.fallback === 'subprocess'
                 ? 'Code runs in the subprocess sandbox instead, and every result says so.'
                 : 'Execution is refused until the container probe passes.'}
+            </p>
+          </div>
+        )}
+
+        {/* Asked for, or tried, and not proven: the kernel is not the one
+            refusing connections, so say that the shim alone is. */}
+        {limits?.network_namespace && !limits.network_namespace.usable && (
+          <div className="rounded-[16px] bg-approval-surface px-4 py-3">
+            <p className="text-[14px] text-approval-text">
+              No private network namespace: {limits.network_namespace.reason}
+            </p>
+            <p className="mt-1 text-[12.5px] text-foreground-muted">
+              {limits.network_namespace.mode === 'require'
+                ? 'sandbox.network_namespace is require, so execution is refused.'
+                : "Code shares this host's network stack; only the interpreter shim refuses its connections."}
             </p>
           </div>
         )}

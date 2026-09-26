@@ -6,7 +6,7 @@
 .venv/bin/python -m pytest -q -k "sandbox or egress"
 ```
 
-As measured on CI (2026-09-26): **921 passed, 13 skipped** on Linux, **933 passed, 1 skipped** on Windows. The Linux skips are the Windows Job Object tests, which run only on a Windows host where the probe passes, and the real-container sandbox test, which runs only where Podman or Docker is installed.
+As measured on CI (2026-09-26): **921 passed, 13 skipped** on Linux, **933 passed, 1 skipped** on Windows. After the relief-device, network-namespace and approval-footer commits of 2026-09-27: **959 passed, 13 skipped** on Linux, measured locally; after the error sweep the same day, **981 passed, 13 skipped**. Windows not yet re-measured, where the network-namespace tests skip. The Linux skips are the Windows Job Object tests, which run only on a Windows host where the probe passes, and the real-container sandbox test, which runs only where Podman or Docker is installed.
 
 ## Isolation
 

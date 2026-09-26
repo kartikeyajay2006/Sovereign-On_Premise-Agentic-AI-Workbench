@@ -68,6 +68,14 @@ const ACTION = cn(
   'disabled:pointer-events-none disabled:opacity-[var(--opacity-disabled)]',
 )
 
+/** "Head of Inspection, then Plant Manager", or who is still to sign once one has. */
+function heldForSignatures(signatures: { authority: string; signedBy: string | null }[]): string {
+  const waiting = signatures.filter((signature) => !signature.signedBy)
+  const given = signatures.length - waiting.length
+  if (given === 0) return signatures.map((signature) => signature.authority).join(', then ')
+  return `${waiting.map((signature) => signature.authority).join(', then ')} (${given} of ${signatures.length} signed)`
+}
+
 export const AnswerActions = memo(function AnswerActions({
   answer,
   evidence,
@@ -75,6 +83,7 @@ export const AnswerActions = memo(function AnswerActions({
   rerunDisabled,
   held,
   approverRoles,
+  signatures = [],
   reasons = [],
   canReview,
   taskId = null,
@@ -88,6 +97,11 @@ export const AnswerActions = memo(function AnswerActions({
   rerunDisabled: boolean
   held: boolean
   approverRoles: string[]
+  /**
+   * Signatures given in order (a High finding: Head of Inspection, then Plant
+   * Manager). Joining the roles with "or" told a reader one of them would do.
+   */
+  signatures?: { authority: string; signedBy: string | null }[]
   /**
    * Why the gate held it, as the policy engine recorded it:
    * "rule_name: description". A held answer that said only who must sign it
@@ -189,7 +203,7 @@ export const AnswerActions = memo(function AnswerActions({
         <span className="ml-auto flex items-center gap-2 text-meta">
           {approverRoles.length > 0 && (
             <span className="text-approval-text" title={reasons.join('\n') || undefined}>
-              Held for {approverRoles.map(roleName).join(' or ')}
+              Held for {signatures.length > 0 ? heldForSignatures(signatures) : approverRoles.map(roleName).join(' or ')}
               {reasons.length > 0 && (
                 <span className="text-foreground-muted">
                   {' · '}

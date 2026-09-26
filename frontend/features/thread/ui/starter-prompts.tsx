@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { BookOpenText, Calculator, FileScan, Paperclip, ShieldAlert, Split, type LucideIcon } from 'lucide-react'
+import { BookOpenText, Calculator, FileScan, Gauge, Paperclip, ShieldAlert, Split, type LucideIcon } from 'lucide-react'
 import { CONSOLE_TEMPLATES } from '@/lib/presentation'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +13,7 @@ const CARD: Record<string, { icon: LucideIcon; blurb: string }> = {
   'golden-asset-survey': { icon: Calculator, blurb: 'A thickness survey in: rates, remaining life and severity by registered formulas, not the model.' },
   'golden-conflict': { icon: Split, blurb: 'Two records give different readings: no figure is stated until a person chooses which governs.' },
   'golden-attack': { icon: ShieldAlert, blurb: 'The note tells the model to approve it. The order is withheld and a person reviews the run.' },
+  'golden-relief': { icon: Gauge, blurb: 'A PSV bench test in: each SOP-INS-025 clause judged by formula. A failed valve is High and needs two signatures.' },
 }
 
 /** The sample files each card attaches, by the id config/app.yaml gives them. */
@@ -21,10 +22,11 @@ const SAMPLE_NAMES: Record<string, string> = {
   'v2104-survey': 'V-2104-thickness-survey.csv',
   'v2104-field-sheet': 'V-2104-contractor-field-sheet.md',
   'v2104-injected-note': 'V-2104-contractor-note-with-injection.md',
+  'psv-2104a-test': 'PSV-2104A-bench-test-record.md',
 }
 
 /**
- * The three golden demos, for an empty thread.
+ * The golden demos, for an empty thread.
  *
  * A card fills the composer and attaches its sample files through the
  * ordinary upload, so the run starts from exactly what a person would send.
@@ -43,13 +45,14 @@ export const StarterPrompts = memo(function StarterPrompts({
   visionReady?: boolean | null
 }) {
   const pending = visionReady === null
-  // Three cards: the scanned report where a vision model can read it, the
-  // survey where it cannot.
+  // Four cards, two by two: the scanned report where a vision model can read
+  // it, the survey where it cannot, then the conflict, the attack and the
+  // relief valve.
   const shown = CONSOLE_TEMPLATES.filter((t) => (t.needs === 'vision' ? visionReady === true : t.needs === 'no-vision' ? !visionReady : true))
   return (
     // Until it is known, the cards hold their place unseen, so the greeting
     // above them does not move when they appear.
-    <ul aria-label="Starter requests" aria-hidden={pending || undefined} className={cn('grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-3', pending && 'invisible')}>
+    <ul aria-label="Starter requests" aria-hidden={pending || undefined} className={cn('grid list-none grid-cols-1 gap-2.5 p-0 sm:grid-cols-2', pending && 'invisible')}>
       {shown.map((template, i) => {
         const card = CARD[template.id]
         const Icon = card?.icon ?? BookOpenText

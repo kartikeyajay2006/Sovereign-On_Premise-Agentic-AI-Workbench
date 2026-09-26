@@ -405,10 +405,19 @@ class ConflictResolveRequest(BaseModel):
     reason: str = Field(min_length=8, max_length=1000)
 
 
+class AssessmentCheck(BaseModel):
+    """One clause of a procedure applied to the record, and its verdict."""
+
+    label: str
+    passed: bool
+    detail: str
+    formula_id: str
+
+
 class IntegrityAssessment(BaseModel):
     """The asset-integrity decision a run's calculations add up to."""
 
-    kind: Literal["vessel", "piping", "stated"]
+    kind: Literal["vessel", "piping", "stated", "relief"]
     subject: str
     # `conflicted`: the evidence disagrees about an input, and no figure that
     # depends on it is stated until a person resolves the conflict.
@@ -433,6 +442,10 @@ class IntegrityAssessment(BaseModel):
     # so next_due and interval_months are deliberately empty.
     withdraw_from_service: bool = False
     ffs_triggers: list[str] = Field(default_factory=list)
+    # A relief device: the equipment it protects, and each SOP-INS-025
+    # clause applied to its test record (as-received, setting, MAWP, inlet).
+    protected_equipment: str | None = None
+    checks: list[AssessmentCheck] = Field(default_factory=list)
     next_due: str | None = None
     interval_months: int | None = None
     next_due_basis: str | None = None

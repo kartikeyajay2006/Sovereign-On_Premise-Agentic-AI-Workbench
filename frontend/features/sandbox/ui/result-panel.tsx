@@ -194,6 +194,7 @@ function Transcript({ response }: { response: SandboxExecuteResponse }) {
         {limits.wall_timeout_seconds != null && ` · wall ≤ ${limits.wall_timeout_seconds} s`}
         {limits.active_process_limit != null && ` · processes ≤ ${limits.active_process_limit}`}
         {limits.kill_on_close && ' · kill-on-close'}
+        {limits.network_namespace && ' · private network namespace'}
         {` · ${response.classification} · policy ${response.policy_decision}: ${response.policy_reason}`}
       </p>
     </div>

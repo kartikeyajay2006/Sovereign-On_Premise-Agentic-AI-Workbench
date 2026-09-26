@@ -15,6 +15,7 @@ Asked for a corrosion rate, a 3B model once answered 0.8 mm/year where the evide
 | `extraction.py` | Reads inputs from evidence and remembers where: `readings table · row 'Shell course 2 (mid)' · column 2026`. Header fields, readings tables (skipping repeated headers and the vision model's JSON copy), survey CSVs and piping CML lists |
 | `assessment.py` | Chains the formulas per location and picks the **governing location by lowest remaining life**, not by the thinnest reading or the fastest rate |
 | `stage.py` | Registers the results as **C evidence**, tells the model the figures, and detects conflicts between sources |
+| `relief.py` | Reads a pressure-relief valve's bench-test record field by field (tag, protected equipment, service, MAWP, set and as-received pressures, setting after overhaul, inlet loss, test dates), each value bound to its line, and applies the five `relief.*` formulas of SOP-INS-025 |
 | `stated.py` | For a calculation whose values are written in the question itself ("12.0 to 9.4 mm over 4 years, t-min 6.0 mm"). The model only proposes which number is which variable. A value is bound only when the question writes that number with a unit of the right dimension, and the rest are refused by name. The request becomes **H evidence** that every input cites, and the registry computes the rate, remaining life and below-t-min check |
 
 A missing input gives **cannot calculate**, naming what is missing; a malformed one gives **refused**, saying why. Neither is estimated. When two sources disagree about an input, the assessment is **conflicted**, and nothing that depends on it is computed until a person chooses ([2.9](../02-concepts/09-conflicts.md)).
@@ -26,6 +27,12 @@ A vessel with a reading below t-min, or a governing remaining life at or below z
 ### Recommend is not approve
 
 `severity.vessel_finding@2` outputs who **recommends** and who **approves** under SOP-OPS-008 Clauses 2.1 to 2.3. For a High finding, the Inspection Engineer and Head of Inspection recommend and the Plant Manager approves. The decision lines and every generated deliverable carry this statement, taken from the formula and not from the model: *"AEGIS prepares the recommendation only; it takes effect when the approving authority signs it."* The approval gate enforces the signatures ([2.5](../02-concepts/05-approval.md)).
+
+### Relief devices
+
+A PSV's test record has no rate and no remaining life: its figures are one verdict per clause of SOP-INS-025. `relief.test_due@1` gives the next bench test, 24 months after the last in fouling or corrosive service and 48 in clean service (Clauses 2.1-2.2), and whether a test was overdue on a given date. `relief.as_received_test@1` fails a valve that opened more than 10% above its set pressure, or did not open at all (Clause 3.2); the procedure's own example, 10.5 bar(g) failing above 11.55 bar(g), passes at exactly the limit, because pressures are compared at six decimal places. `relief.set_pressure_limit@1` checks set pressure against MAWP (4.1), `relief.post_overhaul_setting@1` the ±3% or ±0.14 bar tolerance (3.4), and `relief.inlet_loss@1` the 3% inlet loss limit (5.2).
+
+A failed as-received test is a failed relief device: a **High** finding on the protected equipment, withdrawn within 24 hours and reported as a near miss (Clause 3.3; SOP-HSE-004 Clause 2.3). The assessment (`kind: relief`) carries that severity to the approval gate, which then asks for the Head of Inspection and the Plant Manager in turn. The model is told the verdicts as cited sentences and nothing about thickness or corrosion; the integrity card shows each check. The synthetic record `sample_data/relief/PSV-2104A-bench-test-record.md`, attached by the *A relief valve failed its test* starter card, opened at 11.9 bar(g) and fails.
 
 The registry is browsable on the Knowledge screen's **Formulas** tab and over the API ([11.7](../11-api/07-engineering-proof.md)).
 

@@ -250,7 +250,6 @@ class Drawing:
         blocks = [e for e in elements if self.nodes[e]["type"] in BLOCK]
         sealed = [e for e in blocks if self.nodes[e].get("car_sealed") == "open"]
         blinds = [e for e in elements if self.nodes[e]["type"] == "spectacle_blind"]
-        bleeds = [e for e in elements if self.nodes[e]["type"] == "bleed"]
         non_isolating = [e for e in elements if self.nodes[e]["type"] in ("control_valve", "check_valve", "psv")]
         dbb = None
         for index, element in enumerate(elements):

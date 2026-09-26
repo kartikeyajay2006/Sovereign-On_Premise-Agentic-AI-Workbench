@@ -409,9 +409,17 @@ export interface CalculationRecord {
   evidence_id?: string | null
 }
 
+/** One clause of a procedure applied to a record, and its verdict (a relief device's SOP-INS-025 checks). */
+export interface AssessmentCheck {
+  label: string
+  passed: boolean
+  detail: string
+  formula_id: string
+}
+
 /** The asset-integrity decision a run's calculations add up to. */
 export interface IntegrityAssessment {
-  kind: 'vessel' | 'piping' | 'stated'
+  kind: 'vessel' | 'piping' | 'stated' | 'relief'
   subject: string
   status: 'calculated' | 'cannot_calculate' | 'conflicted'
   report?: string | null
@@ -432,6 +440,9 @@ export interface IntegrityAssessment {
   /** At or below t-min: withdrawn, so next_due and interval_months are empty. */
   withdraw_from_service?: boolean
   ffs_triggers: string[]
+  /** A relief device: the equipment it protects, and one verdict per SOP-INS-025 clause. */
+  protected_equipment?: string | null
+  checks?: AssessmentCheck[]
   next_due?: string | null
   interval_months?: number | null
   next_due_basis?: string | null
