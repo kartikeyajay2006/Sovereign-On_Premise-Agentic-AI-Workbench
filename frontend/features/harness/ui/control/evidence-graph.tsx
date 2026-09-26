@@ -166,6 +166,9 @@ export const EvidenceGraph = forwardRef<HTMLDivElement, { run: HarnessRunView; s
     const rows = Math.max(1, ...graph.columns.map((c) => c.length))
     const height = TOP + rows * ROW_H + 4
     const hasSelection = selected !== null && graph.columns[3].some((n) => n.children.has(selected))
+    // Released children that counted claims but carry no per-claim verdicts
+    // were verified before verdicts were recorded: say that, not "none yet".
+    const predatesVerdicts = run.children.some((c) => c.released && (c.claims_total ?? 0) > 0 && (c.claims ?? []).length === 0)
     const dim = (children: Set<number>) => hasSelection && !children.has(selected!)
 
     return (
@@ -182,8 +185,9 @@ export const EvidenceGraph = forwardRef<HTMLDivElement, { run: HarnessRunView; s
         >
           {graph.columns[2].length === 0 ? (
             <p className={cn(BODY, 'px-3 py-4 text-foreground-secondary')}>
-              No released child has verified claims yet. The graph is drawn from each released child&rsquo;s claims and the
-              passages their evidence ids name; a held child&rsquo;s claims are not shown here.
+              {predatesVerdicts
+                ? 'These children were verified before per-claim verdicts were recorded, so there are no claims to draw. Runs made from now on fill this graph.'
+                : 'No released child has verified claims yet. The graph is drawn from each released child’s claims and the passages their evidence ids name; a held child’s claims are not shown here.'}
             </p>
           ) : (
             <svg
