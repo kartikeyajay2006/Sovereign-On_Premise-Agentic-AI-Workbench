@@ -54,6 +54,7 @@ No authentication. All users (see the warning in [11](README.md)).
 |---|---|---|
 | `GET /` | none | Headline status: `sovereign`, `external_calls`, `monitor_active`, … |
 | `GET /api/status` | none | Containment status, readable before sign-in |
+| `GET /api/ready` | none | `ready` and one boolean per check: `inference_reachable`, `pinned_models_verified`, `drafting_model_resident`, `free_memory_ok`, `audit_chain_valid`, `vision_cache_warm` (`null` when no demo sample is configured). **200** when ready, **503** when not. No names, digests, figures or paths; the detail is `scripts/warmup.py`'s. Readings are reused for `readiness.cache_seconds` |
 | `GET /api/health` | signed in | `inference_provider`, `inference_reachable`, `models_registered`, `models_available`, `knowledge_documents`, `knowledge_chunks`, `retrieval_mode`, `sandbox_runtime`, `sandbox_ready`, `audit_chain_valid`, `sovereignty_ok`, `uptime_seconds`, `checked_at` |
 | `GET /api/models` | signed in | Every registered model with its state, role, capabilities and clearances |
 | `GET /api/models/status` | signed in | Residency: what is loaded, loads, evictions, memory |

@@ -14,12 +14,26 @@ Measured on CPU-only laptops (see [1.2](../01-getting-started/02-requirements.md
 
 Open any run's **usage footer** to see its own breakdown: load time, prompt evaluation, generation, time to first token, tokens per second.
 
+## Hardware profiles
+
+Start with the profile for the host rather than tuning setting by setting. Each is a file in `config/profiles/`, selected with `SOVEREIGN_PROFILE` and overlaid on `app.yaml` and `routing.yaml` ([10.7](../10-configuration/07-environment.md#hardware-tier-profiles-sovereign_profile) has every value):
+
+| Tier | Host | Residency | Workers | Ollama (`scripts/start-ollama.*`) |
+|---|---|---|---|---|
+| `laptop-8gb` | 8 GB, CPU only (the demo laptop) | single; headroom 1024 MB | 1 | 2 loaded models, 1 parallel slot |
+| `laptop-16gb` | 16 GB, 8+ cores | 3B + vision together | 1 | 3 loaded, 1 slot |
+| `cpu-server` | 64–128 GB, 16–32 cores | all four; contexts 8192; drafting 2000 tokens | 3 | 4 loaded, 3 slots, flash attention, q8_0 KV cache |
+| `gpu-server` | ≥ 12 GB VRAM | 8B + vision + Nomic; contexts 8192 | 4 | 3 loaded, 4 slots, flash attention, q8_0 KV cache |
+
+Every tier sets `keep_alive: 24h` in the app and `OLLAMA_KEEP_ALIVE=24h` in the runtime. On the 8 GB laptop, [Docker is a poor fit](../../RUNTIME-ENVIRONMENT.md#local-models-on-the-demo-laptop): run natively.
+
 ## Levers
 
 | Symptom | Lever | Setting |
 |---|---|---|
 | Every first question after a restart is slow | Prewarm the everyday model | `inference.prewarm: true` |
-| A model reloads between runs | Keep models resident longer | `inference.keep_alive: 30m` |
+| A model reloads between runs | Keep models resident longer, in the app **and** the runtime | `inference.keep_alive: 24h`, `OLLAMA_KEEP_ALIVE=24h` (the profiles and `start-ollama.*`) |
+| Two users, one waits | More workers, where memory allows | `agent.worker_count` with a matching `OLLAMA_NUM_PARALLEL` |
 | The host swaps during runs | Keep models resident **shorter**; one model at a time; fewer installed models | `keep_alive: 5m`, `single_model_residency: true`; remove `qwen3:8b` from the registry |
 | Reloads between stages of one run | Keep text stages on one context size | `stage_context_tokens` equal for all text stages |
 | Scanned reports are slow | Smaller images | `inference.max_image_edge_px` (1100; try 900) |
@@ -38,7 +52,21 @@ ollama ps                    # what the runtime has loaded
 curl -s http://127.0.0.1:8000/api/models/status -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-Before a demonstration: close browsers with many tabs, IDEs and container runtimes; make sure only one API process runs; run one short question to load the model; and keep `keep_alive` long enough that nothing is evicted mid-demo.
+Before a demonstration: close browsers with many tabs, IDEs and container runtimes; make sure only one API process runs; run `scripts/warmup.py` (or `warmup.ps1`), which loads the drafting model and ends READY only with free memory above `readiness.min_free_memory_mb`; and keep `keep_alive` long enough that nothing is evicted mid-demo. The same readings are at `GET /api/ready`, without sign-in.
+
+### Memory warnings on the timeline
+
+Before a stage loads a model, the model manager projects whether it fits: free memory, plus whatever the admission would evict, against the model's footprint (weights plus KV cache for the stage's window, [5.3](../05-models-and-routing/03-residency.md#the-footprint-estimate)) plus `memory_headroom_mb`. When it would not:
+
+- the run's timeline gets a `task.model_memory` event naming the model, what it needs and what would be free, and the audit log a `model / memory_warning`;
+- if the router found a **smaller** model eligible for the stage that does fit, the stage runs on it, and the routing reason says why (`action: fallback`);
+- otherwise the stage proceeds on the routed model (`action: proceed`) and the warning explains a slow stage.
+
+Seeing these regularly means the host is under-provisioned for its profile: pick a smaller tier, or close what else is running.
+
+### After an API restart
+
+Ollama keeps its models when the API restarts. The API reconciles at startup (`inference.reconcile_on_startup`): it adopts the drafting model if Ollama still holds it, and under single residency unloads any other registered generation model, so a restart cannot leave two models loaded on an 8 GB host.
 
 ## With a GPU
 
