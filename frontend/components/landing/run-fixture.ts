@@ -256,10 +256,3 @@ export function sectionNumber(item: Pick<EvidenceUnit, 'location'>): string {
   const match = /^\s*section:\s*([0-9]+(?:\.[0-9]+)*)/.exec(item.location)
   return match ? `§${match[1]}` : ''
 }
-
-/** "2026-09-22T16:32:47.179239Z" -> "16:32:47 UTC". */
-export function clock(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const match = /T(\d{2}:\d{2}:\d{2})/.exec(iso)
-  return match ? `${match[1]} UTC` : null
-}

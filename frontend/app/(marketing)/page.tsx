@@ -1,22 +1,16 @@
-import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 import type { CSSProperties, ReactNode } from 'react'
-import { AttackList } from '@/components/landing/attack-list'
 import { ChainTamper } from '@/components/landing/chain-tamper'
 import { ChainVerify } from '@/components/landing/chain-verify'
-import { ChapterTiles } from '@/components/landing/chapter-tiles'
 import { CopyCommands } from '@/components/landing/copy-commands'
 import { Crew } from '@/components/landing/crew'
-import { BENTO, CHAIN_VERIFY, CHAPTERS, CREW_COPY, HERO, LIMITS, PROOF, PROOF_SEQ, RAIL, REPLAY, RUN_IT, STATS, USE_CASES } from '@/components/landing/copy'
+import { CHAIN_VERIFY, CREW_COPY, HERO, PROOF_SEQ, RAIL, RUN_IT, STATS, TAMPER } from '@/components/landing/copy'
 import { HeroVessel } from '@/components/landing/hero-vessel'
 import * as R from '@/components/landing/landing-data'
-import { LiveContainment } from '@/components/landing/live-containment'
 import { LiveEgress } from '@/components/landing/live-egress'
-import { PageRequests } from '@/components/landing/page-requests'
 import { ProductGallery, type GallerySlide } from '@/components/landing/product-gallery'
 import { ProofSequence, type ProofData } from '@/components/landing/proof-sequence'
 import { RevealSection } from '@/components/landing/reveal-section'
-import { RunReplay } from '@/components/landing/run-replay'
 
 // --------------------------------------------------------------------------- //
 // The public page, Hi-Vis Monochrome.
@@ -24,7 +18,9 @@ import { RunReplay } from '@/components/landing/run-replay'
 // Every figure and every quoted word about the run comes from
 // public/landing/run.json through landing-data.ts, derived on the server at
 // render. The only other numbers on the page are read live by the visitor's
-// browser (egress, this page's own requests) or recomputed there (hashes).
+// browser (egress) or recomputed there (hashes).
+//
+// Five sections: hero, the crew, proof, the workbench, run it.
 // --------------------------------------------------------------------------- //
 
 const checksLine = R.checks.length > 0 ? `${R.passedChecks} of ${R.checks.length} checks passed` : null
@@ -42,9 +38,6 @@ const rail = ([
   { k: RAIL.recorded, v: R.capturedOn },
 ] as Array<{ k: string; v: string } | null>).filter((row): row is { k: string; v: string } => row !== null)
 
-// The limits, one line each. The latency line is the run's own.
-const limits = LIMITS.brief.map((item) => (item.id === 'latency' && R.total ? { ...item, line: LIMITS.latencyLine(R.total) } : item))
-const cases = USE_CASES.grid.map(([row, index]) => USE_CASES.rows[row][index])
 
 // The gallery: screenshots of the running product, captured on the demo host.
 const GALLERY: GallerySlide[] = [
@@ -145,115 +138,6 @@ function Section({ id, children, className }: { id: string; children: ReactNode;
     </RevealSection>
   )
 }
-
-// --------------------------------------------------------------------------- //
-// The three chapter panels, drawn from the record on the server.
-// --------------------------------------------------------------------------- //
-
-const retrievePanel = (
-  <div className="lp-pv">
-    <p className="lp-pv-head">
-      <span>{R.retrieve.count} passages</span>
-      <span>{R.retrieve.documents} documents</span>
-      {R.retrieve.mode ? <span>{R.retrieve.mode} search</span> : null}
-      {R.retrieve.time ? <span>{R.retrieve.time}</span> : null}
-      {R.retrieve.policy ? <span>policy {R.retrieve.policy}</span> : null}
-    </p>
-    <table className="lp-table">
-      <thead>
-        <tr>
-          <th scope="col">Rank</th>
-          <th scope="col">Id</th>
-          <th scope="col">Document</th>
-          <th scope="col">Section</th>
-          <th scope="col" className="num">
-            Score
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {R.retrieve.rows.map((row) => (
-          <tr key={row.id} data-cited={row.cited ? '' : undefined}>
-            <td>{pad(row.rank)}</td>
-            <td>
-              <span className={row.cited ? 'chip' : 'id'}>{row.id}</span>
-            </td>
-            <td>{row.doc}</td>
-            <td className="sec">{row.section}</td>
-            <td className="num">{row.score ?? ''}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    <p className="lp-pv-foot">Score is the cosine similarity embedding search reported. The lit row is the passage the answer cites.</p>
-  </div>
-)
-
-const verifyPanel = (
-  <div className="lp-pv">
-    <p className="lp-pv-head">
-      {R.claims ? (
-        <span>
-          {R.claims.supported} of {R.claims.total} material claims supported
-        </span>
-      ) : null}
-      {checksLine ? <span>{checksLine}</span> : null}
-    </p>
-    <p className="lp-pv-answer">
-      {R.answerText} {R.cite ? <span className="chip">{R.cite.id}</span> : null}
-    </p>
-    <ul className="lp-pv-checks">
-      {R.checks.map((check) => (
-        <li key={check.name} className={check.passed ? 'ok' : 'no'}>
-          <span className="sq" aria-hidden />
-          <span className="t">
-            {check.label}
-            <span className="sr-only">{check.passed ? ': passed' : ': failed'}</span>
-          </span>
-          <span className="d">{check.detail}</span>
-        </li>
-      ))}
-    </ul>
-  </div>
-)
-
-const sealPanel = (
-  <div className="lp-pv">
-    <p className="lp-pv-head">
-      {R.auditRange ? (
-        <span>
-          {R.auditRange.count} records appended · seq {R.auditRange.first}–{R.auditRange.last}
-        </span>
-      ) : null}
-      <span>{R.audit.path}</span>
-    </p>
-    <table className="lp-table">
-      <thead>
-        <tr>
-          <th scope="col">Seq</th>
-          <th scope="col">At</th>
-          <th scope="col">Record</th>
-          <th scope="col">Prev → hash</th>
-        </tr>
-      </thead>
-      <tbody>
-        {R.chain.map((record) => (
-          <tr key={record.seq} data-cited={record.seq === R.headSeq ? '' : undefined}>
-            <td>#{record.seq}</td>
-            <td>{record.at ?? ''}</td>
-            <td className="sec">
-              {record.category} · {record.action}
-            </td>
-            <td className="hash">
-              {record.prev.slice(0, 8)} → <span>{record.hash.slice(0, 8)}</span>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    <p className="lp-pv-foot">The run’s last {R.chain.length} records as the capture holds them. Each prev is the hash of the record before it.</p>
-  </div>
-)
 
 const proofData: ProofData = {
   labels: { ...PROOF_SEQ.steps, stamp: PROOF_SEQ.stamp, held: PROOF_SEQ.held },
@@ -387,30 +271,6 @@ export default function LandingPage() {
       </Section>
 
       {/* ---------------------------------------------------------------- */}
-      {/* 01 Retrieve / 02 Verify / 03 Seal                                 */}
-      {/* ---------------------------------------------------------------- */}
-      <Section id={CHAPTERS.id}>
-        <Head id={`${CHAPTERS.id}-title`} eyebrow={CHAPTERS.eyebrow} title={CHAPTERS.title} strong={CHAPTERS.titleKey} lede={CHAPTERS.lede} />
-        <div className="lp-rise">
-          <ChapterTiles
-            idBase="lp-ch"
-            tabs={CHAPTERS.tabs.map((tab) => ({
-              ...tab,
-              stat:
-                tab.key === 'retrieve'
-                  ? [`${R.retrieve.count} passages`, R.retrieve.time].filter(Boolean).join(' · ')
-                  : tab.key === 'verify'
-                    ? checksLine
-                    : R.headSeq !== null && R.hash8
-                      ? `#${R.headSeq} · ${R.hash8}`
-                      : null,
-            }))}
-            panels={[retrievePanel, verifyPanel, sealPanel]}
-          />
-        </div>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
       {/* The proof sequence, and the chain it closes                       */}
       {/* ---------------------------------------------------------------- */}
       <Section id={PROOF_SEQ.id}>
@@ -426,54 +286,29 @@ export default function LandingPage() {
             <ChainVerify records={R.chain.map((record) => ({ seq: record.seq, category: record.category, action: record.action, line: record.line }))} head={R.hashFull} />
           </div>
         ) : null}
+        {R.audit.tail.length > 0 ? (
+          <div className="lp-verify-wrap">
+            <div className="lp-verify-head">
+              <p className="lp-eyebrow">{TAMPER.label}</p>
+              <h3>{TAMPER.title}</h3>
+              <p>{TAMPER.line}</p>
+            </div>
+            <ChainTamper
+              records={R.audit.tail.map((record) => ({ sequence: record.sequence, line: record.line }))}
+              edit={{ ...TAMPER.edit, path: [...TAMPER.edit.path] }}
+              labels={{ restore: TAMPER.restore, verified: TAMPER.verified, broken: TAMPER.broken, brokenLast: TAMPER.brokenLast, idle: TAMPER.idle }}
+            />
+          </div>
+        ) : null}
       </Section>
 
       {/* ---------------------------------------------------------------- */}
-      {/* The run, replayed                                                 */}
-      {/* ---------------------------------------------------------------- */}
-      <Section id={REPLAY.id}>
-        <Head id={`${REPLAY.id}-title`} eyebrow={REPLAY.eyebrow} title={REPLAY.title} strong={REPLAY.titleKey} lede={REPLAY.lede} />
-        <div className="lp-rise">
-          <RunReplay lines={R.replay} runId={R.runId} total={R.total} labels={{ speed: REPLAY.speed, again: REPLAY.again, skip: REPLAY.skip, still: REPLAY.still }} />
-        </div>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* What people ask it                                                */}
-      {/* ---------------------------------------------------------------- */}
-      <Section id={USE_CASES.id}>
-        <Head id={`${USE_CASES.id}-title`} eyebrow={USE_CASES.eyebrow} title={USE_CASES.title} strong={USE_CASES.titleTurn} lede={USE_CASES.lede} />
-        <ul className="lp-cases lp-rise">
-          {cases.map((item, i) => {
-            const command = item.text.match(/^(\/[a-z-]+)\s+(.*)$/)
-            return (
-              <li key={item.text}>
-                <span className="kind">
-                  <span>{pad(i + 1)}</span> {item.kind}
-                </span>
-                <span className="q">
-                  {command ? (
-                    <>
-                      <span className="cmd">{command[1]}</span> {command[2]}
-                    </>
-                  ) : (
-                    item.text
-                  )}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-        <p className="lp-note">{USE_CASES.note}</p>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* The product, screen by screen                                     */}
+      {/* The workbench, screen by screen                                   */}
       {/* ---------------------------------------------------------------- */}
       <Section id="product">
         <Head
           id="product-title"
-          eyebrow="Product"
+          eyebrow="The workbench"
           title="One workbench."
           strong="Every step on the record."
           lede="The thread, skills, harnesses, the approval queue, the sandbox and the audit chain, as they ran on the demo host when these were captured."
@@ -484,82 +319,14 @@ export default function LandingPage() {
       </Section>
 
       {/* ---------------------------------------------------------------- */}
-      {/* Security: each claim something the reader can check               */}
-      {/* ---------------------------------------------------------------- */}
-      <Section id={PROOF.id}>
-        <Head id={`${PROOF.id}-title`} eyebrow={PROOF.eyebrow} title={PROOF.title} strong={PROOF.titleTurn} lede={PROOF.lede} />
-        <div className="lp-bento lp-rise">
-          {R.audit.tail.length > 0 ? (
-            <article className="lp-tile wide">
-              <div>
-                <h3 className="ti">{BENTO.tamper.title}</h3>
-                <p className="li">{BENTO.tamper.line}</p>
-              </div>
-              <ChainTamper
-                records={R.audit.tail.map((record) => ({ sequence: record.sequence, line: record.line }))}
-                edit={{ ...BENTO.tamper.edit, path: [...BENTO.tamper.edit.path] }}
-                labels={{
-                  restore: BENTO.tamper.restore,
-                  verified: BENTO.tamper.verified,
-                  broken: BENTO.tamper.broken,
-                  brokenLast: BENTO.tamper.brokenLast,
-                  idle: BENTO.tamper.idle,
-                }}
-              />
-            </article>
-          ) : null}
-          <article className="lp-tile">
-            <div>
-              <h3 className="ti">{BENTO.airgap.title}</h3>
-              <p className="li">{BENTO.airgap.line}</p>
-            </div>
-            <LiveContainment />
-          </article>
-          <article className="lp-tile">
-            <div>
-              <h3 className="ti">{BENTO.attacks.title}</h3>
-              <p className="li">{BENTO.attacks.line}</p>
-            </div>
-            {R.attacks.length > 0 ? <AttackList attacks={R.attacks} foot={R.attacksFoot} /> : null}
-          </article>
-          <article className="lp-tile">
-            <div>
-              <h3 className="ti">{BENTO.requests.title}</h3>
-              <p className="li">{BENTO.requests.line}</p>
-            </div>
-            <PageRequests />
-          </article>
-        </div>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Limits, one line each                                             */}
-      {/* ---------------------------------------------------------------- */}
-      <Section id={LIMITS.id}>
-        <Head id={`${LIMITS.id}-title`} eyebrow={LIMITS.eyebrow} title={LIMITS.title} strong={LIMITS.titleTurn} lede={LIMITS.lede} />
-        <ol className="lp-limits lp-rise">
-          {limits.map((item, i) => (
-            <li key={item.id}>
-              <span className="n">{pad(i + 1)}</span>
-              <span className="t">{item.title}</span>
-              <span className="l">{item.line}</span>
-            </li>
-          ))}
-        </ol>
-        <a href={LIMITS.readme.href} target="_blank" rel="noreferrer" className="lp-link">
-          {LIMITS.readme.label} <ArrowUpRight className="size-4" aria-hidden />
-        </a>
-      </Section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Get started                                                       */}
+      {/* Run it                                                            */}
       {/* ---------------------------------------------------------------- */}
       <Section id={RUN_IT.id}>
         <Head id={`${RUN_IT.id}-title`} eyebrow={RUN_IT.eyebrow} title={RUN_IT.title} strong={RUN_IT.titleEm} lede={RUN_IT.lede} />
         <div className="lp-start lp-rise">
           <CopyCommands lines={[...RUN_IT.commands]} />
           <ol className="lp-next">
-            {RUN_IT.next.map((line, i) => (
+            {RUN_IT.next.slice(0, 3).map((line, i) => (
               <li key={line}>
                 <span className="n">{pad(i + 1)}</span>
                 <span>{line}</span>
