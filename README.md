@@ -489,6 +489,17 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 <br><sub>Contributions to the workbench</sub>
 </td>
 </tr>
+<tr>
+<td colspan="4" align="center" valign="top">
+<br>
+<a href="https://github.com/pentest200"><img src="https://avatars.githubusercontent.com/u/197301328?v=4&amp;s=200" width="120" alt="Ujjwal Shreshtha"></a>
+<br><b>Ujjwal Shreshtha</b>
+<br><a href="https://github.com/pentest200">@pentest200</a>
+<br><br><img src="https://img.shields.io/badge/research-SIH_PPT-2563eb?style=flat-square" alt="Research and SIH PPT">
+<br><br>
+<sub>Research contributor and responsible for the Smart India Hackathon presentation.</sub>
+</td>
+</tr>
 </table>
 
 <p align="center"><sub>Built for Smart India Hackathon 2026. Every figure on this page was measured on the demo host; every screenshot was taken from it.</sub></p>
