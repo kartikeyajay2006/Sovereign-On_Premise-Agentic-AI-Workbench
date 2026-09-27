@@ -1,18 +1,26 @@
 # 4.4 · The frontend
 
-The web console is a Next.js 16 App Router application in `frontend/`: about 24,000 lines of TypeScript and React 19, styled with Tailwind CSS 4, with 66 npm packages in total and no runtime dependency on any external service.
+The web console is a Next.js 16 App Router application in `frontend/`: about 33,600 lines of TypeScript and React 19, styled with Tailwind CSS 4, with 50 npm packages installed and no runtime dependency on any external service.
 
 ## Routes
 
 | Route | Group | Screen |
 |---|---|---|
 | `/` | `(marketing)` | The public landing page, which plays one recorded run as you scroll |
-| `/sign-in` | | Sign-in |
+| `/sign-in` | | Sign-in, identifier first |
+| `/setup` | | Owner setup: the first account on a new host |
+| `/invite` | | Accept an invitation |
+| `/request-access` | | Ask an administrator for an account |
+| `/reset` | | Reset a password |
 | `/console` | `(app)` | Thread |
 | `/skills` | `(app)` | Skills |
-| `/harnesses` | `(app)` | Harnesses (`?harness=` to configure one, `?run=` to open a run) |
+| `/harnesses` | `(app)` | Harnesses (`?harness=` to configure one, `?run=` to open Harness Control) |
 | `/approvals` | `(app)` | Approvals |
 | `/registry` | `(app)` | Knowledge (`#documents`, `#retrieval`, `#models`, `#uploads`) |
+| `/measurements` | `(app)` | Measurements: every figure, with the artifact it came from |
+| `/proof` | `(app)` | Proof Mode for one run (`?run=`) |
+| `/compare` | `(app)` | Two runs side by side (`?a=` and `?b=`) |
+| `/admin/access` | `(app)` | People: access requests, invitations and accounts (needs `users.manage`) |
 | `/security` | `(app)` | Assurance · Posture |
 | `/sandbox` | `(app)` | Assurance · Sandbox |
 | `/audit` | `(app)` | Assurance · Audit |
@@ -27,21 +35,24 @@ The `(app)` group's layout wraps every screen in the auth guard (which checks th
 frontend/
 ├── app/                 routes, layouts, global CSS, fonts, favicon
 ├── features/            self-contained product areas
-│   ├── thread/          composer, slash menu, model menu, turns, transcript, usage
+│   ├── thread/          composer, slash menu, model menu, turns, transcript, held block, usage
 │   ├── evidence/        the evidence rail
-│   ├── harness/         library, configure, run view, report
+│   ├── harness/         library, configure, Harness Control, report
 │   ├── sandbox/         console, presets, result, self-test
-│   └── skills/          skills view
+│   ├── skills/          skills view
+│   ├── measurements/    the measurements ledger
+│   ├── proof/           Proof Mode
+│   └── compare/         two runs side by side
 ├── components/          screen-level views and app chrome
-│   ├── approvals/  audit/  registry/  security/  landing/  sign-in/
-│   ├── aegis-logo.tsx   the mark, drawn once for every screen
+│   ├── accounts/  approvals/  audit/  evidence/  landing/  pid/  registry/  security/  sign-in/
+│   ├── aegis-logo.tsx   the lock mark, drawn once for every screen
 │   ├── navigation.tsx   sidebar, G-sequences, mobile sheet
 │   └── command-palette.tsx, role-switcher.tsx, theme-toggle.tsx, …
 ├── shared/
-│   ├── ui/              controls (button, input, tabs, segmented, kbd) and data display
-│   └── motion/          appear, disclose, seal, sweep, trace, measured numbers
+│   ├── ui/              controls (button, tabs, segmented, kbd) and data display
+│   └── motion/          append, disclose, light, seal, sweep, trace, measured numbers
 ├── hooks/use-event-stream.ts
-└── lib/                 api.ts, types.ts, presentation.ts, utils.ts
+└── lib/                 api.ts, types.ts, presentation.ts, crew.ts, utils.ts
 ```
 
 ## Talking to the API
@@ -81,12 +92,12 @@ Every response carries:
 
 ## Design system
 
-`app/globals.css` defines the tokens: warm paper and ink in light, a warm night in dark, and four status colours (sovereign green `#16a34a`, active blue `#0284c7`, approval amber `#d97706`, critical red `#dc2626`). Type is Geist Sans and Geist Mono, with Instrument Serif italic for the occasional emphasised word. The brand gradient (orange, pink, violet) belongs to the mark and the public page; it does not decorate data. See the [brand kit](../../assets/brand/README.md).
+The look is Hi-Vis Monochrome. `app/globals.css` defines the tokens: a neutral night (`#070707`) by default and paper (`#faf9f6`) one click away, square 2px corners, four status colours (sovereign green `#16a34a`, active blue `#0284c7`, approval amber `#d97706`, critical red `#dc2626`, with text variants recomputed for contrast on night), and one accent, lime `#d4f24a`, which means "you can act" or "this is cited". Type is Archivo (variable weight and width) with Martian Mono for labels, ids and hashes; Geist stays as the fallback, and Instrument Serif sets one italic word on the empty thread. `app/hv-motion.css` holds Harness Control's motion and `app/(marketing)/landing.css` the public page.
 
 ## Build
 
 ```bash
-npm run build     # Turbopack; type-checks; prerenders 13 routes as static
+npm run build     # Turbopack; type-checks; prerenders 20 routes as static
 npm run start     # serves the build; add -H 127.0.0.1 to bind to loopback
 npm run dev       # hot reload
 ```

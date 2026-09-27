@@ -189,7 +189,7 @@ Three processes on one host: the **Next.js console** (`:3000`), the **FastAPI** 
 
 <div align="center">
 
-| 🐍 34,200 lines of Python | ⚛️ 27,800 lines of TypeScript | 🧪 994 tests | 📚 111-page handbook |
+| 🐍 34,200 lines of Python | ⚛️ 27,800 lines of TypeScript | 🧪 1,103 tests | 📚 111-page handbook |
 |:--:|:--:|:--:|:--:|
 | **🔴 36** live event types | **🛡️ 22** permissions · 7 roles | **🎯 31 / 31** attacks held | **📑 15** documents · 207 passages |
 

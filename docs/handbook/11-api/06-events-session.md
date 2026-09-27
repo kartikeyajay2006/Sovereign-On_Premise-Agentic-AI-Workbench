@@ -49,8 +49,7 @@ python scripts/demo_e2e.py --skip 1       # skip the long scanned-report scenari
 python scripts/demo_e2e.py --base-url http://127.0.0.1:8100
 ```
 
-> [!WARNING]
-> Scenario 5 (sovereignty) currently stops with `KeyError: 'static_layer_blocks_network_import'`: the sandbox self-test's response was restructured into the `checks` list shown in [11.5](05-knowledge-sandbox-audit.md#self-test), and the driver still reads the old keys. Until it is updated, run the self-test from the Assurance screen or with `POST /api/sandbox/self-test`.
+Scenario 5 (sovereignty) prints each check of the sandbox self-test from the `checks` list shown in [11.5](05-knowledge-sandbox-audit.md#self-test), then its overall verdict.
 
 ### The same thing in fifteen lines of shell
 

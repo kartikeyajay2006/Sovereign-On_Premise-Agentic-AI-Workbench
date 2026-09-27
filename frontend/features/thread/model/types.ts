@@ -195,6 +195,11 @@ export interface AssistantTurn {
    * names the detector rule and why.
    */
   scans: ContentScan[]
+  /**
+   * How many policy events the record holds, or null until the record has
+   * been read. What the Brief's sign-off reads to say WARDEN worked.
+   */
+  policyEvents: number | null
   /** A P&ID question answered from the drawing's graph. */
   topology: import('@/components/pid/api').TopologyResult | null
   /** Why the run was refused, when it was. */

@@ -10,12 +10,11 @@
 // hand-edited. The current one was written with:
 //
 //     python scripts/capture_landing_fixture.py \
-//         --db storage/workbench.db --task 5aa3e4b6-45c1-4b4c-9e03-efc92b47d7c9
+//         --db storage/workbench.db --task f30c2459-2f2b-44a0-84bd-4688d7f38260
 //
 // which reads the task record read-only, with no backend running. That run is
-// pinned rather than chosen by the script's ranking because it is the run in
-// public/landing/thread-run.png: same prompt, 195249 ms against the 195.2s in
-// the image, three of four checks. One run, followed through the whole page.
+// pinned rather than chosen by the script's ranking so the page follows one
+// run throughout: the /clause question, 39.6 s, four of four checks.
 //
 // Every interface below is transcribed from that JSON and from the dicts the
 // script builds, not written from memory. The assignment to `run` is checked
@@ -255,11 +254,4 @@ export function sectionLabel(item: Pick<EvidenceUnit, 'location'>): string {
 export function sectionNumber(item: Pick<EvidenceUnit, 'location'>): string {
   const match = /^\s*section:\s*([0-9]+(?:\.[0-9]+)*)/.exec(item.location)
   return match ? `§${match[1]}` : ''
-}
-
-/** "2026-09-22T16:32:47.179239Z" -> "16:32:47 UTC". */
-export function clock(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const match = /T(\d{2}:\d{2}:\d{2})/.exec(iso)
-  return match ? `${match[1]} UTC` : null
 }

@@ -25,6 +25,9 @@ import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { RunTranscript, citeLabel } from './run-transcript'
 import { CITE_CHIP } from './cite-chip'
+import { Inline, type Cite } from './inline'
+import { BriefAnswer } from './brief'
+import { answerShape } from '../model/brief'
 import { CiteButton, EvidenceCardScope } from './evidence-card'
 import { HeldBlock } from './held-block'
 import { followUps, type FollowUp } from '../model/follow-ups'
@@ -90,125 +93,6 @@ const OUTCOME_PILL: Record<AssistantTurnModel['outcome'], string> = {
   failed: 'bg-critical-surface text-critical-text',
   blocked: 'bg-surface-sunken text-foreground-secondary',
   cancelled: 'bg-surface-sunken text-foreground-secondary',
-}
-
-/**
- * Renders one run of plain text, applying the small amount of inline
- * markdown a local model actually emits.
- *
- * The model returns markdown whether or not anyone asked it to, and printing
- * it raw put literal asterisks in the answer — "The severity applies as
- * **Medium** under SOP-MNT-022" — on the one piece of prose the whole
- * pipeline exists to produce. That is a small thing that makes the output
- * look unfinished.
- *
- * Deliberately not a markdown library. Three inline forms are handled, and
- * nothing is parsed as HTML, so a document that arrives carrying markup
- * cannot inject anything: every branch produces a text node inside an
- * element this function chose.
- */
-function InlineMarkdown({ text }: { text: string }) {
-  const tokens = text.split(/(\*\*[^*\n]+\*\*|(?<!\*)\*[^*\n]+\*(?!\*)|`[^`\n]+`)/g)
-  return (
-    <>
-      {tokens.map((t, i) => {
-        if (/^\*\*[^*\n]+\*\*$/.test(t)) {
-          return (
-            <strong key={i} className="font-medium text-foreground">
-              {t.slice(2, -2)}
-            </strong>
-          )
-        }
-        if (/^`[^`\n]+`$/.test(t)) {
-          return (
-            <code
-              key={i}
-              className="rounded-[var(--radius-xs)] bg-surface-sunken px-1 font-mono text-meta"
-            >
-              {t.slice(1, -1)}
-            </code>
-          )
-        }
-        if (/^\*[^*\n]+\*$/.test(t)) {
-          return <em key={i}>{t.slice(1, -1)}</em>
-        }
-        return <span key={i}>{t}</span>
-      })}
-    </>
-  )
-}
-
-type Cite = ((id: string) => void) | null
-
-/**
- * Inline text with its citations resolved. A citation that resolves to
- * recorded evidence is a button; one that resolves to nothing is marked on
- * the sentence rather than linked. With no `onCite` -- the draft -- they are
- * plain text, because a draft's citations have not been checked yet.
- *
- * `trace` is the run the citations belong to. Every run numbers its
- * evidence from S1, so a trace id is the run and the citation together,
- * and hovering one run's [S1] never lights another run's source.
- */
-function Inline({
-  text,
-  known,
-  onCite,
-  trace = null,
-}: {
-  text: string
-  known: Set<string>
-  onCite: Cite
-  trace?: string | null
-}) {
-  // Anything written as a citation, including a malformed one like [V2.1],
-  // so a marker that points at nothing is marked as such, never passed off
-  // as prose.
-  const parts = text.split(/(\[[A-Z]{1,3}\d+(?:\.\d+)*\])/g)
-  return (
-    <>
-      {parts.map((p, i) => {
-        const m = p.match(/^\[([A-Z]{1,3}\d+(?:\.\d+)*)\]$/)
-        if (!m) return <InlineMarkdown key={i} text={p} />
-        const id = m[1]
-        if (!onCite) {
-          return (
-            <span key={i} className="font-mono text-[0.85em] text-foreground-muted">
-              {p}
-            </span>
-          )
-        }
-        if (!known.has(id)) {
-          // A citation that leads nowhere is a finding about the answer,
-          // not a link, so it is marked rather than linked -- but as a mark
-          // on the sentence rather than a box beside it. Five bordered chips
-          // reading "S1 unresolved" outweighed the prose they annotated,
-          // inverting what the reader is meant to come away with. The
-          // tooltip carries the detail.
-          return (
-            <sup
-              key={i}
-              title={`No evidence with id ${id} was recorded for this run. This citation supports nothing.`}
-              className="mx-px cursor-help font-mono text-[0.68em] text-critical-text decoration-dotted underline-offset-2 [text-decoration-line:underline]"
-            >
-              {id}
-            </sup>
-          )
-        }
-        return (
-          <CiteButton
-            key={i}
-            id={id}
-            onCite={onCite}
-            trace={trace}
-            className={cn(CITE_CHIP, 'mx-0.5 h-[19px] align-[2px] text-[11px]')}
-          >
-            {id}
-          </CiteButton>
-        )
-      })}
-    </>
-  )
 }
 
 const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+/
@@ -324,34 +208,37 @@ function Prose({
 
 function AnswerProse({
   text,
+  lede = null,
   evidence,
   onCite,
   trace,
 }: {
   text: string
+  /** A first paragraph that is one sentence, set as the lede above the rest. */
+  lede?: string | null
   evidence: EvidenceItem[]
   onCite: (id: string) => void
   trace: string
 }) {
   const known = new Set(evidence.map((e) => e.id))
-  // The small model sometimes opens an answer with the citation it then
-  // repeats at the end of the sentence: "[S1] A vessel ... 48 months. [S1]".
-  // The opening one is dropped from the display when the same id cites the
-  // text after it, so nothing it supports goes uncited; the record keeps
-  // the text as written.
-  const opening = text.match(/^\s*\[([SFVCEHT]\d+)\]\s*/)
-  const shown = opening && text.slice(opening[0].length).includes(`[${opening[1]}]`) ? text.slice(opening[0].length) : text
   // Full ink. This is the one thing on the screen the whole pipeline exists
   // to produce; it was set in secondary while the status rows above it were
   // not, which told the eye the machinery mattered more.
   return (
-    <Prose
-      text={shown}
-      known={known}
-      onCite={onCite}
-      trace={trace}
-      className="text-answer leading-[var(--lh-answer)] text-foreground"
-    />
+    <div className="flex flex-col gap-3">
+      {lede && (
+        <p className="brief-lede">
+          <Inline text={lede} known={known} onCite={onCite} trace={trace} />
+        </p>
+      )}
+      <Prose
+        text={text}
+        known={known}
+        onCite={onCite}
+        trace={trace}
+        className="text-answer leading-[var(--lh-answer)] text-foreground"
+      />
+    </div>
   )
 }
 
@@ -618,6 +505,8 @@ export const AssistantTurn = memo(function AssistantTurn({
       : null
   const heldForReview = held && turn.deliverable !== null && !turn.deliverable.released
   const nextSteps = followUps(turn)
+  // How the answer is set: a Brief, markdown as written, or plain.
+  const shape = showsAnswer ? answerShape(turn) : null
   const failedStage = failed ? turn.stages.find((s) => s.status === 'failed') ?? null : null
 
   /*
@@ -868,10 +757,29 @@ export const AssistantTurn = memo(function AssistantTurn({
             light room; the negative margin keeps the text on the column's edge.
           */
           <div ref={answerRef}>
-          <Release verdict={verdict} released={turn.releasedLive} className="-mx-3 -my-2 flex flex-col gap-3 px-3 py-2">
-            <AnswerProse text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
-            <SourcesRow text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
-          </Release>
+          {shape?.kind === 'brief' ? (
+            /* The Brief rises row by row itself, so its light blooms
+               without the block-level rise Release adds. */
+            <Light
+              tone={turn.releasedLive ? verdict : null}
+              rest="none"
+              bloomOnMount={turn.releasedLive}
+              className="-mx-3 -my-2 rounded-[var(--radius)] px-3 py-2"
+            >
+              <BriefAnswer turn={turn} brief={shape} onCite={cite} live={turn.releasedLive && !reduced} />
+            </Light>
+          ) : (
+            <Release verdict={verdict} released={turn.releasedLive} className="-mx-3 -my-2 flex flex-col gap-3 px-3 py-2">
+              <AnswerProse
+                text={shape ? shape.body : (turn.answer as string)}
+                lede={shape?.kind === 'structured' ? shape.lede : null}
+                evidence={turn.evidence}
+                onCite={cite}
+                trace={turn.id}
+              />
+              <SourcesRow text={turn.answer as string} evidence={turn.evidence} onCite={cite} trace={turn.id} />
+            </Release>
+          )}
           {/* Directly under the answer: why it is held, who releases it,
               what is withheld -- and, once decided, the decision. */}
           <div className="mt-4 empty:hidden">
