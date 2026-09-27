@@ -383,7 +383,7 @@ html[data-hv-wipe]::view-transition-new(root) {
 
 @media (prefers-reduced-motion: reduce) {
   .hv-lockon::before,
-  .hv-lockon:hover::before,
+  .hv-lockon:hover:not(:disabled)::before,
   .hv-lockon:focus-visible::before {
     transform: none;
     transition: opacity 80ms linear;
