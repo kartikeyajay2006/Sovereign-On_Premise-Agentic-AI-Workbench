@@ -6,7 +6,7 @@
 node_modules/
 .next/
 out/
-tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 # OS
 .DS_Store

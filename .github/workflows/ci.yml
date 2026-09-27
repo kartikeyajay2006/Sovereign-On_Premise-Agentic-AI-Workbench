@@ -97,6 +97,10 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit -p .
+      # The smoke tests have their own config, so the product build
+      # never needs @playwright/test to type-check.
+      - name: Typecheck the smoke tests
+        run: npx tsc --noEmit -p tsconfig.e2e.json
       # There is no lint script in package.json; add a step here when one is.
       - name: Build
         run: npx next build

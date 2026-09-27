@@ -36,7 +36,7 @@ Tests do not call the model runtime on purpose: where a test exercises the pipel
 |---|---|---|
 | `backend (ubuntu, Python 3.11)` | `ubuntu-latest` | `compileall` over `backend`, `scripts`, `tests`; a probe that fails the job if POSIX resource limits are unavailable; then the whole suite, `tests/adversarial` included |
 | `backend (windows, Python 3.11)` | `windows-latest` | the whole suite, where the sandbox runs under a Job Object |
-| `frontend (typecheck, build and smoke tests)` | `ubuntu-latest` | `npm ci`, `tsc --noEmit`, `next build`, then Playwright's Chromium (`--with-deps`) and `npm run test:e2e` against that build |
+| `frontend (typecheck, build and smoke tests)` | `ubuntu-latest` | `npm ci`, `tsc --noEmit` for the app and for the smoke tests (`tsconfig.e2e.json`), `next build`, then Playwright's Chromium (`--with-deps`) and `npm run test:e2e` against that build |
 
 The Linux job is the one that runs the sandbox containment tests (`TestSandboxContainment` and the recomputation tests). They skip on a host without resource limits, so the probe step makes sure they run on the runner instead of passing as skips. The Windows job runs the whole suite as well. Python is 3.11, the version the Dockerfile ships. pip and npm downloads are cached, and every action is pinned to a commit SHA.
 
@@ -45,7 +45,7 @@ To run what CI runs, locally:
 ```bash
 python -m compileall -q backend scripts tests
 python -m pytest -q -p no:cacheprovider -rs
-cd frontend && npm ci && npx tsc --noEmit -p . && npx next build
+cd frontend && npm ci && npx tsc --noEmit -p . && npx tsc --noEmit -p tsconfig.e2e.json && npx next build
 npx playwright install chromium && npm run test:e2e   # builds again, see below
 ```
 
@@ -53,7 +53,7 @@ npx playwright install chromium && npm run test:e2e   # builds again, see below
 
 `frontend/e2e/` holds Playwright smoke tests: 13 tests, about 35 s once the app is built. They run against a production build served by `next start` on port 3300 (`frontend/playwright.config.ts` starts it), in Chromium.
 
-**No backend, no model.** Every request to `/api/**` is answered in the browser by `page.route()` from the fixtures in `frontend/e2e/fixtures/`, so nothing reaches FastAPI or Ollama and no run is started. The fixtures are typed by the same interfaces the screens use (`lib/types.ts`, `components/*/api.ts`, `features/*/model/types.ts`), so a renamed field fails `tsc` in the fixture as it would on the screen, and the run content is the real run in `public/landing/run.json`. Dates are fixed. The server's own `/api` rewrite points at a closed port (`WORKBENCH_API_URL=http://127.0.0.1:9`), so a request the browser did not intercept fails instead of reaching a workbench running on the same machine.
+**No backend, no model.** Every request to `/api/**` is answered in the browser by `page.route()` from the fixtures in `frontend/e2e/fixtures/`, so nothing reaches FastAPI or Ollama and no run is started. The fixtures are typed by the same interfaces the screens use (`lib/types.ts`, `components/*/api.ts`, `features/*/model/types.ts`), so a renamed field fails `tsc -p tsconfig.e2e.json` in the fixture as it would on the screen, and the run content is the real run in `public/landing/run.json`. Dates are fixed. The server's own `/api` rewrite points at a closed port (`WORKBENCH_API_URL=http://127.0.0.1:9`), so a request the browser did not intercept fails instead of reaching a workbench running on the same machine.
 
 Two checks run after **every** test (`e2e/support/api.ts`): no console error or uncaught page error, and no `/api` call without a fixture. A screen that starts calling a new endpoint fails here, naming it, until its fixture is added.
 
