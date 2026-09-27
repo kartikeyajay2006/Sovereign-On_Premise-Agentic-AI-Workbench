@@ -123,41 +123,80 @@ A PSV bench-test record goes in. Every SOP-INS-025 clause is judged by formula: 
 
 ## Proved, not claimed
 
-Each figure on this page comes from a command you can run on your own host.
+The workbench is measured by a small set of repeatable checks, not a wall of promises.
 
-| What | Result on the demo host | Command |
+<table>
+<tr>
+<td width="50%" valign="top">
+<b>🟢 Demo ready</b><br>
+<sub><code>FINAL STATUS: READY</code> across the three judged moments.</sub><br><br>
+<a href="scripts/golden_demo.py"><code>run the golden demo →</code></a>
+</td>
+<td width="50%" valign="top">
+<b>🛡️ Red team held</b><br>
+<sub><b>31 of 31</b> attacks contained, with a hashed report.</sub><br><br>
+<a href="scripts/red_team.py"><code>run the red team →</code></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<b>🖥️ Console clean</b><br>
+<sub><b>132 of 132</b> account-and-screen visits free of exceptions, console errors and failed requests.</sub><br><br>
+<a href="scripts/ui_check.py"><code>check every screen →</code></a>
+</td>
+<td width="50%" valign="top">
+<b>✅ Regression suite</b><br>
+<sub><b>1211 passed</b>, 13 expected platform skips; <b>13 of 13</b> browser smoke tests passed.</sub><br><br>
+<a href="docs/handbook/13-development/02-testing.md"><code>see the test guide →</code></a>
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>Every measured check and the command behind it</b></summary>
+<br>
+
+| Check | Measured result | Run it |
 |---|---|---|
-| The three judged moments, end to end | `FINAL STATUS: READY` | `python scripts/golden_demo.py` |
-| Attacks against the live host | **31 of 31 held**, hashed report | `python scripts/red_team.py` |
-| Every console screen, as every account | **132 of 132 clean**: no exception, console error or failed request | `python scripts/ui_check.py` |
-| The test suite (no model needed) | **1211 passed**, 13 skipped (Windows-only and container tests) | `pytest` |
-| The console against a mocked API | **13 of 13** Playwright smoke tests: sign-in, the Brief, two signatures in order, the screens | `cd frontend && npm run test:e2e` |
-| The audit chain | verified by the server and the browser; roots signed | `python scripts/audit_tool.py verify` |
-| A run's certificate, offline | every check passed | `python scripts/verify_certificate.py <certificate.json>` |
-| The demo corpus | 15 documents, 207 passages, every answer derivable | `python scripts/seed_demo_data.py --check` |
+| Golden demo | `FINAL STATUS: READY` | `python scripts/golden_demo.py` |
+| Red team | 31 of 31 held | `python scripts/red_team.py` |
+| Console | 132 of 132 clean | `python scripts/ui_check.py` |
+| Python suite | 1211 passed, 13 skipped | `pytest` |
+| Browser smoke tests | 13 of 13 passed | `cd frontend && npm run test:e2e` |
+| Audit chain | verified and roots signed | `python scripts/audit_tool.py verify` |
+| Run certificate | every check passed | `python scripts/verify_certificate.py <certificate.json>` |
+| Demo corpus | 15 documents, 207 passages | `python scripts/seed_demo_data.py --check` |
+
+</details>
 
 ## How a question runs
 
-Ten named stages of **one orchestrator** (`backend/agents/orchestrator.py`), run one after another. A stage that is not needed is skipped, and the run says why.
+One orchestrator handles the whole run. Optional stages appear only when the request needs them; the audit chain records every stage.
 
-| # | Call-sign | What it does | Runs on |
-|:--:|---|---|---|
-| 01 | **TRIAGE** | Reads the request: what kind of task, what came in, how sensitive it is | No model · rules |
-| 02 | **PLANNER** | Splits multi-step work into steps before anything is drafted | `qwen2.5:3b`, only when a plan is needed |
-| 03 | **READER** | Reads scanned reports and drawings, page by page | `qwen2.5vl:3b`, cached per file |
-| 04 | **SCOUT** | Finds the passages that could answer it, across every indexed procedure | `nomic-embed-text`, plus keyword search |
-| 05 | **RECKONER** | Computes with registered formulas, never free-hand arithmetic | No model · formula registry |
-| 06 | **BENCH** | Runs generated code in the sandbox, under hard memory and time caps | No model · sandbox limits |
-| 07 | **SCRIBE** | Drafts the answer, one citation per requirement | `qwen2.5:3b`, drafting model |
-| 08 | **CHECKER** | Tests every claim against the evidence it cites, and fails what it cannot find | No model · rules |
-| 09 | **WARDEN** | Applies policy and the data class, and holds anything that needs a person | No model · policy engine |
-| 10 | **NOTARY** | Hashes the record onto the audit chain. Edit a byte and the chain breaks | No model · SHA-256 chain |
+<p align="center">
+  <img src="docs/assets/readme/assurance-flow.png" alt="A colourful industrial workflow: a report passes through local reading, retrieval, calculation, secure execution, drafting, verification, policy and audit controls before branching to a verified release or human review." width="100%">
+</p>
 
-```text
-Question → TRIAGE → PLANNER* → READER* → SCOUT → RECKONER* → BENCH* → SCRIBE → CHECKER → WARDEN ─┬─ released
-                                                                                                   └─ held for review
-           NOTARY appends every step to the audit chain as it happens.          * only when the request needs it
-```
+<p align="center"><sub><b>TRIAGE</b> → <b>PLANNER*</b> → <b>READER*</b> → <b>SCOUT</b> → <b>RECKONER*</b> → <b>BENCH*</b> → <b>SCRIBE</b> → <b>CHECKER</b> → <b>WARDEN</b> → <b>NOTARY</b> &nbsp; · &nbsp; <i>* only when needed</i></sub></p>
+
+<details>
+<summary><b>Stage reference: what each call-sign does</b></summary>
+<br>
+
+| Call-sign | Responsibility | Runs on |
+|---|---|---|
+| **TRIAGE** | Classifies the request, inputs and sensitivity | Rules |
+| **PLANNER** | Breaks complex work into steps | `qwen2.5:3b`, when needed |
+| **READER** | Reads scans and drawings | `qwen2.5vl:3b`, cached per file |
+| **SCOUT** | Retrieves permitted evidence | `nomic-embed-text` and keyword search |
+| **RECKONER** | Applies registered formulas | Formula registry |
+| **BENCH** | Executes guarded code | Sandbox limits |
+| **SCRIBE** | Drafts a cited answer | `qwen2.5:3b` |
+| **CHECKER** | Verifies claims and citations | Rules |
+| **WARDEN** | Applies policy and approval gates | Policy engine |
+| **NOTARY** | Hashes the run into the audit chain | SHA-256 chain |
+
+</details>
 
 <details>
 <summary><b>A recorded run, stage by stage</b></summary>
@@ -306,14 +345,50 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 
 ## Docs
 
-Start with **[What AEGIS implements today](docs/IMPLEMENTED.md)**, then the **[handbook](docs/handbook/README.md)**. For the SIH build: the **[build plan](docs/SIH-WINNING-BUILD-PLAN.md)** and the **[readiness review](docs/SIH-READINESS-REVIEW.md)**.
+Choose the path that matches what you need today. Each card opens the relevant live document.
 
-| Use it | Understand it | Run it safely | Build on it |
+<table>
+<tr>
+<td width="25%" valign="top">
+<b>🚀 Start and run</b><br><br>
+<a href="docs/handbook/01-getting-started/README.md">Getting started</a><br>
+<sub>Install locally, seed the demo and run the console.</sub><br><br>
+<a href="docs/handbook/14-demo-guide/README.md">Demo guide →</a>
+</td>
+<td width="25%" valign="top">
+<b>🧭 Understand it</b><br><br>
+<a href="docs/handbook/04-architecture/README.md">Architecture</a><br>
+<sub>Learn the system boundaries, agents, models and evidence path.</sub><br><br>
+<a href="docs/handbook/02-concepts/README.md">Core concepts →</a>
+</td>
+<td width="25%" valign="top">
+<b>🛡️ Operate safely</b><br><br>
+<a href="docs/handbook/09-security/README.md">Security and governance</a><br>
+<sub>Review access, sandboxing, audit evidence and operations.</sub><br><br>
+<a href="docs/handbook/12-operations/README.md">Operations →</a>
+</td>
+<td width="25%" valign="top">
+<b>🧰 Build on it</b><br><br>
+<a href="docs/handbook/13-development/README.md">Development</a><br>
+<sub>Run the test suite, use the API and extend the workbench.</sub><br><br>
+<a href="docs/handbook/11-api/README.md">API reference →</a>
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>Browse every handbook section and project document</b></summary>
+<br>
+
+| Start | Understand | Operate | Build |
 |---|---|---|---|
 | [01 Getting started](docs/handbook/01-getting-started/README.md) | [04 Architecture](docs/handbook/04-architecture/README.md) | [09 Security and governance](docs/handbook/09-security/README.md) | [13 Development](docs/handbook/13-development/README.md) |
 | [02 Core concepts](docs/handbook/02-concepts/README.md) | [05 Models and routing](docs/handbook/05-models-and-routing/README.md) | [10 Configuration](docs/handbook/10-configuration/README.md) | [14 Demo guide](docs/handbook/14-demo-guide/README.md) |
 | [03 Using the workbench](docs/handbook/03-user-guide/README.md) | [06 Knowledge and retrieval](docs/handbook/06-knowledge-and-retrieval/README.md) | [11 API reference](docs/handbook/11-api/README.md) | [15 FAQ and glossary](docs/handbook/15-reference/README.md) |
 | [Offline install](docs/handbook/01-getting-started/09-offline-install.md) | [07 Agents](docs/handbook/07-agents/README.md) · [08 Verification](docs/handbook/08-verification/README.md) | [12 Operations](docs/handbook/12-operations/README.md) | [Demo script with answers](docs/DEMO.md) |
+| [What AEGIS implements today](docs/IMPLEMENTED.md) | [Handbook home](docs/handbook/README.md) | [Readiness review](docs/SIH-READINESS-REVIEW.md) | [SIH build plan](docs/SIH-WINNING-BUILD-PLAN.md) |
+
+</details>
 
 For security reviewers: [threat model](docs/handbook/09-security/06-threat-model.md) · [sandbox](docs/handbook/09-security/03-sandbox.md) · [audit log](docs/handbook/09-security/05-audit-log.md) · [red team](docs/handbook/09-security/08-red-team.md) · [signed proof](docs/handbook/09-security/09-proof.md).
 
@@ -356,7 +431,7 @@ For security reviewers: [threat model](docs/handbook/09-security/06-threat-model
 <br><a href="https://github.com/kunalKumar-13">@kunalKumar-13</a>
 <br><br><img src="https://img.shields.io/badge/workbench-thread_·_skills_·_harnesses-ff2d6f?style=flat-square" alt="Workbench">
 <br><br>
-<sub>The most prolific contributor, turning the platform into the workbench people use and making every claim it makes true.</sub>
+<sub>Built the day-to-day workbench experience and the proof surfaces that make its work reviewable.</sub>
 <br><br>
 <sub>💬 <b>Workbench</b>: the chat-first thread, streamed answers, run transcripts and the sidebar of past runs</sub><br>
 <sub>⚡ <b>Skills & harnesses</b>: saved instructions called with <code>/</code>, governed multi-run jobs and Harness Control</sub><br>
@@ -365,7 +440,8 @@ For security reviewers: [threat model](docs/handbook/09-security/06-threat-model
 <sub>📈 <b>Telemetry</b>: what each run cost, which model ran it, and a stop control</sub><br>
 <sub>✅ <b>Correctness</b>: clearance before ranking, classification raised by evidence, unresolved citations held, no approving your own run</sub><br>
 <sub>🌐 <b>Experience</b>: the Hi-Vis design system, the public page that replays a real run, keyboard navigation</sub><br>
-<sub>🔍 <b>Honesty pass</b>: removed every reading, score and posture claim the backend never measured</sub>
+<sub>🔍 <b>Honesty pass</b>: removed every reading, score and posture claim the backend never measured</sub><br>
+<sub>📚 <b>Docs & demo</b>: deployment and rehearsal guidance, browser smoke fixtures and CI evidence that keep the workbench reproducible</sub>
 </td>
 <td align="center" width="20%" valign="top">
 <a href="https://github.com/raghav-shell"><img src="https://avatars.githubusercontent.com/u/239672511?v=4&s=200" width="120" alt="Raghav Sharma"></a>
