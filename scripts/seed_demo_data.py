@@ -965,6 +965,10 @@ def main() -> int:
     from backend.connectors.historian import build_simulated_historian
 
     print(f"  historian {build_simulated_historian(historian_path())} (simulated)")
+    from backend.connectors import cmms_path
+    from backend.connectors.cmms import build_simulated_cmms
+
+    print(f"  cmms     {build_simulated_cmms(cmms_path())} (simulated)")
 
     failures = 0
     if not arguments.files_only:

@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar
 from backend.agents.code_extraction import extract_python
 from backend.agents.verifier import get_verification_engine
 from backend.agents.vision_cache import VisionCache, identity as vision_cache_identity
+from backend.connectors.cmms import TAG_PATTERN as CMMS_TAG, repair_status_sentence, source_label
 from backend.core.audit import get_audit_log
 from backend.core.config import get_config
 from backend.core.events import get_event_bus
@@ -470,6 +471,8 @@ class EvidenceLedger:
         "computation": "C",
         "human": "H",
         "topology": "T",
+        # A CMMS lookup: the open work orders and notifications for a tag.
+        "cmms": "W",
     }
 
     def __init__(self, existing: list[EvidenceItem]) -> None:
@@ -1906,6 +1909,7 @@ class AgentOrchestrator:
         deliverable_floor: str | None = None
         answer_text = ""
         limitations: list[str] = []
+        maintenance: str | None = None
 
         try:
             images = self._visual_inputs(task, workspace, limitations)
@@ -2096,6 +2100,10 @@ class AgentOrchestrator:
             # life, severity and due date from it, each input bound to the
             # evidence cell it came from. The model is then told the figures.
             engineered = await self._engineering_stage(task, user, ledger, profile)
+            # The assessed tag's open work orders, from the CMMS: whether a
+            # repair is already raised is read from the connector, cited as W
+            # evidence, and stated in the note by the run, not the model.
+            maintenance = await self._maintenance_stage(task, context, ledger, limitations)
             # A question about the plant's piping -- how to isolate a vessel,
             # what feeds it -- is answered from the drawing's graph.
             await self._topology_stage(task, user, ledger)
@@ -2297,6 +2305,9 @@ class AgentOrchestrator:
                 authority = authority_statement(task.assessment) if task.assessment is not None else None
                 if draft_content is not None and authority:
                     draft_content = {**draft_content, "authority": authority}
+                # Likewise the CMMS sentence: from the lookup, cited to its W item.
+                if draft_content is not None and maintenance:
+                    draft_content = {**draft_content, "maintenance": maintenance}
                 task.deliverable_content = draft_content
                 if draft_content is not None:
                     checks.append(self.verifier.check_document(draft_content, evidence))
@@ -2787,6 +2798,45 @@ class AgentOrchestrator:
         # The registry is the authority for a conflicted record too: no
         # generated script may compute figures from inputs in dispute.
         return assessment.status in ("calculated", "conflicted")
+
+    async def _maintenance_stage(
+        self, task: Task, context: ToolContext, ledger: EvidenceLedger, limitations: list[str]
+    ) -> str | None:
+        """Look up the assessed tag's open work orders; return the note's sentence.
+
+        Runs only when the run has assessed a tag (a vessel, a relief valve, a
+        piping circuit). The lookup goes through ``cmms_read`` like any tool
+        call -- policy-checked, audited, kept on the run -- and its result is
+        W evidence. The sentence is written here from that evidence; the
+        model neither decides nor phrases whether a repair is raised. A CMMS
+        that cannot be asked yields a sentence saying so, never "none found".
+        """
+        assessment = task.assessment
+        if assessment is None or not CMMS_TAG.match(assessment.subject or ""):
+            return None
+        from backend.connectors import get_cmms
+
+        connector = get_cmms()
+        if connector is None:
+            return None
+        tag = assessment.subject
+        label = source_label(connector.name, connector.simulated)
+        call = await self._call_tool(task, context, "cmms_read", {"tag": tag})
+        if not call.ok:
+            reason = call.error or call.output_summary
+            limitations.append(f"{label} could not be read for {tag}: {reason}")
+            return repair_status_sentence(tag, [], evidence_id=None, label=label, unavailable=reason)
+        added = ledger.extend([EvidenceItem(**item) for item in call.output.get("evidence", [])])
+        self._persist_evidence(task)
+        if not added:
+            return None
+        item = added[0]
+        await self._emit(task, "task.evidence", {
+            "mode": "cmms", "count": len(added), "items": [entry.model_dump(mode="json") for entry in added],
+        })
+        return repair_status_sentence(
+            tag, list((item.extraction_data or {}).get("open_items") or []), evidence_id=item.id, label=label
+        )
 
     @staticmethod
     def _calculation_payload(task: Task, extra: dict[str, Any] | None = None) -> dict[str, Any]:

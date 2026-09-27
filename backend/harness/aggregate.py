@@ -35,8 +35,9 @@ from backend.harness.models import (
 
 # The same identifier alphabet the verifier treats as a citation
 # (backend/agents/verifier.py CITATION_PATTERN): S retrieved passage, F
-# attached file, V vision extraction, C computation, E fallback.
-CITATION_MARKER = re.compile(r"\[([SFVCEHT]\d+)\]")
+# attached file, V vision extraction, C computation, H human, T topology,
+# W CMMS lookup, E fallback.
+CITATION_MARKER = re.compile(r"\[([SFVCEHTW]\d+)\]")
 
 QUEUED_STATUSES = frozenset({TaskStatus.RECEIVED, TaskStatus.CLASSIFIED})
 RUNNING_STATUSES = frozenset(

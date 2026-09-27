@@ -39,7 +39,7 @@ export function answerSentences(text: string): string[] {
  * text as written.
  */
 export function withoutOpeningCitation(text: string): string {
-  const opening = text.match(/^\s*\[([SFVCEHT]\d+)\]\s*/)
+  const opening = text.match(/^\s*\[([SFVCEHTW]\d+)\]\s*/)
   return opening && text.slice(opening[0].length).includes(`[${opening[1]}]`) ? text.slice(opening[0].length) : text
 }
 

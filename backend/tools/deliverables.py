@@ -202,6 +202,12 @@ class DeliverableEngine:
             document.add_heading("Recommending officer and approving authority", level=1)
             document.add_paragraph(str(content["authority"]))
 
+        # Set by the run from the CMMS lookup (a W evidence item), not by the
+        # model: whether a repair is already raised against the tag.
+        if content.get("maintenance"):
+            document.add_heading("Maintenance status (CMMS)", level=1)
+            document.add_paragraph(str(content["maintenance"]))
+
         if content.get("approval_statement"):
             document.add_heading("Approval sought", level=1)
             document.add_paragraph(str(content["approval_statement"]))
@@ -412,6 +418,8 @@ class DeliverableEngine:
                 content["recommendation"]
             ) + (
                 f"\n\n{content['authority']}" if content.get("authority") else ""
+            ) + (
+                f"\n\n{content['maintenance']}" if content.get("maintenance") else ""
             )
 
         if evidence:
@@ -481,6 +489,8 @@ class DeliverableEngine:
             lines += ["## Recommendation", "", str(content["recommendation"]), ""]
         if content.get("authority"):
             lines += ["## Recommending officer and approving authority", "", str(content["authority"]), ""]
+        if content.get("maintenance"):
+            lines += ["## Maintenance status (CMMS)", "", str(content["maintenance"]), ""]
         if evidence:
             lines += ["## Evidence", ""]
             for item in evidence:

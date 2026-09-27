@@ -73,6 +73,16 @@ tools:
       read_only_connectors: true
       max_samples: 500
 
+  cmms_read:
+    description: List the open work orders and notifications raised against a tag in the CMMS (read-only).
+    allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
+    max_data_classification: restricted
+    side_effects: read_only
+    requires_approval: false
+    constraints:
+      # No create, release, confirm or close exists on the CMMS connector.
+      read_only_connectors: true
+
   document_generate:
     description: Produce a DOCX/XLSX/PPTX/PDF deliverable.
     allowed_roles: [operator, engineer, reviewer, head_of_inspection, plant_manager, administrator]
