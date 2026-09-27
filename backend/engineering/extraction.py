@@ -288,7 +288,9 @@ def _cells(line: str) -> list[str]:
         cells = [cell.strip() for cell in re.split(r"\s{2,}|\t", line.strip())]
         if len(cells) == 1:
             # "Shell course 2 (mid) 11.6 9.4": split trailing numbers off.
-            match = re.match(r"^(.*?[A-Za-z)\]])\s+(-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?)+)\s*$", line.strip())
+            # The label's last word may end in a digit ("Inlet nozzle N1");
+            # requiring a letter there ended the table at that row.
+            match = re.match(r"^(.*[A-Za-z)\]]\S*)\s+(-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?)+)\s*$", line.strip())
             if match:
                 cells = [match.group(1), *match.group(2).split()]
     return [cell for cell in cells if cell != ""]
