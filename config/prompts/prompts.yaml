@@ -108,6 +108,19 @@ task:
 
     Keep the plan to at most {step_budget} steps. Prefer fewer.
 
+  vision_fields: |
+    This is page {page} of the scanned document {filename}. Its header is set
+    out as "Label: value" pairs, often in two columns.
+
+    Read ONLY these labels, wherever they are on the page, and give each value
+    exactly as printed. If a label is not on the page, give null for it. Do
+    not work anything out and do not guess.
+
+    Labels: {labels}
+
+    Return a JSON object only, no prose, matching exactly:
+    {{"fields": [{{"label": "<label as listed>", "value": "<value as printed, or null>"}}]}}
+
   vision_extract: |
     Read this industrial document image and extract its content faithfully.
 
