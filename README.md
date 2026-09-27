@@ -479,14 +479,14 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 <br><b>Raghav Sharma</b>
 <br><a href="https://github.com/raghav-shell">@raghav-shell</a>
 <br><br><img src="https://img.shields.io/badge/design-visual_system_·_motion-b23bd9?style=flat-square" alt="Design">
-<br><sub>Frontend visual system and motion; scanned-PDF extraction and the macOS sandbox</sub>
+<br><sub>Led the frontend visual system and motion design, shaping the workbench’s responsive interface, interaction patterns, and user experience. Also contributed to scanned-PDF extraction workflows and macOS sandbox integration to improve document handling, usability, and platform reliability.</sub>
 </td>
 <td align="center" width="20%" valign="top">
 <a href="https://github.com/ankit25bcs10610"><img src="https://avatars.githubusercontent.com/u/232535999?v=4&s=200" width="120" alt="Ankit Pandey"></a>
 <br><b>Ankit Pandey</b>
 <br><a href="https://github.com/ankit25bcs10610">@ankit25bcs10610</a>
 <br><br><img src="https://img.shields.io/badge/contributor-workbench-7c4dff?style=flat-square" alt="Contributor">
-<br><sub>Contributions to the workbench</sub>
+<br><sub>Contributed to the development and refinement of the agentic workbench, supporting feature implementation, workflow integration, testing, and overall project improvements.</sub>
 </td>
 </tr>
 <tr>
