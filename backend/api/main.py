@@ -188,6 +188,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         created = get_identity_service().ensure_seed_users()
         if created:
             print(f"[workbench] seeded demo identities: {', '.join(created)}")
+    else:
+        # A host that was a demo must not keep the shared demo password.
+        retired = provisioning.retire_demo_accounts()
+        if retired:
+            print(
+                "[workbench] demo mode is off: deactivated demo accounts that still "
+                f"accept the shared demo password: {', '.join(retired)}"
+            )
     token = provisioning.issue_setup_token()
     if token:
         print(
