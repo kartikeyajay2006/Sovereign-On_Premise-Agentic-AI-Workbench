@@ -18,14 +18,30 @@ export function ThemeToggle({ className }: { className?: string }) {
   }, [])
 
   const flip = useCallback(() => {
-    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
-    document.documentElement.dataset.theme = next
-    try {
-      localStorage.setItem('aegis-theme', next)
-    } catch {
-      // Private mode: the choice holds for this page only.
+    const root = document.documentElement
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark'
+    const apply = () => {
+      root.dataset.theme = next
+      try {
+        localStorage.setItem('aegis-theme', next)
+      } catch {
+        // Private mode: the choice holds for this page only.
+      }
+      setTheme(next)
     }
-    setTheme(next)
+    // WIPE: the new ground crosses the old one left to right in 150ms
+    // (hv-motion.css). Reduced motion, or a browser without View
+    // Transitions, gets the plain cut.
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (still || typeof document.startViewTransition !== 'function') {
+      apply()
+      return
+    }
+    root.dataset.hvWipe = ''
+    const transition = document.startViewTransition(apply)
+    void transition.finished.finally(() => {
+      delete root.dataset.hvWipe
+    })
   }, [])
 
   const dark = theme === 'dark'

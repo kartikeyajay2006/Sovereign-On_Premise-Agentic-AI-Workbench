@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { ClassificationTag } from '@/components/primitives'
 import { Append, AppendScope, MeasuredNumber } from '@/shared/motion'
 import { EmptyState } from '@/shared/ui/data/empty-state'
+import { LineArt } from '@/shared/ui/data/line-art'
 import { cn } from '@/lib/utils'
 import type { KnowledgeDocument, StoredFile } from './api'
 
@@ -95,6 +96,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
       {documents.length === 0 ? (
         <EmptyState
           className="grouped"
+          art={<LineArt kind="shelf" />}
           title="No documents are indexed on this host"
           body="Retrieval has nothing to search, so a task that needs evidence will find none. Ingest a document to make it citable."
           action={emptyAction}

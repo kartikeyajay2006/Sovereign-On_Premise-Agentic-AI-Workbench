@@ -8,7 +8,7 @@ import { ClassificationTag } from '@/components/primitives'
 import { ClaimList } from '@/components/evidence/claim-list'
 import { ConflictPanel } from '@/components/evidence/conflict-panel'
 import { ProofPanel } from '@/components/evidence/proof-panel'
-import { Seal } from '@/shared/motion'
+import { Seal, Stamp, useChangeCount } from '@/shared/motion'
 import { Button } from '@/shared/ui/controls/button'
 import { LEDGER_MUTED } from '@/shared/ui/data/ledger'
 import { FailureState, ReadingLine, type ReadFailure } from '@/shared/ui/data/reading'
@@ -469,6 +469,9 @@ export function ReviewPane({
   const [focusedEvidence, setFocusedEvidence] = useState<string | null>(null)
   const mark = DECISION_MARK[item.decision]
   const held = item.decision === 'held'
+  // STAMP: this run was decided while it was open here (the pane is keyed
+  // by run, so opening a decided run starts at zero and stamps nothing).
+  const decided = useChangeCount(item.decision)
   const hasDocument = (task?.deliverables.length ?? item.deliverableCount) > 0
   // The service refuses a release while sources still disagree.
   const openConflicts = (task?.conflicts ?? []).filter((c) => c.status === 'unresolved' && c.impact === 'high')
@@ -502,6 +505,7 @@ export function ReviewPane({
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               Queue
             </button>
+            <Stamp event={held ? 0 : decided} className={mark.text}>
             <span
               className={cn(
                 'flex items-center gap-2 font-mono text-ledger uppercase tracking-[var(--ls-ledger)]',
@@ -511,6 +515,7 @@ export function ReviewPane({
               <span aria-hidden>{mark.glyph}</span>
               {mark.label}
             </span>
+            </Stamp>
             {awaiting && signedSoFar > 0 && (
               <span className="font-mono text-ledger uppercase tracking-[var(--ls-ledger)] text-approval-text">
                 Waiting for second authority

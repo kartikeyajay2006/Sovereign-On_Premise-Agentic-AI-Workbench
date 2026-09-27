@@ -6,6 +6,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { MeasuredNumber } from '@/shared/motion'
 import { ErrorState } from '@/shared/ui/data/error-state'
+import { LineArt } from '@/shared/ui/data/line-art'
 import { PageHeader } from '@/components/page-header'
 import { harnessApi } from '../api'
 import type { HarnessCatalogView, HarnessRunSummary, HarnessTally } from '../model/types'
@@ -31,7 +32,7 @@ export function TallyGlyphs({ tally, className }: { tally: HarnessTally; classNa
         >
           <OutcomeMarker outcome={outcome} size={14} />
           {/* ROLL: the runs list is re-read while a run moves. */}
-          <MeasuredNumber value={tally.counts[outcome]} className="font-mono text-meta text-foreground-secondary" />
+          <MeasuredNumber value={tally.counts[outcome]} className="hv-roll font-mono text-meta text-foreground-secondary" />
           <span className="sr-only">{OUTCOME[outcome].label}</span>
         </span>
       ))}
@@ -134,7 +135,10 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
             />
           </div>
         ) : catalog === null ? (
-          <p className="px-4 py-6 font-mono text-meta text-foreground-muted">Reading definitions…</p>
+          <div role="status" className="flex flex-col gap-2 px-4 py-6">
+            <p className="font-mono text-meta text-foreground-muted">Reading definitions…</p>
+            <span aria-hidden className="hv-scan hv-scan-rule" />
+          </div>
         ) : harnesses.length === 0 ? (
           <p className="px-4 py-6 text-body text-foreground-secondary">
             No harness is defined on this host. Definitions live in{' '}
@@ -159,7 +163,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   tabIndex={index === focused ? 0 : -1}
                   onFocus={() => setFocused(index)}
                   onClick={() => onConfigure(harness.id)}
-                  className="group flex min-h-[184px] w-full flex-col gap-3 p-4 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
+                  className="hv-lockon group flex min-h-[184px] w-full [--hv-lockon-inset:6px] [--hv-lockon-from:1.03] flex-col gap-3 p-4 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span className={cn(MONO, 'flex size-7 items-center justify-center border border-line-strong text-foreground')}>
@@ -222,11 +226,17 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
             Past runs could not be read: {String(runsError.detail || runsError.message)}
           </p>
         ) : runs === null ? (
-          <p className="px-4 py-6 font-mono text-meta text-foreground-muted">Reading runs…</p>
+          <div role="status" className="flex flex-col gap-2 px-4 py-6">
+            <p className="font-mono text-meta text-foreground-muted">Reading runs…</p>
+            <span aria-hidden className="hv-scan hv-scan-rule" />
+          </div>
         ) : runs.length === 0 ? (
-          <p className="px-4 py-6 text-body text-foreground-secondary">
+          <div className="flex flex-col gap-3 px-4 py-6">
+            <LineArt kind="fanout" />
+            <p className="text-body text-foreground-secondary">
             No harness has run on this host yet.
-          </p>
+            </p>
+          </div>
         ) : (
           <ul role="list" className="flex list-none flex-col p-0">
             {runs.map((run) => {
@@ -236,7 +246,10 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   <button
                     type="button"
                     onClick={() => onOpenRun(run.id)}
-                    className="grid min-h-7 w-full grid-cols-1 gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center"
+                    className={cn(
+                      "hv-lockon grid min-h-7 w-full grid-cols-1 [--hv-lockon-inset:2px] gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center",
+                      ACTIVE_RUN.has(run.status) && 'hv-scan',
+                    )}
                   >
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className="truncate text-[13px] text-foreground">{run.harness_name}</span>
@@ -246,7 +259,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className={cn(MONO, 'text-foreground')}>
-                        {run.tally.settled} of {plural(run.tally.total, 'item')} settled
+                        <MeasuredNumber value={run.tally.settled} className="hv-roll" /> of {plural(run.tally.total, 'item')} settled
                         {run.current_index !== null && (
                           <span className="text-action"> · #{run.current_index} in flight</span>
                         )}

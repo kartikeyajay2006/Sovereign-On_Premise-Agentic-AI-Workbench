@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { ClassificationTag } from '@/components/primitives'
-import { Light, type LightTone } from '@/shared/motion'
+import { Light, Stamp, useChangeCount, type LightTone } from '@/shared/motion'
 import { cn } from '@/lib/utils'
 import { ago, type Decision, type QueueItem } from './model'
 
@@ -43,6 +43,9 @@ export const QueueRow = memo(function QueueRow({
   registerRow: (id: string, el: HTMLButtonElement | null) => void
 }) {
   const mark = DECISION_MARK[item.decision]
+  // STAMP: the decision changed while this row was on screen -- recorded
+  // here or in another session, and read back from the service.
+  const decided = useChangeCount(item.decision)
   return (
     <li>
       <button
@@ -52,7 +55,7 @@ export const QueueRow = memo(function QueueRow({
         // A click synthesised from Enter or Space reports detail 0.
         onClick={(event) => onSelect(item.id, event.detail === 0)}
         className={cn(
-          'hover-decay flex w-full flex-col gap-1 border-b border-line-subtle px-4 py-3 text-left',
+          'hv-lockon hover-decay flex w-full flex-col gap-1 border-b [--hv-lockon-inset:3px] border-line-subtle px-4 py-3 text-left',
           // Inset, because an outer ring is clipped by the scrolling list.
           'focus-visible:shadow-[inset_0_0_0_2px_var(--foreground)] focus-visible:outline-none',
           selected
@@ -66,6 +69,7 @@ export const QueueRow = memo(function QueueRow({
               tone of what was decided and lets go. Keyed on the decision,
               never the selection, so j/k through the queue lights nothing,
               and a row that mounts already decided was read, not decided. */}
+          <Stamp event={item.decision === 'held' ? 0 : decided} className={mark.text}>
           <Light
             as="span"
             tone={mark.light}
@@ -79,6 +83,7 @@ export const QueueRow = memo(function QueueRow({
             <span aria-hidden>{mark.glyph}</span>
             {mark.label}
           </Light>
+          </Stamp>
           <span className="flex min-w-0 items-center gap-2">
             <ClassificationTag level={item.sensitivity ?? 'unclassified'} />
             <time

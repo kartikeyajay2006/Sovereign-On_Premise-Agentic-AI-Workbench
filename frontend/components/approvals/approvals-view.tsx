@@ -11,6 +11,7 @@ import { useRole } from '@/components/role-context'
 import { Button } from '@/shared/ui/controls/button'
 import { Segmented } from '@/shared/ui/controls/segmented'
 import { EmptyState } from '@/shared/ui/data/empty-state'
+import { LineArt } from '@/shared/ui/data/line-art'
 import {
   DEFAULT_TIMEOUT_MS,
   FailureState,
@@ -665,6 +666,7 @@ function QueueEmpty({
     const decided = counts.approved + counts.rejected + counts.returned
     return (
       <EmptyState
+        art={<LineArt kind="queue" />}
         title="Nothing is waiting for a decision"
         body="Every held run has been released or returned. While this screen is connected to the event stream, a run that needs a signature appears here as soon as it is held."
         action={

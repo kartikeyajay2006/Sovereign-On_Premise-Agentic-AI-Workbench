@@ -22,6 +22,7 @@
  */
 
 export type { MotionTag } from './appear'
+export { useChangeCount } from './change-count'
 export { Append, AppendScope, type AppendProps, type AppendTone } from './append'
 export { Disclose } from './disclose'
 export { Light, Release, type LightProps, type LightTone } from './light'
@@ -31,6 +32,7 @@ export { DimScope, Refused } from './refuse'
 export { RouteStage } from './route-stage'
 export { useSecondClock } from './second-clock'
 export { Seal } from './seal'
+export { Stamp } from './stamp'
 export type { SpectrumCell, SpectrumState } from './spectrum'
 export { Sweep } from './sweep'
 export { TraceScope, TraceTarget, type TraceTargetProps } from './trace'

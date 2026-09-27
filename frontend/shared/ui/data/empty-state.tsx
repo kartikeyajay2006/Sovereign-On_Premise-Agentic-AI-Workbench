@@ -16,15 +16,19 @@ export function EmptyState({
   title,
   body,
   action,
+  art,
   className,
 }: {
   title: string
   body?: ReactNode
   action?: ReactNode
+  /** A still line drawing (LineArt), above the words. */
+  art?: ReactNode
   className?: string
 }) {
   return (
     <div className={cn('flex flex-col items-start gap-1 px-4 py-8', className)}>
+      {art && <div className="mb-3">{art}</div>}
       <p className="text-body font-medium text-foreground">{title}</p>
       {body && <div className="max-w-[66ch] text-body text-foreground-secondary">{body}</div>}
       {action && <div className="mt-3 flex flex-wrap items-center gap-2">{action}</div>}

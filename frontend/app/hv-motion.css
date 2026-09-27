@@ -255,6 +255,153 @@ span.hv-lock-frame {
 }
 
 /* ==================================================================== */
+/* LOCK-ON — the reticle closing on what the pointer or focus is on     */
+/*                                                                      */
+/* For a card or row that opens something. The mark's four 8px corner  */
+/* brackets close onto it from 1.05x in 140ms while it is hovered or    */
+/* keyboard-focused, and leave in 80ms when it is not. The pointer or   */
+/* the focus is the event; nothing locks on an idle screen. One          */
+/* pseudo-element (::before), so the host keeps its own ::after, its    */
+/* shadows and its focus ring. --hv-lockon-inset moves the brackets in   */
+/* from the edge; a large card can lower --hv-lockon-from.              */
+/* ==================================================================== */
+.hv-lockon {
+  position: relative;
+}
+.hv-lockon::before {
+  --hv-lock-color: var(--hv-lime);
+  content: '';
+  position: absolute;
+  inset: var(--hv-lockon-inset, 4px);
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) top left / 8px 1px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) top left / 1px 8px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) top right / 8px 1px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) top right / 1px 8px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) bottom left / 8px 1px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) bottom left / 1px 8px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) bottom right / 8px 1px no-repeat,
+    linear-gradient(var(--hv-lock-color), var(--hv-lock-color)) bottom right / 1px 8px no-repeat;
+  opacity: 0;
+  transform: scale(var(--hv-lockon-from, 1.05));
+  transition:
+    opacity 80ms linear,
+    transform 80ms linear;
+}
+@media (hover: hover) {
+  .hv-lockon:hover:not(:disabled)::before {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 60ms linear,
+      transform 140ms var(--hv-lock-ease);
+  }
+}
+.hv-lockon:focus-visible::before {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 60ms linear,
+    transform 140ms var(--hv-lock-ease);
+}
+
+/* The quick lock: .hv-lock at the key-press ceiling, for a control a
+   keystroke can arm (the composer's send button). */
+.hv-lock.hv-quick {
+  animation-duration: 140ms;
+}
+
+/* The lock in the tone of what it stamps: a decision's brackets take the
+   decision's own colour from the text they frame. */
+.hv-lock-frame[data-tone='current'] {
+  --hv-lock-color: currentColor;
+}
+
+/* ==================================================================== */
+/* FOCUS RULE — the composer's lime rule drawing along its top edge     */
+/* while the field has focus. 150ms: a Tab or a click puts it there.     */
+/* ==================================================================== */
+.hv-focus-rule {
+  position: relative;
+}
+.hv-focus-rule::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: var(--hv-rule-inset, 12px);
+  right: var(--hv-rule-inset, 12px);
+  height: 1px;
+  pointer-events: none;
+  background: var(--hv-lime);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 150ms var(--hv-trace-ease);
+}
+.hv-focus-rule:focus-within::after {
+  transform: scaleX(1);
+}
+
+/* ==================================================================== */
+/* SCAN RULE — a hairline track carrying .hv-scan, under a line that    */
+/* says what is being read. Mounted only while the read is in flight;   */
+/* unmounting it is the scan stopping.                                   */
+/* ==================================================================== */
+.hv-scan-rule {
+  display: block;
+  height: 1px;
+  width: 100%;
+  max-width: 240px;
+  background: var(--line-subtle, #2b2b2b);
+}
+/* On a 1px track the scan's vertical line would be a dot: here the head
+   is a 48px lime segment with its tail behind it, on the same clock.
+   Reduced motion leaves it still at the track's far end. */
+.hv-scan-rule.hv-scan::after {
+  left: -48px;
+  width: 48px;
+  background: linear-gradient(to right, transparent, var(--hv-lime));
+}
+
+/* ==================================================================== */
+/* WIPE — night to paper and back, left to right in 150ms, driven by    */
+/* the View Transitions API from the theme switch. The old theme stays  */
+/* under the new one until the wipe has crossed it.                     */
+/* ==================================================================== */
+@keyframes hv-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+html[data-hv-wipe]::view-transition-old(root) {
+  display: block;
+  animation: none;
+}
+html[data-hv-wipe]::view-transition-new(root) {
+  animation: hv-wipe 150ms var(--hv-trace-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hv-lockon::before,
+  .hv-lockon:hover:not(:disabled)::before,
+  .hv-lockon:focus-visible::before {
+    transform: none;
+    transition: opacity 80ms linear;
+  }
+  .hv-focus-rule::after {
+    transform: none;
+    opacity: 0;
+    transition: opacity 80ms linear;
+  }
+  .hv-focus-rule:focus-within::after {
+    opacity: 1;
+  }
+  html[data-hv-wipe]::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* ==================================================================== */
 /* MARK — the lock closing, once, where a caller asks for it            */
 /* The brackets come in from 1.5x onto the seal (the lock curve), then  */
 /* the core ticks on. Reduced motion draws the closed mark.             */
