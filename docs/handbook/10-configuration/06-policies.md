@@ -29,6 +29,7 @@ Five files in `policies/`, each with `policy_version: 1`.
 | `match.classification_confidence_below` | ✅ | Hold when the analyzer's confidence is below this |
 | `match.prompt_contains_any` | ✅ | Hold when the request contains any of these words |
 | `match.dlp_findings` | ✅ | Hold when content scanning found a value whose policy is `require_approval`, or blocked the answer or the deliverable |
+| `match.operating_limit_breaches` | ✅ | Hold when the run's evidence failed a registered operating-envelope check (an `envelope.*` formula) |
 | `requires_deliverable` | ✅ | Apply the rule only when there is something to release |
 | `approver_roles` | ✅ | Who may decide |
 
