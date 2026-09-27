@@ -82,7 +82,7 @@ Many tests here encode a specific failure that happened once, with the story in 
 
 ## What is not tested yet
 
-- The **frontend** has smoke tests only (above), against mocked API responses, and no lint script. They do not run a starter card end to end against a live backend, and they do not cover the Registry, Posture, Sandbox, Measurements, Skills, Proof or Compare screens.
+- The **frontend** has smoke tests only (above), against mocked API responses, and no lint script. They do not run a starter card end to end against a live backend. `scripts/ui_check.py` is the runtime check against a live one: it opens every page under `frontend/app` in headless Chrome, as every demo account and signed out, and fails on any uncaught exception, console error, failed request or blank page, writing a hashed report to `storage/reports/ui-check-*.json`. It needs Chrome and a running console, so CI does not run it; `tests/test_ui_check.py` pins how it finds pages and what it counts as a problem. It proves each screen renders without an error, not that its content is right.
 - There is no **evaluation suite** measuring answer quality against `sample_data/expected-answers.json`. The headline scanned-report scenario can therefore regress without a failing test ([8.5](../08-verification/05-limits.md)).
 - There is no **adversarial suite** for prompt injection in documents.
 - `scripts/demo_e2e.py` and `scripts/golden_demo.py` need a running API with models, so CI does not run them. That is how `demo_e2e.py`'s scenario 5 went stale; run `golden_demo.py` before a demonstration ([14.2](../14-demo-guide/02-rehearsal.md)). `tests/test_golden_demo.py` checks its judgement against a fake API.

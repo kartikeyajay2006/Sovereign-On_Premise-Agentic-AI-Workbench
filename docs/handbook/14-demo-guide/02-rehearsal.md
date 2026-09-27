@@ -15,6 +15,7 @@
 - [ ] **Approvals queue** tidy: reject stale held runs as `reviewer`, with a note
 - [ ] **Self-test** run once: 7/7
 - [ ] **Golden demo check**: `python scripts/golden_demo.py` ends `FINAL STATUS: READY` (below)
+- [ ] **Console check**: `python scripts/ui_check.py` ends with every page clean (it opens every screen as every account)
 - [ ] `python scripts/audit_tool.py verify`: note the head hash
 - [ ] Browser zoom at 100–110 %, the theme you want, notifications off
 - [ ] `docs/DEMO.md` and the seed script's correct answers open on a second screen
