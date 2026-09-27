@@ -6,7 +6,7 @@ import { ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { SovereigntyStatus as SovereigntyStatusType, SystemHealth } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { MeasuredNumber } from '@/shared/motion'
+import { MeasuredNumber, useChangeCount } from '@/shared/motion'
 
 /**
  * The posture indicator in the global header.
@@ -151,6 +151,10 @@ export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: 
   }, [open, sample])
 
   const { sovereignty, health, reachable, loading, timedOut, stale, readAt } = posture
+  // TICK: one per egress reading that actually arrived. The first reading
+  // just appears; a sample that went unanswered keeps the old readAt and
+  // ticks nothing.
+  const readings = useChangeCount(readAt)
 
   // The pill only claims a posture the API reported. While the read is in
   // flight, or if it failed, it says so rather than showing a green light.
@@ -243,13 +247,13 @@ export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: 
           stale && 'opacity-60',
         )}
       >
-        <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', pillFill)} />
+        <span key={readings} aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', pillFill, readings > 1 && 'hv-tick')} />
         {/* With a reading, the count is the label: "0 egress". Without
             one, the words say why there is no count. */}
         {observed !== undefined && monitored ? (
           <span className={cn('tabular text-[12.5px] font-medium', observed === 0 ? 'text-foreground-secondary' : 'text-critical-text')}>
             {/* ROLL: the 30s egress sample -- only digits that changed move. */}
-            <MeasuredNumber value={observed} /> egress
+            <MeasuredNumber value={observed} className="hv-roll" /> egress
           </span>
         ) : (
           <span className="text-[12.5px] font-medium text-foreground-secondary">{pillLabel}</span>

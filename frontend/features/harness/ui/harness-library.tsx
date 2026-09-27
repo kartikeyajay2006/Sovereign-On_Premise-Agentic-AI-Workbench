@@ -31,7 +31,7 @@ export function TallyGlyphs({ tally, className }: { tally: HarnessTally; classNa
         >
           <OutcomeMarker outcome={outcome} size={14} />
           {/* ROLL: the runs list is re-read while a run moves. */}
-          <MeasuredNumber value={tally.counts[outcome]} className="font-mono text-meta text-foreground-secondary" />
+          <MeasuredNumber value={tally.counts[outcome]} className="hv-roll font-mono text-meta text-foreground-secondary" />
           <span className="sr-only">{OUTCOME[outcome].label}</span>
         </span>
       ))}
@@ -236,7 +236,10 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   <button
                     type="button"
                     onClick={() => onOpenRun(run.id)}
-                    className="hv-lockon grid min-h-7 w-full grid-cols-1 [--hv-lockon-inset:2px] gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center"
+                    className={cn(
+                      "hv-lockon grid min-h-7 w-full grid-cols-1 [--hv-lockon-inset:2px] gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center",
+                      ACTIVE_RUN.has(run.status) && 'hv-scan',
+                    )}
                   >
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className="truncate text-[13px] text-foreground">{run.harness_name}</span>
@@ -246,7 +249,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className={cn(MONO, 'text-foreground')}>
-                        {run.tally.settled} of {plural(run.tally.total, 'item')} settled
+                        <MeasuredNumber value={run.tally.settled} className="hv-roll" /> of {plural(run.tally.total, 'item')} settled
                         {run.current_index !== null && (
                           <span className="text-action"> · #{run.current_index} in flight</span>
                         )}

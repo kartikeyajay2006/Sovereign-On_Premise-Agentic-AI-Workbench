@@ -24,6 +24,7 @@ import {
 import { api, request } from '@/lib/api'
 import type { TaskSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { MeasuredNumber } from '@/shared/motion'
 import { AegisMark } from './aegis-logo'
 import { RoleSwitcher } from './role-switcher'
 import { useRole } from './role-context'
@@ -494,7 +495,8 @@ function SidebarBody({ onNavigate }: { onNavigate: () => void }) {
                   {place.label}
                   {count !== null ? (
                     <span className="tabular ml-auto rounded-[5px] px-1.5 font-mono text-[11px] leading-[18px] text-approval-text shadow-[0_0_0_1px_var(--approval-border)]">
-                      {count}
+                      {/* ROLL: re-read on a decision, a held run or a change of screen. */}
+                      <MeasuredNumber value={count} className="hv-roll" />
                       <span className="sr-only"> held</span>
                     </span>
                   ) : null}

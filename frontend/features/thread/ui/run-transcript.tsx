@@ -5,7 +5,7 @@ import type { EvidenceItem, ModelUsage, PipelineStage, VerificationCheck } from 
 import { checkLabel } from '@/lib/presentation'
 import { CREW_BY_STAGE } from '@/lib/crew'
 import { cn } from '@/lib/utils'
-import { Append, useSecondClock } from '@/shared/motion'
+import { Append, MeasuredNumber, useSecondClock } from '@/shared/motion'
 import { MODEL_STAGE_TO_ROW, STAGE_ACTIVE, STAGE_DONE } from '../model/board'
 import type { AssistantTurn } from '../model/types'
 import { CiteChip } from './cite-chip'
@@ -275,7 +275,7 @@ export const RunTranscript = memo(function RunTranscript({
         <li className="flex items-baseline gap-2 text-foreground-secondary">
           <Spinner />
           <span>
-            Waiting for the local worker · {turn.queue.ahead} run{turn.queue.ahead === 1 ? '' : 's'} ahead
+            Waiting for the local worker · <MeasuredNumber value={turn.queue.ahead} className="hv-roll" /> run{turn.queue.ahead === 1 ? '' : 's'} ahead
           </span>
         </li>
       )}
