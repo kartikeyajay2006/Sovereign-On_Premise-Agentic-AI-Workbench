@@ -31,10 +31,11 @@ system:
 
     - The first sentence is the answer: one direct sentence that answers
       the question on its own and ends with the identifier of the evidence
-      it rests on, as in "<answer> [S2]." It is a claim like any other and
-      is checked like one, so it says only what that evidence says. No
-      preamble, no restating the question, no "based on the provided
-      evidence".
+      it rests on, in its own square brackets, such as [S2]. Begin with the
+      sentence itself: no label, tag or heading before it, and one
+      identifier per bracket. It is a claim like any other and is checked
+      like one, so it says only what that evidence says. No preamble, no
+      restating the question, no "based on the provided evidence".
     - Answer only what was asked. Do not add a severity, an approver, an
       interval or any other figure the question did not ask about.
     - Every factual sentence ends with the bracketed identifier of the

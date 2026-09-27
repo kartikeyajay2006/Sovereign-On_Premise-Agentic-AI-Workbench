@@ -97,6 +97,10 @@ STATED_SUBJECT = re.compile(
     r"thick|wall loss|t[-_ ]?min|remaining life|corrosion rate|retirement", re.IGNORECASE
 )
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+# A label before the first sentence, never part of the answer: "<answer>",
+# "[answer]", "**Answer:**", "Answer:". Only at the very start.
+ANSWER_LABEL = re.compile(r"\A(?:\s*(?:<answer>|\[answer\]|\*{0,2}answer\s*:\*{0,2}))+\s*", re.IGNORECASE)
+ANSWER_CLOSE = re.compile(r"\s*</answer>\s*\Z", re.IGNORECASE)
 # A numeric result worth recomputing: a figure carrying a unit, or an explicit
 # equality. Prose with no such assertion needs no calculation check.
 NUMERIC_ASSERTION = re.compile(
@@ -512,8 +516,12 @@ def _dlp_holds(task: Task) -> int:
 
 
 def _strip_reasoning(text: str) -> str:
-    """Remove chain-of-thought blocks some reasoning models emit."""
-    return THINK_BLOCK.sub("", text or "").strip()
+    """Remove chain-of-thought blocks some reasoning models emit, and a bare
+    "answer" label a small model sometimes writes before its first sentence
+    ("<answer>", "[answer]", "Answer:"), which would otherwise open the lede."""
+    cleaned = THINK_BLOCK.sub("", text or "").strip()
+    cleaned = ANSWER_LABEL.sub("", cleaned, count=1)
+    return ANSWER_CLOSE.sub("", cleaned).strip()
 
 
 def _visible_so_far(raw: str) -> str:

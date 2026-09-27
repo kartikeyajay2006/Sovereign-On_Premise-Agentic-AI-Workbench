@@ -520,6 +520,7 @@ def main(argv: list[str] | None = None) -> int:
         out_dir = PROJECT_ROOT / "storage" / "reports"
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f"golden-demo-{started.strftime('%Y%m%dT%H%M%SZ')}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({
         "suite": "AEGIS golden demo check",
         "target": arguments.base_url,
