@@ -276,6 +276,27 @@ def _revision_note(item: EvidenceItem) -> str:
     return ""
 
 
+# "[answer]", "<answer>" or "Answer:" at the very start, and a line holding
+# nothing but citations right after it.
+_ANSWER_LABEL = re.compile(r"^\s*(?:\[answer\]|<answer>|answer:)[ \t]*", re.IGNORECASE)
+_BARE_CITATIONS_LINE = re.compile(r"^(?:\[[A-Z]+\d+\][ \t]*)+\n+")
+
+
+def strip_answer_label(text: str) -> str:
+    """Remove a label a model put before its answer.
+
+    The reasoning prompt once illustrated the cited lede as "<answer> [S2]."
+    and a 3B model copied the placeholder into every answer ("[answer] ...",
+    once "[answer] [C9]" with the answer on the next line), which the thread
+    then set as the lede. A citation alone on the label's line cites no
+    sentence, so it goes with the label.
+    """
+    stripped = _ANSWER_LABEL.sub("", text, count=1)
+    if stripped == text:
+        return text
+    return _BARE_CITATIONS_LINE.sub("", stripped, count=1)
+
+
 def _complete_topology(text: str, topology: dict[str, Any] | None) -> tuple[str, int]:
     """Restore, from the graph, every isolation branch the answer left out.
 
@@ -2425,7 +2446,7 @@ class AgentOrchestrator:
                 prompt=self.config.prompt("task.converse", prompt=task.prompt),
                 stream_to_user=True,
             )
-            text = await self._release_text(task, user, text.strip())
+            text = await self._release_text(task, user, strip_answer_label(text.strip()))
             await self._emit(task, "task.answer", {"answer": text})
             task.answer = text
             task.verification = VerificationReport(
@@ -3445,7 +3466,7 @@ class AgentOrchestrator:
         # rebuild it. This is the authoritative copy and the one that is
         # persisted -- after content scanning, so it replaces whatever the
         # stream showed.
-        text = await self._release_text(task, user, text)
+        text = await self._release_text(task, user, strip_answer_label(text))
         await self._emit(task, "task.answer", {"answer": text})
         return text
 
