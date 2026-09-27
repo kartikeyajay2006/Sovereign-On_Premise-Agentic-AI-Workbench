@@ -345,52 +345,83 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 
 ## Docs
 
-Choose the path that matches what you need today. Each card opens the relevant live document.
+> **Your route through AEGIS starts here.** Choose a mission below, then follow the connected guides from first run to evidence-backed delivery.
 
 <table>
 <tr>
 <td width="25%" valign="top">
-<b>🚀 Start and run</b><br><br>
-<a href="docs/handbook/01-getting-started/README.md">Getting started</a><br>
-<sub>Install locally, seed the demo and run the console.</sub><br><br>
-<a href="docs/handbook/14-demo-guide/README.md">Demo guide →</a>
+<a href="docs/handbook/01-getting-started/README.md"><img src="https://img.shields.io/badge/01—03-FIRST_RUN-00B8D9?style=for-the-badge&labelColor=0B1320" alt="First run"></a><br><br>
+<b>🚀 Start with confidence</b><br>
+<sub>Install the workbench, load the synthetic plant and see a complete answer delivered.</sub><br><br>
+<a href="docs/handbook/01-getting-started/README.md">Open getting started →</a><br>
+<a href="docs/handbook/14-demo-guide/README.md">Watch the guided demo →</a>
 </td>
 <td width="25%" valign="top">
-<b>🧭 Understand it</b><br><br>
-<a href="docs/handbook/04-architecture/README.md">Architecture</a><br>
-<sub>Learn the system boundaries, agents, models and evidence path.</sub><br><br>
-<a href="docs/handbook/02-concepts/README.md">Core concepts →</a>
+<a href="docs/handbook/04-architecture/README.md"><img src="https://img.shields.io/badge/04—08-INSIDE_AEGIS-8B5CF6?style=for-the-badge&labelColor=17112A" alt="Inside AEGIS"></a><br><br>
+<b>🧭 See every decision</b><br>
+<sub>Trace the architecture, model routing, knowledge path, agents and verification gates.</sub><br><br>
+<a href="docs/handbook/04-architecture/README.md">Explore the architecture →</a><br>
+<a href="docs/handbook/07-agents/README.md">Meet the agents →</a>
 </td>
 <td width="25%" valign="top">
-<b>🛡️ Operate safely</b><br><br>
-<a href="docs/handbook/09-security/README.md">Security and governance</a><br>
-<sub>Review access, sandboxing, audit evidence and operations.</sub><br><br>
-<a href="docs/handbook/12-operations/README.md">Operations →</a>
+<a href="docs/handbook/09-security/README.md"><img src="https://img.shields.io/badge/09—12-TRUST_%26_CONTROL-22C55E?style=for-the-badge&amp;labelColor=082616" alt="Trust and control"></a><br><br>
+<b>🛡️ Operate with proof</b><br>
+<sub>Review access, containment, audit evidence, configuration and the operating model.</sub><br><br>
+<a href="docs/handbook/09-security/README.md">Review security →</a><br>
+<a href="docs/handbook/12-operations/README.md">Run operations →</a>
 </td>
 <td width="25%" valign="top">
-<b>🧰 Build on it</b><br><br>
-<a href="docs/handbook/13-development/README.md">Development</a><br>
-<sub>Run the test suite, use the API and extend the workbench.</sub><br><br>
-<a href="docs/handbook/11-api/README.md">API reference →</a>
+<a href="docs/handbook/13-development/README.md"><img src="https://img.shields.io/badge/13—15-BUILD_%26_SHIP-F97316?style=for-the-badge&amp;labelColor=2B1205" alt="Build and ship"></a><br><br>
+<b>🧰 Build and extend</b><br>
+<sub>Use the API, run the suite, adapt the workbench and find answers quickly.</sub><br><br>
+<a href="docs/handbook/13-development/README.md">Build on AEGIS →</a><br>
+<a href="docs/handbook/11-api/README.md">Read the API →</a>
 </td>
 </tr>
 </table>
 
-<details>
-<summary><b>Browse every handbook section and project document</b></summary>
-<br>
+### 🗺️ The handbook · 15 guides, one connected map
 
-| Start | Understand | Operate | Build |
+<table>
+<tr>
+<th width="25%" align="left">🚀 Use it</th>
+<th width="25%" align="left">🧭 Understand it</th>
+<th width="25%" align="left">🛡️ Run it safely</th>
+<th width="25%" align="left">🧰 Build on it</th>
+</tr>
+<tr>
+<td valign="top"><a href="docs/handbook/01-getting-started/README.md"><b>01 · Getting started</b></a><br><sub>Install, configure, seed and run.</sub></td>
+<td valign="top"><a href="docs/handbook/04-architecture/README.md"><b>04 · Architecture</b></a><br><sub>Boundaries, data flow and evidence.</sub></td>
+<td valign="top"><a href="docs/handbook/09-security/README.md"><b>09 · Security and governance</b></a><br><sub>Controls, evidence and accountability.</sub></td>
+<td valign="top"><a href="docs/handbook/13-development/README.md"><b>13 · Development</b></a><br><sub>Test, contribute and extend.</sub></td>
+</tr>
+<tr>
+<td valign="top"><a href="docs/handbook/02-concepts/README.md"><b>02 · Core concepts</b></a><br><sub>Runs, evidence, claims and policy.</sub></td>
+<td valign="top"><a href="docs/handbook/05-models-and-routing/README.md"><b>05 · Models and routing</b></a><br><sub>Local models and routing choices.</sub></td>
+<td valign="top"><a href="docs/handbook/10-configuration/README.md"><b>10 · Configuration</b></a><br><sub>Profiles, policy and environment.</sub></td>
+<td valign="top"><a href="docs/handbook/14-demo-guide/README.md"><b>14 · Demo guide</b></a><br><sub>Present the full system story.</sub></td>
+</tr>
+<tr>
+<td valign="top"><a href="docs/handbook/03-user-guide/README.md"><b>03 · Using the workbench</b></a><br><sub>Ask, inspect, approve and compare.</sub></td>
+<td valign="top"><a href="docs/handbook/06-knowledge-and-retrieval/README.md"><b>06 · Knowledge and retrieval</b></a><br><sub>Sources, scanning and citations.</sub></td>
+<td valign="top"><a href="docs/handbook/11-api/README.md"><b>11 · API reference</b></a><br><sub>Endpoints and integration contracts.</sub></td>
+<td valign="top"><a href="docs/handbook/15-reference/README.md"><b>15 · FAQ and glossary</b></a><br><sub>Find the exact term or answer.</sub></td>
+</tr>
+<tr>
+<td valign="top"><a href="docs/handbook/01-getting-started/09-offline-install.md"><b>↳ Offline install</b></a><br><sub>Set up without downloading at runtime.</sub></td>
+<td valign="top"><a href="docs/handbook/07-agents/README.md"><b>07 · Agents</b></a><br><a href="docs/handbook/08-verification/README.md"><b>08 · Verification</b></a><br><sub>Orchestrate, then prove.</sub></td>
+<td valign="top"><a href="docs/handbook/12-operations/README.md"><b>12 · Operations</b></a><br><sub>Observe, maintain and recover.</sub></td>
+<td valign="top"><a href="docs/DEMO.md"><b>↳ Demo script with answers</b></a><br><sub>Run the judge-ready narrative.</sub></td>
+</tr>
+</table>
+
+### ✦ Judge, review and ship
+
+| See the working system | Run the presentation | Assess readiness | Plan the build |
 |---|---|---|---|
-| [01 Getting started](docs/handbook/01-getting-started/README.md) | [04 Architecture](docs/handbook/04-architecture/README.md) | [09 Security and governance](docs/handbook/09-security/README.md) | [13 Development](docs/handbook/13-development/README.md) |
-| [02 Core concepts](docs/handbook/02-concepts/README.md) | [05 Models and routing](docs/handbook/05-models-and-routing/README.md) | [10 Configuration](docs/handbook/10-configuration/README.md) | [14 Demo guide](docs/handbook/14-demo-guide/README.md) |
-| [03 Using the workbench](docs/handbook/03-user-guide/README.md) | [06 Knowledge and retrieval](docs/handbook/06-knowledge-and-retrieval/README.md) | [11 API reference](docs/handbook/11-api/README.md) | [15 FAQ and glossary](docs/handbook/15-reference/README.md) |
-| [Offline install](docs/handbook/01-getting-started/09-offline-install.md) | [07 Agents](docs/handbook/07-agents/README.md) · [08 Verification](docs/handbook/08-verification/README.md) | [12 Operations](docs/handbook/12-operations/README.md) | [Demo script with answers](docs/DEMO.md) |
-| [What AEGIS implements today](docs/IMPLEMENTED.md) | [Handbook home](docs/handbook/README.md) | [Readiness review](docs/SIH-READINESS-REVIEW.md) | [SIH build plan](docs/SIH-WINNING-BUILD-PLAN.md) |
+| [**What AEGIS implements today**](docs/IMPLEMENTED.md)<br>Current capabilities and honest boundaries. | [**Demo script with answers**](docs/DEMO.md)<br>A precise live-demo route. | [**SIH readiness review**](docs/SIH-READINESS-REVIEW.md)<br>Evidence, gaps and next checks. | [**SIH winning build plan**](docs/SIH-WINNING-BUILD-PLAN.md)<br>Execution plan for the challenge. |
 
-</details>
-
-For security reviewers: [threat model](docs/handbook/09-security/06-threat-model.md) · [sandbox](docs/handbook/09-security/03-sandbox.md) · [audit log](docs/handbook/09-security/05-audit-log.md) · [red team](docs/handbook/09-security/08-red-team.md) · [signed proof](docs/handbook/09-security/09-proof.md).
+<p align="center"><sub><b>Security review lane</b> · <a href="docs/handbook/09-security/06-threat-model.md">Threat model</a> · <a href="docs/handbook/09-security/03-sandbox.md">Sandbox</a> · <a href="docs/handbook/09-security/05-audit-log.md">Audit log</a> · <a href="docs/handbook/09-security/08-red-team.md">Red team</a> · <a href="docs/handbook/09-security/09-proof.md">Signed proof</a> · <a href="docs/handbook/README.md">Handbook home</a></sub></p>
 
 ## ⚠️ Limitations
 
