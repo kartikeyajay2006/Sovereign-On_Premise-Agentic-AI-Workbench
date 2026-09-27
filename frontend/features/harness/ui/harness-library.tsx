@@ -159,7 +159,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   tabIndex={index === focused ? 0 : -1}
                   onFocus={() => setFocused(index)}
                   onClick={() => onConfigure(harness.id)}
-                  className="group flex min-h-[184px] w-full flex-col gap-3 p-4 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
+                  className="hv-lockon group flex min-h-[184px] w-full [--hv-lockon-inset:6px] [--hv-lockon-from:1.03] flex-col gap-3 p-4 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
                 >
                   <span className="flex items-center justify-between gap-3">
                     <span className={cn(MONO, 'flex size-7 items-center justify-center border border-line-strong text-foreground')}>
@@ -236,7 +236,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
                   <button
                     type="button"
                     onClick={() => onOpenRun(run.id)}
-                    className="grid min-h-7 w-full grid-cols-1 gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center"
+                    className="hv-lockon grid min-h-7 w-full grid-cols-1 [--hv-lockon-inset:2px] gap-x-6 gap-y-1 px-4 py-2 text-left hover:bg-surface-sunken focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center"
                   >
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className="truncate text-[13px] text-foreground">{run.harness_name}</span>

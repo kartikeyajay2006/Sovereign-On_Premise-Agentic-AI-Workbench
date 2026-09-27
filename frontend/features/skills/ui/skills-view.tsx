@@ -86,7 +86,7 @@ function SkillRow({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] text-left focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
+          className="hv-lockon flex min-w-0 flex-1 items-center gap-3 rounded-[10px] text-left [--hv-lockon-inset:-6px] focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none"
         >
           <ChevronRight
             aria-hidden

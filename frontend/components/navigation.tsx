@@ -351,7 +351,7 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
                     aria-current={active ? 'true' : undefined}
                     title={`${task.skill ? `/${task.skill.id} ${task.skill.input}` : task.prompt} (${stateWords}, ${relativeTime(task.created_at)})`}
                     className={cn(
-                      'flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2 text-left transition-colors duration-100',
+                      'hv-lockon flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2 text-left transition-colors duration-100 [--hv-lockon-inset:1px]',
                       'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
                       active ? 'bg-[color-mix(in_oklab,var(--foreground)_7%,transparent)]' : 'hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)]',
                     )}

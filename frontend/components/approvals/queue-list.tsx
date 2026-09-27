@@ -52,7 +52,7 @@ export const QueueRow = memo(function QueueRow({
         // A click synthesised from Enter or Space reports detail 0.
         onClick={(event) => onSelect(item.id, event.detail === 0)}
         className={cn(
-          'hover-decay flex w-full flex-col gap-1 border-b border-line-subtle px-4 py-3 text-left',
+          'hv-lockon hover-decay flex w-full flex-col gap-1 border-b [--hv-lockon-inset:3px] border-line-subtle px-4 py-3 text-left',
           // Inset, because an outer ring is clipped by the scrolling list.
           'focus-visible:shadow-[inset_0_0_0_2px_var(--foreground)] focus-visible:outline-none',
           selected
