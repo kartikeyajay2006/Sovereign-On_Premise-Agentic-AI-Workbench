@@ -61,6 +61,8 @@ ATTRIBUTES: dict[str, tuple[str, str, Dimension | None]] = {
 # it is reported once, as the input conflict.
 _INPUT_FIELD = {
     "design_pressure": "design_pressure",
+    "operating_pressure": "operating_pressure",
+    "mawp": "mawp",
     "nominal_thickness": "nominal",
     "t_min": "t_min",
     "in_service_date": "in_service_date",

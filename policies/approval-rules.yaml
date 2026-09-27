@@ -87,6 +87,19 @@ approval_required_when:
         capacity: approves
         clause: SOP-OPS-008 Clause 2.3
 
+  # SOP-INS-021 Clause 6.1 permits interim operation of equipment awaiting a
+  # Fitness-For-Service assessment only at or below 90% of its registered
+  # MAWP. The corpus gives a breach no severity, so none is invented: the run
+  # is held for the authorities who approve interim operation (SOP-INS-021
+  # Clause 6.2; SOP-OPS-008 Clause 2.8). Both approve that decision; this
+  # rule names them as its deciders but does not yet enforce two signatures,
+  # which the policy attaches to severities only.
+  - name: interim_operation_limit
+    description: Operating pressure exceeds 90% of MAWP while the equipment awaits a Fitness-For-Service assessment, so interim operation is not permitted (SOP-INS-021 Clause 6.1); interim operation is approved by the Head of Inspection and the Plant Manager (SOP-INS-021 Clause 6.2; SOP-OPS-008 Clause 2.8).
+    match:
+      operating_limit_breaches: true
+    approver_roles: [head_of_inspection, plant_manager]
+
   - name: safety_recommendation
     description: Safety-related recommendations are never released unreviewed.
     match:

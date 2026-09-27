@@ -313,6 +313,15 @@ export function IntegrityCard({
               )}
             </Reading>
           )}
+          {/* Clause checks beyond thickness, e.g. SOP-INS-021 Clause 6.1's interim pressure limit. */}
+          {(assessment.checks ?? []).map((check) => (
+            <Reading key={check.label} label={check.label} cite={decisionId} onCite={onCite}>
+              <span className={cn('font-medium', check.passed ? 'text-sovereign-text' : 'text-critical-text')}>
+                {check.passed ? 'passed' : 'failed'}
+              </span>
+              <span className="text-meta text-foreground-muted">{check.detail}</span>
+            </Reading>
+          ))}
           {assessment.severity_basis && (
             <p className="text-meta text-foreground-secondary sm:col-span-2 lg:col-span-3">
               <span className="font-medium text-foreground">Basis.</span> {assessment.severity_basis}.{' '}

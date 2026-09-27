@@ -364,6 +364,7 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     elif assessment.kind == "vessel":
         lines.append(f"[{decision}] No Fitness-For-Service trigger applies "
                      f"(local metal loss {assessment.local_metal_loss_percent:g}% of nominal).")
+    lines.extend(_envelope_lines(assessment, records, decision))
     if assessment.withdraw_from_service:
         # Never a routine date for equipment that is out of service: "next
         # survey in 12 months" read as permission to run for 12 months.
@@ -376,6 +377,29 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
         lines.append(f"[{decision}] Next {'thickness survey' if assessment.kind == 'vessel' else 'measurement'} "
                      f"due {assessment.next_due} ({assessment.next_due_basis}).")
     return lines
+
+
+def _envelope_lines(
+    assessment: IntegrityAssessment, records: list[CalculationRecord], decision: str | None
+) -> list[str]:
+    """SOP-INS-021 Clause 6.1's interim pressure limit, when the run judged it."""
+    envelope = next((r for r in records if r.formula_id == "envelope.interim_operating_pressure"), None)
+    if envelope is None:
+        return []
+    if envelope.status != "calculated":
+        return [
+            f"[{decision}] {assessment.subject} awaits a Fitness-For-Service assessment, so interim operation "
+            "requires operating pressure at or below 90% of MAWP (SOP-INS-021 Clause 6.1); this cannot be "
+            f"calculated: {envelope.reason}. Do not estimate it."
+        ]
+    within = bool(output_value(envelope, "within_limit"))
+    return [
+        f"[{decision}] {assessment.subject}: interim operating pressure (SOP-INS-021 Clause 6.1): "
+        f"{'within the limit' if within else 'EXCEEDS the limit'}. {envelope.display}.",
+        f"[{decision}] Interim operation pending the assessment is recommended by the Inspection Engineer and "
+        "approved by the Head of Inspection and the Plant Manager (SOP-INS-021 Clause 6.2; SOP-OPS-008 "
+        "Clause 2.8).",
+    ]
 
 
 def _relief_lines(assessment: IntegrityAssessment, decision: str | None) -> list[str]:

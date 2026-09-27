@@ -348,6 +348,7 @@ class PolicyGateway:
         isolation_plan: bool = False,
         severity: str | None = None,
         dlp_findings: int = 0,
+        operating_limit_breaches: int = 0,
     ) -> tuple[bool, list[str], list[str]]:
         """Evaluate approval-rules.yaml; return (required, reasons, approver_roles).
 
@@ -358,6 +359,8 @@ class PolicyGateway:
         (policies/dlp.yaml) is to hold or withhold rather than pass or redact.
         ``severity`` is the computed severity of the run's finding; a rule
         with ``signatures`` for it makes only those roles the deciders.
+        ``operating_limit_breaches`` counts registered operating-envelope
+        checks (``envelope.*`` formulas) the run's evidence failed.
         """
         required = False
         reasons: list[str] = []
@@ -394,6 +397,8 @@ class PolicyGateway:
                 hit = isolation_plan == bool(match["isolation_plan"])
             elif "dlp_findings" in match:
                 hit = (dlp_findings > 0) == bool(match["dlp_findings"])
+            elif "operating_limit_breaches" in match:
+                hit = (operating_limit_breaches > 0) == bool(match["operating_limit_breaches"])
             elif "instruction_like_evidence" in match:
                 hit = (instruction_like_evidence > 0) == bool(match["instruction_like_evidence"])
             elif "classification_confidence_below" in match:
