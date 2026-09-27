@@ -69,11 +69,22 @@ Ten named stages of **one orchestrator** (`backend/agents/orchestrator.py`), run
 <sub>Source: <a href="frontend/lib/crew.ts"><code>frontend/lib/crew.ts</code></a>. The models are the defaults registered in <a href="config/models.yaml"><code>config/models.yaml</code></a>; the router can pick another registered model that policy approves for the data.</sub>
 
 ```mermaid
-flowchart LR
-    Q([Question]) --> T[TRIAGE] --> P[PLANNER] --> R[READER] --> S[SCOUT] --> K[RECKONER] --> B[BENCH] --> W[SCRIBE] --> C[CHECKER] --> G{WARDEN}
+flowchart TB
+    Q([Question]) --> T
+    subgraph understand ["Understand the question"]
+        direction LR
+        T[TRIAGE] --> P[PLANNER] --> R[READER] --> S[SCOUT]
+    end
+    subgraph answer ["Work out and check the answer"]
+        direction LR
+        K[RECKONER] --> B[BENCH] --> W[SCRIBE] --> C[CHECKER]
+    end
+    S --> K
+    C --> G{WARDEN}
     G -->|auto-release permitted| OUT([Answer released])
     G -->|a rule holds it| H([Approval queue])
-    N[["NOTARY: every step appended to the audit chain"]]
+    OUT -.-> N[["NOTARY: every step appended to the audit chain"]]
+    H -.-> N
     classDef optional stroke-dasharray: 4 3
     class P,R,B optional
 ```
