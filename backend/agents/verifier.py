@@ -113,6 +113,34 @@ def _figures(text: str) -> set[str]:
     return figures
 
 
+def _names_the_authority(claim: str, assessment: IntegrityAssessment) -> bool:
+    """Whether a claim states the assessment's approving (and recommending) roles, each in place.
+
+    Every approver follows the first "approv"; the approving stretch (to a
+    later "recommend", or the end) names no role that only recommends; and a
+    claim that speaks of recommending names every recommender. Misplaced
+    roles fall through to the passage check rather than pass: "recommended
+    by the Plant Manager and approved by the Head of Inspection", or
+    "approved by the Plant Manager and the Head of Inspection", for a High
+    finding.
+    """
+    approvers = [name.lower() for name in assessment.approved_by]
+    if not approvers:
+        return False
+    recommenders = [name.lower() for name in assessment.recommended_by]
+    lowered = claim.lower()
+    at = lowered.find("approv")
+    if at < 0:
+        return False
+    recommend_at = lowered.find("recommend")
+    approving = lowered[at:recommend_at] if recommend_at > at else lowered[at:]
+    if not all(name in approving for name in approvers):
+        return False
+    if any(name in approving for name in recommenders if name not in approvers):
+        return False
+    return recommend_at < 0 or all(name in lowered for name in recommenders)
+
+
 def _registry_summary(assessment: IntegrityAssessment) -> str:
     """The computed decision in one line, for whichever kind of record it was."""
     severity = f", {assessment.severity.capitalize()}" if assessment.severity else ""
@@ -843,7 +871,12 @@ class VerificationEngine:
                     f"A disposition is decided by {approver}; the workbench may recommend it but not settle it.",
                 ))
                 continue
-            if calculated and kind in ("engineering", "numerical", "procedural"):
+            # A sentence naming who recommends and approves carries no figure
+            # or engineering term, so it reads as "factual"; it is still an
+            # output of the severity decision and is judged with the others.
+            if calculated and (
+                kind in ("engineering", "numerical", "procedural") or _names_the_authority(claim, assessment)
+            ):
                 contradiction = self.check_engineering(claim, assessment, records)
                 if not contradiction.passed:
                     verdicts.append(verdict("UNSUPPORTED", list(assessment.evidence_ids[-1:]),
@@ -867,7 +900,12 @@ class VerificationEngine:
                 governing = assessment.governing_location or ""
                 located = bool(governing and governing.lower() in claim.lower()
                                and re.search(r"\bgovern", claim, re.IGNORECASE))
-                if matched or dated or banded or authorised or located:
+                # And who recommends and who approves (SOP-OPS-008 Clause 2),
+                # as the stage words it rather than as the joined approver
+                # string: each approver after "approv", each recommender
+                # outside that stretch, so swapped roles do not pass.
+                endorsed = _names_the_authority(claim, assessment)
+                if matched or dated or banded or authorised or located or endorsed:
                     c_ids = [i for i in known_cited if i.startswith("C")] or [ident for _, ident in matched] \
                         or list(assessment.evidence_ids[-1:])
                     shown = ", ".join(f"{f:g}" for f, _ in matched)
