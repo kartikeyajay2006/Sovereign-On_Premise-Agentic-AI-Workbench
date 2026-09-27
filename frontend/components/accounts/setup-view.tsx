@@ -107,7 +107,7 @@ export function SetupView() {
           <AuthHeading
             label="Owner setup"
             title="The service did not answer."
-            lede="Start the workbench service on this machine, then reload this page."
+            lede="Start the workbench service on this machine, then reload."
           />
         </>
       )}
@@ -117,7 +117,7 @@ export function SetupView() {
           <AuthHeading
             label="Owner setup"
             title="This host is set up."
-            lede="It already has an administrator, so the setup token no longer opens anything. Ask an administrator for an invitation, or request access."
+            lede="It already has an administrator, so the setup token opens nothing. Ask an administrator for an invitation, or request access."
           />
           <p className="mt-8 text-[0.9rem]">
             <Link href="/sign-in" className="hv-link">
@@ -134,9 +134,9 @@ export function SetupView() {
             title="Claim this host"
             lede={
               <>
-                No one administers this workbench yet. When the service started it wrote a one-time token to{' '}
-                <span className="font-mono text-[0.85em] text-foreground">storage/setup-token</span> and printed it in its
-                console. It lapses 24 hours after it was issued; restarting the service issues a new one.
+                No one administers this workbench yet. On start, the service wrote a one-time token to{' '}
+                <span className="font-mono text-[0.85em] text-foreground">storage/setup-token</span> and printed it to its
+                console. It lapses after 24 hours; restarting the service issues a new one.
               </>
             }
           />
@@ -160,7 +160,7 @@ export function SetupView() {
           <AuthHeading
             label="Owner setup · Step 2 of 2"
             title="Your administrator account"
-            lede="This account can invite people, decide access requests and deactivate accounts. It is the first entry on this host's audit chain about who may sign in."
+            lede="This account invites people, decides access requests and deactivates accounts. It is the first record on this host's audit chain of who may sign in."
           />
           <form onSubmit={create} className="mt-10 flex flex-col gap-5" noValidate>
             <Field

@@ -186,7 +186,7 @@ export function readPolicyChoices(signal: AbortSignal) {
 /** The service's own message from a failed call, or a fallback in its voice. */
 export function refusal(err: unknown, fallback: string): string {
   const e = err as { status?: number; detail?: unknown }
-  if (e?.status === 0) return 'The workbench service did not answer. Check that it is running, then try again.'
+  if (e?.status === 0) return 'The workbench service did not answer. Start it, then try again.'
   if (typeof e?.detail === 'string' && e.detail) return e.detail
   return fallback
 }

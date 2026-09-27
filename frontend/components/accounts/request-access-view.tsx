@@ -127,7 +127,7 @@ function RequestForm({ onSubmitted }: { onSubmitted: (id: string) => void }) {
       <AuthHeading
         label="Request access"
         title="Ask for an account"
-        lede="An administrator on this host reads every request and decides your role and department. Until then the account cannot sign in."
+        lede="An administrator reads every request and sets your role and department. Until then the account cannot sign in."
       />
       <form onSubmit={submit} className="mt-10 flex flex-col gap-5" noValidate>
         <Field
@@ -146,7 +146,7 @@ function RequestForm({ onSubmitted }: { onSubmitted: (id: string) => void }) {
           value={reason}
           maxLength={1000}
           onChange={(e) => setReason(e.target.value)}
-          hint="Your team, your supervisor, what you will use it for. The administrator sees exactly this."
+          hint="Your team, your supervisor, what it is for. The administrator sees exactly this."
         />
         <Field
           label="Password"
@@ -154,7 +154,7 @@ function RequestForm({ onSubmitted }: { onSubmitted: (id: string) => void }) {
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          hint="At least 8 characters. You will sign in with it once the request is approved."
+          hint="At least 8 characters. You sign in with it once approved."
         />
         <Field
           label="Confirm password"
@@ -255,7 +255,7 @@ function RequestStatus({ id, onForget }: { id: string; onForget: () => void }) {
         <AuthHeading
           label="Request access · Approved"
           title="You can sign in."
-          lede="An administrator approved your request and set your role and department. Sign in with the username and password you chose."
+          lede="An administrator approved it and set your role and department. Sign in with the username and password you chose."
         />
         <Link href="/sign-in" className="hv-btn mt-8 w-full" onClick={onForget}>
           Go to sign in
@@ -275,7 +275,7 @@ function RequestStatus({ id, onForget }: { id: string; onForget: () => void }) {
           </div>
         )}
         <p className="mt-6 text-[0.88rem] leading-[1.55] text-foreground-secondary">
-          The account it created has been removed. You can ask again, or ask an administrator for an invitation.
+          The account it created was removed. Ask again, or ask an administrator for an invitation.
         </p>
         <button type="button" onClick={onForget} className="hv-btn quiet mt-6 w-full">
           Make a new request
@@ -292,7 +292,7 @@ function RequestStatus({ id, onForget }: { id: string; onForget: () => void }) {
         lede={
           poll.kind === 'reading'
             ? 'Asking this host about your request…'
-            : 'Your request is in the administrators’ queue. This page checks for a decision every 15 seconds; you can also close it and come back.'
+            : 'Your request is in the administrators’ queue. This page checks every 15 seconds; you can close it and come back.'
         }
       />
       {current && (

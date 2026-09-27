@@ -151,8 +151,8 @@ function IssuedCode({ title, code, path, onClose }: { title: string; code: strin
         </button>
       </div>
       <p className="m-0 text-ui text-foreground-muted">
-        The service stores only a hash of this code. Hand it to the person directly; once this panel is closed it cannot be
-        shown again.
+        The service stores only a hash of this code. Hand it over directly: once this panel closes, it cannot be shown
+        again.
       </p>
     </div>
   )
@@ -273,7 +273,7 @@ function RequestsSection({
   return (
     <Section
       title="Access requests"
-      lede="People who asked for an account. Each is inactive until you approve it; the role and department are yours to choose, whatever was asked for."
+      lede="People who asked for an account. Each stays inactive until you approve it. You set the role and department, whatever was asked for."
     >
       <Read reading={requests} what="the access requests" source="GET /api/admin/access-requests">
         {(rows) => {
@@ -282,7 +282,7 @@ function RequestsSection({
           return (
             <>
               {pending.length === 0 ? (
-                <EmptyState title="No requests waiting." body="New requests appear here when someone uses Request access on the sign-in screen." />
+                <EmptyState title="No requests waiting." body="Requests land here when someone uses Request access on the sign-in screen." />
               ) : (
                 <ul className="flex flex-col border-t border-line-subtle">
                   {pending.map((request) => (
@@ -372,7 +372,7 @@ function InvitesSection({ invites, choices }: { invites: Reading<InviteRecord[]>
   return (
     <Section
       title="Invitations"
-      lede="Fix the role and department, then hand over a one-time code. Whoever redeems it gets exactly that, and the chain records who invited them."
+      lede="Set the role and department, then hand over a one-time code. Whoever redeems it gets exactly that, and the chain records who invited them."
     >
       <form onSubmit={create} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
         <Select label="Role" value={chosenRole} onChange={setRole} options={roles} disabled={busy} />
@@ -392,7 +392,7 @@ function InvitesSection({ invites, choices }: { invites: Reading<InviteRecord[]>
       <Read reading={invites} what="the invitations" source="GET /api/admin/invites">
         {(rows) =>
           rows.length === 0 ? (
-            <EmptyState title="No invitations issued yet." />
+            <EmptyState title="No invitations issued yet." body="Create one above to hand someone a one-time code." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-ui">
@@ -475,7 +475,7 @@ function AccountsSection({ accounts }: { accounts: Reading<AccountRecord[]> }) {
   return (
     <Section
       title="Accounts"
-      lede="Everyone who can sign in to this host, and how each account came to exist. Deactivating ends the account's sessions at once; nothing is deleted."
+      lede="Everyone who can sign in here, and how each account came to exist. Deactivating ends its sessions at once; nothing is deleted."
     >
       {issued && (
         <IssuedCode
@@ -584,7 +584,7 @@ export function AdminAccessView() {
     <div className="flex flex-col">
       <PageHeader
         title="People"
-        description="Who can sign in to this host. Every account here traces to an administrator's decision, and every decision is on the audit chain."
+        description="Who can sign in to this host. Every account traces to an administrator's decision on the audit chain."
         meta={[
           { label: 'Waiting', value: pending, tone: pending ? 'approval' : 'default', hint: requests.readAt ? `GET /api/admin/access-requests, ${clockTime(requests.readAt)}` : undefined },
           { label: 'Open invitations', value: open, hint: invites.readAt ? `GET /api/admin/invites, ${clockTime(invites.readAt)}` : undefined },
@@ -597,7 +597,7 @@ export function AdminAccessView() {
         <AccountsSection accounts={accounts} />
         <Section
           title="Directory"
-          lede="Signing in against the plant's AD/LDAP, with roles from group membership, is the preferred path for a plant that runs one."
+          lede="Sign in against the plant's AD/LDAP, with roles from group membership. The preferred path where a plant runs one."
         >
           <Read reading={directory} what="the directory status" source="GET /api/admin/directory">
             {(status) => (

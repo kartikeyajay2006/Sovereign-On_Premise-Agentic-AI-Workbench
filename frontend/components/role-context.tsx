@@ -129,8 +129,8 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       throw new Error(
         err?.detail ||
-          `Could not sign in as '${id}'. That account may not exist on this ` +
-            `host, or it does not use the default password.`
+          `'${id}' did not sign in. The account may not exist on this host, ` +
+            `or it does not use the default password.`
       )
     } finally {
       setLoading(false)

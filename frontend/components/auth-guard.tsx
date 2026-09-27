@@ -52,7 +52,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               <p className="text-body text-foreground-muted">
                 The workbench service has not answered{' '}
                 <span className="font-mono text-ui text-foreground-secondary">GET /api/auth/session</span>{' '}
-                yet. It may still be starting, or busy with a model run on this machine.
+                yet. It may be starting, or busy with a model run on this machine.
               </p>
               <Link
                 href="/sign-in"
