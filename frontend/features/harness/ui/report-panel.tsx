@@ -79,7 +79,7 @@ export function ReportPanel({
       setComment('')
       push({
         title: decision === 'approve' ? 'Report released' : 'Report rejected',
-        detail: 'The decision is recorded in the audit log against your account.',
+        detail: 'Recorded in the audit log against your account.',
         tone: decision === 'approve' ? 'sovereign' : 'critical',
       })
     } catch (err) {
@@ -110,8 +110,8 @@ export function ReportPanel({
           active ? (
             <p className="text-body text-foreground-secondary">
               {aggregating
-                ? 'Every child has settled; the report is being written now.'
-                : 'Written when the run ends, as markdown and JSON. Each file is sha256-hashed, and the hashes are recorded on the run and in the audit log.'}
+                ? 'Every child has settled. Writing the report.'
+                : 'Written when the run ends, as markdown and JSON. Each file is sha256-hashed on the run and in the audit log.'}
             </p>
           ) : (
             <>
@@ -160,7 +160,7 @@ export function ReportPanel({
                 {record.approval.decision === 'pending' && (
                   <p className="wash-approval flex items-center gap-2 rounded-[var(--radius)] border-l-2 border-approval px-3 py-2 text-ui font-medium text-foreground">
                     <Lock aria-hidden className="size-3.5 shrink-0 text-approval-text" />
-                    Held until someone holding approval.decide releases it.
+                    Held for review until a role with approval.decide releases it.
                   </p>
                 )}
                 {record.approval.decision === 'approved' && (
@@ -185,8 +185,8 @@ export function ReportPanel({
               </div>
             ) : (
               <p className="text-ui text-foreground-secondary">
-                Released when written: this harness does not require sign-off, and the report carries
-                no answer that was held.
+                Released when written: this harness needs no sign-off, and the report holds no held
+                answer.
               </p>
             )}
 
@@ -218,7 +218,7 @@ export function ReportPanel({
                       busy={regenerating}
                       busyLabel="Writing…"
                       ground="sunken"
-                      title={`Writes version ${record.version + 1} from the child records as they stand now`}
+                      title={`Write version ${record.version + 1} from the child records as they stand now`}
                     >
                       Regenerate
                     </Button>
@@ -277,7 +277,7 @@ export function ReportPanel({
               <p className="text-ui text-foreground-muted">
                 {record.released
                   ? 'Your role is not entitled to download this report.'
-                  : 'Not released, so only a role holding approval.decide can download it.'}
+                  : 'Not released: only a role with approval.decide can download it.'}
               </p>
             )}
 

@@ -214,7 +214,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
       setConfirmCancel(false)
       push({
         title: 'Stopping the run',
-        detail: 'Nothing further will be submitted. The running child ends at its next stage boundary.',
+        detail: 'Nothing more will start. The running child ends at its next stage boundary.',
         tone: 'default',
       })
     } catch (err) {
@@ -272,7 +272,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
             run <CopyValue label="run id" value={run.id} display={run.id.slice(0, 8)} />
           </span>
           <span aria-hidden>·</span>
-          <span className="border border-foreground px-1.5 text-foreground" title="Children run one at a time: the runner waits for each to settle, and the task service has one worker.">
+          <span className="border border-foreground px-1.5 text-foreground" title="Children run one at a time: each settles before the next starts, on the one worker.">
             serial · 1 worker
           </span>
           <span aria-hidden>·</span>
@@ -294,7 +294,7 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
         {confirmCancel && (
           <Notice className="flex flex-col gap-3">
             <span className="text-foreground">
-              Stop this run? The child in flight is stopped through the task service and ends at its next stage boundary
+              Stop this run? The child in flight ends at its next stage boundary
               {notYetSubmitted > 0 ? `; ${plural(notYetSubmitted, 'item')} not yet submitted will never run` : ''}. Settled
               runs keep their records, and a partial report is still written.
             </span>

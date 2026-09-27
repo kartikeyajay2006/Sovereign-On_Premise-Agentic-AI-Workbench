@@ -342,7 +342,7 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
         <ErrorState
           className="mt-6"
           headline={loadError.status === 404 ? 'That harness is not defined.' : 'The harness could not be read.'}
-          nextAction="Return to the library and choose one that is listed."
+          nextAction="Go back to the library and pick a listed harness."
           identifier={{ label: 'harness', value: harnessId }}
           detail={String(loadError.detail || loadError.message)}
         />
@@ -385,9 +385,9 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
 
       {!canCreate && (
         <Notice>
-          Your role, <span className="font-mono text-foreground">{user?.role ?? role.label}</span>, does
-          not hold <span className="font-mono text-foreground">task.create</span>, so it can read
-          harnesses and their runs but cannot start one.
+          Your role, <span className="font-mono text-foreground">{user?.role ?? role.label}</span>, lacks{' '}
+          <span className="font-mono text-foreground">task.create</span>: it can read harnesses and their
+          runs, not start one.
         </Notice>
       )}
 
@@ -413,9 +413,9 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
                 {definition.template}
               </pre>
               <p className="mt-2 text-ui text-foreground-muted">
-                Each prompt is submitted to the task service as an ordinary run and answered in prose,
-                never as a document. Classification, policy, retrieval, verification and the approval
-                gate apply to each one on its own terms.
+                Each prompt goes in as an ordinary run and is answered in prose, never as a document.
+                Classification, policy, retrieval, verification and the approval gate apply to each
+                one.
               </p>
             </details>
 
@@ -472,7 +472,7 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
                   actionError.status === 403
                     ? 'This role cannot start harness runs.'
                     : actionError.status === 409
-                      ? 'Reload the page to read the current definition, then preview again.'
+                      ? 'Reload for the current definition, then preview again.'
                       : 'Correct the inputs and preview again.'
                 }
                 detail={String(actionError.detail || actionError.message)}
@@ -482,8 +482,8 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
 
           {!preview ? (
             <p className="px-4 py-6 text-body text-foreground-secondary">
-              Preview expands the inputs into the exact prompts that would be submitted, and counts
-              what your role can retrieve. Nothing runs until you start it.
+              Preview shows the exact prompts your inputs expand to and what your role can retrieve.
+              Nothing runs until you start it.
             </p>
           ) : (
             <div className={cn('flex flex-col', stale && 'opacity-[var(--opacity-dim)]')}>
@@ -586,9 +586,9 @@ export function HarnessConfigure({ harnessId, onBack, onStarted }: HarnessConfig
                   )}
                 </div>
                 <p className="max-w-[70ch] text-ui text-foreground-muted">
-                  Runs are submitted one at a time, each after the one before it settles, so a thread
-                  question asked meanwhile waits behind at most one of them. Progress is shown as runs
-                  settle. No finish time is estimated.
+                  Runs go one at a time, each after the last settles, so a thread question asked
+                  meanwhile waits behind at most one. Progress moves as runs settle; no finish time is
+                  estimated.
                 </p>
               </div>
             </div>

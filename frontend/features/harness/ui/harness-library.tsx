@@ -118,7 +118,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
     <>
     <PageHeader
       title="Harnesses"
-      description="One job over many items. Each item is an ordinary checked run, and the job ends in one hashed report."
+      description="One harness, many items. Each item is an ordinary checked run; the harness ends in one hashed report."
     />
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-4 pb-16 pt-6 sm:px-6">
       <Panel
@@ -129,7 +129,7 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
           <div className="p-4">
             <ErrorState
               headline="The harness library could not be read."
-              nextAction="Check that the workbench service is running, then reload."
+              nextAction="Start the workbench service, then reload."
               detail={String(catalogError.detail || catalogError.message)}
             />
           </div>
