@@ -20,10 +20,30 @@ from backend.core.config import get_config
 
 
 def test_reasoning_prompt_asks_for_a_cited_opening_sentence():
-    system = get_config().system_prompt("reasoning")
+    system = " ".join(get_config().system_prompt("reasoning").split())
     assert "The first sentence is the answer: one direct sentence" in system
     assert "ends with the identifier of the evidence" in system
     assert "checked like one" in system
+
+
+def test_prompts_give_no_placeholder_to_copy():
+    # qwen2.5:3b copied an example written as "<answer> [S2]." word for word,
+    # so every answer opened with "<answer>". The prompts show a bare
+    # identifier and no placeholder.
+    config = get_config()
+    system = " ".join(config.system_prompt("reasoning").split())
+    assert "<answer>" not in system and "[answer]" not in system
+    assert "one identifier per bracket" in system
+
+
+def test_a_leading_answer_label_is_removed():
+    from backend.agents.orchestrator import _strip_reasoning
+
+    for raw in ("<answer> The interval is 48 months [S1].", "[answer] The interval is 48 months [S1].",
+                "**Answer:** The interval is 48 months [S1].", "Answer: The interval is 48 months [S1].</answer>"):
+        assert _strip_reasoning(raw) == "The interval is 48 months [S1]."
+    # Only a label at the very start: the word inside a sentence stays.
+    assert _strip_reasoning("The answer is 48 months [S1].") == "The answer is 48 months [S1]."
 
 
 def test_answer_templates_repeat_the_cited_opening():

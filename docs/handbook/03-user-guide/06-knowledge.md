@@ -1,8 +1,8 @@
 # 3.6 · Knowledge
 
 <div align="center">
-<img src="../../assets/readme/screenshot-knowledge.webp#gh-light-mode-only" alt="The Knowledge screen listing the indexed procedures" width="860">
-<img src="../../assets/readme/screenshot-knowledge-dark.webp#gh-dark-mode-only" alt="The Knowledge screen listing the indexed procedures" width="860">
+<img src="../../assets/readme/knowledge-light.webp#gh-light-mode-only" alt="The Knowledge screen: the procedures this account may retrieve, with department and classification" width="860">
+<img src="../../assets/readme/knowledge-dark.webp#gh-dark-mode-only" alt="The Knowledge screen: the procedures this account may retrieve, with department and classification" width="860">
 </div>
 
 *What retrieval can cite, the models on this host, and a tester for retrieval itself.* Open it with <kbd>G</kbd> then <kbd>K</kbd>. The old addresses `/knowledge` and `/library` redirect here.

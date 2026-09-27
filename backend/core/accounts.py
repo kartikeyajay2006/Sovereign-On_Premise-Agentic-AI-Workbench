@@ -46,6 +46,7 @@ from backend.core.identity import (
     USERNAME_PATTERN,
     get_identity_service,
     hash_password,
+    verify_password,
 )
 from backend.core.schemas import (
     AccessRequestRecord,
@@ -216,6 +217,40 @@ class AccountService:
     def needs_setup(self) -> bool:
         """True only where the owner setup is the way in: no demo, no administrator."""
         return not self.demo_enabled() and not self.has_administrator()
+
+    def retire_demo_accounts(self) -> list[str]:
+        """In production, deactivate the demo accounts that still take the shared password.
+
+        Seed accounts are created only in demo mode, all with one published
+        password. A host switched from demo to production kept them active,
+        so admin / workbench still signed in and, with an administrator on
+        the books, no setup token was ever issued. Every declared seed
+        identity that still accepts ``security.seed_user_password`` is
+        deactivated here and its sessions ended; one given its own password
+        is left alone. Run at startup, before the setup token is decided.
+        """
+        if self.demo_enabled():
+            return []
+        shared = str(self.config.settings.security.get("seed_user_password") or "")
+        if not shared:
+            return []  # Seeded with random passwords: nothing shared to retire.
+        declared = {str(seed.get("username")) for seed in self.config.access_control.get("seed_users", [])}
+        retired: list[str] = []
+        for record in self.db.list_users():
+            if (
+                record["username"] in declared
+                and bool(record["active"])
+                and verify_password(shared, record["password_hash"])
+            ):
+                self.db.update_user(record["id"], active=0)
+                self.db.delete_user_sessions(record["id"])
+                retired.append(record["username"])
+        if retired:
+            self.audit.record(
+                category="security", action="demo_accounts_retired", actor="system",
+                detail={"usernames": retired, "reason": "demo mode is off and these accept the shared demo password"},
+            )
+        return retired
 
     def _roles(self) -> set[str]:
         return set(self.config.access_control.get("roles", {}))

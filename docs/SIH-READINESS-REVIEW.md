@@ -8,9 +8,9 @@ it says otherwise.
 
 ## Verdict
 
-The plan's six phases are built, with four gaps left open: operating-envelope
-checks, three of the five plant-system adapters, approval binding to the
-prompt, evidence, policy and model, and frontend tests. The three judged
+The plan's six phases are built. Two gaps remain: document-management and
+directory adapters (the historian, OPC UA and CMMS adapters are read-only
+simulators), and the operating limits the SOP corpus has no clause for. The three judged
 moments run end to end, and the red team holds **31 of 31** attacks against
 the live host. What decides the result now is less the code than the demo
 machine: the sandbox image and the egress firewall are not set up on it, and
@@ -20,10 +20,10 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 
 | Phase | Plan item | Status | Where it lives |
 |---|---|---|---|
-| 1 Engineering | Versioned, clause-cited formula registry | Done: 18 formulas | `backend/engineering/formulas.py` |
+| 1 Engineering | Versioned, clause-cited formula registry | Done: 21 formulas | `backend/engineering/formulas.py` |
 | | Corrosion rate, remaining life, interval, t-min, severity | Done | same |
-| | Relief-device checks | Done (this pass): SOP-INS-025 Clauses 2-5 | `relief.*` formulas, `backend/engineering/relief.py` |
-| | Pressure and temperature operating limits | **Open**: only set pressure ≤ MAWP | — |
+| | Relief-device checks | Done: SOP-INS-025 Clauses 2-5; every record in a run, records of one valve compared (`e1565bd`) | `relief.*` formulas, `backend/engineering/relief.py` |
+| | Pressure and temperature operating limits | Done as far as the corpus states them (`c7a3119`): SOP-INS-021 Clause 6.1, operating pressure ≤ 90% of MAWP in interim operation. No clause sets operating pressure against MAWP otherwise, or operating temperature against a design range | `envelope.interim_operating_pressure`, `backend/engineering/assessment.py`; the rest of Clauses 5-6 as `ffs.rerated_mawp` and `ffs.interim_operation` |
 | | Unit-aware, dimension errors refused | Done | `backend/engineering/units.py` |
 | | Every input bound to evidence; hashes persisted | Done | `CalculationRecord` |
 | | *Cannot calculate* when an input is missing | Done | registry and integrity card |
@@ -41,7 +41,7 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 | | Isolation, upstream and downstream questions with overlay | Done | `/pid`, drawing explorer |
 | | Historian and OPC UA adapters | Done (read-only, simulator) | `backend/connectors/` |
 | | CMMS, document-management and directory adapters | **Open** | — |
-| 6 Proof | Approval bound to what the reviewer saw | Partial: answer, deliverables, results, conflicts; **not** prompt, evidence set, policy or model digest | `review_digest` in `backend/proof/certificate.py` |
+| 6 Proof | Approval bound to what the reviewer saw | Done (`50b0dc1`): answer, deliverables, results, conflicts, and the prompt, evidence set, policy files and model digests (review digest version 2; version 1 records still verify) | `review_digest` in `backend/proof/certificate.py` |
 | | Two signatures for a High finding | Done, role by role, in order | `policies/approval-rules.yaml` |
 | | Ed25519-signed audit roots and run certificates | Done | `backend/proof/` |
 | | Measurements dashboard, golden demo check | Done | `/measurements`, `scripts/golden_demo.py` |
@@ -55,6 +55,7 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 | `119a29b` | Generated code on the subprocess runtime runs in a private network namespace: the kernel refuses every connection, to the internet and to this host's own loopback (Ollama, the API), with or without the shim. Probed before use, shown on the Sandbox page, measured by the self-test. |
 | `ab0ccfc` | A PSV bench-test record is assessed in a run. A failed as-received test is High on the protected vessel, so the run is held for the Head of Inspection and then the Plant Manager. A fourth starter card attaches the record. The engineering check no longer raises on an assessment without a corrosion rate. |
 | `f7e77e7` | A High finding's footer says "Held for Head of Inspection, then Plant Manager", then "(1 of 2 signed)", instead of "or". |
+| `50b0dc1` | Approval bound to the whole run. The review digest (version 2) also binds the prompt hash, the evidence ids with their source hashes, the policy file hashes and the model digests, taken from the same values the certificate records. A change to any of them voids the signatures given and blocks release, and the refusal names what changed ("the policy files changed since review"). The review pane and Proof Mode list what a signature binds. Signatures and approvals stored under version 1 are checked under version 1 rules and keep verifying. |
 
 Measured on the live host after these commits:
 
@@ -94,6 +95,35 @@ After the fixes: `scripts/golden_demo.py` ends **FINAL STATUS: READY**, the red 
 
 One finding is the model's, not the code's: on one run the 3B model drafted an approval note without the inline citations its prompt asks for. Document verification failed it and the run was held, which is the control working.
 
+## Second sweep, after PRs #8–#15
+
+The 101 commits merged on 27 September (Hi-Vis redesign, account provisioning, deployment readiness, Harness Control, a copy sweep), checked the same way, plus the new account doors exercised live on a separate production-mode instance with an empty database: owner setup, invitations, access requests, password resets, deactivation and code guessing, 30 checks, all held.
+
+| Check | Found |
+|---|---|
+| Suite, static analysis, types | 1094 passed; pyflakes clean; one unused constant in the landing page |
+| API, every GET as all 7 roles (504 calls) | no server error; the pre-pull database migrated without error |
+| Console, 22 routes as six signed-in roles (132 loads, sessions verified) | no exception or console error; the People page, opened by address without `users.manage`, requested three admin lists and was refused |
+| Golden demo, red team | READY; 31 of 31 held |
+| A relief-valve run on the new build | **every answer opened with a literal `[answer]`**, and a correct authority sentence was marked unsupported |
+| Demo host switched to production | **the seven demo accounts kept the shared password**: `admin` / `workbench` signed in and no setup token was issued |
+
+Fixed, each with a test:
+
+- **`[answer]` before every answer.** The new lede instruction illustrated the first sentence as `"<answer> [S2]."`, and the 3B model copied the placeholder; the thread set it as the lede. The prompt now has nothing to copy, and a leading label is removed from the model's text if one appears.
+- **A correct authority sentence marked unsupported.** "Recommended by the Inspection Engineer and the Head of Inspection, and approved by the Plant Manager" restates the registry's decision; it is now CALCULATED when each role is on the right side of "approved", and not when roles are swapped or an approver is added.
+- **Demo accounts in production.** Starting with the demo off now deactivates every declared demo account that still accepts the shared password, ends its sessions and audits it, and the setup token takes over; switched back on, the demo gets them back. The threat model's High risk 2 is now Low.
+- **The People page** asks for nothing the role cannot read; the unused landing constant is gone.
+
+After the fixes: 1111 passed, 13 skipped; the relief run opens with its cited answer, 8 of 8 checks, every claim calculated.
+
+## Third pass: what a judge will see
+
+- **Operating limits.** `ffs.rerated_mawp` (SOP-INS-021 Clause 5, with the procedure's 10.5 × 0.86 = 9.03 bar(g) example as a test) and `ffs.interim_operation` (Clauses 6.1-6.2: 90% of MAWP, 30-day inspections, 180 days), each naming its authority; the interim decision's pressure condition is `envelope.interim_operating_pressure`. 21 formulas.
+- **Citations that exist.** A conflict run holding only F1 and F2 cited `[S1].[S2]`, and an approval note cited `[S9]` where the run held C9; citation verification caught both and held the runs. The answer and drafting prompts now end their evidence with the identifiers the run holds. The same conflict question then passed 8 of 8 checks, and the approval note cited only V1, S1 and C9.
+- **A console check.** `scripts/ui_check.py`: 132 of 132 pages clean, as every account.
+- **Screens.** `scripts/capture_screens.py` takes every README image from the running console; the README is rebuilt around the judged moments with those images, and the handbook's user-guide pages use them.
+
 ## What still stands between this build and a winning demo
 
 ### Before the judges (no code)
@@ -117,24 +147,36 @@ One finding is the model's, not the code's: on one run the 3B model drafted an a
 
 ### Code gaps from the plan, in order of judged value
 
-1. **Bind approval to the full run.** Add the prompt hash, the evidence ids
-   and source hashes, the policy file hashes and the model digests to
-   `review_digest`, so a re-routed model or a changed policy voids a
-   signature the way a changed answer already does. The certificate already
-   carries all four; only the binding is missing.
-2. **Operating envelope.** Operating pressure and temperature against design
-   and MAWP, and SOP-INS-021's interim limit of 90% of MAWP, as registered
-   formulas. It is the last Phase 1 item.
-3. **Frontend tests.** The console has none; the "or" footer above was found
-   by reading a screenshot. A Playwright smoke test that opens each starter
-   card, runs it and reads the integrity card would catch that class of bug.
+1. ~~**Bind approval to the full run.**~~ Done in `50b0dc1`: the review
+   digest (version 2) binds the prompt, the evidence set, the policy files and
+   the model digests as well as the answer; a change to any of them voids the
+   signatures already given, with a reason that names the part. Version 1
+   records still verify.
+2. ~~**Operating envelope.**~~ Done in `c7a3119`: SOP-INS-021 Clause 6.1's
+   interim limit of 90% of MAWP is `envelope.interim_operating_pressure@1`,
+   applied to a vessel awaiting a Fitness-For-Service assessment, and a
+   breach holds the run for the Head of Inspection and the Plant Manager.
+   The corpus has no clause for operating pressure against MAWP outside
+   interim operation, or operating temperature against a design range, so
+   neither is registered; adding one needs a clause in the SOPs first.
+   The rest of Clauses 5 and 6 is registered too: `ffs.rerated_mawp@1`
+   (MAWP × RSF, the authority, and the nameplate, relief-reset and
+   change-management actions that follow) and `ffs.interim_operation@1`
+   (every Clause 6.1 condition, 30-day inspections and the 180-day end;
+   its pressure condition is the envelope formula, so the two cannot
+   disagree).
+3. ~~**Frontend tests.**~~ Done in `0bfd973`: Playwright smoke tests against a
+   mocked API, run in CI. `scripts/ui_check.py` adds a runtime check
+   against a live console: every page as every account, failing on
+   exceptions, console errors, failed requests and blank pages.
 4. **CMMS adapter.** Read-only open work orders and notifications for a tag,
    behind `backend/connectors/base.py`, would let the approval note say
    whether a repair is already raised. Document-management and directory
    adapters are lower value for the demo.
-5. **Relief records.** Only the first record in a run is assessed, and two
-   records for one valve are not compared as the vessel path compares two
-   surveys.
+5. ~~**Relief records.**~~ Done in `e1565bd`: every record in a run is
+   assessed; two records of one test are compared as two surveys are, and a
+   disagreement withholds the valve until a person chooses; two tests of one
+   valve are both judged and the latest decides.
 
 ### The pitch
 

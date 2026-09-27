@@ -1,8 +1,8 @@
 # 3.5 · Approvals
 
 <div align="center">
-<img src="../../assets/readme/screenshot-approvals.webp#gh-light-mode-only" alt="The approval queue with a held run open" width="860">
-<img src="../../assets/readme/screenshot-approvals-dark.webp#gh-dark-mode-only" alt="The approval queue with a held run open" width="860">
+<img src="../../assets/readme/approvals-light.webp#gh-light-mode-only" alt="The approval queue as the Head of Inspection: why the run is held and the two signatures it needs, in order" width="860">
+<img src="../../assets/readme/approvals-dark.webp#gh-dark-mode-only" alt="The approval queue as the Head of Inspection: why the run is held and the two signatures it needs, in order" width="860">
 </div>
 
 The Approvals screen is the review queue: every run held for a person before anything it produced is released. Each decision is recorded against the reviewer who made it. Requires `approval.read`; deciding requires `approval.decide`. Of the seeded roles, **reviewer** and **administrator** have both.

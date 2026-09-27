@@ -18,6 +18,7 @@ only ``prewarm_drafting_model`` does it, only when a caller asks.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import tempfile
 import time
@@ -29,6 +30,7 @@ import psutil
 
 from backend.core.config import PROJECT_ROOT, get_config
 from backend.core.schemas import ModelDescriptor, ModelRole
+from backend.proof.signer import canonical
 
 # The variables start-ollama.ps1 / start-ollama.sh set. Read from this
 # process's environment, which is the server's only when both were started
@@ -293,6 +295,7 @@ def check_vision_cache(snapshot: Any) -> Check:
     """
     from backend.agents.orchestrator import PDF_PAGES_PER_BATCH, page_batch_prompt
     from backend.agents.vision_cache import CacheIdentity, VisionCache, _sha
+    from backend.models_layer.router import get_model_router
 
     sample = demo_sample()
     if sample is None:
@@ -314,6 +317,7 @@ def check_vision_cache(snapshot: Any) -> Check:
     version = config.prompts.get("prompts_version")
     batches = [pages[offset:offset + PDF_PAGES_PER_BATCH] for offset in range(0, len(pages), PDF_PAGES_PER_BATCH)]
     cache = VisionCache(directory)
+    router = get_model_router()
     vision_models = [
         model for model in snapshot.models
         if model.role == ModelRole.VISION and model.available and model.actual_digest
@@ -329,6 +333,9 @@ def check_vision_cache(snapshot: Any) -> Check:
                 prompts_version=version,
                 system_sha256=system_sha,
                 prompt_sha256=_sha(prompt),
+                options_sha256=hashlib.sha256(canonical(
+                    router.generation_options(model.id, stage="vision_extraction")
+                )).hexdigest(),
             )
             if cache.get(ident) is not None:
                 hits += 1

@@ -98,6 +98,14 @@ STATED_SUBJECT = re.compile(
     r"thick|wall loss|t[-_ ]?min|remaining life|corrosion rate|retirement", re.IGNORECASE
 )
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+# A label before the first sentence, never part of the answer: "<answer>",
+# "[answer]", "**Answer:**", "Answer:". Only at the very start.
+ANSWER_LABEL = re.compile(r"\A(?:\s*(?:<answer>|\[answer\]|\*{0,2}answer\s*:\*{0,2}))+\s*", re.IGNORECASE)
+ANSWER_CLOSE = re.compile(r"\s*</answer>\s*\Z", re.IGNORECASE)
+# A page that reads as an inspection report, and the header labels the
+# formula registry cannot calculate without. See _recover_header_fields.
+HEADER_RECOVERY_DOCUMENT = re.compile(r"INSPECTION\s+REPORT|Report\s+No\.?\s*:", re.IGNORECASE)
+HEADER_RECOVERY_FIELDS = ("nominal", "t_min", "current_date", "previous_date", "in_service_date")
 # A numeric result worth recomputing: a figure carrying a unit, or an explicit
 # equality. Prose with no such assertion needs no calculation check.
 NUMERIC_ASSERTION = re.compile(
@@ -275,6 +283,41 @@ def _revision_note(item: EvidenceItem) -> str:
         replaced = f" by {item.superseded_by}" if item.superseded_by else ""
         return f" [{item.revision_status.upper()}{replaced}; historical, not in force]"
     return ""
+
+
+# "[answer]", "<answer>" or "Answer:" at the very start, and a line holding
+# nothing but citations right after it.
+_ANSWER_LABEL = re.compile(r"^\s*(?:\[answer\]|<answer>|answer:)[ \t]*", re.IGNORECASE)
+_BARE_CITATIONS_LINE = re.compile(r"^(?:\[[A-Z]+\d+\][ \t]*)+\n+")
+
+
+def citable_ids_line(evidence: list[EvidenceItem]) -> str:
+    """The identifiers this run holds, said once, after the evidence.
+
+    The prompts' examples cite "[S2]", and a run given only files has no S
+    items: a small model then cited [S1] and [S2] anyway, and citation
+    verification failed a correct answer for naming evidence that did not
+    exist. Every id here is one the verifier will resolve.
+    """
+    ids = list(dict.fromkeys(item.id for item in evidence if item.id))
+    if not ids:
+        return ""
+    return f"Identifiers you may cite in this run: {', '.join(ids)}. Any other identifier names nothing."
+
+
+def strip_answer_label(text: str) -> str:
+    """Remove a label a model put before its answer.
+
+    The reasoning prompt once illustrated the cited lede as "<answer> [S2]."
+    and a 3B model copied the placeholder into every answer ("[answer] ...",
+    once "[answer] [C9]" with the answer on the next line), which the thread
+    then set as the lede. A citation alone on the label's line cites no
+    sentence, so it goes with the label.
+    """
+    stripped = _ANSWER_LABEL.sub("", text, count=1)
+    if stripped == text:
+        return text
+    return _BARE_CITATIONS_LINE.sub("", stripped, count=1)
 
 
 def _complete_topology(text: str, topology: dict[str, Any] | None) -> tuple[str, int]:
@@ -515,8 +558,12 @@ def _dlp_holds(task: Task) -> int:
 
 
 def _strip_reasoning(text: str) -> str:
-    """Remove chain-of-thought blocks some reasoning models emit."""
-    return THINK_BLOCK.sub("", text or "").strip()
+    """Remove chain-of-thought blocks some reasoning models emit, and a bare
+    "answer" label a small model sometimes writes before its first sentence
+    ("<answer>", "[answer]", "Answer:"), which would otherwise open the lede."""
+    cleaned = THINK_BLOCK.sub("", text or "").strip()
+    cleaned = ANSWER_LABEL.sub("", cleaned, count=1)
+    return ANSWER_CLOSE.sub("", cleaned).strip()
 
 
 def _visible_so_far(raw: str) -> str:
@@ -1608,6 +1655,7 @@ class AgentOrchestrator:
             return None
         ident = vision_cache_identity(
             images, digest, self.config.prompts.get("prompts_version"), system_prompt, prompt,
+            self.router.generation_options(descriptor.id, stage="vision_extraction"),
         )
         entry = None if refresh else cache.get(ident)
         if entry is None:
@@ -1676,11 +1724,100 @@ class AgentOrchestrator:
             detail={"model": descriptor.id, "model_digest": ident.model_digest, "cache_key": ident.key},
         )
 
+    async def _recover_header_fields(
+        self, task: Task, user: User, batch: list[VisualInput], parsed: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Ask the vision model again, narrowly, for header labels it missed.
+
+        A 3B vision model reading a whole report page can skip a column of
+        its header: on the V-2104 report it transcribed the left column and
+        dropped "In Service Since", "t-min" and "Previous Inspection" from the
+        right, so the formula registry could not calculate. When a page reads
+        as an inspection report and one of the labels the registry needs is
+        not in what was read, the page is shown to the model once more with
+        only those labels asked for, exactly as printed.
+
+        What comes back is kept only when it reads as that label's value (the
+        same patterns the engineering extraction applies), is marked on the
+        page as a targeted re-read, and is cached like any other reading.
+        Nothing is inferred: a label the model still cannot see stays missing.
+        """
+        from backend.engineering.extraction import _FIELD_LABELS, _FIELD_PATTERNS
+
+        pages = parsed.get("pages") if isinstance(parsed, dict) else None
+        if not isinstance(pages, list):
+            return parsed
+        for index, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            item = batch[0] if len(batch) == 1 else next(
+                (candidate for candidate in batch if candidate.page_number == page.get("page_number")),
+                batch[index] if index < len(batch) else None,
+            )
+            if item is None or item.page_number is None:
+                continue
+            read = "\n".join([
+                *(f"{f.get('label', '')}: {f.get('value', '')}" for f in page.get("fields") or [] if isinstance(f, dict)),
+                str(page.get("transcription") or ""),
+            ])
+            if not HEADER_RECOVERY_DOCUMENT.search(read):
+                continue
+            missing = [
+                name for name in HEADER_RECOVERY_FIELDS
+                if not re.search(_FIELD_PATTERNS[name][0], read, re.IGNORECASE)
+            ]
+            if not missing:
+                continue
+            labels = [_FIELD_LABELS[name] for name in missing]
+            prompt = self.config.prompt(
+                "task.vision_fields", page=item.page_number, filename=item.source.filename,
+                labels="; ".join(labels),
+            )
+            system_prompt = self.config.system_prompt("vision")
+            try:
+                cached = await self._vision_cache_lookup(task, user, [item.path], system_prompt, prompt)
+                if cached is not None and cached[0] == "hit":
+                    text = str(cached[1]["text"])
+                else:
+                    text, decision = await self._generate(
+                        task, user, stage="vision_extraction", system_prompt=system_prompt,
+                        prompt=prompt, images=[item.path], format_json=True,
+                    )
+                    if cached is not None and cached[0] == "miss":
+                        self._vision_cache_store(task, user, cached[1], cached[2], text, decision)
+            except (InferenceError, NoEligibleModelError) as exc:
+                page["header_recovery"] = {"asked": labels, "recovered": [], "error": str(exc)[:200]}
+                continue
+            answer = _parse_json(text)
+            returned = answer.get("fields") if isinstance(answer, dict) else None
+            recovered: list[str] = []
+            fields = list(page.get("fields") or [])
+            for name, label in zip(missing, labels):
+                value = next(
+                    (str(f.get("value")).strip() for f in returned or []
+                     if isinstance(f, dict) and str(f.get("label", "")).strip().lower() == label.lower()
+                     and f.get("value") not in (None, "", "null")),
+                    None,
+                )
+                if value and re.search(_FIELD_PATTERNS[name][0], f"{label}: {value}", re.IGNORECASE):
+                    fields.append({"label": label, "value": value, "read": "targeted re-read"})
+                    recovered.append(label)
+            page["fields"] = fields
+            page["header_recovery"] = {"asked": labels, "recovered": recovered}
+            self.audit.record(
+                category="model", action="vision_header_recovery", actor=user.username,
+                actor_role=user.role, task_id=task.id,
+                detail={"file": item.source.filename, "page": item.page_number,
+                        "asked": labels, "recovered": recovered},
+            )
+        return parsed
+
     async def _extract_pdf_batch(
         self, task: Task, user: User, ledger: EvidenceLedger,
         batch: list[VisualInput], limitations: list[str],
     ) -> list[dict[str, Any]]:
         parsed, _, model_id = await self._vision_extraction(task, user, batch)
+        parsed = await self._recover_header_fields(task, user, batch, parsed)
         try:
             return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
         except InferenceError:
@@ -1689,12 +1826,14 @@ class AgentOrchestrator:
                 # answer about one page is asked again once before the run
                 # is failed on it.
                 parsed, _, model_id = await self._vision_extraction(task, user, batch, refresh=True)
+                parsed = await self._recover_header_fields(task, user, batch, parsed)
                 return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
             # Do not discard a whole batch because its page labels or count
             # were ambiguous. Single-image calls have an unambiguous source.
             recovered: list[dict[str, Any]] = []
             for item in batch:
                 parsed, _, model_id = await self._vision_extraction(task, user, [item])
+                parsed = await self._recover_header_fields(task, user, [item], parsed)
                 recovered.extend(self._record_pdf_batch(
                     task, ledger, [item], parsed, model_id, limitations,
                 ))
@@ -2046,8 +2185,15 @@ class AgentOrchestrator:
             # succeeded. A check that cannot complete is reported as a failed
             # check, never as a failed task — refusing to verify is a result.
             checks: list[VerificationCheck] = []
+            # Every material claim, one verdict each, against the same ledger
+            # the citations point into. The source check reads them too: a
+            # claim the registry computed is carried by the computation.
+            claims = self.verifier.claim_verdicts(
+                answer_text, evidence,
+                assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
+            )
             try:
-                checks.append(self.verifier.check_sources(answer_text, evidence))
+                checks.append(self.verifier.check_sources(answer_text, evidence, claims=claims))
             except Exception as exc:
                 checks.append(
                     VerificationCheck(
@@ -2127,12 +2273,6 @@ class AgentOrchestrator:
             checks.append(self.verifier.check_code(sandbox_result))
             if task.topology:
                 checks.append(self.verifier.check_topology(answer_text, task.topology))
-            # Every material claim, one verdict each, against the same ledger
-            # the citations point into.
-            claims = self.verifier.claim_verdicts(
-                answer_text, evidence,
-                assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
-            )
             if claims:
                 checks.append(self.verifier.check_claims(claims))
 
@@ -2292,6 +2432,7 @@ class AgentOrchestrator:
                 ),
                 severity=_calculated_severity(task),
                 dlp_findings=_dlp_holds(task),
+                operating_limit_breaches=_operating_limit_breaches(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -2436,7 +2577,7 @@ class AgentOrchestrator:
                 prompt=self.config.prompt("task.converse", prompt=task.prompt),
                 stream_to_user=True,
             )
-            text = await self._release_text(task, user, text.strip())
+            text = await self._release_text(task, user, strip_answer_label(text.strip()))
             await self._emit(task, "task.answer", {"answer": text})
             task.answer = text
             task.verification = VerificationReport(
@@ -3230,13 +3371,17 @@ class AgentOrchestrator:
         if task.verification is None:
             return
         replaced = {"engineering_verification", "claim_verification", "calculation_verification",
-                    "hallucination_check"}
+                    "hallucination_check", "source_verification"}
         checks = [check for check in task.verification.checks if check.name not in replaced]
         limitations = [
             note for note in task.verification.limitations
             if not any(note.startswith(f"{name}:") for name in replaced)
         ]
         answer = task.answer or ""
+        claims = self.verifier.claim_verdicts(
+            answer, task.evidence,
+            assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
+        )
         if task.assessment is not None:
             checks.insert(0, VerificationCheck(
                 name="calculation_verification",
@@ -3251,10 +3396,7 @@ class AgentOrchestrator:
                 evidence_ids=list(task.assessment.evidence_ids),
             ))
             checks.append(self.verifier.check_engineering(answer, task.assessment, task.calculations))
-        claims = self.verifier.claim_verdicts(
-            answer, task.evidence,
-            assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
-        )
+        checks.insert(0, self.verifier.check_sources(answer, task.evidence, claims=claims))
         if claims:
             checks.append(self.verifier.check_claims(claims))
         task.verification = self.verifier.compile_report(
@@ -3474,6 +3616,8 @@ class AgentOrchestrator:
             + f"\n{_model_text(item)[:400 if item.page_number is not None else 500]}"
             for item in [*page_items, *other_items]
         ) or "No local evidence was retrieved."
+        if page_items or other_items:
+            evidence_block += "\n\n" + citable_ids_line(evidence)
 
         prompt = self.config.prompt(
             "task.reason_with_page_evidence" if page_items else "task.reason_with_evidence",
@@ -3495,7 +3639,7 @@ class AgentOrchestrator:
         # rebuild it. This is the authoritative copy and the one that is
         # persisted -- after content scanning, so it replaces whatever the
         # stream showed.
-        text = await self._release_text(task, user, text)
+        text = await self._release_text(task, user, strip_answer_label(text))
         await self._emit(task, "task.answer", {"answer": text})
         return text
 
@@ -3528,6 +3672,8 @@ class AgentOrchestrator:
             + f": {_model_text(item)[:250]}"
             for item in [*page_items, *other_items]
         ) or "No evidence available."
+        if page_items or other_items:
+            evidence_block += "\n" + citable_ids_line(evidence)
 
         prompt = self.config.prompt(
             "task.draft_deliverable",
@@ -3630,6 +3776,14 @@ def _calculated_severity(task: Task) -> str | None:
     if assessment is None or assessment.status != "calculated":
         return None
     return assessment.severity
+
+
+def _operating_limit_breaches(task: Task) -> int:
+    """Operating-envelope checks the registry failed on the run's evidence."""
+    assessment = task.assessment
+    if assessment is None or assessment.status != "calculated":
+        return 0
+    return sum(1 for check in assessment.checks if check.formula_id.startswith("envelope.") and not check.passed)
 
 
 def _summarise(arguments: dict[str, Any]) -> dict[str, Any]:

@@ -3,8 +3,8 @@
 > Model output is untrusted until the required checks pass.
 
 <div align="center">
-<img src="../../assets/readme/screenshot-security.webp#gh-light-mode-only" alt="The Assurance screen" width="860">
-<img src="../../assets/readme/screenshot-security-dark.webp#gh-dark-mode-only" alt="The Assurance screen" width="860">
+<img src="../../assets/readme/assurance-light.webp#gh-light-mode-only" alt="The Assurance screen: egress measured at 0, containment tested 8 of 8" width="860">
+<img src="../../assets/readme/assurance-dark.webp#gh-dark-mode-only" alt="The Assurance screen: egress measured at 0, containment tested 8 of 8" width="860">
 </div>
 
 This section describes every security control in AEGIS: what it enforces, where the code is, how it is tested, and **where it stops**. A security document that lists only strengths is marketing; this one lists the gaps too, in [9.6](06-threat-model.md).

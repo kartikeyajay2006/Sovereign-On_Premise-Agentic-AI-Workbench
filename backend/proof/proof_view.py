@@ -25,7 +25,14 @@ from pydantic import BaseModel, Field
 
 from backend.core.audit import AuditLog
 from backend.core.schemas import Task
-from backend.proof.certificate import review_digest, verify_certificate
+from backend.proof.certificate import (
+    binding_changes,
+    binding_summary,
+    describe_changes,
+    review_binding,
+    review_digest,
+    verify_certificate,
+)
 
 #: ok: the link holds; attention: it holds but waits on a person or carries
 #: a caveat; fail: it did not hold; none: there is nothing recorded for it.
@@ -348,14 +355,36 @@ def _approval(task: Task) -> ProofRow:
         facts.append(ProofFact(label="Decided", value=approval.decided_at.isoformat(), mono=True))
     if approval.comment:
         facts.append(ProofFact(label="Comment", value=approval.comment))
-    current = review_digest(task)
-    if approval.bound_digest:
-        facts.append(ProofFact(label="Bound to digest", value=approval.bound_digest, mono=True))
+    binding = review_binding(task)
+    # A decision is checked under the digest version it was recorded under:
+    # one given before version 2 is held to what version 1 bound.
+    bound_version = approval.bound_digest_version or 1
+    current = binding["digest"] if bound_version >= 2 else review_digest(task, version=1)
+    def listed(value: dict) -> str:
+        return " · ".join(f"{item['label']} {item['hash']}" for item in binding_summary(value))
+
+    if approval.bound_digest and approval.bound_binding:
+        facts.append(ProofFact(label="Signature binds", value=listed(approval.bound_binding), mono=True))
+    elif approval.bound_digest:
+        # Decided under version 1: say what that bound, not what version 2 would.
         facts.append(ProofFact(
-            label="Run since decision",
-            value="unchanged: the digest still matches" if approval.bound_digest == current
-            else f"changed: the run now digests to {_short(current, 12)}",
+            label="Signature binds",
+            value="the answer, deliverables, calculation results and conflicts (digest version 1; "
+                  "prompt, evidence, policy and models were not bound then)",
         ))
+    elif approval.decision in (None, "pending"):
+        facts.append(ProofFact(label="A signature would bind", value=listed(binding), mono=True))
+    if approval.bound_digest:
+        facts.append(ProofFact(label="Bound to digest", value=f"{approval.bound_digest} (v{bound_version})", mono=True))
+        if approval.bound_digest == current:
+            since = "unchanged: the digest still matches"
+        elif bound_version >= 2 and approval.bound_binding:
+            since = f"changed: {describe_changes(binding_changes(approval.bound_binding, binding))} since review"
+        else:
+            since = f"changed: the run now digests to {_short(current, 12)}"
+        facts.append(ProofFact(label="Run since decision", value=since))
+    if approval.void_reason and not approval.signatures:
+        facts.append(ProofFact(label="Signatures voided", value=approval.void_reason))
     tone: Tone = {"approved": "ok", "rejected": "fail"}.get(decision, "attention")  # type: ignore[assignment]
     if approval.bound_digest and approval.bound_digest != current:
         tone = "fail"
@@ -391,6 +420,15 @@ def _certificate(certificate: dict[str, Any] | None, verification: dict[str, Any
         for key, value in provenance.items():
             text = value if isinstance(value, str) else json.dumps(value, sort_keys=True, default=str)
             facts.append(ProofFact(label=f"Provenance · {key.replace('_', ' ')}", value=text, mono=True))
+    run = certificate.get("run") or {}
+    if isinstance(run.get("review_binding"), dict):
+        # What the certificate itself states was bound, not the run as it is now.
+        stated = {"parts": run["review_binding"], **(run.get("review_bound") or {})}
+        facts.append(ProofFact(
+            label=f"Review digest v{run.get('review_digest_version') or 1} binds",
+            value=" · ".join(f"{item['label']} {item['hash']}" for item in binding_summary(stated)),
+            mono=True,
+        ))
     entries = [
         ProofEntry(title=check["name"], detail=check["detail"],
                    tone="ok" if check["passed"] else "fail")

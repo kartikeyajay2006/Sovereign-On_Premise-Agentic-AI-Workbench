@@ -67,7 +67,7 @@ def damaged() -> dict:
     elements = {e["tag"]: e for e in proposal["elements"]}
     # The inlet blind is not seen: the inlet is read as joining V-2104 straight from GV-2104-2.
     del elements["SB-2104-1"]
-    proposal["lines"] = [l for l in proposal["lines"] if "SB-2104-1" not in (l["from"], l["to"])]
+    proposal["lines"] = [line for line in proposal["lines"] if "SB-2104-1" not in (line["from"], line["to"])]
     proposal["lines"].append({"from": "GV-2104-2", "to": "V-2104", "line": "P-2104-OVHD-02",
                               "bbox": [0, 0, 5, 5], "confidence": 0.91})
     elements["SB-2104-3"]["confidence"] = 0.55                         # faint symbol

@@ -216,6 +216,48 @@ function Signatures({ task }: { task: Task }) {
   )
 }
 
+/**
+ * What a signature on this run binds, as the service computed it: the prompt,
+ * the evidence set, the policy files and the model digest, each by a short
+ * hash, alongside the answer and files shown elsewhere in this pane. For a
+ * decided run it is what the decision was bound to; a decision recorded
+ * before the binding existed shows nothing here rather than today's values.
+ */
+function Binding({ task, held }: { task: Task; held: boolean }) {
+  const approval = task.approval
+  const binding = held ? task.review_binding : approval?.bound_binding
+  const voided =
+    held && approval?.void_reason && (approval.signatures ?? []).length === 0 ? approval.void_reason : null
+  const items = binding?.summary ?? []
+  if (items.length === 0 && !voided) return null
+  return (
+    <Section
+      title={held ? 'A signature binds' : 'The decision bound'}
+      meta={binding ? `digest v${binding.version} · ${binding.digest.slice(0, 12)}` : undefined}
+    >
+      {voided && (
+        <p className="text-ui text-approval-text">Signatures given earlier were voided: {voided}.</p>
+      )}
+      {items.length > 0 && (
+        <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
+          {items.map((item) => (
+            <li key={item.key} className="flex items-baseline gap-2">
+              <span className={LEDGER_MUTED}>{item.label}</span>
+              <span className="tabular font-mono text-ui text-foreground">{item.hash}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {held && (
+        <p className="text-ui text-foreground-muted">
+          If any of these changes, or the answer, a file, a result or a conflict resolution, the
+          signatures already given are void and nothing is released.
+        </p>
+      )}
+    </Section>
+  )
+}
+
 function Deliverable({
   task,
   held,
@@ -632,6 +674,7 @@ export function ReviewPane({
           <div className="flex max-w-[860px] flex-col gap-8 pb-8">
             <HeldBecause task={task} />
             <Signatures task={task} />
+            <Binding task={task} held={held} />
             <ConflictPanel
               conflicts={task.conflicts ?? []}
               taskId={item.id}

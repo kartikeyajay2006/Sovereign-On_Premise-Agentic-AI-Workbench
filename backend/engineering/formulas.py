@@ -20,7 +20,7 @@ import inspect
 import json
 import math
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Callable
 
 from backend.core.schemas import CalculationInput, CalculationRecord
@@ -574,6 +574,108 @@ def _relief_inlet_loss(v: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ------------------------------------------------------ operating envelope
+# SOP-INS-021 Clause 6.1: equipment awaiting a Fitness-For-Service assessment
+# may be operated in the interim only where, among other conditions,
+# "operating pressure is reduced to 90% of the registered MAWP or lower".
+# The corpus states no general operating limit against MAWP and no design
+# temperature range for operation, so neither is registered here.
+INTERIM_PRESSURE_FRACTION = 0.90
+INTERIM_MAX_INSPECTION_DAYS = 30
+INTERIM_MAX_DAYS = 180
+_BOTH_AUTHORITIES = "Head of Inspection + Plant Manager"
+
+
+def _interim_operating_pressure(v: dict[str, Any]) -> dict[str, Any]:
+    operating = round(v["operating_pressure"].value, _PRESSURE_PLACES)
+    mawp = round(v["mawp"].value, _PRESSURE_PLACES)
+    if mawp <= 0:
+        raise ValueError("MAWP must be positive")
+    limit = round(INTERIM_PRESSURE_FRACTION * mawp, _PRESSURE_PLACES)
+    within = operating <= limit
+    percent = round(operating / mawp * 100, 1)
+    return {
+        "within_limit": (within, None),
+        "limit": (limit, "MPa"),
+        "margin": (round(limit - operating, _PRESSURE_PLACES), "MPa"),
+        "percent_of_mawp": (percent, "%"),
+        "_display": (
+            f"operating {_bar(operating)} = {percent:g}% of MAWP {_bar(mawp)}; "
+            f"{'≤' if within else '>'} 90% of MAWP = {_bar(limit)}"
+            + ("" if within else ": interim operation is not permitted at this pressure")
+        ),
+    }
+
+
+# ------------------------------------------ operating limits after an FFS finding
+# SOP-INS-021 Clauses 5 and 6: a re-rated MAWP, and the whole interim-operation
+# decision, whose pressure condition is the envelope check above.
+def _rerated_mawp(v: dict[str, Any]) -> dict[str, Any]:
+    mawp = v["mawp"].value
+    rsf = float(v["rsf"])
+    # Clause 5.1 re-rates equipment that cannot sustain its registered
+    # pressure: the factor reduces it. Anything else is not a re-rating.
+    if not 0 < rsf <= 1:
+        raise ValueError(f"RSF {rsf:g} does not reduce the MAWP; SOP-INS-021 Clause 5.1 needs 0 < RSF <= 1")
+    rerated = round(mawp * rsf, _PRESSURE_PLACES)
+    return {
+        "mawp_rerated": (rerated, "MPa"),
+        "approver": (f"{_BOTH_AUTHORITIES} (SOP-INS-021 Clause 5.2; SOP-OPS-008 Clause 2.6)", None),
+        "required_actions": ([
+            "Update the nameplate within 30 days (SOP-INS-021 Clause 5.2)",
+            "Reset the relief devices to the re-rated MAWP or lower before return to service (SOP-INS-025 Clause 4.2)",
+            "Process the re-rating as a change under SOP-ENG-009 before it takes effect (SOP-INS-021 Clause 5.4)",
+            "Re-assess at every subsequent inspection (SOP-INS-021 Clause 5.3)",
+        ], None),
+        "_display": f"{_bar(rerated)} = {_bar(mawp)} × RSF {rsf:g}",
+    }
+
+
+def _interim_operation(v: dict[str, Any]) -> dict[str, Any]:
+    mawp = v["mawp"].value
+    envelope = _interim_operating_pressure(v)
+    limit = envelope["limit"][0]
+    operating = round(v["operating_pressure"].value, _PRESSURE_PLACES)
+    interval_days = round(v["inspection_interval"].value * 365.25, 6)
+    latest_end = v["finding_date"] + timedelta(days=INTERIM_MAX_DAYS)
+    unmet: list[str] = []
+    if v.get("through_wall_or_leak"):
+        unmet.append("SOP-INS-021 Clause 6.1: there is a through-wall defect or an active leak")
+    if v.get("below_t_min"):
+        unmet.append("SOP-INS-021 Clause 6.1: thickness is below t-min at a location; it must be at or above t-min everywhere")
+    if not envelope["within_limit"][0]:
+        unmet.append(
+            f"SOP-INS-021 Clause 6.1: operating pressure {_bar(operating)} exceeds 90% of the registered MAWP ({_bar(limit)})"
+        )
+    if interval_days > INTERIM_MAX_INSPECTION_DAYS:
+        unmet.append(
+            f"SOP-INS-021 Clause 6.1: inspections every {interval_days:g} days; the 30-day interval is the most allowed"
+        )
+    planned_end = v.get("planned_end")
+    if planned_end is not None and planned_end > latest_end:
+        unmet.append(
+            f"SOP-INS-021 Clause 6.2: planned to {planned_end.isoformat()}, beyond 180 days from the finding "
+            f"({latest_end.isoformat()})"
+        )
+    permitted = not unmet
+    return {
+        "permitted": (permitted, None),
+        "unmet": (unmet, None),
+        "operating_limit": (limit, "MPa"),
+        "latest_end": (latest_end.isoformat(), None),
+        "approver": (
+            f"{_BOTH_AUTHORITIES}, recommended by the Inspection Engineer (SOP-INS-021 Clause 6.2; SOP-OPS-008 Clause 2.8)",
+            None,
+        ),
+        "_display": (
+            ("permitted" if permitted else "NOT permitted")
+            + f": at most {_bar(limit)} (90% of MAWP {_bar(mawp)}), inspected at least every 30 days, "
+            f"until {latest_end.isoformat()} at the latest"
+            + ("" if permitted else "; unmet: " + "; ".join(unmet))
+        ),
+    }
+
+
 def _q(name: str, dimension: Dimension, description: str, optional: bool = False) -> Parameter:
     return Parameter(name, "quantity", description, dimension, optional)
 
@@ -771,6 +873,43 @@ FORMULAS: dict[str, Formula] = {
                 _q("inlet_loss", PRESSURE, "inlet pressure loss at relieving flow"),
             ),
             _relief_inlet_loss, ("loss_percent", "within_limit"),
+        ),
+        Formula(
+            "envelope.interim_operating_pressure", 1, "Operating pressure for interim operation",
+            "SOP-INS-021 Clause 6.1",
+            "within_limit = operating_pressure ≤ 0.90 × MAWP, while the equipment awaits a "
+            "Fitness-For-Service assessment",
+            (
+                _q("operating_pressure", PRESSURE, "operating pressure of the equipment"),
+                _q("mawp", PRESSURE, "registered MAWP of the equipment"),
+            ),
+            _interim_operating_pressure, ("within_limit", "limit", "margin", "percent_of_mawp"),
+        ),
+        Formula(
+            "ffs.rerated_mawp", 1, "Re-rated MAWP",
+            "SOP-INS-021 Clause 5 (5.1-5.4); SOP-OPS-008 Clause 2.6",
+            "MAWP_rerated = MAWP_original × RSF, 0 < RSF ≤ 1",
+            (
+                _q("mawp", PRESSURE, "registered (original) MAWP"),
+                Parameter("rsf", "number", "remaining strength factor from the FFS assessment"),
+            ),
+            _rerated_mawp, ("mawp_rerated", "approver", "required_actions"),
+        ),
+        Formula(
+            "ffs.interim_operation", 1, "Interim operation pending an FFS assessment",
+            "SOP-INS-021 Clauses 6.1-6.2; SOP-OPS-008 Clause 2.8",
+            "permitted only if no through-wall defect or leak, thickness ≥ t-min everywhere, "
+            "operating pressure ≤ 0.90 × MAWP, inspected at most every 30 days, and within 180 days of the finding",
+            (
+                Parameter("through_wall_or_leak", "bool", "a through-wall defect or an active leak exists"),
+                Parameter("below_t_min", "bool", "any location reads below t-min"),
+                _q("operating_pressure", PRESSURE, "operating pressure during interim operation"),
+                _q("mawp", PRESSURE, "registered MAWP"),
+                _q("inspection_interval", TIME, "interval between inspections during interim operation"),
+                Parameter("finding_date", "date", "date of the finding that triggered the assessment"),
+                Parameter("planned_end", "date", "planned end of interim operation", optional=True),
+            ),
+            _interim_operation, ("permitted", "unmet", "operating_limit", "latest_end", "approver"),
         ),
     )
 }

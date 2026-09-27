@@ -251,8 +251,8 @@ export function IntegrityCard({
           <span className="font-medium">
             {disputed.length ? disputed.map((c) => `${c.label} (${c.id})`).join(', ') : (assessment.conflicts ?? []).join(', ')}
           </span>
-          . No rate, remaining life, severity or due date is computed until a reviewer chooses the value; the
-          formulas then recompute from that choice.
+          . No {relief ? 'clause verdict, severity or bench-test date' : 'rate, remaining life, severity or due date'} is
+          computed until a reviewer chooses the value; the formulas then recompute from that choice.
         </p>
       ) : cannot ? (
         <p className="text-ui text-foreground">
@@ -313,6 +313,15 @@ export function IntegrityCard({
               )}
             </Reading>
           )}
+          {/* Clause checks beyond thickness, e.g. SOP-INS-021 Clause 6.1's interim pressure limit. */}
+          {(assessment.checks ?? []).map((check) => (
+            <Reading key={check.label} label={check.label} cite={decisionId} onCite={onCite}>
+              <span className={cn('font-medium', check.passed ? 'text-sovereign-text' : 'text-critical-text')}>
+                {check.passed ? 'passed' : 'failed'}
+              </span>
+              <span className="text-meta text-foreground-muted">{check.detail}</span>
+            </Reading>
+          ))}
           {assessment.severity_basis && (
             <p className="text-meta text-foreground-secondary sm:col-span-2 lg:col-span-3">
               <span className="font-medium text-foreground">Basis.</span> {assessment.severity_basis}.{' '}

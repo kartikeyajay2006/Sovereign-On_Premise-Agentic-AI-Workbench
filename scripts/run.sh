@@ -118,7 +118,12 @@ step "Checking prerequisites"
 [ -x "$VENV/bin/python" ] || { fail "Python environment missing. Run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"; exit 1; }
 ok "python environment"
 [ -d "$ROOT/frontend/node_modules" ] || { fail "Frontend dependencies missing. Run: cd frontend && npm install"; exit 1; }
-ok "frontend dependencies"
+# A pull that changed the lockfile leaves node_modules behind it.
+if [ "$ROOT/frontend/package-lock.json" -nt "$ROOT/frontend/node_modules/.package-lock.json" ]; then
+  warn "frontend dependencies are older than package-lock.json — run: cd frontend && npm ci"
+else
+  ok "frontend dependencies"
+fi
 
 if curl -sf -o /dev/null --max-time 3 "http://127.0.0.1:11434/api/tags"; then
   ok "local model runtime reachable"

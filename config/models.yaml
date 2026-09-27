@@ -106,7 +106,9 @@ models:
       model: qwen2.5vl:3b
     expected_digest: fb90415cde1ef08aa669ae74b082d49b158729b6db1ab183c941417d507e71a1
     generation_defaults:
-      temperature: 0.2
+      # A transcription is not sampled: at 0.2 the same scan read 10.9 mm as
+      # 18.9 mm on one run and correctly on the next.
+      temperature: 0
       num_predict: 1200
     notes: >-
       Vision-language model for scanned PDFs, P&IDs, drawings, photographs and
@@ -125,7 +127,7 @@ models:
       provider: ollama
       model: moondream:latest
     generation_defaults:
-      temperature: 0.2
+      temperature: 0
       num_predict: 600
     notes: >-
       Lightweight vision fallback for low-resource hosts. Pull with

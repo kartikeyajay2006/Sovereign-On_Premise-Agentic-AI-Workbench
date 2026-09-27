@@ -1,5 +1,5 @@
-# Continuous integration: the backend suite, the red-team suite and the
-# frontend build, on every push and pull request.
+# Continuous integration: the backend suite, the red-team suite, and the
+# frontend build with its smoke tests, on every push and pull request.
 #
 # No job needs a model. The tests replace every model call with a fake
 # (docs/handbook/13-development/02-testing.md), and nothing here installs or
@@ -49,6 +49,8 @@ jobs:
       - name: Compile every module
         # Catches a syntax error in a module no test imports.
         run: python -m compileall -q backend scripts tests
+      - name: Lint Python
+        run: python -m ruff check backend scripts tests
       - name: Sandbox containment is assessable here
         # The containment tests skip, rather than fail, on a host without
         # POSIX resource limits. On this runner they must run: if the probe
@@ -72,6 +74,8 @@ jobs:
           cache-dependency-path: requirements.txt
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
+      - name: Lint Python
+        run: python -m ruff check backend scripts tests
       # The team develops on Windows, where the sandbox runs under a Job
       # Object instead of POSIX limits (tests/test_sandbox_windows.py). The
       # whole suite runs here: the two tests that failed on Windows only
@@ -80,9 +84,9 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider -rs
 
   frontend:
-    name: frontend (typecheck and build)
+    name: frontend (typecheck, build and smoke tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -97,6 +101,24 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit -p .
+      # The smoke tests have their own config, so the product build
+      # never needs @playwright/test to type-check.
+      - name: Typecheck the smoke tests
+        run: npx tsc --noEmit -p tsconfig.e2e.json
       # There is no lint script in package.json; add a step here when one is.
       - name: Build
         run: npx next build
+        env:
+          # The /api rewrite is fixed at build time. The smoke tests below
+          # serve this build, and a closed port means a request their mocks
+          # missed fails instead of reaching anything.
+          WORKBENCH_API_URL: http://127.0.0.1:9
+      # Playwright smoke tests (frontend/e2e), against `next start` on this
+      # build, with every /api call answered in the browser from fixtures.
+      # No backend, no Ollama. Chromium only, and only on this runner.
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Smoke tests
+        run: npm run test:e2e
+        env:
+          E2E_SKIP_BUILD: "1"

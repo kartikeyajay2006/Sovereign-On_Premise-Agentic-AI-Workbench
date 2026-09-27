@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from backend.core.schemas import CalculationRecord, IntegrityAssessment
+from backend.core.schemas import AssessmentCheck, CalculationRecord, IntegrityAssessment
 from backend.engineering.extraction import PipingInputs, VesselInputs
 from backend.engineering.formulas import (
     PIPING_BELOW_T_MIN_ACTION,
@@ -104,7 +104,44 @@ def _missing_summary(inputs: VesselInputs | PipingInputs, rows: list[dict[str, A
             }.get(name, name)
             if text not in missing and name not in ("rate", "short_term_rate", "long_term_rate"):
                 missing.append(text)
+    missing += _readings_to_confirm(inputs)
     return missing
+
+
+def _mm(bound: BoundValue | None) -> float | None:
+    if bound is None or not isinstance(bound.value, Quantity):
+        return None
+    try:
+        return bound.value.to("mm")
+    except Exception:
+        return None
+
+
+def _readings_to_confirm(inputs: VesselInputs | PipingInputs) -> list[str]:
+    """Current readings thicker than the wall has ever been: a person confirms them first.
+
+    Corrosion only removes metal. A live vision read of the V-2104 scan gave
+    18.9 mm at a location the report prints as 10.9 mm, on a 12.0 mm wall;
+    the formulas called it "no measurable corrosion", and the location left
+    the comparison without a word. Had the misread been at the governing
+    location, another would have governed. A reading above both its earlier
+    reading and the nominal thickness is not a measurement of that wall, so
+    the decision waits for it. Scatter inside the as-built wall (11.7 then
+    11.8 mm on 12.0 mm) is not questioned.
+    """
+    nominal = _mm(inputs.nominal)
+    if nominal is None:
+        return []
+    notes: list[str] = []
+    for row in inputs.readings:
+        current, previous = _mm(row.current), _mm(row.previous)
+        if current is None or previous is None or not (current > previous and current > nominal):
+            continue
+        notes.append(
+            f"a confirmed current reading at {row.location}: {row.current.stated} is thicker than the earlier "
+            f"{row.previous.stated} and the {inputs.nominal.stated} nominal wall, which corrosion cannot do"
+        )
+    return notes
 
 
 def assess_vessel(inputs: VesselInputs) -> tuple[list[CalculationRecord], IntegrityAssessment]:
@@ -209,7 +246,51 @@ def assess_vessel(inputs: VesselInputs) -> tuple[list[CalculationRecord], Integr
         assessment.next_due_basis = survey.display
     if below:
         assessment.withdraw_from_service = True
+    _interim_envelope(inputs, assessment, records, decision)
     return records, assessment
+
+
+INTERIM_APPROVAL = (
+    "interim operation pending the assessment is recommended by the Inspection Engineer and approved by "
+    "the Head of Inspection and the Plant Manager (SOP-INS-021 Clause 6.2; SOP-OPS-008 Clause 2.8)"
+)
+
+
+def _interim_envelope(
+    inputs: VesselInputs, assessment: IntegrityAssessment, records: list[CalculationRecord], decision: str
+) -> None:
+    """SOP-INS-021 Clause 6.1's pressure limit, where it governs the vessel.
+
+    Interim operation is operation of equipment awaiting a Fitness-For-Service
+    assessment (Clause 6.1), so the limit applies when an FFS trigger is met
+    and the vessel is not withdrawn. Below t-min it is withdrawn and interim
+    operation is not permitted at all (same clause), so there is no pressure
+    to judge. The check runs only when the evidence states an operating
+    pressure or an MAWP; with one and not the other it cannot calculate.
+    """
+    if not assessment.ffs_triggers or assessment.withdraw_from_service:
+        return
+    if inputs.operating_pressure is None and inputs.mawp is None:
+        return
+    record = evaluate("envelope.interim_operating_pressure",
+                      {"operating_pressure": inputs.operating_pressure, "mawp": inputs.mawp}, subject=decision)
+    records.append(record)
+    if record.status != "calculated":
+        return
+    within = bool(output_value(record, "within_limit"))
+    assessment.checks.append(AssessmentCheck(
+        label="Interim operating pressure within 90% of MAWP", passed=within,
+        detail=record.display or "", formula_id=record.formula_id,
+    ))
+    if within:
+        return
+    limit_bar = round(float(output_value(record, "limit")) * 10, 4)
+    breach = (
+        f"interim operation pending the Fitness-For-Service assessment is not permitted at the stated operating "
+        f"pressure: it must be reduced to 90% of MAWP ({limit_bar:g} bar) or lower (SOP-INS-021 Clause 6.1); "
+        + INTERIM_APPROVAL
+    )
+    assessment.required_action = f"{assessment.required_action}; {breach}" if assessment.required_action else breach
 
 
 def assess_piping(inputs: PipingInputs) -> tuple[list[CalculationRecord], IntegrityAssessment]:

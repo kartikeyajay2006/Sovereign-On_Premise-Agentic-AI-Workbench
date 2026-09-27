@@ -1,8 +1,8 @@
 # 3.4 · Harnesses
 
 <div align="center">
-<img src="../../assets/readme/screenshot-harnesses.webp#gh-light-mode-only" alt="A finished SOP question sweep with three of three items traced" width="860">
-<img src="../../assets/readme/screenshot-harnesses-dark.webp#gh-dark-mode-only" alt="A finished SOP question sweep with three of three items traced" width="860">
+<img src="../../assets/readme/harness-control-light.webp#gh-light-mode-only" alt="Harness Control: a finished SOP question sweep with its stage lanes, evidence graph, answer matrix and sealed report" width="860">
+<img src="../../assets/readme/harness-control-dark.webp#gh-dark-mode-only" alt="Harness Control: a finished SOP question sweep with its stage lanes, evidence graph, answer matrix and sealed report" width="860">
 </div>
 
 A harness runs **one job over many items**. Each item is an ordinary, fully governed run, and the job ends in one hashed report. The idea is explained in [2.8 Skills and harnesses](../02-concepts/08-skills-harnesses.md).

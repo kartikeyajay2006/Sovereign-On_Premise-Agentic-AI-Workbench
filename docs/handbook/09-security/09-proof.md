@@ -80,7 +80,25 @@ The review screen's **Signed proof** panel runs the online checks (`POST /api/pr
 
 ## Approval bound to what was reviewed
 
-Every task carries a **review digest**: one hash over the answer, the deliverables' bytes, the calculation results and the conflict resolutions. The review screen sends the digest it displayed with the decision. If the run changed in between (a resolution, a re-render), the decision is refused: *"This run has changed since you opened it."* The digest the decision was given against is stored on the approval and in the certificate.
+Every task carries a **review digest** (`review_digest` and `review_binding` in `backend/proof/certificate.py`). Version 2, written now, is one hash over five parts, each itself a hash of sorted, canonical JSON:
+
+| Part | What it covers | Where the value comes from |
+|---|---|---|
+| content | the answer, the deliverables' bytes, the calculation results, the conflict resolutions and the assessment status | exactly the version 1 digest |
+| prompt | the request the run was answered from | the certificate's `prompt_sha256` |
+| evidence | each evidence id with its excerpt hash and its source file's hash | the certificate's evidence entries |
+| policy | the sha256 of every file in `policies/` on this host | the same hashing as the certificate's config snapshot (`policy_file_hashes` in `proof/provenance.py`) |
+| models | each model that served the run, with the digests the runtime reported | `ModelUsage.model_digest`, the value the audit log and the certificate's provenance record; a routed model with no recorded digest is bound by name |
+
+The review screen sends the digest it displayed with the decision. If the run changed in between, the decision is refused and the refusal names the part: *"This run has changed since you opened it: the model changed since review."* The other reasons are *the prompt changed*, *the evidence set changed*, *the policy files changed*, and *the answer, a deliverable, a calculation result or a conflict resolution changed*. A run keeps its last 16 bindings, so a reviewer holding an older one is told which part moved.
+
+The policy part is read from disk when a signature is checked, not only when the run was last written. A policy file edited after the first signature of a High finding voids it even though the run itself was never touched, and the Approvals screen and `GET /api/tasks/{id}` show the binding a signature would be checked against now.
+
+Each signature and each decision stores the digest, its version and the binding parts. The digest the decision was given against is stored on the approval and in the certificate, which also carries `review_digest_version`, `review_binding` (the five parts) and `review_bound` (the source, policy-file and model counts). Offline verification checks that the stated digest is the hash of the stated parts (the **review binding** check); certificates issued before the binding existed carry no parts and skip it.
+
+**Records written before version 2.** A signature or decision stored before version 2 loads as `digest_version: 1` and is checked under version 1 rules: it is voided only by a change to what version 1 bound (the content), never merely because version 2 binds more. A review page opened before the upgrade still holds a version 1 digest; it is accepted while the stored record still carries that same digest, and once the run is written again the reviewer is shown, and must send, the version 2 one. Proof Mode reads an old decision as *digest version 1; prompt, evidence, policy and models were not bound then*, rather than showing today's values as if they had been signed.
+
+**What it does not bind.** The prompt part is the user's request, not the assembled system prompt; the prompt library is in the certificate's config snapshot, taken when the run started. The policy part is the policy files on disk; the running process reads policy once at start, so an edit takes effect at the next restart but voids pending signatures immediately. `config/` files other than policies (routing, models, prompts) are not bound; a re-routed model shows up through the models part.
 
 A reviewer can also **request a revision**: nothing is released and nothing is rejected; the run returns to its submitter with the note, and the queue shows it as *Returned*.
 

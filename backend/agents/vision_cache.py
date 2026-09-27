@@ -13,7 +13,10 @@ The key is the SHA-256 over:
 * the runtime digest of the vision model's weights -- not its name, which can
   be re-pulled to different weights;
 * the prompt library version and the SHA-256 of the exact system prompt and
-  prompt sent, so any edit to the instructions is a different question.
+  prompt sent, so any edit to the instructions is a different question;
+* the SHA-256 of the generation options the call is made with. A reading
+  sampled at temperature 0.2 read V-2104's 10.9 mm as 18.9 mm and was
+  stored; a reading under other decoding settings is another question.
 
 A model with no runtime digest is never cached: without one there is nothing
 to prove the weights are the same. A stored entry is re-checked against the
@@ -59,6 +62,7 @@ class CacheIdentity:
     prompts_version: Any
     system_sha256: str
     prompt_sha256: str
+    options_sha256: str = ""
 
     @property
     def key(self) -> str:
@@ -68,17 +72,19 @@ class CacheIdentity:
             "prompts_version": self.prompts_version,
             "system_sha256": self.system_sha256,
             "prompt_sha256": self.prompt_sha256,
+            "options_sha256": self.options_sha256,
         })).hexdigest()
 
 
 def identity(images: list[Path], model_digest: str, prompts_version: Any,
-             system_prompt: str, prompt: str) -> CacheIdentity:
+             system_prompt: str, prompt: str, options: dict[str, Any] | None = None) -> CacheIdentity:
     return CacheIdentity(
         image_sha256=tuple(file_sha256(path) for path in images),
         model_digest=model_digest,
         prompts_version=prompts_version,
         system_sha256=_sha(system_prompt),
         prompt_sha256=_sha(prompt),
+        options_sha256=hashlib.sha256(canonical(options or {})).hexdigest(),
     )
 
 
@@ -106,6 +112,7 @@ class VisionCache:
             entry.get("prompts_version") != ident.prompts_version,
             entry.get("system_sha256") != ident.system_sha256,
             entry.get("prompt_sha256") != ident.prompt_sha256,
+            entry.get("options_sha256", "") != ident.options_sha256,
             entry.get("image_sha256") != list(ident.image_sha256),
         )):
             return None
@@ -119,6 +126,7 @@ class VisionCache:
             "prompts_version": ident.prompts_version,
             "system_sha256": ident.system_sha256,
             "prompt_sha256": ident.prompt_sha256,
+            "options_sha256": ident.options_sha256,
             "image_sha256": list(ident.image_sha256),
             "extracted_at": datetime.now(timezone.utc).isoformat(),
             "extracted_for_task": task_id,

@@ -253,6 +253,13 @@ export interface ApprovalRecord {
   decision?: 'pending' | 'approved' | 'rejected' | 'revision_requested' | null
   /** The review digest the decision was given against. */
   bound_digest?: string | null
+  /** The digest version it was computed under; records before version 2 read 1. */
+  bound_digest_version?: number
+  /** What that digest bound, part by part (version 2 and later). */
+  bound_binding?: ReviewBinding | null
+  /** Why the signatures given so far were last voided, naming what changed. */
+  void_reason?: string | null
+  voided_at?: string | null
   reviewer_id?: string | null
   reviewer_name?: string | null
   comment?: string | null
@@ -281,6 +288,28 @@ export interface ApprovalSignature {
   signed_at: string
   /** The version this signature was given on; a change voids it. */
   review_digest: string
+  /** The digest version it was given under; signatures before version 2 read 1. */
+  digest_version?: number
+  /** What the digest bound when it was given (version 2 and later). */
+  binding?: ReviewBinding | null
+}
+
+/** One labelled short hash of what a signature binds: prompt, sources, policy set, model digest. */
+export interface ReviewBindingItem {
+  key: 'prompt' | 'evidence' | 'policy' | 'models'
+  label: string
+  hash: string
+}
+
+/** Everything a signature binds (backend/proof/certificate.py review_binding). */
+export interface ReviewBinding {
+  version: number
+  digest: string
+  parts: Record<string, string | null>
+  sources: number
+  policy_files: number
+  models: Array<{ model: string; digests: string[] }>
+  summary?: ReviewBindingItem[]
 }
 
 export interface PlanStep {
@@ -505,6 +534,9 @@ export interface Task {
   conflicts?: ConflictRecord[]
   /** One hash over what a reviewer sees; a decision is bound to it. */
   review_digest?: string | null
+  review_digest_version?: number
+  /** What review_digest binds, with the short hashes the review pane lists. */
+  review_binding?: ReviewBinding | null
   /** A P&ID question answered from the drawing's graph. */
   topology?: import('@/components/pid/api').TopologyResult | null
   policy_events?: any[]

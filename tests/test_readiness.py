@@ -100,8 +100,10 @@ class TestVisionCache:
     def _store_like_a_run(self, directory: Path, digest: str) -> None:
         """Render and key the demo scan with the functions the orchestrator uses."""
         from backend.rag.parsing import inspect_pdf_pages, rasterize_pdf
+        from backend.models_layer.router import get_model_router
 
         config = get_config()
+        options = get_model_router().generation_options("vision:3b", stage="vision_extraction")
         sample = readiness.demo_sample()
         assert sample is not None
         numbers = [page.number for page in inspect_pdf_pages(sample) if page.needs_vision]
@@ -114,6 +116,7 @@ class TestVisionCache:
                     images[offset:offset + PDF_PAGES_PER_BATCH], digest,
                     config.prompts.get("prompts_version"), config.system_prompt("vision"),
                     page_batch_prompt(config, sample.name, batch),
+                    options,
                 )
                 cache.put(ident, text="{}", model="vision:3b", task_id="t")
 

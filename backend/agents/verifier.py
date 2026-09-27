@@ -113,6 +113,75 @@ def _figures(text: str) -> set[str]:
     return figures
 
 
+def _names_the_authority(claim: str, assessment: IntegrityAssessment) -> bool:
+    """Whether a claim states the assessment's approving (and recommending) roles, each in place.
+
+    Every approver follows the first "approv"; the approving stretch (to a
+    later "recommend", or the end) names no role that only recommends; and a
+    claim that speaks of recommending names every recommender. Misplaced
+    roles fall through to the passage check rather than pass: "recommended
+    by the Plant Manager and approved by the Head of Inspection", or
+    "approved by the Plant Manager and the Head of Inspection", for a High
+    finding.
+    """
+    approvers = [name.lower() for name in assessment.approved_by]
+    if not approvers:
+        return False
+    recommenders = [name.lower() for name in assessment.recommended_by]
+    lowered = claim.lower()
+    at = lowered.find("approv")
+    if at < 0:
+        return False
+    recommend_at = lowered.find("recommend")
+    approving = lowered[at:recommend_at] if recommend_at > at else lowered[at:]
+    if not all(name in approving for name in approvers):
+        return False
+    if any(name in approving for name in recommenders if name not in approvers):
+        return False
+    return recommend_at < 0 or all(name in lowered for name in recommenders)
+
+
+_CLAUSE_REF = re.compile(r"\b(SOP-[A-Z]{3}-\d{3})\s*,?\s*(?:Clauses?|Cl\.)\s*(\d+(?:\.\d+)*)", re.IGNORECASE)
+# What a sentence needs to say which clause a decision rests on. Anything
+# beyond these and the decision's own words says something else.
+_BASIS_WORDS = frozenset({
+    "governing", "governs", "govern", "clause", "clauses", "basis", "based", "rests", "severity",
+    "finding", "classification", "which", "under", "according", "applies", "applicable",
+})
+
+
+def _clauses(text: str) -> set[str]:
+    return {f"{m.group(1).upper()} Clause {m.group(2)}" for m in _CLAUSE_REF.finditer(text or "")}
+
+
+def _states_the_basis(claim: str, assessment: IntegrityAssessment) -> list[str]:
+    """The clauses a claim says the decision rests on, when that is all it says.
+
+    The severity formula returns its basis with its clauses ("SOP-MNT-022
+    Clause 4.1: cladding damage 35% exceeds 20% ..., a Medium finding under
+    SOP-INS-014 Clause 5.2"), and the golden prompt asks for "the clause it
+    rests on". A claim naming only clauses the decision names, in the
+    decision's own words and figures, restates the registry. One that names
+    another clause, or says what a clause requires, does not, and is left to
+    the passages: "SOP-MNT-022 Clause 4.1 requires the vessel to be
+    decommissioned" carries "requires" and "decommissioned", which the
+    decision never says.
+    """
+    decision = " ".join(filter(None, (
+        assessment.severity_basis, assessment.approver, assessment.required_action,
+        assessment.governing_location, assessment.subject, assessment.severity,
+    )))
+    named = _clauses(claim)
+    if not named or not named <= _clauses(decision):
+        return []
+    words = {word.lower() for word in WORD_PATTERN.findall(REFERENCE_PATTERN.sub(" ", claim))}
+    if words - {word.lower() for word in WORD_PATTERN.findall(decision)} - _BASIS_WORDS:
+        return []
+    if _figures(claim) - _figures(decision):
+        return []
+    return sorted(named)
+
+
 def _registry_summary(assessment: IntegrityAssessment) -> str:
     """The computed decision in one line, for whichever kind of record it was."""
     severity = f", {assessment.severity.capitalize()}" if assessment.severity else ""
@@ -334,9 +403,32 @@ class VerificationEngine:
                 return True, [item.id]
         return False, []
 
-    def check_sources(self, text: str, evidence: list[EvidenceItem]) -> VerificationCheck:
-        claims = self.material_claims(text)
-        if not claims:
+    def _supporting(
+        self, claim: str, evidence: list[EvidenceItem], settled: dict[str, ClaimVerdict]
+    ) -> tuple[bool, list[str]]:
+        """Whether a claim is carried: by its verdict when it has one, else by a passage.
+
+        A claim verdict is the stronger judgement. Asked only whether a
+        passage repeats a claim's words, "Approving authority is Head of
+        Inspection [S3]" was unsupported though the severity formula computed
+        it, and a correct answer was held; a claim the registry computed is
+        carried by the computation.
+        """
+        verdict = settled.get(claim[:400])
+        if verdict is not None:
+            return True, list(verdict.evidence_ids)
+        return self._claim_supported(claim, evidence)
+
+    @staticmethod
+    def _settled(claims: list[ClaimVerdict] | None) -> dict[str, ClaimVerdict]:
+        return {v.text: v for v in claims or [] if v.verdict in ("CALCULATED", "SUPPORTED")}
+
+    def check_sources(
+        self, text: str, evidence: list[EvidenceItem], *, claims: list[ClaimVerdict] | None = None
+    ) -> VerificationCheck:
+        settled = self._settled(claims)
+        material = self.material_claims(text)
+        if not material:
             return VerificationCheck(
                 name="source_verification",
                 kind="source",
@@ -349,32 +441,32 @@ class VerificationEngine:
                 kind="source",
                 passed=False,
                 detail=(
-                    f"{len(claims)} material claim(s) were made but no local evidence "
+                    f"{len(material)} material claim(s) were made but no local evidence "
                     "was retrieved to support them."
                 ),
-                warnings=[claim[:160] for claim in claims[:5]],
+                warnings=[claim[:160] for claim in material[:5]],
             )
 
         supported = 0
         unsupported: list[str] = []
         used_ids: set[str] = set()
-        for claim in claims:
-            ok, ids = self._claim_supported(claim, evidence)
+        for claim in material:
+            ok, ids = self._supporting(claim, evidence, settled)
             if ok:
                 supported += 1
                 used_ids.update(ids)
             else:
                 unsupported.append(claim[:160])
 
-        fraction = supported / len(claims)
+        fraction = supported / len(material)
         threshold = float(self._rules.get("min_supported_fraction", 0.6))
         return VerificationCheck(
             name="source_verification",
             kind="source",
             passed=fraction >= threshold,
             detail=(
-                f"{supported} of {len(claims)} material claims are supported by local "
-                f"evidence ({fraction:.0%}; threshold {threshold:.0%})."
+                f"{supported} of {len(material)} material claims are supported by local "
+                f"evidence or computed by the formula registry ({fraction:.0%}; threshold {threshold:.0%})."
             ),
             evidence_ids=sorted(used_ids),
             warnings=unsupported[:5],
@@ -843,7 +935,13 @@ class VerificationEngine:
                     f"A disposition is decided by {approver}; the workbench may recommend it but not settle it.",
                 ))
                 continue
-            if calculated and kind in ("engineering", "numerical", "procedural"):
+            # A sentence naming who recommends and approves carries no figure
+            # or engineering term, so it reads as "factual"; it is still an
+            # output of the severity decision and is judged with the others.
+            if calculated and (
+                kind in ("engineering", "numerical", "procedural") or _names_the_authority(claim, assessment)
+                or _states_the_basis(claim, assessment)
+            ):
                 contradiction = self.check_engineering(claim, assessment, records)
                 if not contradiction.passed:
                     verdicts.append(verdict("UNSUPPORTED", list(assessment.evidence_ids[-1:]),
@@ -867,14 +965,23 @@ class VerificationEngine:
                 governing = assessment.governing_location or ""
                 located = bool(governing and governing.lower() in claim.lower()
                                and re.search(r"\bgovern", claim, re.IGNORECASE))
-                if matched or dated or banded or authorised or located:
+                # And who recommends and who approves (SOP-OPS-008 Clause 2),
+                # as the stage words it rather than as the joined approver
+                # string: each approver after "approv", each recommender
+                # outside that stretch, so swapped roles do not pass.
+                endorsed = _names_the_authority(claim, assessment)
+                # And the clause it rests on, which the severity formula
+                # returns with its basis.
+                based = _states_the_basis(claim, assessment)
+                if matched or dated or banded or authorised or located or endorsed or based:
                     c_ids = [i for i in known_cited if i.startswith("C")] or [ident for _, ident in matched] \
                         or list(assessment.evidence_ids[-1:])
                     shown = ", ".join(f"{f:g}" for f, _ in matched)
                     parts = [p for p in (shown, assessment.next_due if dated else "",
                                          f"{assessment.severity.capitalize()} severity" if banded else "",
                                          f"approving authority {authority}" if authorised else "",
-                                         f"governing location {governing}" if located else "") if p]
+                                         f"governing location {governing}" if located else "",
+                                         f"severity basis {', '.join(based)}" if based else "") if p]
                     verdicts.append(verdict(
                         "CALCULATED", c_ids,
                         f"{', '.join(parts)} computed by registered formulas from "
@@ -1041,9 +1148,10 @@ class VerificationEngine:
         claims: list[ClaimVerdict] | None = None,
     ) -> VerificationReport:
         material = self.material_claims(text)
+        settled = self._settled(claims)
         supported = 0
         for claim in material:
-            ok, _ = self._claim_supported(claim, evidence)
+            ok, _ = self._supporting(claim, evidence, settled)
             supported += int(ok)
 
         threshold = float(self._rules.get("min_supported_fraction", 0.6))

@@ -21,7 +21,7 @@ curl -s -X POST http://127.0.0.1:8000/api/engineering/evaluate -H "Authorization
 | Method | Route | Permission | Does |
 |---|---|---|---|
 | POST | `/api/tasks/{id}/conflicts/{cid}/resolve` | `approval.decide`, not the submitter | `{candidate: 0}` or `{value: "9.6 mm"}`, and `reason` (8+ characters) → the task, recomputed, with the H evidence |
-| POST | `/api/tasks/{id}/approve` | `approval.decide` | `{decision: approve \| reject \| request_revision, comment, review_digest}`. A `review_digest` the run no longer has is refused; `request_revision` needs a comment; approve is refused while a high-impact conflict is open |
+| POST | `/api/tasks/{id}/approve` | `approval.decide` | `{decision: approve \| reject \| request_revision, comment, review_digest}`. A `review_digest` the run no longer has is refused, and the 400 detail names what changed (the prompt, the evidence set, the policy files, the model, or the content); a signature voided by such a change is named the same way; `request_revision` needs a comment; approve is refused while a high-impact conflict is open |
 
 ## Drawings
 

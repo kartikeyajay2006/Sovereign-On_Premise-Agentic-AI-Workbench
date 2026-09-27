@@ -43,4 +43,4 @@ backups/
 # Frontend build output and vendored browser tooling
 frontend/.next/
 frontend/out/
-frontend/tsconfig.tsbuildinfo
+frontend/*.tsbuildinfo

@@ -61,6 +61,8 @@ ATTRIBUTES: dict[str, tuple[str, str, Dimension | None]] = {
 # it is reported once, as the input conflict.
 _INPUT_FIELD = {
     "design_pressure": "design_pressure",
+    "operating_pressure": "operating_pressure",
+    "mawp": "mawp",
     "nominal_thickness": "nominal",
     "t_min": "t_min",
     "in_service_date": "in_service_date",
@@ -179,10 +181,27 @@ def _source_key(item: EvidenceItem) -> str:
     return item.document_id or item.source_document or item.id
 
 
+# The labelled tag a record is about: an inspection report's equipment tag,
+# or a relief-valve test record's valve tag.
+_HEADER_TAG = r"(?:Equipment|PSV|PRV|Relief\s+Valve|Relief\s+Device)\s+Tag\s*:?\s*"
+_RELIEF_TAG = re.compile(r"(?:PSV|PRV|RV)-")
+
+
+def _annotation(sentence: str, clause: re.Match[str]) -> bool:
+    """A clause cited in brackets, "(... SOP-INS-025 Cl. 2.2)", is a reference, not the subject.
+
+    A record's "Service: Corrosive (sour vapour; SOP-INS-025 Cl. 2.2)" made the
+    clause the subject of the set pressure on the next line, so two test
+    records of one valve read as two statements about Clause 2.2.
+    """
+    before = sentence[: clause.start()]
+    return before.count("(") > before.count(")") or sentence[clause.end():].lstrip().startswith(")")
+
+
 def extract_facts(item: EvidenceItem) -> list[Fact]:
     """Every fact one evidence item states, each placed on a subject."""
     text = item.excerpt or ""
-    header_tag = next(iter(re.findall(r"Equipment\s+Tag\s*:?\s*" + _TAG.pattern, text)), None)
+    header_tag = next(iter(re.findall(_HEADER_TAG + _TAG.pattern, text)), None)
     facts: list[Fact] = []
     for paragraph in re.split(r"\n\s*\n", text):
         joined = re.sub(r"\s+", " ", paragraph).strip()
@@ -192,6 +211,8 @@ def extract_facts(item: EvidenceItem) -> list[Fact]:
         for sentence in _SENTENCE.split(joined):
             tags = _TAG.findall(sentence)
             clause = _CLAUSE.search(sentence)
+            if clause and _annotation(sentence, clause):
+                clause = None
             for key, (label, pattern, dimension) in ATTRIBUTES.items():
                 for found in re.finditer(rf"\b(?:{pattern})", sentence, re.IGNORECASE):
                     read = _read_value(sentence[found.end():], dimension)
@@ -209,6 +230,12 @@ def extract_facts(item: EvidenceItem) -> list[Fact]:
                         subject = f"{clause.group(1).upper()} Clause {clause.group(2)}"
                     else:
                         subject = paragraph_tag or header_tag
+                    # A set pressure belongs to a relief device. In a valve's
+                    # own test record, "Protected Equipment: V-2104" on the
+                    # line before does not make it the vessel's.
+                    if (key == "set_pressure" and header_tag and _RELIEF_TAG.match(header_tag)
+                            and not (subject and _RELIEF_TAG.match(subject))):
+                        subject = header_tag
                     if not subject:
                         continue
                     lo, hi, tolerance, stated, value, unit = read
@@ -260,6 +287,10 @@ def fact_conflicts(
     for (subject, attribute), by_source in by_key.items():
         field = f"fact:{subject}:{attribute}"
         if field in seen or _INPUT_FIELD.get(attribute) in input_fields:
+            continue
+        # Relief-valve test records are compared by the relief path, test by
+        # test: reported once there, and not held where two tests may differ.
+        if any(name.startswith(f"relief:{subject}:") and name.endswith(f":{attribute}") for name in input_fields):
             continue
         # One statement per source. A source that disagrees with itself is
         # describing a change, not bearing witness: it is left out.

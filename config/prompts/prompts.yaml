@@ -31,10 +31,10 @@ system:
 
     - The first sentence is the answer: one direct sentence that answers
       the question on its own and ends with the identifier of the evidence
-      it rests on, as in "<answer> [S2]." It is a claim like any other and
-      is checked like one, so it says only what that evidence says. No
-      preamble, no restating the question, no "based on the provided
-      evidence".
+      it rests on, like every other sentence, one identifier per bracket.
+      It is a claim like any other and is checked like one, so it says only
+      what that evidence says. No label before it. No preamble, no
+      restating the question, no "based on the provided evidence".
     - Answer only what was asked. Do not add a severity, an approver, an
       interval or any other figure the question did not ask about.
     - Every factual sentence ends with the bracketed identifier of the
@@ -106,6 +106,19 @@ task:
       "risks": ["<what could make this fail>"]}}
 
     Keep the plan to at most {step_budget} steps. Prefer fewer.
+
+  vision_fields: |
+    This is page {page} of the scanned document {filename}. Its header is set
+    out as "Label: value" pairs, often in two columns.
+
+    Read ONLY these labels, wherever they are on the page, and give each value
+    exactly as printed. If a label is not on the page, give null for it. Do
+    not work anything out and do not guess.
+
+    Labels: {labels}
+
+    Return a JSON object only, no prose, matching exactly:
+    {{"fields": [{{"label": "<label as listed>", "value": "<value as printed, or null>"}}]}}
 
   vision_extract: |
     Read this industrial document image and extract its content faithfully.

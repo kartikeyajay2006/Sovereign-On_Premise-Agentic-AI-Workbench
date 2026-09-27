@@ -75,6 +75,8 @@ class InputConflict:
     # resolves it. "medium": no formula reads it; recorded and shown only.
     impact: str
     values: list[BoundValue]
+    # What the reader is told, where the default wording does not fit.
+    note: str | None = None
 
 
 # Inputs no formula reads. A disagreement is still recorded and shown, but
@@ -87,6 +89,8 @@ _LABELS = {
     "report_no": "Report No.",
     "service_category": "Service Category",
     "design_pressure": "Design Pressure",
+    "operating_pressure": "Operating Pressure",
+    "mawp": "MAWP",
     "nominal": "Nominal Thickness",
     "t_min": "t-min",
     "current_date": "Date of Inspection",
@@ -130,6 +134,9 @@ class VesselInputs:
     report_no: str | None = None
     service_category: BoundValue | None = None
     design_pressure: BoundValue | None = None
+    # Read for SOP-INS-021 Clause 6.1, the interim-operation pressure limit.
+    operating_pressure: BoundValue | None = None
+    mawp: BoundValue | None = None
     nominal: BoundValue | None = None
     t_min: BoundValue | None = None
     in_service_date: BoundValue | None = None
@@ -145,7 +152,7 @@ class VesselInputs:
     conflicts: list[InputConflict] = field(default_factory=list)
 
     _SCALARS = (
-        "service_category", "design_pressure", "nominal", "t_min", "in_service_date",
+        "service_category", "design_pressure", "operating_pressure", "mawp", "nominal", "t_min", "in_service_date",
         "previous_date", "current_date", "years_between", "years_in_service",
         "cladding_damage_percent",
     )
@@ -247,6 +254,8 @@ _FIELD_PATTERNS: dict[str, tuple[str, str]] = {
     "report_no": (r"Report\s+No\.?\s*:?\s*([A-Z]{2,4}-\d{4}-\d{3,4})", "text"),
     "service_category": (r"Service\s+Category\s*:?\s*([^\n|]+?)(?=\s{2,}|\||\n|$)", "text"),
     "design_pressure": (r"Design\s+Pressure\s*:?\s*([\d.]+\s*(?:bar\s*\(g\)|barg|bar|MPa|kPa|psig|psi))", "quantity"),
+    "operating_pressure": (r"Operating\s+Pressure\s*:?\s*([\d.]+\s*(?:bar\s*\(g\)|barg|bar|MPa|kPa|psig|psi))", "quantity"),
+    "mawp": (r"\bMAWP\s*:?\s*([\d.]+\s*(?:bar\s*\(g\)|barg|bar|MPa|kPa|psig|psi))", "quantity"),
     "nominal": (r"Nominal\s+(?:Thickness|wall)\s*:?\s*([\d.]+\s*mm)", "quantity"),
     "t_min": (r"t-?min\s*:?\s*([\d.]+\s*mm)", "quantity"),
     "current_date": (r"Date\s+of\s+Inspection\s*:?\s*" + _DATE, "date"),
@@ -259,6 +268,8 @@ _FIELD_LABELS = {
     "report_no": "Report No.",
     "service_category": "Service Category",
     "design_pressure": "Design Pressure",
+    "operating_pressure": "Operating Pressure",
+    "mawp": "MAWP",
     "nominal": "Nominal Thickness",
     "t_min": "t-min",
     "current_date": "Date of Inspection",
@@ -277,7 +288,9 @@ def _cells(line: str) -> list[str]:
         cells = [cell.strip() for cell in re.split(r"\s{2,}|\t", line.strip())]
         if len(cells) == 1:
             # "Shell course 2 (mid) 11.6 9.4": split trailing numbers off.
-            match = re.match(r"^(.*?[A-Za-z)\]])\s+(-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?)+)\s*$", line.strip())
+            # The label's last word may end in a digit ("Inlet nozzle N1");
+            # requiring a letter there ended the table at that row.
+            match = re.match(r"^(.*[A-Za-z)\]]\S*)\s+(-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?)+)\s*$", line.strip())
             if match:
                 cells = [match.group(1), *match.group(2).split()]
     return [cell for cell in cells if cell != ""]
@@ -304,7 +317,7 @@ def _readings_table(text: str, item: EvidenceItem) -> list[ReadingRow]:
     older, newer = (years[0], years[1]) if len(years) >= 2 and ascending else (
         (years[1], years[0]) if len(years) >= 2 else ("previous", "current")
     )
-    offset = sum(len(l) + 1 for l in lines[: header_index + 1])
+    offset = sum(len(header_line) + 1 for header_line in lines[: header_index + 1])
     rows: list[ReadingRow] = []
     for line in lines[header_index + 1:]:
         stripped = line.strip()
