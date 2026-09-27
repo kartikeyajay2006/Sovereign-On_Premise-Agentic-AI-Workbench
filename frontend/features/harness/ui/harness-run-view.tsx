@@ -191,8 +191,8 @@ export function HarnessRunScreen({ runId, onBack }: HarnessRunScreenProps) {
             }
             nextAction={
               error.status === 403
-                ? 'Your role may read only its own harness runs.'
-                : 'Return to the library, or retry once the workbench service answers.'
+                ? 'Your role reads only its own harness runs.'
+                : 'Go back to the library, or retry once the workbench service answers.'
             }
             identifier={{ label: 'run', value: runId }}
             detail={String(error.detail || error.message)}

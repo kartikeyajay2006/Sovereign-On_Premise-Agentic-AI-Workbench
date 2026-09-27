@@ -218,7 +218,7 @@ const SHOWN = new Set(['done', 'active', 'failed', 'denied'])
 // says which ("Each value is redacted…"), so the label does not guess.
 const SCAN_DECISION: Record<string, string> = {
   allow: 'recorded',
-  require_approval: 'held for a person',
+  require_approval: 'held for review',
   deny: 'blocked',
 }
 

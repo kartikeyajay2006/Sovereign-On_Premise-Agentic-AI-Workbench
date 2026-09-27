@@ -554,7 +554,7 @@ export function laneView(tl: Timeline, until: number | null = null): LaneView {
           kind: 'mark',
           start: stage.at,
           end: stage.at,
-          label: stage.status === 'blocked' ? 'blocked' : 'held for approval',
+          label: stage.status === 'blocked' ? 'blocked' : 'held for review',
           tone: stage.status === 'blocked' ? 'critical' : 'held',
           detail: stage.message,
         })
