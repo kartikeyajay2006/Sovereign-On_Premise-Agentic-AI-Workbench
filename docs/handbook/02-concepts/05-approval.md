@@ -13,6 +13,7 @@ After verification, the policy gateway evaluates the rules in `policies/approval
 | `verification_failure` | Any verification check failed | reviewer, administrator |
 | `low_confidence_classification` | The analyzer's confidence was below 0.35 **and** there is something to release | reviewer, administrator |
 | `high_severity_finding` | The formula registry computed a **High** finding | head_of_inspection **then** plant_manager, two signatures (below) |
+| `interim_operation_limit` | A vessel awaiting a Fitness-For-Service assessment runs above 90% of its MAWP, so interim operation is not permitted (SOP-INS-021 Clause 6.1) | head_of_inspection, plant_manager (SOP-INS-021 Clause 6.2; SOP-OPS-008 Clause 2.8). Either may release it: two signatures are enforced for High findings only |
 | `safety_recommendation` | The request mentions *safety*, *hazard*, *shutdown*, *incident* or *statutory* | reviewer, administrator |
 
 Every matching rule is listed on the run, so a reviewer sees all the reasons, not just the first. When the class was raised by evidence, that reason is put first and names the evidence, because "4 of 4 checks passed" beside **Held** is otherwise puzzling.
@@ -54,7 +55,7 @@ SOP-INS-014 Clause 5.1 names the Head of Inspection + Plant Manager as the autho
 - **Order is enforced.** The Plant Manager approves the Head of Inspection's recommendation, so the Plant Manager cannot sign first.
 - **The same person cannot sign twice** (SOP-OPS-008 Clause 3.2). The person who ran the task cannot sign at all.
 - **A role outside the rule is refused.** That includes the reviewer and the administrator.
-- **A signature is bound to the version signed.** If the run changes after the first signature, for example because a conflict was resolved and the finding recomputed, that signature is void. It is removed, and `approval / signatures_voided` is audited. The Head of Inspection then signs the new version.
+- **A signature is bound to the whole run signed.** It binds the answer, the files, the results and the conflict resolutions, and also the prompt, the evidence set (ids and source hashes), the policy files and the model digests. If any of them changes after the first signature (a conflict resolved, a model re-pulled to other weights, a policy file edited), that signature is void. It is removed, `approval / signatures_voided` is audited with the reason and the parts that changed, and the next attempt to sign is refused with the reason: *"The signatures given so far were voided: the policy files changed since review."* The review pane lists what a signature binds (prompt · N sources · policy set · model digest, each by a short hash) and the last voiding reason. The Head of Inspection then signs the new version. See [Proof](../09-security/09-proof.md#approval-bound-to-what-was-reviewed).
 - **The second signature releases the run.** The run becomes Delivered, and the `approved` audit entry and the run certificate list both signatures.
 
 The required signatures are read again from policy, against the run's computed severity, each time someone decides. A run that becomes High after a conflict resolution therefore needs the High signatures.

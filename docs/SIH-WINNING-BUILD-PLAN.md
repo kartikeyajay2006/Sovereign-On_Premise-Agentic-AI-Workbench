@@ -160,9 +160,9 @@ Phase by phase, with what is still open, in
 - On Linux, subprocess code runs in a private network namespace, so the
   kernel refuses its connections even where no container image is built.
 
-Still open: operating-envelope limits, approval binding to the prompt,
-evidence, policy and model digest, CMMS, document-management and directory
-adapters, and frontend tests.
+Still open: operating-envelope limits, CMMS, document-management and
+directory adapters, and frontend tests. Approval binding to the prompt,
+evidence, policy and model digest is done (`50b0dc1`).
 
 ## Do not spend judged-build time on
 

@@ -37,11 +37,19 @@ from backend.core.schemas import (
     User,
 )
 from backend.policy.gateway import get_policy_gateway
-from backend.proof.certificate import review_digest
+from backend.proof.certificate import (
+    binding_changes,
+    describe_changes,
+    review_binding,
+    review_digest,
+)
 from backend.security import dlp
 from backend.security.dlp import readable_text
 from backend.security.file_guard import inspect_upload
 from backend.security.injection import screen
+
+#: How many earlier review bindings a run keeps, to name what changed since one.
+REVIEW_HISTORY_KEPT = 16
 
 
 def _egress_reading() -> dict[str, Any] | None:
@@ -329,8 +337,32 @@ class TaskService:
         return [StoredFile(**record) for record in records]
 
     # -- persistence -------------------------------------------------------
+    @staticmethod
+    def _bind(task: Task) -> dict:
+        """Set the run's current review digest and binding; remember a new one."""
+        binding = review_binding(task)
+        task.review_digest = binding["digest"]
+        task.review_digest_version = binding["version"]
+        task.review_binding = binding
+        history = task.review_history
+        if not history or history[-1].get("digest") != binding["digest"]:
+            history.append({"digest": binding["digest"], "version": binding["version"], "parts": binding["parts"]})
+            del history[:-REVIEW_HISTORY_KEPT]
+        return binding
+
+    def current_view(self, task: Task) -> Task:
+        """A held run as it would be signed now.
+
+        The digest binds the policy files on this host, which can change
+        without the run being written again; a reviewer is shown the binding
+        a signature would be checked against, not the one last stored.
+        """
+        if task.status == TaskStatus.AWAITING_APPROVAL:
+            self._bind(task)
+        return task
+
     def _persist(self, task: Task) -> None:
-        task.review_digest = review_digest(task)
+        self._bind(task)
         payload = task.model_dump(mode="json")
         existing = self.db.get_task(task.id)
         if existing is None:
@@ -393,7 +425,7 @@ class TaskService:
         records = self.db.list_tasks(None, limit=200, statuses=[TaskStatus.AWAITING_APPROVAL.value])
         tasks = [Task(**record["payload"]) for record in records]
         return [
-            task
+            self.current_view(task)
             for task in tasks
             if task.approval and user.role in (task.approval.approver_roles or [user.role])
         ]
@@ -785,8 +817,10 @@ class TaskService:
         permission = self.gateway.check_permission(user, "approval.decide", task_id=task_id)
         if permission.decision != PolicyDecision.ALLOW:
             raise TaskError(permission.reason)
-        current = review_digest(task)
-        plan = self._refresh_signatures(task, user, current)
+        stored_digest = task.review_digest
+        binding = review_binding(task)
+        current = binding["digest"]
+        plan, void_reason = self._refresh_signatures(task, user, binding)
         if task.approval.approver_roles and user.role not in task.approval.approver_roles:
             raise TaskError(
                 f"Role '{user.role}' is not an approving authority for this task "
@@ -810,9 +844,20 @@ class TaskService:
         # Bound to what the reviewer read. A resolution, a re-render or a
         # re-run between opening the run and deciding it changes the digest,
         # and the decision is refused rather than applied to an unseen version.
-        if review_digest_seen is not None and review_digest_seen != current:
+        #
+        # A page opened before digest version 2 holds a version 1 digest. It
+        # is checked under version 1 rules, and only while the stored record
+        # is still that version 1 digest: once the run is written again, the
+        # reviewer is shown, and must send, the version 2 one.
+        legacy_view = (
+            review_digest_seen is not None
+            and review_digest_seen == stored_digest
+            and review_digest_seen == review_digest(task, version=1)
+        )
+        if review_digest_seen is not None and review_digest_seen != current and not legacy_view:
+            what = self._changed_since(task, review_digest_seen, binding)
             raise TaskError(
-                "This run has changed since you opened it (its review digest is now "
+                f"This run has changed since you opened it: {what} (its review digest is now "
                 f"{current[:12]}…, you reviewed {review_digest_seen[:12]}…). Reload it and review again."
             )
         if decision == "request_revision" and not (comment or "").strip():
@@ -833,7 +878,14 @@ class TaskService:
         if approved and plan:
             # One signature of several. It is recorded and audited; the run
             # is released only by the last one.
-            if not self._sign(task, user, plan, comment, current):
+            try:
+                complete = self._sign(task, user, plan, comment, binding)
+            except TaskError as exc:
+                if void_reason:
+                    # Say why the earlier signature is gone, not only whose turn it is.
+                    raise TaskError(f"The signatures given so far were voided: {void_reason}. {exc}") from exc
+                raise
+            if not complete:
                 self._persist(task)
                 waiting = plan[len(task.approval.signatures)]
                 await self.events.publish(
@@ -854,6 +906,8 @@ class TaskService:
         task.approval.comment = comment
         task.approval.decided_at = datetime.now(timezone.utc)
         task.approval.bound_digest = current
+        task.approval.bound_digest_version = binding["version"]
+        task.approval.bound_binding = binding
         task.status = (
             TaskStatus.DELIVERED if approved
             else TaskStatus.REVISION_REQUESTED if revise
@@ -876,7 +930,9 @@ class TaskService:
                 "reviewer": user.display_name,
                 "comment": comment,
                 "review_digest": current,
-                "deliverables_released": [d.filename for d in task.deliverables] if approved else [],
+                "review_digest_version": binding["version"],
+                "review_binding": binding["parts"],
+                "deliverables_released":[d.filename for d in task.deliverables] if approved else [],
                 "evidence_presented": len(task.evidence),
                 "signatures": [
                     {"authority": s.authority, "capacity": s.capacity, "username": s.username,
@@ -920,7 +976,21 @@ class TaskService:
             actor_role=user.role, task_id=task.id, detail=detail,
         )
 
-    def _refresh_signatures(self, task: Task, user: User, current: str) -> list[RequiredSignature]:
+    @staticmethod
+    def _changed_since(task: Task, seen: str, binding: dict) -> str:
+        """What changed between the digest a reviewer saw and the run now, in words."""
+        earlier = next((entry for entry in reversed(task.review_history) if entry.get("digest") == seen), None)
+        if earlier is not None:
+            return describe_changes(binding_changes(earlier, binding)) + " since review"
+        if seen == review_digest(task, version=1):
+            # The content a version 1 digest covers is unchanged; the run is
+            # now bound by version 2, which the reviewer has not been shown.
+            return "its review digest now also binds the prompt, evidence, policy files and models"
+        return "the run changed since review"
+
+    def _refresh_signatures(
+        self, task: Task, user: User, binding: dict
+    ) -> tuple[list[RequiredSignature], str | None]:
         """The signatures this run needs now, voiding any given to another version.
 
         Read from policy against the run's computed severity at the moment of
@@ -944,10 +1014,29 @@ class TaskService:
         plan = list(approval.required_signatures)
         if plan:
             approval.approver_roles = sorted({signature.role for signature in plan})
-        stale = [s for s in approval.signatures if s.review_digest != current]
+        current = binding["digest"]
+        # Each signature is checked under the digest version it was given
+        # under: one recorded before version 2 is held to what version 1
+        # bound, and is not voided merely because version 2 binds more.
+        stale = [
+            s for s in approval.signatures
+            if s.review_digest != (current if s.digest_version >= 2 else review_digest(task, version=1))
+        ]
+        reason: str | None = None
         if stale or (approval.signatures and not plan):
+            changed: list[str] = []
+            for signature in stale:
+                for key in binding_changes(signature.binding, binding):
+                    if key not in changed:
+                        changed.append(key)
+            reason = (
+                describe_changes(changed) + " since review" if stale
+                else "the finding no longer needs more than one signature"
+            )
             voided = approval.signatures
             approval.signatures = []
+            approval.void_reason = reason
+            approval.voided_at = datetime.now(timezone.utc)
             self._persist(task)
             self.audit.record(
                 category="approval",
@@ -956,19 +1045,21 @@ class TaskService:
                 actor_role=user.role,
                 task_id=task.id,
                 detail={
-                    "reason": "the run changed after these signatures were given" if stale
-                    else "the finding no longer needs more than one signature",
+                    "reason": reason,
+                    "changed": changed,
                     "voided": [
-                        {"authority": s.authority, "username": s.username, "review_digest": s.review_digest}
+                        {"authority": s.authority, "username": s.username, "review_digest": s.review_digest,
+                         "digest_version": s.digest_version}
                         for s in voided
                     ],
                     "review_digest": current,
+                    "review_binding": binding["parts"],
                 },
             )
-        return plan
+        return plan, reason
 
     def _sign(
-        self, task: Task, user: User, plan: list[RequiredSignature], comment: str | None, current: str
+        self, task: Task, user: User, plan: list[RequiredSignature], comment: str | None, binding: dict
     ) -> bool:
         """Record the next signature; True when it was the last one needed.
 
@@ -1003,7 +1094,9 @@ class TaskService:
             name=user.display_name,
             comment=comment,
             signed_at=datetime.now(timezone.utc),
-            review_digest=current,
+            review_digest=binding["digest"],
+            digest_version=binding["version"],
+            binding=binding,
         )
         given.append(signature)
         complete = len(given) == len(plan)
@@ -1020,8 +1113,10 @@ class TaskService:
                 "clause": needed.clause,
                 "position": f"{len(given)} of {len(plan)}",
                 "comment": comment,
-                "review_digest": current,
-                "awaiting": None if complete else plan[len(given)].authority,
+                "review_digest": binding["digest"],
+                "review_digest_version": binding["version"],
+                "review_binding": binding["parts"],
+                "awaiting":None if complete else plan[len(given)].authority,
             },
         )
         return complete
@@ -1105,7 +1200,7 @@ class TaskService:
         # The resolution changed what was signed: say so now, not only when
         # the next signer tries.
         if task.approval is not None:
-            self._refresh_signatures(task, user, review_digest(task))
+            self._refresh_signatures(task, user, review_binding(task))
         self._persist(task)
         return task
 

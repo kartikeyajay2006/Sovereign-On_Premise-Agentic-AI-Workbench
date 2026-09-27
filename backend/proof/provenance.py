@@ -42,6 +42,26 @@ def _files() -> list[Path]:
     )
 
 
+def _name(path: Path) -> str:
+    """A governed file's name as the certificate records it (``policies/dlp.yaml``)."""
+    try:
+        return path.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return f"{path.parent.name}/{path.name}"
+
+
+def policy_file_hashes() -> dict[str, str]:
+    """The sha256 of each policy file on this host now, named as config_snapshot names them.
+
+    The review digest binds these (proof/certificate.py), so a policy file
+    edited between two signatures voids the first. Hashed exactly as
+    config_snapshot hashes them, so the certificate's config record and the
+    approval binding agree on what a policy file's hash is.
+    """
+    return {_name(path): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(POLICY_DIR.glob("*.yaml"))}
+
+
 def config_snapshot() -> dict[str, Any]:
     """Hash every governing config and policy file, and read its declared version.
 
@@ -53,7 +73,7 @@ def config_snapshot() -> dict[str, Any]:
     versions: dict[str, dict[str, Any]] = {}
     for path in _files():
         raw = path.read_bytes()
-        name = path.relative_to(PROJECT_ROOT).as_posix()
+        name = _name(path)
         files[name] = hashlib.sha256(raw).hexdigest()
         try:
             data = yaml.safe_load(raw) or {}

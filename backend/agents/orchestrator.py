@@ -97,6 +97,14 @@ STATED_SUBJECT = re.compile(
     r"thick|wall loss|t[-_ ]?min|remaining life|corrosion rate|retirement", re.IGNORECASE
 )
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+# A label before the first sentence, never part of the answer: "<answer>",
+# "[answer]", "**Answer:**", "Answer:". Only at the very start.
+ANSWER_LABEL = re.compile(r"\A(?:\s*(?:<answer>|\[answer\]|\*{0,2}answer\s*:\*{0,2}))+\s*", re.IGNORECASE)
+ANSWER_CLOSE = re.compile(r"\s*</answer>\s*\Z", re.IGNORECASE)
+# A page that reads as an inspection report, and the header labels the
+# formula registry cannot calculate without. See _recover_header_fields.
+HEADER_RECOVERY_DOCUMENT = re.compile(r"INSPECTION\s+REPORT|Report\s+No\.?\s*:", re.IGNORECASE)
+HEADER_RECOVERY_FIELDS = ("nominal", "t_min", "current_date", "previous_date", "in_service_date")
 # A numeric result worth recomputing: a figure carrying a unit, or an explicit
 # equality. Prose with no such assertion needs no calculation check.
 NUMERIC_ASSERTION = re.compile(
@@ -533,8 +541,12 @@ def _dlp_holds(task: Task) -> int:
 
 
 def _strip_reasoning(text: str) -> str:
-    """Remove chain-of-thought blocks some reasoning models emit."""
-    return THINK_BLOCK.sub("", text or "").strip()
+    """Remove chain-of-thought blocks some reasoning models emit, and a bare
+    "answer" label a small model sometimes writes before its first sentence
+    ("<answer>", "[answer]", "Answer:"), which would otherwise open the lede."""
+    cleaned = THINK_BLOCK.sub("", text or "").strip()
+    cleaned = ANSWER_LABEL.sub("", cleaned, count=1)
+    return ANSWER_CLOSE.sub("", cleaned).strip()
 
 
 def _visible_so_far(raw: str) -> str:
@@ -1694,11 +1706,100 @@ class AgentOrchestrator:
             detail={"model": descriptor.id, "model_digest": ident.model_digest, "cache_key": ident.key},
         )
 
+    async def _recover_header_fields(
+        self, task: Task, user: User, batch: list[VisualInput], parsed: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Ask the vision model again, narrowly, for header labels it missed.
+
+        A 3B vision model reading a whole report page can skip a column of
+        its header: on the V-2104 report it transcribed the left column and
+        dropped "In Service Since", "t-min" and "Previous Inspection" from the
+        right, so the formula registry could not calculate. When a page reads
+        as an inspection report and one of the labels the registry needs is
+        not in what was read, the page is shown to the model once more with
+        only those labels asked for, exactly as printed.
+
+        What comes back is kept only when it reads as that label's value (the
+        same patterns the engineering extraction applies), is marked on the
+        page as a targeted re-read, and is cached like any other reading.
+        Nothing is inferred: a label the model still cannot see stays missing.
+        """
+        from backend.engineering.extraction import _FIELD_LABELS, _FIELD_PATTERNS
+
+        pages = parsed.get("pages") if isinstance(parsed, dict) else None
+        if not isinstance(pages, list):
+            return parsed
+        for index, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            item = batch[0] if len(batch) == 1 else next(
+                (candidate for candidate in batch if candidate.page_number == page.get("page_number")),
+                batch[index] if index < len(batch) else None,
+            )
+            if item is None or item.page_number is None:
+                continue
+            read = "\n".join([
+                *(f"{f.get('label', '')}: {f.get('value', '')}" for f in page.get("fields") or [] if isinstance(f, dict)),
+                str(page.get("transcription") or ""),
+            ])
+            if not HEADER_RECOVERY_DOCUMENT.search(read):
+                continue
+            missing = [
+                name for name in HEADER_RECOVERY_FIELDS
+                if not re.search(_FIELD_PATTERNS[name][0], read, re.IGNORECASE)
+            ]
+            if not missing:
+                continue
+            labels = [_FIELD_LABELS[name] for name in missing]
+            prompt = self.config.prompt(
+                "task.vision_fields", page=item.page_number, filename=item.source.filename,
+                labels="; ".join(labels),
+            )
+            system_prompt = self.config.system_prompt("vision")
+            try:
+                cached = await self._vision_cache_lookup(task, user, [item.path], system_prompt, prompt)
+                if cached is not None and cached[0] == "hit":
+                    text = str(cached[1]["text"])
+                else:
+                    text, decision = await self._generate(
+                        task, user, stage="vision_extraction", system_prompt=system_prompt,
+                        prompt=prompt, images=[item.path], format_json=True,
+                    )
+                    if cached is not None and cached[0] == "miss":
+                        self._vision_cache_store(task, user, cached[1], cached[2], text, decision)
+            except (InferenceError, NoEligibleModelError) as exc:
+                page["header_recovery"] = {"asked": labels, "recovered": [], "error": str(exc)[:200]}
+                continue
+            answer = _parse_json(text)
+            returned = answer.get("fields") if isinstance(answer, dict) else None
+            recovered: list[str] = []
+            fields = list(page.get("fields") or [])
+            for name, label in zip(missing, labels):
+                value = next(
+                    (str(f.get("value")).strip() for f in returned or []
+                     if isinstance(f, dict) and str(f.get("label", "")).strip().lower() == label.lower()
+                     and f.get("value") not in (None, "", "null")),
+                    None,
+                )
+                if value and re.search(_FIELD_PATTERNS[name][0], f"{label}: {value}", re.IGNORECASE):
+                    fields.append({"label": label, "value": value, "read": "targeted re-read"})
+                    recovered.append(label)
+            page["fields"] = fields
+            page["header_recovery"] = {"asked": labels, "recovered": recovered}
+            self.audit.record(
+                category="model", action="vision_header_recovery", actor=user.username,
+                actor_role=user.role, task_id=task.id,
+                detail={"file": item.source.filename, "page": item.page_number,
+                        "asked": labels, "recovered": recovered},
+            )
+        return parsed
+
     async def _extract_pdf_batch(
         self, task: Task, user: User, ledger: EvidenceLedger,
         batch: list[VisualInput], limitations: list[str],
     ) -> list[dict[str, Any]]:
         parsed, _, model_id = await self._vision_extraction(task, user, batch)
+        parsed = await self._recover_header_fields(task, user, batch, parsed)
         try:
             return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
         except InferenceError:
@@ -1707,12 +1808,14 @@ class AgentOrchestrator:
                 # answer about one page is asked again once before the run
                 # is failed on it.
                 parsed, _, model_id = await self._vision_extraction(task, user, batch, refresh=True)
+                parsed = await self._recover_header_fields(task, user, batch, parsed)
                 return self._record_pdf_batch(task, ledger, batch, parsed, model_id, limitations)
             # Do not discard a whole batch because its page labels or count
             # were ambiguous. Single-image calls have an unambiguous source.
             recovered: list[dict[str, Any]] = []
             for item in batch:
                 parsed, _, model_id = await self._vision_extraction(task, user, [item])
+                parsed = await self._recover_header_fields(task, user, [item], parsed)
                 recovered.extend(self._record_pdf_batch(
                     task, ledger, [item], parsed, model_id, limitations,
                 ))
@@ -2302,6 +2405,7 @@ class AgentOrchestrator:
                 ),
                 severity=_calculated_severity(task),
                 dlp_findings=_dlp_holds(task),
+                operating_limit_breaches=_operating_limit_breaches(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -3601,6 +3705,14 @@ def _calculated_severity(task: Task) -> str | None:
     if assessment is None or assessment.status != "calculated":
         return None
     return assessment.severity
+
+
+def _operating_limit_breaches(task: Task) -> int:
+    """Operating-envelope checks the registry failed on the run's evidence."""
+    assessment = task.assessment
+    if assessment is None or assessment.status != "calculated":
+        return 0
+    return sum(1 for check in assessment.checks if check.formula_id.startswith("envelope.") and not check.passed)
 
 
 def _summarise(arguments: dict[str, Any]) -> dict[str, Any]:
