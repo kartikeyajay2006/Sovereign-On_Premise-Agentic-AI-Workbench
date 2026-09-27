@@ -290,6 +290,20 @@ _ANSWER_LABEL = re.compile(r"^\s*(?:\[answer\]|<answer>|answer:)[ \t]*", re.IGNO
 _BARE_CITATIONS_LINE = re.compile(r"^(?:\[[A-Z]+\d+\][ \t]*)+\n+")
 
 
+def citable_ids_line(evidence: list[EvidenceItem]) -> str:
+    """The identifiers this run holds, said once, after the evidence.
+
+    The prompts' examples cite "[S2]", and a run given only files has no S
+    items: a small model then cited [S1] and [S2] anyway, and citation
+    verification failed a correct answer for naming evidence that did not
+    exist. Every id here is one the verifier will resolve.
+    """
+    ids = list(dict.fromkeys(item.id for item in evidence if item.id))
+    if not ids:
+        return ""
+    return f"Identifiers you may cite in this run: {', '.join(ids)}. Any other identifier names nothing."
+
+
 def strip_answer_label(text: str) -> str:
     """Remove a label a model put before its answer.
 
@@ -3549,6 +3563,8 @@ class AgentOrchestrator:
             + f"\n{_model_text(item)[:400 if item.page_number is not None else 500]}"
             for item in [*page_items, *other_items]
         ) or "No local evidence was retrieved."
+        if page_items or other_items:
+            evidence_block += "\n\n" + citable_ids_line(evidence)
 
         prompt = self.config.prompt(
             "task.reason_with_page_evidence" if page_items else "task.reason_with_evidence",
@@ -3603,6 +3619,8 @@ class AgentOrchestrator:
             + f": {_model_text(item)[:250]}"
             for item in [*page_items, *other_items]
         ) or "No evidence available."
+        if page_items or other_items:
+            evidence_block += "\n" + citable_ids_line(evidence)
 
         prompt = self.config.prompt(
             "task.draft_deliverable",
