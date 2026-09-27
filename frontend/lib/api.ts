@@ -134,9 +134,6 @@ export const api = {
     return res
   },
 
-  async me(): Promise<User> {
-    return request<User>('/auth/me')
-  },
 
   /**
    * Who is signed in, or that nobody is. A 200 either way: /auth/me answers

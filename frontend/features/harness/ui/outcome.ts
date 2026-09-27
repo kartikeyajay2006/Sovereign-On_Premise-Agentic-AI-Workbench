@@ -149,32 +149,6 @@ export const STATE_GLYPH: Record<SpectrumState, string> = {
   skipped: 'text-foreground-muted',
 }
 
-/** The APPEND tone a row takes when its child settles into that state. */
-export const STATE_TONE: Record<SpectrumState, 'neutral' | 'sovereign' | 'active' | 'approval' | 'critical'> = {
-  proved: 'sovereign',
-  review: 'approval',
-  held: 'approval',
-  refused: 'critical',
-  failed: 'critical',
-  active: 'active',
-  neutral: 'neutral',
-  pending: 'neutral',
-  skipped: 'neutral',
-}
-
-/**
- * States a child settles into: the ones the spectrum ticks for. Skipped is
- * not among them. A child that never ran did not arrive at anything.
- */
-export const SETTLED_STATES: ReadonlySet<SpectrumState> = new Set([
-  'proved',
-  'review',
-  'held',
-  'refused',
-  'failed',
-  'neutral',
-])
-
 /** Legend and report order: deliveries first, then what stopped short. */
 export const OUTCOME_ORDER: HarnessOutcome[] = [
   'supported',

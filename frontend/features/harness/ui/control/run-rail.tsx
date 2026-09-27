@@ -49,10 +49,6 @@ const CELL: Record<CellLook, string> = {
   skipped: 'border border-dashed border-foreground-muted/60 bg-transparent text-foreground-muted',
 }
 
-export function cellLook(outcome: HarnessOutcome): CellLook {
-  return LOOK[outcome]
-}
-
 export function RunRail({
   run,
   selected,

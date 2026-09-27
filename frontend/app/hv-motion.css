@@ -1,9 +1,8 @@
 /* ------------------------------------------------------------------ */
 /* HI-VIS MOTION SYSTEM                                                */
 /*                                                                     */
-/* Eight named motions, each for one kind of event, from the Hi-Vis    */
-/* spec (aegis-hivis-motion-harness-spec.md). Plain classes, so any    */
-/* surface can use them -- Harness Control first, the landing later:   */
+/* Seven named motions, each for one kind of event. Plain classes, so  */
+/* any surface can use them -- Harness Control first, the landing later: */
 /*                                                                     */
 /*   hv-tick   120ms steps(2)   a cell or counter changes after an event */
 /*   hv-roll   600ms            a measured number moves to a new reading */
@@ -11,7 +10,6 @@
 /*   hv-lock   280ms            brackets land on a supported claim       */
 /*   hv-trace  420ms            a claim -> evidence edge draws           */
 /*   hv-seal   ~900ms           hex resolves, rule wipes, SEALED stamps  */
-/*   hv-wipe   480ms/24ms col   a page or chapter change                 */
 /*   hv-caret  1000ms steps(2)  the tail of a live token stream          */
 /*                                                                     */
 /* Three rules the classes cannot enforce and callers must:            */
@@ -46,9 +44,6 @@
   --hv-trace-ease: cubic-bezier(0.65, 0, 0.35, 1);
   --hv-seal-stagger: 12ms;
   --hv-seal-rule: 160ms;
-  --hv-wipe-dur: 480ms;
-  --hv-wipe-ease: cubic-bezier(0.76, 0, 0.24, 1);
-  --hv-wipe-stagger: 24ms;
   --hv-caret-dur: 1000ms;
 }
 
@@ -72,22 +67,6 @@
 .hv-roll .aegis-roll-out {
   animation-duration: var(--hv-roll-dur);
   animation-timing-function: var(--hv-roll-ease);
-}
-.hv-roll-in {
-  display: inline-block;
-  animation: hv-roll-in var(--hv-roll-dur) var(--hv-roll-ease) both;
-}
-.hv-roll-out {
-  display: inline-block;
-  animation: hv-roll-out var(--hv-roll-dur) var(--hv-roll-ease) both;
-}
-@keyframes hv-roll-in {
-  from { transform: translateY(100%); }
-  to { transform: none; }
-}
-@keyframes hv-roll-out {
-  from { transform: none; }
-  to { transform: translateY(-100%); }
 }
 
 /* ---------------------------------------------------------------- scan */
@@ -214,18 +193,6 @@ span.hv-lock-frame {
   to { visibility: visible; }
 }
 
-/* ---------------------------------------------------------------- wipe */
-/* One grid column's worth of clip-path reveal; give each column
-   style --col: its index (0-11) for the 24ms stagger. */
-.hv-wipe {
-  animation: hv-wipe var(--hv-wipe-dur) var(--hv-wipe-ease) both;
-  animation-delay: calc(var(--col, 0) * var(--hv-wipe-stagger));
-}
-@keyframes hv-wipe {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-
 /* --------------------------------------------------------------- caret */
 .hv-caret {
   display: inline-block;
@@ -244,22 +211,18 @@ span.hv-lock-frame {
 /* ------------------------------------------------------ reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .hv-tick,
-  .hv-lock,
-  .hv-wipe {
+  .hv-lock {
     animation: hv-fade var(--hv-tick-dur) linear both;
     animation-delay: 0ms;
     transform: none;
     clip-path: none;
   }
   .hv-roll .aegis-roll-in,
-  .hv-roll .aegis-roll-out,
-  .hv-roll-in,
-  .hv-roll-out {
+  .hv-roll .aegis-roll-out {
     animation: none;
     transform: none;
   }
-  .hv-roll .aegis-roll-out,
-  .hv-roll-out {
+  .hv-roll .aegis-roll-out {
     visibility: hidden;
   }
   .hv-scan::after {
