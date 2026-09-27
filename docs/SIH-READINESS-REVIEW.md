@@ -8,9 +8,8 @@ it says otherwise.
 
 ## Verdict
 
-The plan's six phases are built, with four gaps left open: operating-envelope
-checks, three of the five plant-system adapters, approval binding to the
-prompt, evidence, policy and model, and frontend tests. The three judged
+The plan's six phases are built, with three gaps left open: operating-envelope
+checks, three of the five plant-system adapters, and frontend tests. The three judged
 moments run end to end, and the red team holds **31 of 31** attacks against
 the live host. What decides the result now is less the code than the demo
 machine: the sandbox image and the egress firewall are not set up on it, and
@@ -41,7 +40,7 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 | | Isolation, upstream and downstream questions with overlay | Done | `/pid`, drawing explorer |
 | | Historian and OPC UA adapters | Done (read-only, simulator) | `backend/connectors/` |
 | | CMMS, document-management and directory adapters | **Open** | — |
-| 6 Proof | Approval bound to what the reviewer saw | Partial: answer, deliverables, results, conflicts; **not** prompt, evidence set, policy or model digest | `review_digest` in `backend/proof/certificate.py` |
+| 6 Proof | Approval bound to what the reviewer saw | Done (`50b0dc1`): answer, deliverables, results, conflicts, and the prompt, evidence set, policy files and model digests (review digest version 2; version 1 records still verify) | `review_digest` in `backend/proof/certificate.py` |
 | | Two signatures for a High finding | Done, role by role, in order | `policies/approval-rules.yaml` |
 | | Ed25519-signed audit roots and run certificates | Done | `backend/proof/` |
 | | Measurements dashboard, golden demo check | Done | `/measurements`, `scripts/golden_demo.py` |
@@ -55,6 +54,7 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 | `119a29b` | Generated code on the subprocess runtime runs in a private network namespace: the kernel refuses every connection, to the internet and to this host's own loopback (Ollama, the API), with or without the shim. Probed before use, shown on the Sandbox page, measured by the self-test. |
 | `ab0ccfc` | A PSV bench-test record is assessed in a run. A failed as-received test is High on the protected vessel, so the run is held for the Head of Inspection and then the Plant Manager. A fourth starter card attaches the record. The engineering check no longer raises on an assessment without a corrosion rate. |
 | `f7e77e7` | A High finding's footer says "Held for Head of Inspection, then Plant Manager", then "(1 of 2 signed)", instead of "or". |
+| `50b0dc1` | Approval bound to the whole run. The review digest (version 2) also binds the prompt hash, the evidence ids with their source hashes, the policy file hashes and the model digests, taken from the same values the certificate records. A change to any of them voids the signatures given and blocks release, and the refusal names what changed ("the policy files changed since review"). The review pane and Proof Mode list what a signature binds. Signatures and approvals stored under version 1 are checked under version 1 rules and keep verifying. |
 
 Measured on the live host after these commits:
 
@@ -117,22 +117,17 @@ One finding is the model's, not the code's: on one run the 3B model drafted an a
 
 ### Code gaps from the plan, in order of judged value
 
-1. **Bind approval to the full run.** Add the prompt hash, the evidence ids
-   and source hashes, the policy file hashes and the model digests to
-   `review_digest`, so a re-routed model or a changed policy voids a
-   signature the way a changed answer already does. The certificate already
-   carries all four; only the binding is missing.
-2. **Operating envelope.** Operating pressure and temperature against design
+1. **Operating envelope.** Operating pressure and temperature against design
    and MAWP, and SOP-INS-021's interim limit of 90% of MAWP, as registered
    formulas. It is the last Phase 1 item.
-3. **Frontend tests.** The console has none; the "or" footer above was found
+2. **Frontend tests.** The console has none; the "or" footer above was found
    by reading a screenshot. A Playwright smoke test that opens each starter
    card, runs it and reads the integrity card would catch that class of bug.
-4. **CMMS adapter.** Read-only open work orders and notifications for a tag,
+3. **CMMS adapter.** Read-only open work orders and notifications for a tag,
    behind `backend/connectors/base.py`, would let the approval note say
    whether a repair is already raised. Document-management and directory
    adapters are lower value for the demo.
-5. **Relief records.** Only the first record in a run is assessed, and two
+4. **Relief records.** Only the first record in a run is assessed, and two
    records for one valve are not compared as the vessel path compares two
    surveys.
 

@@ -85,7 +85,7 @@ Checks on every answer (`backend/agents/verifier.py`): source, citation, page ci
 | Approval rules | 11 rules hold a run: sensitive or restricted work, a deliverable, failed verification, low classification confidence, an unresolved conflict, a disposition only an authority can take, injected instructions, sensitive content found by scanning, an isolation plan, a High finding, a safety topic | `policies/approval-rules.yaml` |
 | Two signatures | A High finding needs the Head of Inspection and then the Plant Manager (SOP-OPS-008 Clauses 2.3 and 3.5), each a different person with that role | `backend/api/task_service.py` |
 | Separation of duties | Nobody decides their own run, whatever their role | same |
-| Bound to what was reviewed | A decision carries the review digest of the version read; a changed run voids the signatures already given | `backend/proof/certificate.py` |
+| Bound to what was reviewed | A decision carries the review digest of the version read, which binds the answer, files, results and conflicts and also the prompt, the evidence set, the policy files and the model digests; a change to any of them voids the signatures already given, with a reason that names the part | `backend/proof/certificate.py` |
 | Request revision | A reviewer can send a run back with a note | Approvals screen |
 
 ## 7 · Prove: every step has a history
