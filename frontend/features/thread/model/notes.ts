@@ -40,7 +40,7 @@ function planNotes(steps: readonly PlanStep[], key: string): TranscriptNote[] {
 
 const POLICY_WORDS: Record<string, string> = {
   allow: 'Recorded',
-  require_approval: 'Held for a person',
+  require_approval: 'Held for review',
   deny: 'Blocked',
 }
 

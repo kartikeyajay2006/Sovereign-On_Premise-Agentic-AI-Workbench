@@ -76,14 +76,14 @@ interface Place extends Destination {
 export const PLACES: Place[] = [
   { href: '/console', label: 'Thread', key: 't', hint: 'ask, and watch the run', paths: ['/console'], icon: MessageSquare },
   { href: '/skills', label: 'Skills', key: 'i', hint: 'saved instructions, called with /', paths: ['/skills'], icon: SquareSlash },
-  { href: '/harnesses', label: 'Harnesses', key: 'h', hint: 'governed multi-run jobs', paths: ['/harnesses'], icon: Layers },
-  { href: '/approvals', label: 'Approvals', key: 'a', hint: 'deliverables held for a reviewer', paths: ['/approvals'], icon: ClipboardCheck },
+  { href: '/harnesses', label: 'Harnesses', key: 'h', hint: 'many runs, one hashed report', paths: ['/harnesses'], icon: Layers },
+  { href: '/approvals', label: 'Approvals', key: 'a', hint: 'runs held for review', paths: ['/approvals'], icon: ClipboardCheck },
   { href: '/registry', label: 'Knowledge', key: 'k', hint: 'models, SOPs, retrieval', paths: ['/registry'], icon: BookOpen },
   {
     href: '/security',
     label: 'Assurance',
     key: 'p',
-    hint: 'what this host can show about its own conduct',
+    hint: 'what this host measured, tested and allows',
     paths: ['/security', '/sandbox', '/audit', '/measurements'],
     icon: ShieldCheck,
     children: [
@@ -309,7 +309,7 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
       })
       // Named, not swallowed: an empty list and an unreachable API look the
       // same otherwise, and one of them is worth seeing.
-      .catch((err) => !cancelled && setError(err?.detail || err?.message || 'Could not read past runs.'))
+      .catch((err) => !cancelled && setError(err?.detail || err?.message || 'Past runs could not be read.'))
       .finally(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true

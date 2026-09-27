@@ -210,8 +210,7 @@ export function StageLanes({ child, timeline, loaded, error, live, until, step, 
             )}
             {noStageMarks && (
               <span className={cn(BODY, 'text-foreground-muted')}>
-                This record predates stage marks: only its model and tool calls, which carry their own start times, are
-                drawn.
+                This record predates stage marks, so only its timed model and tool calls are drawn.
               </span>
             )}
           </div>

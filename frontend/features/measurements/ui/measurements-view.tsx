@@ -120,7 +120,7 @@ export function MeasurementsView() {
     <div className="flex flex-col">
       <PageHeader
         title="Measurements"
-        description="Every figure here is computed from an artifact this host produced, and names it. A figure with nothing behind it says Not measured, and why."
+        description="Every figure is computed from an artifact this host produced, and names it. A figure with nothing behind it says Not measured, and why."
         meta={
           data
             ? [

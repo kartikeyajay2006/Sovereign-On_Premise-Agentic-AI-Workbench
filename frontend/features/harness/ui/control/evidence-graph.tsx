@@ -186,8 +186,8 @@ export const EvidenceGraph = forwardRef<HTMLDivElement, { run: HarnessRunView; s
           {graph.columns[2].length === 0 ? (
             <p className={cn(BODY, 'px-3 py-4 text-foreground-secondary')}>
               {predatesVerdicts
-                ? 'These children were verified before per-claim verdicts were recorded, so there are no claims to draw. Runs made from now on fill this graph.'
-                : 'No released child has verified claims yet. The graph is drawn from each released child’s claims and the passages their evidence ids name; a held child’s claims are not shown here.'}
+                ? 'These children predate per-claim verdicts, so there are no claims to draw. New runs fill this graph.'
+                : 'No released child has verified claims yet. Each released child adds its claims and the passages they cite; held children stay off the graph.'}
             </p>
           ) : (
             <svg

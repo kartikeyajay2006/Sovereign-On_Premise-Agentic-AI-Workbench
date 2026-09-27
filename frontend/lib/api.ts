@@ -118,7 +118,7 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     // backend is unreachable would put fabricated egress counts and audit
     // entries in front of someone auditing the platform, with nothing marking
     // them as unreal. A failure must look like a failure.
-    throw new ApiError(0, err.message || 'Cannot reach the local workbench service')
+    throw new ApiError(0, err.message || 'The workbench service is unreachable')
   }
 }
 

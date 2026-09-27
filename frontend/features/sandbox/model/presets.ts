@@ -111,7 +111,7 @@ export const SANDBOX_PRESETS: SandboxPreset[] = [
     id: 'infinite-loop',
     label: 'Infinite loop',
     kind: 'adversarial',
-    expectation: 'Runs until the CPU-time cap (or wall timeout) terminates it — this one takes the full CPU budget, so expect a wait.',
+    expectation: 'Runs until the CPU-time cap (or wall timeout) kills it. Uses the full CPU budget, so expect a wait.',
     code: 'x = 0\nwhile True:\n    x += 1\n',
   },
   {

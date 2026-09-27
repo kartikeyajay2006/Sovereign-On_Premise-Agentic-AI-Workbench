@@ -104,7 +104,7 @@ export function ResultPanel({
         </p>
       ) : !response ? (
         <p className="font-sans text-[13.5px] text-foreground-muted">
-          Nothing run yet. Pick a payload or write your own, then Run — the result lands here, measured.
+          Pick a payload or write your own, then Run. The measured result lands here.
         </p>
       ) : (
         <Transcript response={response} />
@@ -146,7 +146,7 @@ function Transcript({ response }: { response: SandboxExecuteResponse }) {
               </p>
             ))}
             <p className="font-sans text-[12px] text-foreground-muted">
-              Read and refused by the static validator; no process was started.
+              Refused by the static validator. No process started.
             </p>
           </Hang>
         ) : (
@@ -169,7 +169,7 @@ function Transcript({ response }: { response: SandboxExecuteResponse }) {
             {accounting.output_truncated && (
               <Hang>
                 <span className="font-sans text-[12px] text-approval-text">
-                  Output passed the capture limit and was cut, to protect the host.
+                  Output hit the capture limit and was cut.
                 </span>
               </Hang>
             )}

@@ -58,19 +58,19 @@ export function DecisionDialog({
     ? `Sign as ${signature.authority}`
     : approve ? (filename ? 'Approve and release' : 'Approve') : revise ? 'Request a revision' : 'Reject and return'
   const consequence = signing
-    ? `Records your signature as the ${signature.authority}, who ${signature.capacity} this finding, against ${reviewer} in the audit chain. Nothing is released: the run waits for the second authority.`
+    ? `Records your signature as the ${signature.authority}, who ${signature.capacity} this finding, against ${reviewer} in the audit chain. Nothing is released yet: the run waits for the second authority.`
     : approve
     ? filename
-      ? `Releases ${filename} to the submitter and records the decision against ${reviewer} in the audit chain.`
-      : `This run produced no file, so nothing is released. The approval is recorded against ${reviewer} in the audit chain.`
+      ? `Releases ${filename} to the submitter. Recorded against ${reviewer} in the audit chain.`
+      : `No file to release. The approval is recorded against ${reviewer} in the audit chain.`
     : revise
-      ? `Nothing is released and nothing is rejected: the run goes back to its submitter with your note, recorded against ${reviewer} in the audit chain.`
-      : `Nothing is released. The run is marked rejected, and your reason is stored on it and in the audit chain against ${reviewer}.`
+      ? `Nothing is released or rejected. The run goes back to its submitter with your note, recorded against ${reviewer} in the audit chain.`
+      : `Nothing is released. The run is marked rejected; your reason is stored on it and in the audit chain against ${reviewer}.`
 
   const submit = async () => {
     if (busy) return
     if (needsNote && blank) {
-      setError(revise ? 'Say what should change.' : 'Add the reason this run is being returned.')
+      setError(revise ? 'Say what should change.' : 'Give the reason for rejecting it.')
       noteRef.current?.focus()
       return
     }
@@ -145,7 +145,7 @@ export function DecisionDialog({
             placeholder={
               needsNote
                 ? 'What must change before this can be released?'
-                : 'Anything the record should carry with this approval'
+                : 'Optional note for the record'
             }
             className="hover-decay w-full resize-y rounded-[var(--radius)] bg-surface px-3 py-2 text-body text-foreground shadow-[0_0_0_1px_var(--control-default)] outline-none placeholder:text-foreground-muted hover:shadow-[0_0_0_1px_var(--control-strong)] focus:shadow-[var(--focus-halo)] aria-[invalid=true]:shadow-[var(--focus-halo-invalid)]"
           />

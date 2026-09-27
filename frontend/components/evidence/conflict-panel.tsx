@@ -96,8 +96,8 @@ function ResolveForm({
       <legend className="sr-only">Resolve {conflict.id}</legend>
       <p className="text-ui text-foreground-secondary">
         {conflict.kind === 'fact'
-          ? 'Choose the value that is correct. It is recorded as H evidence under your name, and claims that state it are then checked against that record.'
-          : 'Choose the value the decision should use. It is recorded as H evidence under your name, and every figure is recomputed from it by the same formulas.'}
+          ? 'Pick the correct value. It is recorded as H evidence under your name, and claims that state it are checked against it.'
+          : 'Pick the value the decision uses. It is recorded as H evidence under your name, and every figure is recomputed from it.'}
       </p>
       <div className="flex flex-wrap gap-2">
         {conflict.candidates.map((option, index) => (
@@ -261,7 +261,7 @@ export function ConflictPanel({
               )}
               {conflict.status === 'unresolved' && conflict.impact === 'high' && !canResolve && (
                 <p className="text-meta text-foreground-muted">
-                  Awaiting a reviewer: a different account holding approval.decide chooses the value, and the
+                  Awaiting a reviewer. Another account holding approval.decide picks the value; the
                   decision is recomputed from it.
                 </p>
               )}

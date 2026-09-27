@@ -111,7 +111,7 @@ export const AnswerActions = memo(function AnswerActions({
           type="button"
           onClick={() => void copy('sources')}
           className={ACTION}
-          title="Copies the answer with every citation written out as its source and location"
+          title="Copy the answer with each citation spelled out as source and location"
         >
           {copied === 'sources' ? <Check className="size-3.5" aria-hidden /> : <Quote className="size-3.5" aria-hidden />}
           {copied === 'sources' ? 'Copied' : 'Copy with sources'}
@@ -128,7 +128,7 @@ export const AnswerActions = memo(function AnswerActions({
           onClick={onRerun}
           disabled={rerunDisabled}
           className={ACTION}
-          title={rerunDisabled ? 'One run at a time: this is available when the current run ends.' : 'Sends the same request again as a new run'}
+          title={rerunDisabled ? 'One run at a time. Available when this one ends.' : 'Send the same request as a new run'}
         >
           <RotateCcw className="size-3.5" aria-hidden />
           Run again
@@ -149,7 +149,7 @@ export const AnswerActions = memo(function AnswerActions({
         <Link
           href={`/compare?b=${taskId}`}
           className={ACTION}
-          title="Set this run beside another -- the run it re-ran, if it is a re-run -- with every difference named"
+          title="Set this run beside another, with every difference named"
         >
           <GitCompare className="size-3.5" aria-hidden />
           Compare

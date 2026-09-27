@@ -55,7 +55,7 @@ function knownSumFormat(total: KnownSum) {
 function callDetail(call: ModelUsage): string[] {
   if (call.cancelled) {
     return [
-      `Stopped by request after ${formatSeconds(call.latency_ms)}. The runtime reports counts only for a call that completes.`,
+      `Stopped by request after ${formatSeconds(call.latency_ms)}. The runtime counts tokens only for calls that complete.`,
     ]
   }
   const parts: string[] = []
@@ -70,8 +70,8 @@ function callDetail(call: ModelUsage): string[] {
   if (call.done_reason === 'length') {
     lines.push(
       call.output_limit
-        ? `Stopped at its ${formatCount(call.output_limit)}-token output limit, not at the end of what it was writing.`
-        : 'Stopped at its output limit, not at the end of what it was writing.',
+        ? `Cut off at its ${formatCount(call.output_limit)}-token output limit, before it finished.`
+        : 'Cut off at its output limit, before it finished.',
     )
   }
   return lines
@@ -184,8 +184,7 @@ function UsageNotes({
         // model was still writing when the budget ran out.
         <p className="text-meta text-approval-text">
           The answer stopped at its{' '}
-          {answer.output_limit ? `${formatCount(answer.output_limit)}-token ` : ''}output limit, before the model had
-          finished it.
+          {answer.output_limit ? `${formatCount(answer.output_limit)}-token ` : ''}output limit, before the model finished.
         </p>
       )}
     </div>
@@ -270,7 +269,7 @@ export const UsageFooter = memo(function UsageFooter({
               </span>
             )}
             {outLabel && (
-              <span title={`Tokens generated across ${tokensOut.total} model calls, including any reasoning the workbench stripped before display.${partial(tokensOut)}`}>
+              <span title={`Tokens generated across ${tokensOut.total} model calls, including reasoning stripped before display.${partial(tokensOut)}`}>
                 <MeasuredNumber
                   value={tokensOut.sum}
                   format={knownSumFormat(tokensOut)}
@@ -280,13 +279,13 @@ export const UsageFooter = memo(function UsageFooter({
               </span>
             )}
             {answer && answer.tokens_per_second !== null && (
-              <span title="How fast this answer was generated: its output tokens over the runtime's own generation time, which excludes model load and prompt processing.">
+              <span title="Output tokens over the runtime's generation time. Excludes model load and prompt processing.">
                 <MeasuredNumber value={answer.tokens_per_second} format={formatRate} className="text-foreground-secondary" />
               </span>
             )}
             {peak && (
               <span
-                title={`The fullest context window of any call in this run: ${stageName(peak.call.stage).toLowerCase()}, ${formatCount(peak.promptTokens)} prompt tokens of the ${formatCount(peak.window)}-token window it ran with.`}
+                title={`Fullest context window in this run: ${stageName(peak.call.stage).toLowerCase()}, ${formatCount(peak.promptTokens)} of ${formatCount(peak.window)} tokens.`}
               >
                 context <MeasuredNumber value={peak.fill} format={formatPercent} className="text-foreground-secondary" />
               </span>

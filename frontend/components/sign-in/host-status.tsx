@@ -109,7 +109,7 @@ export function HostStatus({ state, className }: { state: State; className?: str
     state.kind === 'reading'
       ? 'Asking this machine…'
       : state.kind === 'unreachable'
-        ? 'The workbench service did not answer, so signing in will fail until it is running.'
+        ? 'The workbench service did not answer. Sign-in fails until it runs.'
         : !monitoring
           ? 'The egress monitor is not running on this machine.'
           : observed === 0
@@ -120,7 +120,7 @@ export function HostStatus({ state, className }: { state: State; className?: str
     <p
       role="status"
       aria-live="polite"
-      title="Read from GET /api/status: the egress monitor's count of connections from the workbench's processes to anywhere outside the loopback ranges."
+      title="From GET /api/status: the egress monitor's count of workbench connections to anywhere outside loopback."
       className={cn('flex items-start gap-2.5 text-[0.82rem] leading-[1.5] text-foreground-secondary', className)}
     >
       <span aria-hidden className={cn('mt-[7px] size-1.5 shrink-0 rounded-full', dot)} />

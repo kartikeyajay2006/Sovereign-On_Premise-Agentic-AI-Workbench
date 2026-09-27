@@ -203,8 +203,8 @@ export function ChildDetail({ child }: { child: HarnessChildView }) {
         </>
       ) : child.outcome === 'held' ? (
         <p className="text-ui text-foreground-secondary">
-          The draft is held for a reviewer and is not shown here or included in the report. Open the
-          run in the thread to read it as held, or in Approvals to decide on it.
+          Held for review: not shown here and not in the report. Open it in the thread to read it, or in
+          Approvals to decide it.
         </p>
       ) : null}
 

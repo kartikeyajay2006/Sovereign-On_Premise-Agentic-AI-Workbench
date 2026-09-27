@@ -143,7 +143,7 @@ function DecisionRecord({ item, task }: { item: QueueItem; task: Task | null }) 
         )
       ) : (
         <p className="mt-2 text-body text-foreground-muted">
-          This run carries no approval record, so who decided it and when is not known here.
+          No approval record on this run: who decided it, and when, is unknown.
         </p>
       )}
     </div>
@@ -269,7 +269,7 @@ function Deliverable({
                 <a
                   href={d.download_url}
                   download
-                  title="Downloads this file. The download is recorded in the audit chain."
+                  title="Download this file. The download is recorded in the audit chain."
                   className="btn"
                   data-variant="ghost"
                   data-size="sm"
@@ -315,7 +315,7 @@ function Verification({
       <p className="text-body text-foreground-secondary">
         {report.material_claims_total > 0
           ? `${report.material_claims_supported} of ${report.material_claims_total} material claims supported by evidence.`
-          : 'No material claims were identified in this run.'}{' '}
+          : 'No material claims found in this run.'}{' '}
         {!report.valid && <span className="text-critical-text">The report marks this run as not valid.</span>}
       </p>
       <ul className="flex flex-col">
@@ -375,7 +375,7 @@ function Evidence({
     <Section title="Evidence" meta={`${items.length} passage${items.length === 1 ? '' : 's'}`}>
       {items.length === 0 ? (
         <p className="text-body text-foreground-muted">
-          This run retrieved no evidence, so any citation in it resolves to nothing.
+          This run retrieved no evidence. Any citation in it points at nothing.
         </p>
       ) : (
         <ol className="flex flex-col">
@@ -578,20 +578,20 @@ export function ReviewPane({
         </p>
         {held && !canDecide && (
           <p className="mt-2 text-ui text-foreground-muted">
-            Your role can read this queue but does not hold approval.decide, so it cannot release or
-            return this run.
+            Your role can read this queue but lacks approval.decide, so it cannot release or return
+            this run.
           </p>
         )}
         {held && canDecide && ownRun && (
           <p className="mt-2 text-ui text-approval-text">
             You ran this, so another reviewer or an administrator decides it. The service refuses a
-            decision from whoever submitted the task.
+            submitter&rsquo;s own decision.
           </p>
         )}
         {held && canDecide && !ownRun && openConflicts.length > 0 && (
           <p className="mt-2 text-ui text-critical-text">
-            Resolve {openConflicts.map((c) => c.id).join(', ')} below before approving: the sources disagree,
-            and the decision they withhold has not been made.
+            Resolve {openConflicts.map((c) => c.id).join(', ')} below before approving: the sources disagree
+            and no one has chosen between them.
           </p>
         )}
         {held && canDecide && !ownRun && openConflicts.length === 0 && (
@@ -605,7 +605,7 @@ export function ReviewPane({
             {signedSoFar > 0 ? `Signed ${signedSoFar} of ${signaturesNeeded}. ` : ''}
             Next: the {awaiting.authority}, who {awaiting.capacity} this finding
             {awaiting.clause ? ` (${awaiting.clause})` : ''}. Nothing is released until every signature
-            is given, and a change to the run voids the signatures already given.
+            is in; any change to the run voids the ones given.
           </p>
         )}
       </header>

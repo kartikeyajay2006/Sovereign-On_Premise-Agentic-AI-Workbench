@@ -326,7 +326,7 @@ function workSummary(turn: AssistantTurnModel): string {
   }
   const sources = turn.evidence.filter((e) => /^S\d+$/.test(e.id)).length
   if (sources > 0) parts.push(`${sources} source${sources === 1 ? '' : 's'}`)
-  if (parts.length === 0) parts.push('How it was answered')
+  if (parts.length === 0) parts.push('Work log')
   return parts.join(' · ')
 }
 
@@ -362,8 +362,8 @@ function DeliverableReader({
   // reader saw every sentence twice and learned nothing new. With no document
   // source to show, the file card stands alone.
   if (!hasDocumentContent) return null
-  const heading = 'Read the note here'
-  const description = 'This is the structured source rendered into the attached file.'
+  const heading = 'Read the note'
+  const description = 'The source the attached file was rendered from'
 
   return (
     <div className="basis-full border-t border-line-default pt-3">
@@ -604,7 +604,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               us otherwise. On a finished turn it said nothing a reader
               needed, and on every one of them. */}
           {running && turn.stream === 'closed' && (
-            <span className="uppercase" title="This turn is not attached to the event stream, so it is not updating.">
+            <span className="uppercase" title="Not attached to the event stream, so not updating">
               detached
             </span>
           )}
@@ -714,17 +714,17 @@ export const AssistantTurn = memo(function AssistantTurn({
             }
             nextAction={
               failedStage
-                ? `${failedStage.name} is marked failed in the log above. Run it again once the cause below is resolved.`
-                : 'Nothing was marked as having run. Run it again once the cause below is resolved.'
+                ? `${failedStage.name} is marked failed in the log above. Fix the cause below, then run it again.`
+                : 'No stage ran. Fix the cause below, then run it again.'
             }
             // A run opened from the record carries its error as the record's
             // `error` field, which the turn keeps as denialReason.
             detail={turn.error ?? turn.denialReason ?? undefined}
-            identifier={turn.taskId ? { label: 'Task', value: turn.taskId } : undefined}
+            identifier={turn.taskId ? { label: 'Run', value: turn.taskId } : undefined}
             retry={turn.request && onRerun ? () => onRerun(turn.id) : undefined}
             retryLabel="Run again"
             retryDisabled={busy}
-            retryTitle={busy ? 'One run at a time: this is available when the current run ends.' : 'Sends the same request again as a new run'}
+            retryTitle={busy ? 'One run at a time. Available when this one ends.' : 'Send the same request as a new run'}
           />
         ) : cancelled ? (
           <div className="border-l-2 border-line-strong pl-4">
@@ -735,8 +735,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               {turn.denialReason && turn.denialReason !== 'Stopped at your request.'
                 ? turn.denialReason
                 : 'Stopped at your request.'}{' '}
-              A stopped run releases no answer: it ended before finishing the checks an answer is
-              released on.
+              A stopped run releases no answer: its checks never finished.
             </p>
           </div>
         ) : showsAnswer && leavingDraft ? (
@@ -799,7 +798,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           */
           <div ref={draftBoxRef} className="border-l-2 border-line-default pl-4">
             <p className="font-mono text-[10.5px] uppercase tracking-[var(--ls-ledger)] text-foreground-muted">
-              {verifying ? 'Draft · checking every claim before it is released' : 'Draft · not checked yet'}
+              {verifying ? 'Draft · checking every claim' : 'Draft · not checked yet'}
             </p>
             <div className="mt-2">
               <Prose
@@ -827,8 +826,8 @@ export const AssistantTurn = memo(function AssistantTurn({
           <div className="flex min-h-[48px] flex-col justify-center gap-1.5">
             <p className="text-body text-foreground-secondary">
               {turn.queue && turn.queue.ahead > 0
-                ? `Waiting to start: ${turn.queue.ahead} run${turn.queue.ahead === 1 ? '' : 's'} ahead of this one on the local worker.`
-                : 'The answer appears here once every claim in it is checked.'}
+                ? `Queued: ${turn.queue.ahead} run${turn.queue.ahead === 1 ? '' : 's'} ahead on the local worker.`
+                : 'The answer lands here once every claim is checked.'}
             </p>
             {turn.streamProgress && (
               /*
@@ -956,7 +955,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                   key={step.key}
                   type="button"
                   onClick={() => onFollowUp(turn.id, step)}
-                  title="Puts this in the composer. Nothing is sent until you press Run."
+                  title="Fills the composer. Nothing is sent until you press Run."
                   className="hover-decay inline-flex h-7 max-w-full items-center rounded-[var(--radius-xs)] border border-line-default px-2.5 text-[12.5px] text-foreground-secondary hover:border-line-strong hover:text-foreground focus-visible:shadow-[var(--focus-ring-on-paper)] focus-visible:outline-none"
                 >
                   <span className="truncate">{step.label}</span>

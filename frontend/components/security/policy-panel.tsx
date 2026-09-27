@@ -210,7 +210,7 @@ export const PolicyPanel = memo(function PolicyPanel({
         </section>
 
         <section aria-label="Approval rules" className="flex flex-col gap-2">
-          <h3 className={LEDGER_MUTED}>A run is held for a person when</h3>
+          <h3 className={LEDGER_MUTED}>A run is held for review when</h3>
           <ul className="flex flex-col">
             {p.approval_rules.map((rule) => (
               <li key={rule.name} className="flex flex-col gap-0.5 border-b border-line-subtle py-2 last:border-b-0">

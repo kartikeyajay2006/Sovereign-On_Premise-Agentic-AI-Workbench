@@ -217,7 +217,7 @@ export function ModelEstate({ status, models }: { status: ModelsStatus; models: 
 
       {status.unregistered_installed.length > 0 && (
         <p className="text-ui text-foreground-secondary">
-          Installed on the host but not in the registry, so the router refuses them by policy:{' '}
+          Installed but not registered, so the router refuses them by policy:{' '}
           <span className="font-mono text-foreground">{status.unregistered_installed.join(', ')}</span>
         </p>
       )}

@@ -105,7 +105,7 @@ export function ModelMenu({
                   ? 'Reading the installed models…'
                   : options.length === 0
                     ? 'No generation model is installed on this host.'
-                    : 'Used for each stage it is approved and capable for. Anywhere it is not, the router picks, and the answer says so.'}
+                    : 'Used on every stage it is approved and able to run. Elsewhere the router picks, and the answer says so.'}
             </p>
           </Menu.Popup>
         </Menu.Positioner>

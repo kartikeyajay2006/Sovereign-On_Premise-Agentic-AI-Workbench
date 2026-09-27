@@ -443,7 +443,7 @@ export function ThreadView() {
     detach()
     push({
       title: 'The run is still going',
-      detail: 'Leaving it did not stop it. Open it from Runs to follow it again.',
+      detail: 'Leaving did not stop it. Open it from Runs to follow it.',
       tone: 'default',
     })
   }, [detach, push])
@@ -1116,8 +1116,8 @@ export function ThreadView() {
             outcome: 'failed',
             error:
               err?.status === 0
-                ? 'The local workbench service is unreachable. Nothing was executed.'
-                : err?.message || 'The backend refused the request. Nothing was executed.',
+                ? 'The workbench service is unreachable. Nothing ran.'
+                : err?.message || 'The service refused the request. Nothing ran.',
             stream: 'closed',
           }))
         }
@@ -1422,7 +1422,7 @@ export function ThreadView() {
       void Promise.all(template.samples.map((id) => api.readSample(id)))
         .then((files) => attach(files))
         .catch((err: any) =>
-          setHint(`The sample files could not be attached: ${err?.detail || err?.message || 'not available'}. Attach them from sample_data/ instead.`),
+          setHint(`Sample files not attached: ${err?.detail || err?.message || 'not available'}. Attach them from sample_data/.`),
         )
     }
   }, [attach])

@@ -184,7 +184,7 @@ export function ProofScreen() {
     <div className="flex flex-col">
       <PageHeader
         title="Proof"
-        description="One run's chain, request to signed certificate. Every row is read from the run record or verified from its certificate; a link with nothing recorded says so."
+        description="One run, from request to signed certificate. Each row comes from the run record or its verified certificate; a link with nothing recorded says so."
         meta={
           view
             ? [
