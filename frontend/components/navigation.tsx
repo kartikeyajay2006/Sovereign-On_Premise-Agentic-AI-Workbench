@@ -272,6 +272,11 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  // Runs this list saw unfinished and then read again as finished. Their
+  // final mark ticks in once; a run that was already finished when the
+  // list was first read just shows it.
+  const [settled, setSettled] = useState<ReadonlySet<string>>(() => new Set())
+  const liveIds = useRef<ReadonlySet<string> | null>(null)
 
   useEffect(() => {
     const onChanged = (event: Event) => {
@@ -291,7 +296,14 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
       .listTasks(40)
       .then((rows) => {
         if (cancelled) return
-        setRuns(rows || [])
+        const next = rows || []
+        const wasLive = liveIds.current
+        if (wasLive) {
+          const done = next.filter((task) => wasLive.has(task.id) && FINISHED.has(String(task.status).toLowerCase()))
+          if (done.length > 0) setSettled((prev) => new Set([...prev, ...done.map((task) => task.id)]))
+        }
+        liveIds.current = new Set(next.filter((task) => !FINISHED.has(String(task.status).toLowerCase())).map((task) => task.id))
+        setRuns(next)
         setError(null)
       })
       // Named, not swallowed: an empty list and an unreachable API look the
@@ -333,6 +345,7 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
               const following = task.id === running
               const unfinished = following || !FINISHED.has(status)
               const mark = unfinished ? null : OUTCOME_MARK[status] ?? null
+              const justSettled = !unfinished && settled.has(task.id)
               const group = dayGroup(task.created_at)
               const firstOfGroup = i === 0 || dayGroup(runs[i - 1].created_at) !== group
               const stateWords = following ? 'in progress' : status.replace(/_/g, ' ')
@@ -354,16 +367,21 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
                       'hv-lockon flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2 text-left transition-colors duration-100 [--hv-lockon-inset:1px]',
                       'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',
                       active ? 'bg-[color-mix(in_oklab,var(--foreground)_7%,transparent)]' : 'hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)]',
+                      // SCAN: the run is unfinished on the service (read from
+                      // the list, re-read every 10 s) or followed live by the
+                      // thread. Removing the class when it settles stops it.
+                      unfinished && 'hv-scan',
                     )}
                   >
-                    <span className={cn('min-w-0 flex-1 truncate text-[13px]', active ? 'font-medium text-foreground' : 'text-foreground-secondary')}>
+                    <span className={cn('min-w-0 flex-1 truncate text-[13px]', active ? 'font-medium text-foreground' : 'text-foreground-secondary', justSettled && 'hv-tick')}>
                       {task.skill ? <span className="mr-1 font-mono text-[12px] text-foreground-muted">/{task.skill.id}</span> : null}
                       {title}
                     </span>
                     {unfinished ? (
-                      <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-active motion-reduce:animate-none" />
+                      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-action" />
                     ) : mark ? (
-                      <span aria-hidden title={mark.word} className={cn('size-1.5 shrink-0 rounded-full', mark.dot)} />
+                      // TICK: seen running here, then read as settled.
+                      <span aria-hidden title={mark.word} className={cn('size-1.5 shrink-0 rounded-full', mark.dot, justSettled && 'hv-tick')} />
                     ) : null}
                     <span className="sr-only">
                       {stateWords}, {relativeTime(task.created_at)}
