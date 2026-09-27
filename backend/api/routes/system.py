@@ -598,11 +598,11 @@ async def event_stream(user: CurrentUser, task_id: str | None = None) -> Streami
     if task_id:
         requested_task = service.get_task(task_id)
         if requested_task is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
         if not can_read_all and requested_task.user_id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You may only subscribe to your own task events",
+                detail="You may only follow your own runs",
             )
 
     # Ownership, remembered per task for the life of this stream.

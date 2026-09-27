@@ -98,7 +98,7 @@ def get_task(task_id: str, user: CurrentUser) -> Task:
     service = get_task_service()
     task = service.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     # A task that has not started should say it is waiting, and for how many.
     queue = service.queue_state(task_id)
@@ -108,7 +108,7 @@ def get_task(task_id: str, user: CurrentUser) -> Task:
     if task.user_id != user.id and "task.read.all" not in permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You may only read your own tasks",
+            detail="You may only read your own runs",
         )
     return task
 
@@ -149,10 +149,10 @@ def task_certificate(task_id: str, user: CurrentUser) -> dict:
     service = get_task_service()
     task = service.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     permissions = get_config().role_permissions(user.role)
     if task.user_id != user.id and "task.read.all" not in permissions:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You may only read your own tasks")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You may only read your own runs")
     if task.status.value not in ("delivered", "rejected", "revision_requested", "awaiting_approval"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -186,7 +186,7 @@ def download_deliverable(task_id: str, filename: str, user: CurrentUser) -> File
     service = get_task_service()
     task = service.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     permissions = get_config().role_permissions(user.role)
     if task.user_id != user.id and "deliverable.download.all" not in permissions:
@@ -202,8 +202,7 @@ def download_deliverable(task_id: str, filename: str, user: CurrentUser) -> File
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "This deliverable is held pending human approval and has not been "
-                "released."
+                "This deliverable is held for review and not yet released."
             ),
         )
 
@@ -221,8 +220,8 @@ def download_deliverable(task_id: str, filename: str, user: CurrentUser) -> File
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail=(
-                f"'{filename}' is recorded for this task but is no longer in "
-                f"deliverable storage. Re-run the task to regenerate it."
+                f"'{filename}' is recorded for this run but no longer in "
+                f"deliverable storage. Run it again to regenerate it."
             ),
         )
 
