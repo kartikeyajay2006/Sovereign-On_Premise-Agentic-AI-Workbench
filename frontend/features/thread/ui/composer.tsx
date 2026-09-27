@@ -247,7 +247,7 @@ export const Composer = memo(function Composer({
       )}
     >
       <label htmlFor="composer-input" className="sr-only">
-        Describe the task
+        Your request
       </label>
       {skill && (
         <div className="flex items-center gap-2 px-4 pt-3">
@@ -349,8 +349,8 @@ export const Composer = memo(function Composer({
       />
       <span id="composer-keys" className="sr-only">
         {busy
-          ? 'Enter queues this request to send when the run ends. Escape twice stops the run.'
-          : 'Enter sends. Shift and Enter start a new line. Up arrow in an empty field recalls the last request.'}
+          ? 'Enter queues this for when the run ends. Esc twice stops the run.'
+          : 'Enter sends · Shift+Enter for a new line · Up in an empty field recalls the last request'}
       </span>
 
       {attachments.length > 0 && (
@@ -461,7 +461,7 @@ export const Composer = memo(function Composer({
               onClick={onSubmit}
               disabled={!canSend}
               aria-label="Run"
-              title={uploading ? 'Waiting for the attachment to finish uploading' : 'Run (Enter)'}
+              title={uploading ? 'Waiting for the upload to finish' : 'Run (Enter)'}
               className={cn(
                 'grid size-9 place-items-center rounded-[var(--radius-xs)] transition-[background-color,color,transform] duration-150 active:scale-95 motion-reduce:active:scale-100',
                 'focus-visible:shadow-[var(--focus-ring)] focus-visible:outline-none',

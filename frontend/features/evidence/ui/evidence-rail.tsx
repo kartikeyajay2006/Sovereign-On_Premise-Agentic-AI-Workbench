@@ -189,7 +189,7 @@ export function EvidenceRail({
               */}
               <p className="text-body text-foreground-secondary">
                 This run retrieved no evidence. Any citation in the answer above
-                therefore resolves to nothing and is marked unresolved.
+                is marked unresolved.
               </p>
             </div>
           ) : (
@@ -243,7 +243,7 @@ export function EvidenceRail({
                         {score !== null && (
                           <span
                             className="tabular ml-auto shrink-0 font-mono text-ledger text-foreground-muted"
-                            title="How closely this passage matched the question, as retrieval scored it"
+                            title="Retrieval score for this passage against the question"
                           >
                             {score.toFixed(2)}
                           </span>
