@@ -4,8 +4,10 @@ It binds, by hash, everything a reviewer relied on: the request, the answer,
 each piece of evidence (with its source file's hash and, for a procedure,
 its code and revision), every registered-formula calculation (formula,
 inputs and result hashes), each conflict and who resolved it, the
-verification verdicts, the approval and the digest it was given against,
-and the deliverables' bytes. It carries the signed audit root taken when it
+verification verdicts, the approval and the digest it was given against
+(which, from review digest version 2, binds the prompt, the evidence set,
+the policy files and the model digests as well as the answer), and the
+deliverables' bytes. It carries the signed audit root taken when it
 was issued and a Merkle inclusion proof for each of the run's audit events,
 so a holder of the public key alone can show the events existed under a
 root this host signed. From version 2 it also carries the run's provenance
@@ -36,14 +38,31 @@ def _sha(text: str | None) -> str | None:
     return hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
 
 
-def review_digest(task: Task) -> str:
-    """What a reviewer sees, as one hash: the approval is bound to it.
+def _hash(value: Any) -> str:
+    return hashlib.sha256(canonical(value)).hexdigest()
 
-    Any change to the answer, a deliverable's bytes, a calculation result or
-    a conflict's resolution changes it, so an approval given against one
-    version cannot be applied to another.
-    """
-    body = {
+
+#: The review digest written now. Version 1 bound what a reviewer reads (the
+#: answer, deliverables, calculation results, conflicts and assessment);
+#: version 2 also binds the prompt, the evidence set, the policy files and the
+#: model digests. A signature or decision records the version it was given
+#: under and is checked under that version's rules, so records written before
+#: version 2 keep verifying.
+REVIEW_DIGEST_VERSION = 2
+
+#: What each bound input is called when it changes, in the order they are named.
+BINDING_CHANGES: dict[str, str] = {
+    "content": "the answer, a deliverable, a calculation result or a conflict resolution changed",
+    "prompt": "the prompt changed",
+    "evidence": "the evidence set changed",
+    "policy": "the policy files changed",
+    "models": "the model changed",
+}
+
+
+def _content_v1(task: Task) -> dict[str, Any]:
+    """What a reviewer reads. Hashed alone, this is the version 1 review digest."""
+    return {
         "answer": _sha(task.answer),
         "deliverables": sorted((d.filename, d.sha256) for d in task.deliverables),
         "results": [record.result_hash for record in task.calculations if record.result_hash],
@@ -52,7 +71,149 @@ def review_digest(task: Task) -> str:
         ],
         "assessment": task.assessment.status if task.assessment else None,
     }
-    return hashlib.sha256(canonical(body)).hexdigest()
+
+
+def _evidence(task: Task) -> list[dict[str, Any]]:
+    """The run's evidence as the certificate records it; the binding reads the same entries."""
+    return [
+        {
+            "id": item.id, "kind": item.kind, "source": item.source_document,
+            "excerpt_sha256": _sha(item.excerpt), "source_sha256": item.source_sha256,
+            "document_code": item.document_code, "revision_status": item.revision_status,
+            "page": item.page_number, "classification": getattr(item.classification, "value", item.classification),
+        }
+        for item in task.evidence
+    ]
+
+
+def _routed_models(task: Task) -> list[str]:
+    return sorted({
+        str(model) for decision in (task.routing or [])
+        if (model := (decision.get("selected_model") if isinstance(decision, dict)
+                      else getattr(decision, "selected_model", None)))
+    })
+
+
+def _model_digests(task: Task) -> list[dict[str, Any]]:
+    """Each model that served the run, with the digests the runtime reported for it.
+
+    The digests are the ones recorded on the run's usage when each call was
+    served, which are the ones the audit log records and the certificate's
+    provenance reports. A routed model with no recorded digest is bound by
+    name, with an empty digest list: said, never guessed.
+    """
+    digests: dict[str, set[str]] = {name: set() for name in _routed_models(task)}
+    for usage in task.usage:
+        entry = digests.setdefault(str(usage.model), set())
+        if getattr(usage, "model_digest", None):
+            entry.add(str(usage.model_digest))
+    return [{"model": name, "digests": sorted(found)} for name, found in sorted(digests.items())]
+
+
+def review_binding(task: Task) -> dict[str, Any]:
+    """Everything a signature binds, part by part, and the version 2 digest over it.
+
+    Each part is a hash of canonical, sorted JSON, so the same run always
+    gives the same binding; the parts are kept so that a signature voided
+    later can say which of them changed.
+    """
+    from backend.proof import provenance
+
+    evidence = sorted(
+        ((entry["id"], entry["source_sha256"], entry["excerpt_sha256"]) for entry in _evidence(task)),
+        key=lambda entry: str(entry[0]),
+    )
+    policy = provenance.policy_file_hashes()
+    models = _model_digests(task)
+    parts = {
+        "content": _hash(_content_v1(task)),
+        # The certificate's prompt_sha256.
+        "prompt": _sha(task.prompt),
+        "evidence": _hash(evidence),
+        "policy": _hash(policy),
+        "models": _hash(models),
+    }
+    binding = {
+        "version": REVIEW_DIGEST_VERSION,
+        "digest": _hash({"digest_version": REVIEW_DIGEST_VERSION, **parts}),
+        "parts": parts,
+        "sources": len(evidence),
+        "policy_files": len(policy),
+        "models": models,
+    }
+    # For display only; the digest is over the parts.
+    binding["summary"] = binding_summary(binding)
+    return binding
+
+
+def review_digest(task: Task, version: int = REVIEW_DIGEST_VERSION) -> str:
+    """What a signature is given on, as one hash: an approval is bound to it.
+
+    Version 2 (written now) changes with the answer, a deliverable's bytes, a
+    calculation result, a conflict's resolution, the prompt, the evidence set
+    or a source's hash, a policy file, or a model's digest. Version 1 covers
+    only the first four and the assessment; it is computed for checking
+    signatures and decisions recorded under it.
+    """
+    if version <= 1:
+        return _hash(_content_v1(task))
+    if version == 2:
+        return review_binding(task)["digest"]
+    raise ValueError(f"unknown review digest version {version}")
+
+
+def binding_changes(before: dict[str, Any] | None, after: dict[str, Any]) -> list[str]:
+    """The bound inputs that differ between two bindings, in BINDING_CHANGES order.
+
+    Each is a review_binding result (or anything carrying its ``parts``).
+    With nothing recorded for before (a version 1 signature), only the
+    content can be compared, and it is reported as the content.
+    """
+    earlier = (before or {}).get("parts")
+    if not earlier:
+        return ["content"]
+    now = after.get("parts") or {}
+    return [key for key in BINDING_CHANGES if earlier.get(key) != now.get(key)]
+
+
+def _short(value: str | None, size: int = 12) -> str:
+    if not value:
+        return "not recorded"
+    return value.split(":", 1)[-1][:size]
+
+
+def binding_summary(binding: dict[str, Any]) -> list[dict[str, str]]:
+    """What a signature binds, as short labelled hashes: prompt · N sources · policy set · model digest."""
+    parts = binding.get("parts") or {}
+    sources = int(binding.get("sources") or 0)
+    policy_files = int(binding.get("policy_files") or 0)
+    models = binding.get("models") or []
+    digests = sorted({digest for model in models for digest in model.get("digests") or []})
+    if len(digests) == 1:
+        model_label, model_hash = "model digest", _short(digests[0])
+    elif digests:
+        model_label, model_hash = f"{len(digests)} model digests", _short(parts.get("models"))
+    elif models:
+        # Bound by name only: the runtime reported no digest.
+        model_label, model_hash = "model (no digest recorded)", _short(parts.get("models"))
+    else:
+        model_label, model_hash = "no model", _short(parts.get("models"))
+    return [
+        {"key": "prompt", "label": "prompt", "hash": _short(parts.get("prompt"))},
+        {"key": "evidence", "label": f"{sources} source{'' if sources == 1 else 's'}",
+         "hash": _short(parts.get("evidence"))},
+        {"key": "policy", "label": f"policy set ({policy_files} file{'' if policy_files == 1 else 's'})",
+         "hash": _short(parts.get("policy"))},
+        {"key": "models", "label": model_label, "hash": model_hash},
+    ]
+
+
+def describe_changes(keys: list[str]) -> str:
+    """'the model changed and the policy files changed', or a plain 'the run changed'."""
+    phrases = [BINDING_CHANGES[key] for key in keys if key in BINDING_CHANGES]
+    if not phrases:
+        return "the run changed"
+    return phrases[0] if len(phrases) == 1 else ", ".join(phrases[:-1]) + " and " + phrases[-1]
 
 
 #: The certificate format issued now. Version 1 (no provenance) still
@@ -65,6 +226,7 @@ def _body(task: Task, records: list[dict[str, Any]] | None = None) -> dict[str, 
     claims: dict[str, int] = {}
     for claim in verification.claims if verification else []:
         claims[claim.verdict] = claims.get(claim.verdict, 0) + 1
+    binding = review_binding(task)
     return {
         "task_id": task.id,
         "status": task.status.value if hasattr(task.status, "value") else str(task.status),
@@ -72,20 +234,8 @@ def _body(task: Task, records: list[dict[str, Any]] | None = None) -> dict[str, 
         "created_at": task.created_at.isoformat(),
         "prompt_sha256": _sha(task.prompt),
         "answer_sha256": _sha(task.answer),
-        "models": sorted({
-            str(model) for decision in (task.routing or [])
-            if (model := (decision.get("selected_model") if isinstance(decision, dict)
-                          else getattr(decision, "selected_model", None)))
-        }),
-        "evidence": [
-            {
-                "id": item.id, "kind": item.kind, "source": item.source_document,
-                "excerpt_sha256": _sha(item.excerpt), "source_sha256": item.source_sha256,
-                "document_code": item.document_code, "revision_status": item.revision_status,
-                "page": item.page_number, "classification": getattr(item.classification, "value", item.classification),
-            }
-            for item in task.evidence
-        ],
+        "models": _routed_models(task),
+        "evidence": _evidence(task),
         "calculations": [
             {"formula": f"{r.formula_id}@{r.formula_version}", "subject": r.subject, "status": r.status,
              "formula_hash": r.formula_hash, "input_hash": r.input_hash, "result_hash": r.result_hash,
@@ -108,16 +258,25 @@ def _body(task: Task, records: list[dict[str, Any]] | None = None) -> dict[str, 
              "reviewer_id": task.approval.reviewer_id,
              "decided_at": task.approval.decided_at.isoformat() if task.approval.decided_at else None,
              "bound_digest": getattr(task.approval, "bound_digest", None),
+             "bound_digest_version": task.approval.bound_digest_version,
              # Each signature of a multi-signature approval, with the digest
              # it was given on (SOP-OPS-008 Clause 3.5).
              "signatures": [
                  {"authority": s.authority, "capacity": s.capacity, "user_id": s.user_id,
-                  "signed_at": s.signed_at.isoformat(), "review_digest": s.review_digest}
+                  "signed_at": s.signed_at.isoformat(), "review_digest": s.review_digest,
+                  "digest_version": s.digest_version}
                  for s in task.approval.signatures
              ]}
             if task.approval else None
         ),
-        "review_digest": review_digest(task),
+        # The digest and, part by part, what it binds: the prompt, the
+        # evidence set, the policy files and the model digests alongside
+        # what the reviewer read.
+        "review_digest": binding["digest"],
+        "review_digest_version": binding["version"],
+        "review_binding": binding["parts"],
+        "review_bound": {"sources": binding["sources"], "policy_files": binding["policy_files"],
+                         "models": binding["models"]},
         "deliverables": [{"filename": d.filename, "sha256": d.sha256, "released": d.released}
                          for d in task.deliverables],
         "policy_events": len(task.policy_events),
@@ -190,6 +349,18 @@ def verify_certificate(
         check("provenance present", isinstance(provenance, dict),
               "the run's model digests, config hashes, egress and sandbox record are in the signed body"
               if isinstance(provenance, dict) else f"a version {version} certificate must carry provenance")
+
+    run_part = certificate.get("run") or {}
+    binding = run_part.get("review_binding")
+    if isinstance(binding, dict):
+        # Certificates issued before the binding existed carry no parts and
+        # skip this; their digest is a version 1 digest and says so by omission.
+        version_stated = int(run_part.get("review_digest_version") or 1)
+        recomputed = _hash({"digest_version": version_stated, **binding})
+        check("review binding", recomputed == run_part.get("review_digest"),
+              "the review digest is the hash of the prompt, evidence, policy, model and content parts it states"
+              if recomputed == run_part.get("review_digest")
+              else "the stated review digest is not the hash of the parts the certificate lists")
 
     if audit is not None:
         # The leaves are the events' stored hashes, so the root alone cannot

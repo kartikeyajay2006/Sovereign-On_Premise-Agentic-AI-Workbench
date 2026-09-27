@@ -110,7 +110,7 @@ def get_task(task_id: str, user: CurrentUser) -> Task:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You may only read your own runs",
         )
-    return task
+    return service.current_view(task)
 
 
 @router.post("/tasks/{task_id}/cancel", response_model=Task)

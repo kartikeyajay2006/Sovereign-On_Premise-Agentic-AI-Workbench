@@ -698,6 +698,13 @@ class ApprovalSignature(BaseModel):
     signed_at: datetime
     # A signature is for the version read. If the run changes, it is void.
     review_digest: str
+    # The review digest version it was given under (proof/certificate.py).
+    # Signatures recorded before version 2 load as 1 and are checked under
+    # version 1 rules.
+    digest_version: int = 1
+    # From version 2, what the digest bound, part by part (content, prompt,
+    # evidence, policy, models), so a voiding can say which part changed.
+    binding: dict[str, Any] | None = None
 
 
 class ApprovalRecord(BaseModel):
@@ -716,8 +723,18 @@ class ApprovalRecord(BaseModel):
     decided_at: datetime | None = None
     # The review digest the decision was given against (proof/certificate.py):
     # the answer, the deliverables' bytes, the calculation results and the
-    # conflict resolutions the reviewer saw, as one hash.
+    # conflict resolutions the reviewer saw, as one hash. From version 2 it
+    # also binds the prompt, the evidence set, the policy files and the
+    # model digests.
     bound_digest: str | None = None
+    # The version bound_digest was computed under; decisions recorded
+    # before version 2 load as 1 and are checked under version 1 rules.
+    bound_digest_version: int = 1
+    bound_binding: dict[str, Any] | None = None
+    # Why the signatures given so far were last voided, in words that name
+    # what changed ("the model changed since review"), and when.
+    void_reason: str | None = None
+    voided_at: datetime | None = None
 
 
 class ApprovalDecisionRequest(BaseModel):
@@ -843,6 +860,15 @@ class Task(BaseModel):
     conflicts: list[ConflictRecord] = Field(default_factory=list)
     # One hash over what a reviewer sees; an approval is bound to it.
     review_digest: str | None = None
+    # The version review_digest was computed under: 1 on records written
+    # before the digest bound the prompt, evidence, policy and models.
+    review_digest_version: int = 1
+    # What the current digest binds, part by part, with the counts the
+    # review pane shows (proof/certificate.py review_binding).
+    review_binding: dict[str, Any] | None = None
+    # The recent bindings this run has had, newest last, so a decision made
+    # against an earlier one can be told which part changed since.
+    review_history: list[dict[str, Any]] = Field(default_factory=list)
     # A deterministic answer from a P&ID graph (engineering/pid.py): an
     # isolation plan, a flow path, what is upstream or downstream.
     topology: dict[str, Any] | None = None
