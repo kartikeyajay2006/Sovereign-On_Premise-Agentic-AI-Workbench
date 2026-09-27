@@ -7,7 +7,7 @@
 ├── config/                  models, routing, classification, prompts, skills/, harnesses/, app settings
 ├── policies/                access control, approval rules, data classification, tool permissions
 ├── sample_data/             the SYNTHETIC corpus: sop/, records/, inspection/, datasets/, coding/, expected-answers.json
-├── scripts/                 run.sh, seed_demo_data.py, seed_historian.py, demo_e2e.py, golden_demo.py,
+├── scripts/                 run.sh, seed_demo_data.py, seed_historian.py, seed_cmms.py, demo_e2e.py, golden_demo.py,
 │                            red_team.py, warmup.py/.ps1, start-ollama.sh/.ps1, backup.py,
 │                            offline_bundle.py/.sh/.ps1, verify_certificate.py, audit_tool.py,
 │                            capture_landing_fixture.py, make_sample_inspection_report.py,

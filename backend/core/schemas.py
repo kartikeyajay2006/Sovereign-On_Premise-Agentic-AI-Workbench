@@ -421,7 +421,7 @@ class EvidenceItem(BaseModel):
     version: str | None = None
     ingested_at: datetime | None = None
     kind: Literal["knowledge_base", "uploaded_file", "vision_extraction", "computation", "human", "topology",
-                  "historian"] = (
+                  "historian", "cmms"] = (
         "knowledge_base"
     )
     # For procedure passages: which document this revision belongs to, and

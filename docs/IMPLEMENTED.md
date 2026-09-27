@@ -12,7 +12,7 @@ lives and how to see it working. What is not built yet is in
 | Engineering formulas | **18**, versioned and clause-cited (vessel, piping, relief devices, severity, FFS, schedules) |
 | API | **68** operations on 63 paths, local only |
 | Console screens | **11** signed-in screens, plus sign-in and the public page |
-| Agent tools | **6**: `knowledge_search`, `file_read`, `spreadsheet_analyze`, `python_exec`, `document_generate`, `historian_read` |
+| Agent tools | **7**: `knowledge_search`, `file_read`, `spreadsheet_analyze`, `python_exec`, `document_generate`, `historian_read`, `cmms_read` |
 | Skills and harnesses | **5** skills, **3** harnesses |
 | Models declared | **6** local models via Ollama, digests pinned |
 | Access control | **7** roles, **22** permissions, **7** demo accounts |
@@ -59,6 +59,7 @@ The model is told the figures. It is never asked for them.
 | Conflicts | Sources that disagree about an input withhold the decision until a person chooses; the choice becomes H evidence and the formulas recompute | `backend/engineering/stage.py`, `facts.py` | *Two records disagree* starter |
 | P&ID topology | A drawing's graph, authored or read from the drawing image and compared with it; isolation plans judged branch by branch against SOP-OPS-015; flow up and down, paths, affected loops | `backend/engineering/pid.py`, `pid_extraction.py` | Knowledge → Drawings; "How do we isolate V-2104 for confined space entry?" |
 | Plant systems | Read-only historian and OPC UA (simulator) adapters behind one interface; a bad-quality sample carries no value | `backend/connectors/`, `scripts/seed_historian.py` | The `historian_read` tool |
+| Maintenance (CMMS) | Read-only open work orders and notifications for a tag, from a simulated CMMS (no SAP PM or Maximo client exists). A run that assesses a tag looks it up and records one `W` item; the approval note says whether a repair is already raised, cited to it, or "no open work order found in CMMS (simulator)", or that the CMMS could not be read | `backend/connectors/cmms.py`, `scripts/seed_cmms.py` | The V-2104 approval note: WO-4000321 already raised; PSV-2104A: none open |
 
 ## 4 · Execute: generated code, contained
 

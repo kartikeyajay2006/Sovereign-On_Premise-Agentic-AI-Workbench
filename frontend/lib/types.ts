@@ -242,6 +242,8 @@ export interface DeliverableContent {
   approval_statement?: string
   /** Who recommends and who approves, from the severity formula (SOP-OPS-008). */
   authority?: string
+  /** Whether a repair is already raised, from the CMMS lookup (a W evidence item). */
+  maintenance?: string
 }
 
 export interface ApprovalRecord {

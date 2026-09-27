@@ -2,7 +2,7 @@
 
 The tool registry (`backend/tools/registry.py`) holds the operations the pipeline can invoke. **Every invocation goes through the policy gateway first**: an unregistered tool, a role the tool is not granted to, or data above the tool's ceiling is refused, and the decision is audited as `policy / tool.invoke:<allow|deny>` with the rule that decided it.
 
-## The six registered tools
+## The seven registered tools
 
 | Tool | What it does | Side effects | Ceiling |
 |---|---|---|---|
@@ -11,6 +11,7 @@ The tool registry (`backend/tools/registry.py`) holds the operations the pipelin
 | `python_exec` | Runs Python in the sandbox; returns stdout, stderr, exit code, limits applied and network attempts blocked | Execute | Restricted |
 | `spreadsheet_analyze` | Loads an attached CSV or XLSX in the sandbox and summarises its structure, columns and statistics | Read only | Restricted |
 | `historian_read` | Reads recorded values for an instrument tag, or every instrument on an equipment tag, from the historian or OPC UA; returns `M` evidence | Read only | Restricted |
+| `cmms_read` | Lists the open work orders and notifications raised against an equipment tag in the CMMS; returns one `W` evidence item. Called by the run itself when it assesses a tag | Read only | Restricted |
 | `document_generate` | Renders a DOCX, XLSX, PPTX or Markdown deliverable with its citations, and hashes it | Write | Restricted |
 
 Every tool is granted to operator, engineer, reviewer and administrator in `policies/tool-permissions.yaml`, and to no other role. The auditor cannot invoke any tool: oversight without the power to act.
@@ -69,6 +70,33 @@ The historian's classification is `connectors.historian.classification` (confide
 `python scripts/seed_historian.py` (also run by `scripts/seed_demo_data.py`) writes `storage/historian.db`: two weeks of hourly samples, 2026-05-11 to 2026-05-24, for PT-2104, TT-2104 and LT-2104A on V-2104 and PT-2107 and TT-2107 on V-2107, generated from a fixed seed so every build is identical. V-2107's instruments report `bad (out_of_service)` from its withdrawal on 2026-05-18, and PT-2104 has a six-hour `comm_failure` on 2026-05-20. The data is **simulated**: the database says so in its `meta` table, and every item served from it is marked `simulated` and titled "Simulated …".
 
 The orchestrator does not call `historian_read` on its own: it is in the catalogue the planner is shown, for plans that need recorded process values.
+
+## `cmms_read` in detail
+
+A maintenance-management system (CMMS) answers one question here: which work orders and notifications are raised against this tag and not yet closed? It has its own read-only interface in `base.py`, `ReadOnlyMaintenanceSource`, with `describe` and `open_items` and nothing else: no create, release, confirm or close exists to be asked for. Items come back as `MaintenanceItem` records (number, work order or notification, tag, title, work type, status, priority, raised date, planned start, closed date, raised by, the record that prompted it). An item is open in the statuses `open`, `released`, `in_progress` and `awaiting_shutdown`.
+
+| `connectors.cmms.mode` | What it reads |
+|---|---|
+| `simulator` (default) | The SQLite database at `connectors.cmms.path`, opened with `mode=ro`, so the driver itself refuses writes |
+| `live` | Nothing. It is declared so a configuration can name it, and refused with "not implemented": there is **no SAP PM or Maximo client in this build**. One would implement the same two methods, mapping its own statuses onto the open set. Its endpoint must in any case be a literal address inside `sovereignty.allowed_cidrs`; a hostname is refused rather than resolved, since a DNS lookup is denied outright |
+
+Argument: `tag` (an equipment or functional-location tag such as `V-2104` or `PSV-2104A`).
+
+The lookup becomes one `cmms` evidence item (`W`): the source and tag in `source_document`, the extract date in `location`, one line per open item in the excerpt, or "No open work order or notification for …" when there are none. `extraction_data` holds every open item, the counts and `work_order_raised`. A CMMS that cannot be asked (no database, live mode, a tag it does not know) fails the call with the reason: it never returns an empty list that would read as "no work raised". The classification is `connectors.cmms.classification` (normal by default: work-order lists are operational records).
+
+### Called by the run, stated in the note
+
+Unlike `historian_read`, the orchestrator calls `cmms_read` itself. When a run has assessed a tag (a vessel, a relief valve, a piping circuit), right after the formula registry, it looks up that tag through the registry, so the call is policy-checked, audited as `tool / cmms_read:ok` and kept on the run like any other. The `W` item joins the ledger, and the run, not the model, writes the approval note's **Maintenance status (CMMS)** sentence from it:
+
+- an open work order: "A work order is already raised for V-2104 in CMMS (simulator): WO-4000321 (repair, awaiting shutdown, planned start 2026-11-09): Repair cladding and insulation on shell course 2 (SOP-MNT-022). Open notification: NOTIF-10402117 … [W1]."
+- none: "No open work order found in CMMS (simulator) for PSV-2104A [W1]."
+- the CMMS could not be asked: "CMMS (simulator) could not be read for V-2104 (…), so whether a repair is already raised is not known." It is also listed under the run's limitations.
+
+The sentence is set on the deliverable next to the approving-authority line, rendered in the DOCX, Markdown and PPTX, and shown in the thread's reading view as "Repair raised?".
+
+### The simulated CMMS
+
+`python scripts/seed_cmms.py` (also run by `scripts/seed_demo_data.py`) writes `storage/cmms.db`: fictional work orders and notifications consistent with the demonstration scenario, as of 2026-09-20. V-2104 has an open notification for the corrosion under insulation INS-2026-0417 found and an open repair order for the cladding and insulation, awaiting the shutdown window. PSV-2104A's bench test and overhaul (PRV-2026-0311) is a closed order, so nothing is open against the valve. V-2107, withdrawn on 2026-05-18, has an open assessment order. The data is **simulated**: the database says so in its `meta` table, and every item served from it is titled "Simulated cmms:simulator" and named "CMMS (simulator)" in the note.
 
 ## Tools in the policy file that are not registered
 

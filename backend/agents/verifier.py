@@ -62,8 +62,8 @@ LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 # an unrecognised kind. While this matched only S and F, a citation of a vision
 # extraction or a calculation read as no citation at all, so an answer drawn
 # from a scanned drawing counted as uncited and failed verification on evidence
-# it had in fact used.
-CITATION_PATTERN = re.compile(r"\[(?:[SFVCEHT])\d+\]")
+# it had in fact used. H human, T topology and W (a CMMS lookup) likewise.
+CITATION_PATTERN = re.compile(r"\[(?:[SFVCEHTW])\d+\]")
 # Anything the answer presents as a citation: a bracketed id of capitals and
 # digits, with dotted parts -- "[S1]", and also "[V2.1]", which the small model
 # writes when it borrows a clause number for an evidence id. Wider than

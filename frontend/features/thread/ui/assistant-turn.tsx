@@ -451,6 +451,13 @@ function DeliverableReader({
                 <Inline text={content.authority} known={known} onCite={onCite} trace={trace} />
               </p>
             )}
+            {/* Written from the CMMS lookup (W evidence), never by the model. */}
+            {content?.maintenance && (
+              <p className="text-meta leading-[var(--lh-answer)] text-foreground-secondary">
+                <span className="font-medium text-foreground">Repair raised?</span>{' '}
+                <Inline text={content.maintenance} known={known} onCite={onCite} trace={trace} />
+              </p>
+            )}
           </div>
         </section>
       )}

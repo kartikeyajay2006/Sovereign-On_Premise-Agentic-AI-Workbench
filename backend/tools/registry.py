@@ -226,6 +226,14 @@ class ToolRegistry:
             self._historian_read,
         )
         self.register(
+            "cmms_read",
+            "List the open work orders and notifications raised against an equipment tag "
+            "(V-2104, PSV-2104A) in the maintenance management system (CMMS). Read-only; "
+            "says whether a repair is already raised.",
+            {"tag": "equipment or functional-location tag"},
+            self._cmms_read,
+        )
+        self.register(
             "document_generate",
             "Render a verified DOCX/XLSX/PPTX/MD deliverable with evidence citations "
             "and a provenance block.",
@@ -531,6 +539,75 @@ class ToolRegistry:
             "connector": connector.describe(),
             "tags": [info.as_dict() for info, _ in series],
             "evidence": evidence,
+        }
+
+    async def _cmms_read(
+        self, arguments: dict[str, Any], context: ToolContext
+    ) -> dict[str, Any]:
+        from backend.connectors import ConnectorUnavailable, UnknownTag, get_cmms
+
+        tag = str(arguments.get("tag") or "").strip().upper()
+        if not tag:
+            return {"__ok__": False, "__summary__": "no tag supplied", "__error__": "tag is required"}
+        connector = get_cmms()
+        if connector is None:
+            return {"__ok__": False, "__summary__": "the CMMS connector is not enabled",
+                    "__error__": "connectors.cmms.enabled is false"}
+
+        section = self.config.settings.section("connectors") or {}
+        level = str((section.get("cmms") or {}).get("classification") or "normal")
+        if self.config.classification_rank(level) > self.config.classification_rank(
+            context.user.max_data_classification.value
+        ):
+            reason = f"CMMS data is {level}, above this user's clearance"
+            return {"__ok__": False, "__summary__": reason, "__error__": reason}
+
+        try:
+            items = connector.open_items(tag)
+            as_of = connector.as_of()
+        except (ConnectorUnavailable, UnknownTag) as exc:
+            # "Could not ask" is a failure, never "no work order raised".
+            return {"__ok__": False, "__summary__": str(exc), "__error__": str(exc),
+                    "connector": connector.describe()}
+
+        orders = [item for item in items if item.kind == "work_order"]
+        notifications = [item for item in items if item.kind == "notification"]
+        lines = [
+            f"{item.id}  {item.kind.replace('_', ' ')}  {item.work_type}  {item.status.replace('_', ' ')}"
+            f"  raised {item.raised_on}"
+            + (f"  planned start {item.planned_start}" if item.planned_start else "")
+            + f"  {item.title}" + (f"  (ref {item.reference})" if item.reference else "")
+            for item in items
+        ]
+        label = "Simulated " if connector.simulated else ""
+        evidence = EvidenceItem(
+            # W for work management; the ledger renumbers on collection.
+            id="W1",
+            source_document=f"{label}{connector.name} · open work orders and notifications for {tag}",
+            location=f"{tag} · open items as of {as_of}" if as_of else f"{tag} · open items",
+            excerpt="\n".join(lines) or f"No open work order or notification for {tag} in {connector.name}.",
+            extraction_method="cmms_read",
+            extraction_model=connector.name,
+            extraction_data={
+                "connector": connector.name,
+                "simulated": connector.simulated,
+                "tag": tag,
+                "as_of": as_of,
+                "open_items": [item.as_dict() for item in items],
+                "open_work_orders": len(orders),
+                "open_notifications": len(notifications),
+                # An open work order against the tag: the work is raised.
+                "work_order_raised": bool(orders),
+            },
+            classification=Sensitivity(level),
+            kind="cmms",
+        )
+        return {
+            "__summary__": (f"{len(orders)} open work order(s) and {len(notifications)} open notification(s) "
+                            f"for {tag} in {connector.name}{' (simulated)' if connector.simulated else ''}"),
+            "connector": connector.describe(),
+            "tag": tag,
+            "evidence": [evidence.model_dump(mode="json")],
         }
 
     async def _document_generate(
