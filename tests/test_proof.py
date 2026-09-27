@@ -92,7 +92,9 @@ def test_a_rewritten_and_rechained_history_is_exposed_by_the_seal(tmp_path: Path
 def test_a_broken_chain_is_not_sealed(tmp_path: Path) -> None:
     log = _log(tmp_path)
     lines = log.path.read_text().splitlines()
-    record = json.loads(lines[2]); record["actor"] = "x"; lines[2] = json.dumps(record)
+    record = json.loads(lines[2])
+    record["actor"] = "x"
+    lines[2] = json.dumps(record)
     log.path.write_text("\n".join(lines) + "\n")
     with pytest.raises(SealRefused):
         AuditSeal(log, HostSigner(tmp_path / "keys")).seal("test")

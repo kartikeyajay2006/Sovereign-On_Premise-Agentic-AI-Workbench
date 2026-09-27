@@ -104,7 +104,44 @@ def _missing_summary(inputs: VesselInputs | PipingInputs, rows: list[dict[str, A
             }.get(name, name)
             if text not in missing and name not in ("rate", "short_term_rate", "long_term_rate"):
                 missing.append(text)
+    missing += _readings_to_confirm(inputs)
     return missing
+
+
+def _mm(bound: BoundValue | None) -> float | None:
+    if bound is None or not isinstance(bound.value, Quantity):
+        return None
+    try:
+        return bound.value.to("mm")
+    except Exception:
+        return None
+
+
+def _readings_to_confirm(inputs: VesselInputs | PipingInputs) -> list[str]:
+    """Current readings thicker than the wall has ever been: a person confirms them first.
+
+    Corrosion only removes metal. A live vision read of the V-2104 scan gave
+    18.9 mm at a location the report prints as 10.9 mm, on a 12.0 mm wall;
+    the formulas called it "no measurable corrosion", and the location left
+    the comparison without a word. Had the misread been at the governing
+    location, another would have governed. A reading above both its earlier
+    reading and the nominal thickness is not a measurement of that wall, so
+    the decision waits for it. Scatter inside the as-built wall (11.7 then
+    11.8 mm on 12.0 mm) is not questioned.
+    """
+    nominal = _mm(inputs.nominal)
+    if nominal is None:
+        return []
+    notes: list[str] = []
+    for row in inputs.readings:
+        current, previous = _mm(row.current), _mm(row.previous)
+        if current is None or previous is None or not (current > previous and current > nominal):
+            continue
+        notes.append(
+            f"a confirmed current reading at {row.location}: {row.current.stated} is thicker than the earlier "
+            f"{row.previous.stated} and the {inputs.nominal.stated} nominal wall, which corrosion cannot do"
+        )
+    return notes
 
 
 def assess_vessel(inputs: VesselInputs) -> tuple[list[CalculationRecord], IntegrityAssessment]:

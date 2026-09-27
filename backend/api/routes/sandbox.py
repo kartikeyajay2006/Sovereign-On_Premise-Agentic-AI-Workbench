@@ -61,6 +61,19 @@ def _max_code_bytes() -> int:
     return int(get_config().settings.sandbox.get("max_code_bytes", _DEFAULT_MAX_CODE_BYTES))
 
 
+def run_self_test() -> dict:
+    """Run the diagnostic under the same host-wide execution cap as code."""
+    if not _global_slots.acquire(blocking=False):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="The sandbox is at capacity on this host. Try again in a moment.",
+        )
+    try:
+        return get_sandbox().self_test_report()
+    finally:
+        _global_slots.release()
+
+
 class SandboxExecuteRequest(BaseModel):
     code: str = Field(min_length=1)
     # The data classification this run is treated as handling. It is checked
@@ -268,15 +281,7 @@ def sandbox_self_test(user: CurrentUser) -> dict:
     the sandbox did with them just now. It shares the global concurrency slot so
     a self-test and a heavy execution do not run on top of each other.
     """
-    if not _global_slots.acquire(blocking=False):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="The sandbox is at capacity on this host. Try again in a moment.",
-        )
-    try:
-        report = get_sandbox().self_test_report()
-    finally:
-        _global_slots.release()
+    report = run_self_test()
 
     get_audit_log().record(
         category="security",

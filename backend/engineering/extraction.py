@@ -317,7 +317,7 @@ def _readings_table(text: str, item: EvidenceItem) -> list[ReadingRow]:
     older, newer = (years[0], years[1]) if len(years) >= 2 and ascending else (
         (years[1], years[0]) if len(years) >= 2 else ("previous", "current")
     )
-    offset = sum(len(l) + 1 for l in lines[: header_index + 1])
+    offset = sum(len(header_line) + 1 for header_line in lines[: header_index + 1])
     rows: list[ReadingRow] = []
     for line in lines[header_index + 1:]:
         stripped = line.strip()

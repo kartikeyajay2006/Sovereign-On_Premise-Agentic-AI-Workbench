@@ -1,6 +1,7 @@
 # 13.2 · Testing
 
 ```bash
+.venv/bin/python -m ruff check backend scripts tests
 .venv/bin/python -m pytest -q                       # everything: ~80 s
 .venv/bin/python -m pytest -q tests/test_security.py
 .venv/bin/python -m pytest -q -k "sandbox or egress"
@@ -44,6 +45,7 @@ To run what CI runs, locally:
 
 ```bash
 python -m compileall -q backend scripts tests
+python -m ruff check backend scripts tests
 python -m pytest -q -p no:cacheprovider -rs
 cd frontend && npm ci && npx tsc --noEmit -p . && npx tsc --noEmit -p tsconfig.e2e.json && npx next build
 npx playwright install chromium && npm run test:e2e   # builds again, see below

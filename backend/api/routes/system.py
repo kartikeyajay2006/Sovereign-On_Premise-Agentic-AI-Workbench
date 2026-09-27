@@ -496,7 +496,9 @@ def sovereignty_status(user: CurrentUser) -> SovereigntyStatus:
 @router.get("/sovereignty/sandbox-test")
 def sandbox_self_test(user: CurrentUser) -> dict[str, Any]:
     """Prove both sandbox isolation layers actually block the network."""
-    result = get_sandbox().self_test_report()
+    from backend.api.routes.sandbox import run_self_test
+
+    result = run_self_test()
     get_audit_log().record(
         category="security",
         action="sandbox_self_test",

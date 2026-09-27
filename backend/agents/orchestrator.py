@@ -1652,6 +1652,7 @@ class AgentOrchestrator:
             return None
         ident = vision_cache_identity(
             images, digest, self.config.prompts.get("prompts_version"), system_prompt, prompt,
+            self.router.generation_options(descriptor.id, stage="vision_extraction"),
         )
         entry = None if refresh else cache.get(ident)
         if entry is None:

@@ -152,6 +152,31 @@ async def test_a_changed_prompt_or_prompt_version_is_a_different_question(
 
 
 @pytest.mark.asyncio
+async def test_other_decoding_settings_are_a_different_question(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A reading sampled at temperature 0.2 read V-2104's 10.9 mm as 18.9 mm,
+    # and was cached; changing the setting must not serve it again.
+    router = harness.agent.router
+    options = router.generation_options
+
+    await harness.read("first")
+    monkeypatch.setattr(router, "generation_options",
+                        lambda model_id, stage=None: {**options(model_id, stage), "temperature": 0.7})
+    await harness.read("second")
+    assert harness.calls == 2 and not harness.actions("vision_cache_hit")
+
+
+def test_a_page_is_transcribed_greedily() -> None:
+    # A transcription is not sampled: the same page must read the same way
+    # every time, or a cached reading is whichever sample came first.
+    from backend.core.config import get_config
+
+    vision = [m for m in get_config().models["models"] if m.get("role") == "vision"]
+    assert vision and all((m.get("generation_defaults") or {}).get("temperature") == 0 for m in vision)
+
+
+@pytest.mark.asyncio
 async def test_a_model_without_a_digest_is_never_cached(harness: Harness) -> None:
     harness.digest = None
     await harness.read("first")

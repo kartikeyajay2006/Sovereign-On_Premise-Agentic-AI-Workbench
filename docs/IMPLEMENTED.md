@@ -18,7 +18,7 @@ lives and how to see it working. What is not built yet is in
 | Access control | **7** roles, **22** permissions, **7** demo accounts |
 | Approval rules | **11**, one of them requiring two signatures in order |
 | Red team | **31 of 31** attacks held on the live host |
-| Tests | **1131 passed, 13 skipped** on Linux (Windows runs in CI) |
+| Tests | **1211 passed, 13 skipped** on Linux (Windows runs in CI); **13** Playwright smoke tests for the console |
 | Handbook | **111** pages |
 | Demo corpus | **15** synthetic documents, **207** passages, a P&ID, scanned reports, a PSV test record |
 

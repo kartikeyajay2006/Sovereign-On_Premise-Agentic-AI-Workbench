@@ -12,7 +12,7 @@
 An air-gapped AI workbench for regulated industrial work. The model, the search, the engineering formulas and every check run on one machine, and each answer arrives with its sources, its checks, the person who approved it and a signed record.
 
 [![ci](https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench/actions/workflows/ci.yml)
-![tests](https://img.shields.io/badge/tests-1131_passed-2ea44f)
+![tests](https://img.shields.io/badge/tests-1211_passed-2ea44f)
 ![red team](https://img.shields.io/badge/red_team-31%2F31_held-2ea44f)
 ![console](https://img.shields.io/badge/console-132%2F132_screens_clean-2ea44f)
 ![formulas](https://img.shields.io/badge/engineering_formulas-21-c8f542)
@@ -130,7 +130,8 @@ Each figure on this page comes from a command you can run on your own host.
 | The three judged moments, end to end | `FINAL STATUS: READY` | `python scripts/golden_demo.py` |
 | Attacks against the live host | **31 of 31 held**, hashed report | `python scripts/red_team.py` |
 | Every console screen, as every account | **132 of 132 clean**: no exception, console error or failed request | `python scripts/ui_check.py` |
-| The test suite (no model needed) | **1131 passed**, 13 skipped (Windows-only and container tests) | `pytest` |
+| The test suite (no model needed) | **1211 passed**, 13 skipped (Windows-only and container tests) | `pytest` |
+| The console against a mocked API | **13 of 13** Playwright smoke tests: sign-in, the Brief, two signatures in order, the screens | `cd frontend && npm run test:e2e` |
 | The audit chain | verified by the server and the browser; roots signed | `python scripts/audit_tool.py verify` |
 | A run's certificate, offline | every check passed | `python scripts/verify_certificate.py <certificate.json>` |
 | The demo corpus | 15 documents, 207 passages, every answer derivable | `python scripts/seed_demo_data.py --check` |
