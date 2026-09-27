@@ -497,7 +497,11 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 <br><a href="https://github.com/pentest200">@pentest200</a>
 <br><br><img src="https://img.shields.io/badge/research-SIH_PPT-2563eb?style=flat-square" alt="Research and SIH PPT">
 <br><br>
-<sub>Research contributor and responsible for the Smart India Hackathon presentation.</sub>
+<div align="left">
+🔬 <sub>Conducted technical analysis and contributed to the system architecture.</sub><br>
+🛡️ <sub>Documented implementation details, security considerations, and core engineering decisions.</sub><br>
+🎯 <sub>Translated key technical insights into the Smart India Hackathon presentation.</sub>
+</div>
 </td>
 </tr>
 </table>
