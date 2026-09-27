@@ -71,11 +71,13 @@ Every material claim in the answer gets one verdict, with the evidence it rests 
 |---|---|
 | **CONFLICTED** | It states a conclusion that depends on a disputed input, or takes one source's side of an open conflict |
 | **REQUIRES_HUMAN_DECISION** | It states a disposition (continued service, return to service, a deferred interval) that only the approving authority can take. Such a claim holds the run (`human_decision`) |
-| **CALCULATED** | Its figures, due date, severity band or approving authority are the registry's |
+| **CALCULATED** | Its figures, due date, severity band, governing location, approving authority, or the clause the severity rests on, are the registry's |
 | **UNSUPPORTED** | It contradicts the registry; or no cited or retrieved evidence carries it |
 | **SUPPORTED** | A passage carries its figures or terms |
 
 A sentence that *reports* a disagreement ("the sources disagree: 9.4 mm [V1] against 9.9 mm [F1], so the conclusion is withheld") is SUPPORTED by the conflict's own sources. **claim_verification** fails when an engineering claim is UNSUPPORTED or any claim is CONFLICTED.
+
+A claim about the clause is CALCULATED only when every clause it names is one the decision names (its severity basis, approver or required action) and it adds no word or figure the decision does not state: *"Governing clause is SOP-MNT-022 Clause 4.1."* is the registry's; *"SOP-MNT-022 Clause 4.1 requires the vessel to be decommissioned."* is judged against the passages.
 
 Severity, remaining life, corrosion rate and dispositions are material claims whether or not they carry a number: *"Severity is Low."* and *"V-2104 may continue in service."* used to escape examination entirely.
 

@@ -9,9 +9,11 @@ The checks run in this order after the answer is written: sources, citations, pa
 1. Split the answer into sentences and keep the **material claims** (see [8.2](02-claims.md)).
 2. No claims → **pass**: *No material claims requiring documentary support were made.*
 3. Claims but no evidence at all → **fail**: *3 material claim(s) were made but no local evidence was retrieved to support them.*
-4. Otherwise, count the claims that corroborate some evidence item. Pass when the fraction is at least `min_supported_fraction` (0.6).
+4. Otherwise, count the claims that are carried: a claim whose verdict ([8.6](06-engineering.md)) is CALCULATED or SUPPORTED, or one that corroborates some evidence item. Pass when the fraction is at least `min_supported_fraction` (0.6).
 
-> *3 of 5 material claims are supported by local evidence (60%; threshold 60%).*
+> *3 of 5 material claims are supported by local evidence or computed by the formula registry (60%; threshold 60%).*
+
+The verdicts come first because they are the stronger judgement. Asked only whether a passage repeats a claim's words, *"Approving authority is Head of Inspection [S3]"* counted as unsupported although the severity formula computed it, and a correct answer on the scanned V-2104 report was held for it.
 
 The unsupported claims are listed as warnings, so a reviewer sees which sentences had nothing behind them.
 
@@ -71,7 +73,7 @@ Note what this check means: the code **ran**. It does not mean its output is rig
 
 ## hallucination_check
 
-*Taken as a whole, how much of the answer is traceable?* The same material-claim count as source verification, over the full answer, reported as *3 of 5 material claim(s) traceable to local evidence or independent computation*, with the same 60 % threshold.
+*Taken as a whole, how much of the answer is traceable?* The same material-claim count as source verification, claim verdicts included, over the full answer, reported as *3 of 5 material claim(s) traceable to local evidence or independent computation*, with the same 60 % threshold.
 
 ## The report
 
@@ -82,7 +84,7 @@ Note what this check means: the code **ran**. It does not mean its output is rig
   "material_claims_total": 3,
   "material_claims_supported": 0,
   "limitations": [
-    "source_verification: 0 of 3 material claims are supported by local evidence (0%; threshold 60%).",
+    "source_verification: 0 of 3 material claims are supported by local evidence or computed by the formula registry (0%; threshold 60%).",
     "calculation_verification: 0 of 2 calculation(s) independently recomputed …"
   ],
   "completed_at": "…"

@@ -2176,8 +2176,15 @@ class AgentOrchestrator:
             # succeeded. A check that cannot complete is reported as a failed
             # check, never as a failed task — refusing to verify is a result.
             checks: list[VerificationCheck] = []
+            # Every material claim, one verdict each, against the same ledger
+            # the citations point into. The source check reads them too: a
+            # claim the registry computed is carried by the computation.
+            claims = self.verifier.claim_verdicts(
+                answer_text, evidence,
+                assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
+            )
             try:
-                checks.append(self.verifier.check_sources(answer_text, evidence))
+                checks.append(self.verifier.check_sources(answer_text, evidence, claims=claims))
             except Exception as exc:
                 checks.append(
                     VerificationCheck(
@@ -2257,12 +2264,6 @@ class AgentOrchestrator:
             checks.append(self.verifier.check_code(sandbox_result))
             if task.topology:
                 checks.append(self.verifier.check_topology(answer_text, task.topology))
-            # Every material claim, one verdict each, against the same ledger
-            # the citations point into.
-            claims = self.verifier.claim_verdicts(
-                answer_text, evidence,
-                assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
-            )
             if claims:
                 checks.append(self.verifier.check_claims(claims))
 
@@ -3319,13 +3320,17 @@ class AgentOrchestrator:
         if task.verification is None:
             return
         replaced = {"engineering_verification", "claim_verification", "calculation_verification",
-                    "hallucination_check"}
+                    "hallucination_check", "source_verification"}
         checks = [check for check in task.verification.checks if check.name not in replaced]
         limitations = [
             note for note in task.verification.limitations
             if not any(note.startswith(f"{name}:") for name in replaced)
         ]
         answer = task.answer or ""
+        claims = self.verifier.claim_verdicts(
+            answer, task.evidence,
+            assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
+        )
         if task.assessment is not None:
             checks.insert(0, VerificationCheck(
                 name="calculation_verification",
@@ -3340,10 +3345,7 @@ class AgentOrchestrator:
                 evidence_ids=list(task.assessment.evidence_ids),
             ))
             checks.append(self.verifier.check_engineering(answer, task.assessment, task.calculations))
-        claims = self.verifier.claim_verdicts(
-            answer, task.evidence,
-            assessment=task.assessment, records=task.calculations, conflicts=task.conflicts,
-        )
+        checks.insert(0, self.verifier.check_sources(answer, task.evidence, claims=claims))
         if claims:
             checks.append(self.verifier.check_claims(claims))
         task.verification = self.verifier.compile_report(
