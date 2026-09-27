@@ -574,6 +574,33 @@ def _relief_inlet_loss(v: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ------------------------------------------------------ operating envelope
+# SOP-INS-021 Clause 6.1: equipment awaiting a Fitness-For-Service assessment
+# may be operated in the interim only where, among other conditions,
+# "operating pressure is reduced to 90% of the registered MAWP or lower".
+# The corpus states no general operating limit against MAWP and no design
+# temperature range for operation, so neither is registered here.
+def _interim_operating_pressure(v: dict[str, Any]) -> dict[str, Any]:
+    operating = round(v["operating_pressure"].value, _PRESSURE_PLACES)
+    mawp = round(v["mawp"].value, _PRESSURE_PLACES)
+    if mawp <= 0:
+        raise ValueError("MAWP must be positive")
+    limit = round(0.90 * mawp, _PRESSURE_PLACES)
+    within = operating <= limit
+    percent = round(operating / mawp * 100, 1)
+    return {
+        "within_limit": (within, None),
+        "limit": (limit, "MPa"),
+        "margin": (round(limit - operating, _PRESSURE_PLACES), "MPa"),
+        "percent_of_mawp": (percent, "%"),
+        "_display": (
+            f"operating {_bar(operating)} = {percent:g}% of MAWP {_bar(mawp)}; "
+            f"{'≤' if within else '>'} 90% of MAWP = {_bar(limit)}"
+            + ("" if within else ": interim operation is not permitted at this pressure")
+        ),
+    }
+
+
 def _q(name: str, dimension: Dimension, description: str, optional: bool = False) -> Parameter:
     return Parameter(name, "quantity", description, dimension, optional)
 
@@ -771,6 +798,17 @@ FORMULAS: dict[str, Formula] = {
                 _q("inlet_loss", PRESSURE, "inlet pressure loss at relieving flow"),
             ),
             _relief_inlet_loss, ("loss_percent", "within_limit"),
+        ),
+        Formula(
+            "envelope.interim_operating_pressure", 1, "Operating pressure for interim operation",
+            "SOP-INS-021 Clause 6.1",
+            "within_limit = operating_pressure ≤ 0.90 × MAWP, while the equipment awaits a "
+            "Fitness-For-Service assessment",
+            (
+                _q("operating_pressure", PRESSURE, "operating pressure of the equipment"),
+                _q("mawp", PRESSURE, "registered MAWP of the equipment"),
+            ),
+            _interim_operating_pressure, ("within_limit", "limit", "margin", "percent_of_mawp"),
         ),
     )
 }

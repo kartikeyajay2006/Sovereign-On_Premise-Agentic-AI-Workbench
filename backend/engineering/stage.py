@@ -22,7 +22,7 @@ from backend.core.schemas import (
 from backend.engineering.assessment import assess_piping, assess_vessel
 from backend.engineering.extraction import InputConflict, piping_inputs, vessel_inputs
 from backend.engineering.formulas import BoundValue, output_value
-from backend.engineering.relief import assess_relief, relief_inputs
+from backend.engineering.relief import assess_relief_tests, relief_tests
 
 _RANK = {Sensitivity.NORMAL: 0, Sensitivity.CONFIDENTIAL: 1, Sensitivity.SENSITIVE: 2, Sensitivity.RESTRICTED: 3}
 
@@ -65,10 +65,24 @@ def assess_with_conflicts(
     if piping is not None:
         records, assessment = assess_piping(piping)
         return records, assessment, []
-    relief = relief_inputs(pool)
-    if relief is not None:
-        records, assessment = assess_relief(relief)
-        return records, assessment, []
+    tests, disputes = relief_tests(pool, overrides)
+    if tests:
+        blocking = [conflict for conflict in disputes if conflict.impact == "high"]
+        if blocking:
+            # As for a vessel: nothing is judged from a value two records of
+            # one test disagree on until a person chooses.
+            assessment = IntegrityAssessment(
+                kind="relief",
+                subject=", ".join(dict.fromkeys(test.tag for test in tests)),
+                status="conflicted",
+                report=", ".join(dict.fromkeys(t.report_no for t in tests if t.report_no)) or None,
+                protected_equipment=", ".join(dict.fromkeys(t.protects for t in tests if t.protects)) or None,
+                conflicts=[conflict.field for conflict in blocking],
+                source_evidence_ids=list(dict.fromkeys(e for t in tests for e in t.source_evidence_ids)),
+            )
+            return [], assessment, disputes
+        records, assessment = assess_relief_tests(tests)
+        return records, assessment, disputes
     return None
 
 
@@ -122,7 +136,7 @@ def conflict_records(
             impact="high" if conflict.impact == "high" else "medium",
             status="unresolved",
             candidates=[_candidate(value, conflict.field, evidence) for value in conflict.values],
-            note=(
+            note=conflict.note or (
                 f"The sources disagree on {conflict.label} ({values}). "
                 + (
                     "Every figure that depends on it is withheld until a person chooses."
@@ -291,7 +305,11 @@ def prompt_block(
         return (
             "\nDeterministic engineering: CONFLICTED for "
             f"{assessment.subject}. The evidence disagrees about {', '.join(conflicts_text or assessment.conflicts)}. "
-            "No corrosion rate, remaining life, severity or due date can be stated until a person resolves "
+            + (
+                "No clause verdict, severity or bench-test due date"
+                if assessment.kind == "relief" else "No corrosion rate, remaining life, severity or due date"
+            )
+            + " can be stated until a person resolves "
             "the conflict. Say that the sources disagree, name both values and their sources, say that the "
             "conclusion is withheld pending a human resolution, and do not choose between them.\n"
         )
@@ -332,7 +350,7 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     """The calculated decision as cited sentences, one per finding."""
     decision = _decision_id(assessment, records)
     if assessment.kind == "relief":
-        return _relief_lines(assessment, decision)
+        return _relief_lines(assessment, decision, records)
     governing = _location_id(assessment, records)
     # Values stated in a question have no location to govern.
     where = f"governing location {assessment.governing_location}; " if assessment.governing_location else ""
@@ -364,6 +382,7 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     elif assessment.kind == "vessel":
         lines.append(f"[{decision}] No Fitness-For-Service trigger applies "
                      f"(local metal loss {assessment.local_metal_loss_percent:g}% of nominal).")
+    lines.extend(_envelope_lines(assessment, records, decision))
     if assessment.withdraw_from_service:
         # Never a routine date for equipment that is out of service: "next
         # survey in 12 months" read as permission to run for 12 months.
@@ -378,16 +397,52 @@ def decision_lines(assessment: IntegrityAssessment, records: list[CalculationRec
     return lines
 
 
-def _relief_lines(assessment: IntegrityAssessment, decision: str | None) -> list[str]:
+def _envelope_lines(
+    assessment: IntegrityAssessment, records: list[CalculationRecord], decision: str | None
+) -> list[str]:
+    """SOP-INS-021 Clause 6.1's interim pressure limit, when the run judged it."""
+    envelope = next((r for r in records if r.formula_id == "envelope.interim_operating_pressure"), None)
+    if envelope is None:
+        return []
+    if envelope.status != "calculated":
+        return [
+            f"[{decision}] {assessment.subject} awaits a Fitness-For-Service assessment, so interim operation "
+            "requires operating pressure at or below 90% of MAWP (SOP-INS-021 Clause 6.1); this cannot be "
+            f"calculated: {envelope.reason}. Do not estimate it."
+        ]
+    within = bool(output_value(envelope, "within_limit"))
+    return [
+        f"[{decision}] {assessment.subject}: interim operating pressure (SOP-INS-021 Clause 6.1): "
+        f"{'within the limit' if within else 'EXCEEDS the limit'}. {envelope.display}.",
+        f"[{decision}] Interim operation pending the assessment is recommended by the Inspection Engineer and "
+        "approved by the Head of Inspection and the Plant Manager (SOP-INS-021 Clause 6.2; SOP-OPS-008 "
+        "Clause 2.8).",
+    ]
+
+
+def _relief_lines(
+    assessment: IntegrityAssessment, decision: str | None, records: list[CalculationRecord]
+) -> list[str]:
     """A relief device's verdicts: one per SOP-INS-025 clause, then the decision.
 
     Nothing here is about thickness or corrosion: the thickness sentences
     would have told the model to state a rate and a remaining life that no
-    relief-valve record carries.
+    relief-valve record carries. Where the run has several tests, each
+    verdict is named by its test and cites that test's own C item.
     """
     protected = f" on {assessment.protected_equipment}" if assessment.protected_equipment else ""
+    suffix = " · decision"
+    by_test = {
+        (record.subject or "")[: -len(suffix)]: record.evidence_id
+        for record in records if (record.subject or "").endswith(suffix) and record.evidence_id
+    }
+
+    def cite(label: str) -> str | None:
+        test = label.split(" · ", 1)[0] if " · " in label else None
+        return by_test.get(test, decision) if test else decision
+
     lines = [
-        f"[{decision}] {assessment.subject}{protected}: {check.label}: "
+        f"[{cite(check.label)}] {assessment.subject}{protected}: {check.label}: "
         f"{'passed' if check.passed else 'FAILED'}. {check.detail}."
         for check in assessment.checks
     ]

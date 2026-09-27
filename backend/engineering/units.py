@@ -111,6 +111,8 @@ _UNITS: dict[str, tuple[float, Dimension]] = {
 
 _GAUGE = {"barg", "bar(g)", "bar g", "psig"}
 _FAHRENHEIT = {"degf", "°f", "deg f", "f"}
+_KELVIN = {"k", "kelvin"}
+_KELVIN_OFFSET = 273.15
 
 
 class UnitError(ValueError):
@@ -153,6 +155,8 @@ class Quantity:
         if self.dimension == TEMPERATURE:
             if key in _FAHRENHEIT:
                 return self.value * 9.0 / 5.0 + 32.0
+            if key in _KELVIN:
+                return self.value + _KELVIN_OFFSET
             if key in _UNITS and _UNITS[key][1] == TEMPERATURE:
                 return self.value
             raise DimensionError(f"cannot express a temperature in {unit!r}")
@@ -268,5 +272,7 @@ def parse_quantity(text: str, *, default_unit: str | None = None) -> Quantity:
     key = _normalise_unit(unit_text)
     if key in _FAHRENHEIT:
         return Quantity((value - 32.0) * 5.0 / 9.0, TEMPERATURE, stated=source.strip())
+    if key in _KELVIN:
+        return Quantity(value - _KELVIN_OFFSET, TEMPERATURE, stated=source.strip())
     factor, dimension = _lookup(key)
     return Quantity(value * factor, dimension, stated=source.strip(), gauge=key in _GAUGE)

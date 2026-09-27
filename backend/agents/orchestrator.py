@@ -2405,6 +2405,7 @@ class AgentOrchestrator:
                 ),
                 severity=_calculated_severity(task),
                 dlp_findings=_dlp_holds(task),
+                operating_limit_breaches=_operating_limit_breaches(task),
             )
             # The gate's own reason says only that sensitive or restricted
             # work needs an authority. When the class came from the evidence
@@ -3704,6 +3705,14 @@ def _calculated_severity(task: Task) -> str | None:
     if assessment is None or assessment.status != "calculated":
         return None
     return assessment.severity
+
+
+def _operating_limit_breaches(task: Task) -> int:
+    """Operating-envelope checks the registry failed on the run's evidence."""
+    assessment = task.assessment
+    if assessment is None or assessment.status != "calculated":
+        return 0
+    return sum(1 for check in assessment.checks if check.formula_id.startswith("envelope.") and not check.passed)
 
 
 def _summarise(arguments: dict[str, Any]) -> dict[str, Any]:

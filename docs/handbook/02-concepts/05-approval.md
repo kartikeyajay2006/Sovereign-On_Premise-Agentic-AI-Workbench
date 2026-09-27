@@ -13,6 +13,7 @@ After verification, the policy gateway evaluates the rules in `policies/approval
 | `verification_failure` | Any verification check failed | reviewer, administrator |
 | `low_confidence_classification` | The analyzer's confidence was below 0.35 **and** there is something to release | reviewer, administrator |
 | `high_severity_finding` | The formula registry computed a **High** finding | head_of_inspection **then** plant_manager, two signatures (below) |
+| `interim_operation_limit` | A vessel awaiting a Fitness-For-Service assessment runs above 90% of its MAWP, so interim operation is not permitted (SOP-INS-021 Clause 6.1) | head_of_inspection, plant_manager (SOP-INS-021 Clause 6.2; SOP-OPS-008 Clause 2.8). Either may release it: two signatures are enforced for High findings only |
 | `safety_recommendation` | The request mentions *safety*, *hazard*, *shutdown*, *incident* or *statutory* | reviewer, administrator |
 
 Every matching rule is listed on the run, so a reviewer sees all the reasons, not just the first. When the class was raised by evidence, that reason is put first and names the evidence, because "4 of 4 checks passed" beside **Held** is otherwise puzzling.

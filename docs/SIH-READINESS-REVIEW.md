@@ -8,8 +8,9 @@ it says otherwise.
 
 ## Verdict
 
-The plan's six phases are built, with three gaps left open: operating-envelope
-checks, three of the five plant-system adapters, and frontend tests. The three judged
+The plan's six phases are built. Two gaps remain: document-management and
+directory adapters (the historian, OPC UA and CMMS adapters are read-only
+simulators), and the operating limits the SOP corpus has no clause for. The three judged
 moments run end to end, and the red team holds **31 of 31** attacks against
 the live host. What decides the result now is less the code than the demo
 machine: the sandbox image and the egress firewall are not set up on it, and
@@ -19,10 +20,10 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 
 | Phase | Plan item | Status | Where it lives |
 |---|---|---|---|
-| 1 Engineering | Versioned, clause-cited formula registry | Done: 18 formulas | `backend/engineering/formulas.py` |
+| 1 Engineering | Versioned, clause-cited formula registry | Done: 19 formulas | `backend/engineering/formulas.py` |
 | | Corrosion rate, remaining life, interval, t-min, severity | Done | same |
-| | Relief-device checks | Done (this pass): SOP-INS-025 Clauses 2-5 | `relief.*` formulas, `backend/engineering/relief.py` |
-| | Pressure and temperature operating limits | **Open**: only set pressure ≤ MAWP | — |
+| | Relief-device checks | Done: SOP-INS-025 Clauses 2-5; every record in a run, records of one valve compared (`e1565bd`) | `relief.*` formulas, `backend/engineering/relief.py` |
+| | Pressure and temperature operating limits | Done as far as the corpus states them (`c7a3119`): SOP-INS-021 Clause 6.1, operating pressure ≤ 90% of MAWP in interim operation. No clause sets operating pressure against MAWP otherwise, or operating temperature against a design range | `envelope.interim_operating_pressure`, `backend/engineering/assessment.py` |
 | | Unit-aware, dimension errors refused | Done | `backend/engineering/units.py` |
 | | Every input bound to evidence; hashes persisted | Done | `CalculationRecord` |
 | | *Cannot calculate* when an input is missing | Done | registry and integrity card |
@@ -139,19 +140,28 @@ After the fixes: 1111 passed, 13 skipped; the relief run opens with its cited an
 
 ### Code gaps from the plan, in order of judged value
 
-1. **Operating envelope.** Operating pressure and temperature against design
-   and MAWP, and SOP-INS-021's interim limit of 90% of MAWP, as registered
-   formulas. It is the last Phase 1 item.
-2. **Frontend tests.** The console has none; the "or" footer above was found
-   by reading a screenshot. A Playwright smoke test that opens each starter
-   card, runs it and reads the integrity card would catch that class of bug.
-3. **CMMS adapter.** Read-only open work orders and notifications for a tag,
+1. ~~**Bind approval to the full run.**~~ Done in `50b0dc1`: the review
+   digest (version 2) binds the prompt, the evidence set, the policy files and
+   the model digests as well as the answer; a change to any of them voids the
+   signatures already given, with a reason that names the part. Version 1
+   records still verify.
+2. ~~**Operating envelope.**~~ Done in `c7a3119`: SOP-INS-021 Clause 6.1's
+   interim limit of 90% of MAWP is `envelope.interim_operating_pressure@1`,
+   applied to a vessel awaiting a Fitness-For-Service assessment, and a
+   breach holds the run for the Head of Inspection and the Plant Manager.
+   The corpus has no clause for operating pressure against MAWP outside
+   interim operation, or operating temperature against a design range, so
+   neither is registered; adding one needs a clause in the SOPs first.
+3. ~~**Frontend tests.**~~ Done in `0bfd973`: Playwright smoke tests against a
+   mocked API, run in CI.
+4. **CMMS adapter.** Read-only open work orders and notifications for a tag,
    behind `backend/connectors/base.py`, would let the approval note say
    whether a repair is already raised. Document-management and directory
    adapters are lower value for the demo.
-4. **Relief records.** Only the first record in a run is assessed, and two
-   records for one valve are not compared as the vessel path compares two
-   surveys.
+5. ~~**Relief records.**~~ Done in `e1565bd`: every record in a run is
+   assessed; two records of one test are compared as two surveys are, and a
+   disagreement withholds the valve until a person chooses; two tests of one
+   valve are both judged and the latest decides.
 
 ### The pitch
 
