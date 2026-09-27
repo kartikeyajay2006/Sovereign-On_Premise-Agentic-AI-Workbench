@@ -570,11 +570,17 @@ function AccountsSection({ accounts }: { accounts: Reading<AccountRecord[]> }) {
  * AD/LDAP declaration -- today, nothing -- in the service's own words.
  */
 export function AdminAccessView() {
-  const requests = useReading((signal) => readAccessRequests(signal), [])
-  const invites = useReading((signal) => readInvites(signal), [])
-  const accounts = useReading((signal) => readAccounts(signal), [])
-  const choices = useReading((signal) => readPolicyChoices(signal), [])
-  const directory = useReading((signal) => readDirectory(signal), [])
+  // The navigation offers People only to users.manage, but the address is
+  // typeable. Without the permission nothing is requested: each section
+  // shows the refusal the service would give, as Approvals does.
+  const { can } = useRole()
+  const canManage = can('users.manage')
+  const refused = () => Promise.reject({ status: 403 })
+  const requests = useReading((signal) => (canManage ? readAccessRequests(signal) : refused()), [canManage])
+  const invites = useReading((signal) => (canManage ? readInvites(signal) : refused()), [canManage])
+  const accounts = useReading((signal) => (canManage ? readAccounts(signal) : refused()), [canManage])
+  const choices = useReading((signal) => (canManage ? readPolicyChoices(signal) : refused()), [canManage])
+  const directory = useReading((signal) => (canManage ? readDirectory(signal) : refused()), [canManage])
 
   const pending = requests.data ? requests.data.filter((r) => r.status === 'pending').length : null
   const open = invites.data ? invites.data.filter((i) => i.status === 'open').length : null
