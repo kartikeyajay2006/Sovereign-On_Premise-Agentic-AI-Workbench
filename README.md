@@ -1,403 +1,238 @@
 <div align="center">
 
-<img src="docs/assets/readme/aegis-hero.svg" alt="AEGIS — On-Premise Agentic AI Workbench. Answers you can prove." width="100%">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/aegis-mark-white.svg">
+  <img src="docs/assets/brand/aegis-mark.svg" alt="" width="64">
+</picture>
 
-<br>
+# AEGIS
 
-![Python](https://img.shields.io/badge/Python-3.11+-ff6a1a?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-ff4150?style=for-the-badge&logo=fastapi&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-16-ff2d6f?style=for-the-badge&logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-19-e0328f?style=for-the-badge&logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.7-b23bd9?style=for-the-badge&logo=typescript&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama-local_models-9b52ff?style=for-the-badge&logo=ollama&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-WAL-7c4dff?style=for-the-badge&logo=sqlite&logoColor=white)
+**Answers your plant can prove.**
 
-![Tests](https://img.shields.io/badge/tests-981_passed_·_13_skipped_on_Linux-16a34a?style=flat-square)
-![Egress](https://img.shields.io/badge/egress-0_·_measured-16a34a?style=flat-square)
-![Audit](https://img.shields.io/badge/audit-SHA--256_hash--chained-0284c7?style=flat-square)
-![Offline](https://img.shields.io/badge/runs-fully_offline-0284c7?style=flat-square)
-![GPU](https://img.shields.io/badge/GPU-not_required-d97706?style=flat-square)
-![Handbook](https://img.shields.io/badge/handbook-111_pages-7c4dff?style=flat-square)
-![SIH](https://img.shields.io/badge/Smart_India_Hackathon-2025-ff2d6f?style=flat-square)
+An air-gapped AI workbench for regulated industrial work. The model, the search and the checks run on one machine, and every answer comes with its sources, its checks and its record.
 
-**[🎬 See it](#-see-aegis-in-action)** · **[🧭 How it works](#-understand--decide--execute--prove)** · **[🧩 Features](#-what-is-inside)** · **[🔐 Security](#-security-by-architecture)** · **[🚀 Quick start](#-quick-start)** · **[📚 Handbook](#-the-aegis-handbook)** · **[👥 Team](#-the-team)**
+[![ci](https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)
+![Node 20+](https://img.shields.io/badge/Node-20%2B-5fa04e?logo=nodedotjs&logoColor=white)
+![Ollama](https://img.shields.io/badge/models-Ollama%2C_local-000?logo=ollama&logoColor=white)
 
-For the next build phases and the single flagship workflow to take to SIH, see the
-[winning build plan](docs/SIH-WINNING-BUILD-PLAN.md).
+[What it does](#what-it-does) · [One question, step by step](#one-question-step-by-step) · [A real run](#a-real-run) · [Quickstart](#quickstart) · [Hardware](#hardware-tiers) · [Docs](#docs) · [Limitations](#%EF%B8%8F-limitations)
 
 </div>
 
----
-
-> **Ask a question in plain language. AEGIS answers it from your own documents, cites the section every sentence came from, checks the claims and the arithmetic, holds anything that leaves the building for a named reviewer, and writes every step to a hash-chained log, all on one machine, with nothing sent anywhere.**
-
----
-
-## 💡 Why AEGIS?
-
-Running a model on your own hardware solves exactly one problem: the prompt does not leave the building. It says nothing about **which** model answered, **what** it read, **whether** the arithmetic is right, **who** authorised the result, or **what** you can show a regulator six months later.
-
-<div align="center">
-<img src="docs/assets/readme/comparison.svg" alt="Typical local AI is user to LLM to answer. AEGIS routes private data through evidence, governed routing, constrained execution, verification and human control to a provable output." width="100%">
-</div>
-
-A sensitive organisation has to control the **data**, the **models**, the **tools**, the **execution**, the **evidence**, the **policies**, the **approvals** and the **audit**. AEGIS is built around that whole lifecycle, not just the inference call in the middle of it.
-
-> *AEGIS does not depend on the AI never making mistakes. It detects, contains, verifies, governs and proves what happened, before an AI-generated result becomes an action.*
-
----
-
-## 🎬 See AEGIS in action
-
-<div align="center">
-
-<img src="docs/assets/readme/screenshot-landing.webp" alt="The AEGIS landing page: Answers you can prove." width="900">
-
-<sub>The public page plays one real recorded run as you scroll. Every word and figure in it is the run's own.</sub>
-
-<br><br>
-
-<img src="docs/assets/readme/screenshot-thread-answer.webp#gh-light-mode-only" alt="A /clause run delivered in 18.8 s with 6 of 6 checks passed, cited to SOP-INS-014 §2.2" width="900">
-<img src="docs/assets/readme/screenshot-thread-answer-dark.webp#gh-dark-mode-only" alt="A /clause run delivered in 18.8 s with 6 of 6 checks passed, cited to SOP-INS-014 §2.2" width="900">
-
-<sub><b>Thread</b> · ask in plain language, or call a skill with <code>/</code>. <b>48 months</b>, cited to <b>SOP-INS-014 §2.2</b>, delivered in 18.8 s on a laptop CPU with 6 of 6 checks passed.</sub>
-
-</div>
-
-<table>
-<tr>
-<td width="50%">
-<img src="docs/assets/readme/screenshot-thread-held.webp#gh-light-mode-only" alt="A correct answer held because retrieval admitted a Restricted memo" width="100%">
-<img src="docs/assets/readme/screenshot-thread-held-dark.webp#gh-dark-mode-only" alt="A correct answer held because retrieval admitted a Restricted memo" width="100%">
-<sub>🟠 <b>Held by policy</b> · the answer is right and every check passed, but retrieval admitted a <i>Restricted</i> memo, so the run is Restricted and waits for a signature. The model's confidence played no part.</sub>
-</td>
-<td width="50%">
-<img src="docs/assets/readme/screenshot-approvals.webp#gh-light-mode-only" alt="The approval queue with the reasons a run was held" width="100%">
-<img src="docs/assets/readme/screenshot-approvals-dark.webp#gh-dark-mode-only" alt="The approval queue with the reasons a run was held" width="100%">
-<sub>✅ <b>Approvals</b> · why each run was held, its answer and citations, every check, and a decision recorded against the reviewer, who can never be the person who ran it.</sub>
-</td>
-</tr>
-<tr>
-<td>
-<img src="docs/assets/readme/screenshot-harnesses.webp#gh-light-mode-only" alt="A finished SOP question sweep with three of three items traced" width="100%">
-<img src="docs/assets/readme/screenshot-harnesses-dark.webp#gh-dark-mode-only" alt="A finished SOP question sweep with three of three items traced" width="100%">
-<sub>🧪 <b>Harnesses</b> · one job over many items. Each item is an ordinary checked run, and the job ends in one hashed report.</sub>
-</td>
-<td>
-<img src="docs/assets/readme/screenshot-sandbox.webp#gh-light-mode-only" alt="A memory bomb contained at the 1024 MB cap" width="100%">
-<img src="docs/assets/readme/screenshot-sandbox-dark.webp#gh-dark-mode-only" alt="A memory bomb contained at the 1024 MB cap" width="100%">
-<sub>📦 <b>Sandbox</b> · run code under this host's limits, or fire the attacks it must stop, and see what the OS measured or which rule refused it.</sub>
-</td>
-</tr>
-<tr>
-<td>
-<img src="docs/assets/readme/screenshot-security.webp#gh-light-mode-only" alt="Assurance: egress 0 measured, containment 7 of 7 tested, 10 hard-denied actions configured" width="100%">
-<img src="docs/assets/readme/screenshot-security-dark.webp#gh-dark-mode-only" alt="Assurance: egress 0 measured, containment 7 of 7 tested, 10 hard-denied actions configured" width="100%">
-<sub>🛡️ <b>Assurance</b> · egress <i>measured</i> at zero, containment <i>tested</i> 7/7, policy <i>configured</i>, each labelled with how the host knows it.</sub>
-</td>
-<td>
-<img src="docs/assets/readme/screenshot-audit.webp#gh-light-mode-only" alt="The audit chain recomputed by the server and in the browser to the same head" width="100%">
-<img src="docs/assets/readme/screenshot-audit-dark.webp#gh-dark-mode-only" alt="The audit chain recomputed by the server and in the browser to the same head" width="100%">
-<sub>🔗 <b>Audit</b> · every task, model call, decision and sign-in, hash-linked, and recomputed by the server <i>and</i> independently by your browser.</sub>
-</td>
-</tr>
-<tr>
-<td>
-<img src="docs/assets/readme/screenshot-knowledge.webp#gh-light-mode-only" alt="Knowledge: the indexed procedures this account may retrieve" width="100%">
-<img src="docs/assets/readme/screenshot-knowledge-dark.webp#gh-dark-mode-only" alt="Knowledge: the indexed procedures this account may retrieve" width="100%">
-<sub>📖 <b>Knowledge</b> · what retrieval can cite (filtered by <i>your</i> clearance), the models on this host, and a tester for retrieval itself.</sub>
-</td>
-<td>
-<img src="docs/assets/readme/screenshot-skills.webp#gh-light-mode-only" alt="The five built-in skills" width="100%">
-<img src="docs/assets/readme/screenshot-skills-dark.webp#gh-dark-mode-only" alt="The five built-in skills" width="100%">
-<sub>⚡ <b>Skills</b> · saved instructions called with <code>/</code>. Every run records which skill version shaped it.</sub>
-</td>
-</tr>
-</table>
-
-<div align="center">
-<img src="docs/assets/readme/screenshot-signin.webp#gh-light-mode-only" alt="Sign in to AEGIS with local accounts" width="760">
-<img src="docs/assets/readme/screenshot-signin-dark.webp#gh-dark-mode-only" alt="Sign in to AEGIS with local accounts" width="760">
-
-<sub>🔑 Local accounts only: no cloud identity provider. Seven demo accounts, one click each.</sub>
-</div>
-
----
-
-## 🧭 Understand → Decide → Execute → Prove
-
-| | Stage | What it does | The line that matters |
-|:--:|---|---|---|
-| 🟧 **01** | **UNDERSTAND** | Reports, scans, drawings and spreadsheets become evidence that keeps its document, page and section. Scans are read **page by page** by a local vision model, three pages a call, with OCR as a fallback | *Raw document → traceable evidence* |
-| 🟥 **02** | **DECIDE** | The request is classified; each stage is routed to a model that **policy permits for this data** and that **fits in memory** | ***Installed ≠ authorised*** |
-| 🟪 **03** | **EXECUTE** | Retrieval applies clearance **before** ranking. Generated code runs under static checks, OS limits and a socket shim | ***Code runs. Network doesn't.*** |
-| 🟦 **04** | **PROVE** | Claims traced, citations resolved, figures recomputed; policy decides who must sign; every step hash-chained | *Every answer has a provable history* |
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="frontend/public/landing/shots/thread-light.png">
+    <img src="frontend/public/landing/shots/thread-dark.png" alt="The Thread screen: a delivered answer with three requirements, each cited to an SOP clause, 4 of 4 checks passed, 3 of 6 sources cited" width="900">
+  </picture>
+  <br>
+  <sub>A delivered answer: each requirement carries the clause it came from. 4 of 4 checks, 3 of 6 retrieved sources cited, Qwen2.5 3B.</sub>
+</p>
 
 <details>
-<summary><b>🔍 Open the four stages in detail</b></summary>
+<summary><b>More screens</b>: harness, approvals, audit, sandbox</summary>
 <br>
 
-<img src="docs/assets/readme/flow-understand.svg" alt="Understand: documents to evidence" width="100%">
-<img src="docs/assets/readme/flow-decide.svg" alt="Decide: classify and route" width="100%">
-<img src="docs/assets/readme/flow-execute.svg" alt="Execute: policy, validation, contained execution" width="100%">
-<img src="docs/assets/readme/flow-prove.svg" alt="Prove: verification, approval, audit" width="100%">
+| | |
+|:--:|:--:|
+| <img src="frontend/public/landing/shots/harness-dark.png" alt="Harnesses screen" width="440"><br><sub><b>Harnesses</b>: one governed job over many items, ending in one hashed report</sub> | <img src="frontend/public/landing/shots/approvals-dark.png" alt="Approvals screen" width="440"><br><sub><b>Approvals</b>: why each run was held, and the decision on the record</sub> |
+| <img src="frontend/public/landing/shots/audit-dark.png" alt="Audit screen" width="440"><br><sub><b>Audit</b>: the hash chain, recomputed by the server and by your browser</sub> | <img src="frontend/public/landing/shots/sandbox-dark.png" alt="Sandbox screen refusing a socket import" width="440"><br><sub><b>Sandbox</b>: an attack preset, refused before it ran</sub> |
 
 </details>
 
----
+## What it does
 
-## 🏗️ Architecture
+- **Cited answers, checked claim by claim.** Every answer is drafted from passages retrieved on this host, and each material claim is traced to the passage it cites. A claim with no support is marked unsupported, and an answer below the support threshold (60% of material claims in the recorded run) fails verification. Department and clearance are applied *before* ranking, so retrieval does not surface what the reader may not see.
+- **Figures from a registry, not the model.** Corrosion rate, remaining life, severity, the next survey and relief-valve verdicts come from 18 versioned, clause-cited formulas. The model is told the figures; it is never asked for them. A missing input gives *cannot calculate*, not a guess.
+- **Generated code runs in a sandbox.** Static checks refuse imports such as `socket` and `subprocess` before anything runs. OS limits then apply, by default 1024 MB of memory, 30 s of CPU and 45 s of wall clock (`config/app.yaml`): `setrlimit` on Linux, a probed Job Object on Windows, and a rootless container with `--network none` where one is built and its probe passes.
+- **A person approves what policy says must be approved.** 11 rules in `policies/approval-rules.yaml` hold a run: restricted data, failed verification, an unresolved conflict, a High finding and more. Nobody approves their own run. A High finding needs two signatures in order.
+- **A tamper-evident record.** Every task, model call, policy decision and sign-in is appended to a SHA-256 hash chain whose Merkle roots are signed with Ed25519. The server verifies it, and so can your browser.
+- **Zero egress by design, and measured.** The inference client refuses any non-loopback Ollama URL, the sandbox refuses sockets, and the console's CSP allows only its own origin. The sovereignty monitor reads the workbench's own connections every 2 s and counts anything outside `127.0.0.0/8` and `::1`. It measures the workbench's processes, not the whole host.
 
-<div align="center">
-<img src="docs/assets/readme/architecture-overview.svg" alt="AEGIS architecture: browser to FastAPI to analyser, router, orchestrator, tools, verification, policy gateway, approval and audit" width="100%">
-</div>
+## One question, step by step
 
-Three processes on one host: the **Next.js console** (`:3000`), the **FastAPI** API (`127.0.0.1:8000`) and **Ollama** (`127.0.0.1:11434`). Storage is SQLite plus files; vectors are computed in process; the live trace is Server-Sent Events. There is no PostgreSQL, Redis, vector database or cloud service, on purpose. → [Architecture in the handbook](docs/handbook/04-architecture/README.md)
+Ten named stages of **one orchestrator** (`backend/agents/orchestrator.py`), run one after another. The names are a way to talk about the stages, not ten independent agents. A stage that is not needed is skipped, and the run says why.
 
----
+| # | Call-sign | What it does | Runs on |
+|:--:|---|---|---|
+| 01 | **TRIAGE** | Reads the request: what kind of task, what came in, how sensitive it is | No model · rules |
+| 02 | **PLANNER** | Splits multi-step work into steps before anything is drafted | `qwen2.5:3b`, only when a plan is needed |
+| 03 | **READER** | Reads scanned reports and drawings, page by page | `qwen2.5vl:3b`, cached per file |
+| 04 | **SCOUT** | Finds the passages that could answer it, across every indexed procedure | `nomic-embed-text`, plus keyword search |
+| 05 | **RECKONER** | Computes with registered formulas, never free-hand arithmetic | No model · formula registry |
+| 06 | **BENCH** | Runs generated code in the sandbox, under hard memory and time caps | No model · sandbox limits |
+| 07 | **SCRIBE** | Drafts the answer, one citation per requirement | `qwen2.5:3b`, drafting model |
+| 08 | **CHECKER** | Tests every claim against the passage it cites, and fails what it cannot find | No model · rules |
+| 09 | **WARDEN** | Applies policy and the data class, and holds anything that needs a person | No model · policy engine |
+| 10 | **NOTARY** | Hashes the record onto the audit chain. Edit a byte and the chain breaks | No model · SHA-256 chain |
 
-## 🧩 What is inside
+<sub>Source: <a href="frontend/lib/crew.ts"><code>frontend/lib/crew.ts</code></a>. The models are the defaults registered in <a href="config/models.yaml"><code>config/models.yaml</code></a>; the router can pick another registered model that policy approves for the data.</sub>
 
-| | Capability | What is actually implemented |
-|:--:|---|---|
-| 🧠 | **Local inference** | Ollama over loopback, **refused otherwise** (HTTP 503). Six models declared; single-model residency with audited load and evict |
-| 💬 | **Workbench** | One thread, every run listed, token streaming, per-run model choice, a transcript of every stage with timings and tokens |
-| 👁️ | **Multimodal reading** | Per-page PDF inspection, PyMuPDF rasterising, batched vision reading, Tesseract fallback; DOCX, XLSX, CSV, PPTX parsers |
-| 🔎 | **Retrieval** | Local embeddings and BM25 fused by Reciprocal Rank Fusion; **department and clearance applied before ranking** |
-| 🧭 | **Routing** | Rules, stage overrides, hard gates (installed · approved · capable), scoring, fallbacks, a reason for every choice |
-| ⚡ | **Skills** | Saved, hashed request templates called with `/`; five built in |
-| 🧪 | **Harnesses** | Governed multi-run jobs (question sweep, requirements register, obligation coverage) with one hashed report |
-| 📦 | **Sandbox** | AST validation, then a **rootless container** (no network, read-only root, no capabilities) where its probe passes; otherwise POSIX rlimits in a **private network namespace** on Linux / macOS watchdog / **probed** Windows Job Object, with socket and write shims |
-| 🧮 | **Engineering engine** | 18 unit-aware, versioned, clause-cited formulas compute corrosion rate, remaining life, severity, the next survey and **relief-valve test verdicts** **before the model writes**; every input bound to its table cell or record line, every result hashed; *cannot calculate* when an input is missing |
-| ✅ | **Verification** | Claim verdicts (calculated · supported · conflicted · unsupported · human decision), engineering, citation, page, calculation, code, document and isolation-plan checks |
-| ⚖️ | **Conflicts** | Disagreeing sources become conflict objects that withhold the decision; a reviewer chooses, the choice is evidence, the formulas recompute |
-| 📚 | **Revision control** | One document code, one revision in force; superseded revisions retrieved only on request, and labelled |
-| 🗺️ | **P&ID topology** | A graph read from the drawing or its JSON; isolation plans judged branch by branch against the lockout procedure, flow up and down, paths, affected loops; the sheet marked |
-| 🔌 | **Plant systems** | Read-only historian and OPC UA (simulator) adapters behind one interface; bad-quality samples carry no value |
-| 🚦 | **Policy gateway** | Default deny for permissions, tools, models and paths; every decision audited **with the rule that made it** |
-| 👩‍⚖️ | **Human approval** | Eleven rules; a High finding needs **two signatures in order**, Head of Inspection then Plant Manager; separation of duties by account; decisions bound to the version reviewed; request-revision |
-| 📄 | **Deliverables** | DOCX, XLSX, PPTX, Markdown, rendered locally, hashed, withheld until released |
-| 🔗 | **Tamper-evident audit** | Append-only SHA-256 chain, verified on the server **and in the browser**, sealed with **Ed25519-signed Merkle roots** |
-| 🧾 | **Signed proof** | A certificate per run binding its evidence, calculations, approval, deliverable bytes, model digests and config hashes, verifiable **offline** with the public key; **Proof Mode** shows the whole chain on one screen |
-| 📏 | **Measurements** | A dashboard of figures computed from their artifacts; re-run a finished run and **compare** two runs, every difference named |
-| 🛡️ | **Ingestion guard** | Uploads judged by their bytes: PDF JavaScript, Office macros, remote templates, archive bombs refused; injected instructions withheld from the model; content scanned for secrets, personal data and markings |
-| 🎯 | **Red team** | 31 attacks run against a live host, each a measurement, with a hashed report |
-| 📡 | **Sovereignty monitor** | Samples the workbench's own connections every 2 s; an nftables default-deny egress table with its kernel drop counters read back; "cannot observe" rather than a false zero |
-| 📈 | **Usage telemetry** | Tokens, load, prompt and generation time, first-token time, context window, done reason, per model call |
-| 🔴 | **Live trace** | 36 Server-Sent Event types across tasks, harnesses and sovereignty |
-| 👥 | **Access control** | Seven roles, 22 permissions, inheritance, departments, clearance ceilings, hashed sessions, sign-in throttling |
-
-<div align="center">
-
-| 🐍 34,200 lines of Python | ⚛️ 27,800 lines of TypeScript | 🧪 1,103 tests | 📚 111-page handbook |
-|:--:|:--:|:--:|:--:|
-| **🔴 36** live event types | **🛡️ 22** permissions · 7 roles | **🎯 31 / 31** attacks held | **📑 15** documents · 207 passages |
-
-</div>
-
----
-
-## 🔐 Security by architecture
-
-> **Model output is untrusted until the required checks pass.**
-
-```
-MODEL  →  POLICY  →  SANDBOX  →  VERIFICATION  →  HUMAN AUTHORITY  →  RELEASE
+```text
+Question → TRIAGE → PLANNER* → READER* → SCOUT → RECKONER* → BENCH* → SCRIBE → CHECKER → WARDEN ─┬─ released
+                                                                                                   └─ held for review
+           NOTARY appends every step to the audit chain as it happens.          * only when the request needs it
 ```
 
-**✅ What is enforced in code**
+<sub>WARDEN also rules on every model and tool call along the way, and NOTARY records each step as it happens.</sub>
 
-- Inference is pinned to loopback and refused otherwise.
-- Permissions, tools, models and paths are **default deny**, from policy files, and every decision is audited with its rule ID.
-- Retrieval applies **department isolation and clearance before ranking**, so nobody learns what they may not read.
-- A run's classification **rises to the highest class of the evidence it used**, and never falls.
-- Generated code is statically validated (imports, calls, `getattr` tricks, process escapes), then runs under OS limits: `setrlimit` on Linux, a memory watchdog on macOS, a probed **Job Object** on Windows. If the host cannot prove its limits hold, code is **refused**.
-- Sockets, including the raw `_socket` primitive, raise inside the sandbox, and writes outside its workspace are refused.
-- Below the shim, the kernel refuses too: a probed rootless container runs with `--network none`, and without one, Linux runs the code in a private network namespace that holds only a down loopback, so neither the internet nor this host's own model runtime and API can be reached.
-- Sandboxed code cannot read outside its workspace either: `/etc/passwd` and the workbench database are refused at runtime.
-- Approval is separated from execution: **nobody approves their own run**, and a decision applies only to the version that was reviewed.
-- Uploads are judged by their bytes, not their names; document text addressed to the model is withheld from it and holds the run.
-- Sessions are stored by hash; sign-in guessing locks the account.
-- The audit log is append-only and hash-chained, and its Merkle root is **signed**, so a rewritten history is caught even when every hash was recomputed.
-- Every control above is attacked by `scripts/red_team.py`; the last live run held **31 of 31**, and the report records what was observed, not that it passed.
+## A real run
 
-**⚠️ What this is not, stated plainly**
+Run `f30c2459`, captured from a developer host on 24 Sep 2026 with Ollama on loopback. Every figure below is from [`frontend/public/landing/run.json`](frontend/public/landing/run.json), the record the landing page replays.
 
-- Where the sandbox image has not been built, code runs as a **subprocess of the API's user**, not in a container or VM. On Linux the kernel still refuses its connections (a private network namespace), but its filesystem and process limits are the shims' and the rlimits'; a flaw in a shim is not stopped by an operating-system boundary there. Build the image (`infrastructure/sandbox/build.sh`) to add the container's read-only root and dropped capabilities.
-- Engineering figures are deterministic; other claims are traced **lexically**: a passage that carries a claim's terms supports it, which is not the same as entailing it.
-- The signing key lives on the host it signs for. Copy the public key and the seals off-host.
+> **Prompt** · `/clause` Which clause of our SOPs governs the following, and what exactly does it require? *internal inspection of a pressure vessel in corrosive service*
+>
+> **Answer** · A pressure vessel in corrosive service shall receive an internal inspection at intervals not exceeding 48 months. `[S1]` → **SOP-INS-014 §2.2**
 
-Every control, what is measured, and what is still open: **[Threat model](docs/handbook/09-security/06-threat-model.md)** · **[Red team](docs/handbook/09-security/08-red-team.md)** · **[Signed proof](docs/handbook/09-security/09-proof.md)**.
+| Stage | Call-sign | Time | What happened |
+|---|---|--:|---|
+| classify | TRIAGE | 3 ms | question answering, confidential |
+| plan | PLANNER | skipped | no plan was made |
+| read | READER | skipped | no file was attached |
+| retrieve | SCOUT | 602 ms | 6 passages from 2 documents, embedding search |
+| sandbox | BENCH | skipped | no code was generated |
+| draft | SCRIBE | 38,902 ms | `qwen2.5:3b` Q4_K_M: 1,170 prompt tokens, 29 output tokens at 6.16 tok/s |
+| verify | CHECKER | not recorded | 4 of 4 checks passed; 1 of 1 material claims supported |
+| release | WARDEN | | no approval required; policy: auto-release permitted |
+| record | NOTARY | | 10 records appended, sequence 7–16, head `bf6ec740` |
+| **total** | | **39,647 ms** | **delivered** |
 
----
+Drafting took 98% of the run, and 33.7 s of that was the model reading its prompt on a CPU.
 
-## 🛠️ Technology
+## Quickstart
 
-| Layer | Stack |
-|---|---|
-| **Frontend** | ![Next.js](https://img.shields.io/badge/-Next.js_16-000?logo=nextdotjs&logoColor=white) ![React](https://img.shields.io/badge/-React_19-20232a?logo=react&logoColor=61dafb) ![TypeScript](https://img.shields.io/badge/-TypeScript-3178c6?logo=typescript&logoColor=white) ![Tailwind](https://img.shields.io/badge/-Tailwind_4-0f172a?logo=tailwindcss&logoColor=38bdf8) |
-| **Backend** | ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?logo=fastapi&logoColor=white) ![Pydantic](https://img.shields.io/badge/-Pydantic_v2-e92063?logo=pydantic&logoColor=white) ![Uvicorn](https://img.shields.io/badge/-Uvicorn-2c2c2c) ![Python](https://img.shields.io/badge/-Python_3.11+-3776ab?logo=python&logoColor=white) |
-| **Models** | ![Ollama](https://img.shields.io/badge/-Ollama-000?logo=ollama&logoColor=white) Qwen2.5 3B · Qwen3 8B · Qwen2.5-VL 3B · Qwen2.5 Coder 7B · Moondream 2 · Nomic Embed Text |
-| **Storage** | ![SQLite](https://img.shields.io/badge/-SQLite_WAL-003b57?logo=sqlite&logoColor=white) runs, users, sessions, skills, harness runs, passages and vectors |
-| **Documents** | PyMuPDF · pypdf · Tesseract OCR · python-docx · openpyxl · python-pptx · Pillow |
-| **Execution** | Rootless Podman/Docker · Linux network namespaces · AST validation · POSIX rlimits · macOS watchdog · Windows Job Object · nftables |
-| **Proof** | Ed25519 (`cryptography`) · RFC 6962 Merkle trees · SHA-256 |
-| **Transport** | REST · Server-Sent Events |
+**You need:** Python 3.11+, Node.js 20+ (CI builds with 22), git, [Ollama](https://ollama.com) and about 15 GB of free disk. No GPU is required. Tesseract is an optional OCR fallback. Details: [1.2 Requirements](docs/handbook/01-getting-started/02-requirements.md).
 
----
+### Windows (PowerShell)
 
-## 🚀 Quick start
-
-**You need:** Python 3.11+, Node 20+, [Ollama](https://ollama.com), and optionally Tesseract. **No GPU.**
-
-```bash
-# 1 · Clone
+```powershell
 git clone https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench.git
 cd Sovereign-On_Premise-Agentic-AI-Workbench
-
-# 2 · Backend
-python3 -m venv .venv && source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+cd frontend; npm ci; cd ..
 
-# 3 · Frontend
-(cd frontend && npm ci)
+ollama pull qwen2.5:3b; ollama pull qwen2.5vl:3b; ollama pull nomic-embed-text
+.\.venv\Scripts\python.exe scripts\seed_demo_data.py      # --check validates without writing
 
-# 4 · Models
-ollama pull qwen2.5:3b          # reasoning
-ollama pull qwen2.5vl:3b        # vision
-ollama pull nomic-embed-text    # retrieval
+# Terminal 1: Ollama with the tier's variables (quit the tray app first)
+.\scripts\start-ollama.ps1 -Tier laptop-8gb
 
-# 5 · The synthetic corpus: 15 documents, 207 passages
-python scripts/seed_demo_data.py
+# Terminal 2: the API, with the same tier
+$env:SOVEREIGN_PROFILE = 'laptop-8gb'
+.\.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 75
 
-# 6 · Run (Linux). On macOS and Windows, see the handbook
-./scripts/run.sh
+# Terminal 3: the console
+cd frontend; npm run build; npx next start -H 127.0.0.1
+
+# Then: is the host ready?
+.\scripts\warmup.ps1            # loads the drafting model, ends READY or NOT READY
+.\scripts\warmup.ps1 --check    # the same readings, loads nothing
 ```
 
-Open **http://127.0.0.1:3000** and pick a demo account.
+Full walk-through: [1.4 Install on Windows](docs/handbook/01-getting-started/04-install-windows.md).
 
-| Account | Role | Clearance | Try |
+### Linux and macOS
+
+```bash
+git clone https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench.git
+cd Sovereign-On_Premise-Agentic-AI-Workbench
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+(cd frontend && npm ci)
+
+ollama pull qwen2.5:3b && ollama pull qwen2.5vl:3b && ollama pull nomic-embed-text
+python scripts/seed_demo_data.py
+
+scripts/start-ollama.sh --tier laptop-8gb         # in its own terminal; runs `ollama serve`
+SOVEREIGN_PROFILE=laptop-8gb ./scripts/run.sh     # Linux: builds the console, starts API and console
+.venv/bin/python scripts/warmup.py                # READY / NOT READY
+```
+
+`scripts/run.sh` is written for Linux and also takes `--status`, `--stop` and `--dev`. On macOS, start the API and the console in two terminals with the same commands as on Windows ([1.6 Seed and run](docs/handbook/01-getting-started/06-seed-and-run.md)).
+
+Open **http://127.0.0.1:3000**. `GET http://127.0.0.1:8000/api/ready` answers `"ready": true` when the same checks pass. Before a demo, `scripts/golden_demo.py` drives the three judged moments through the API and ends `READY` or not. It creates real runs, so don't point it at an instance whose history must stay as it is.
+
+**Demo accounts.** With `demo.enabled: true` (the default in `config/app.yaml`), seven accounts from `policies/access-control.yaml` are seeded and listed under the sign-in form, one click each: `engineer`, `reviewer`, `head_of_inspection`, `plant_manager`, `operator`, `auditor` and `admin`. They share one password, `security.seed_user_password` in `config/app.yaml`. Change it, or turn demo mode off, before any real use.
+
+## Hardware tiers
+
+Pick the profile for the host and set it with `SOVEREIGN_PROFILE`. It is overlaid on `config/app.yaml` and `config/routing.yaml`, and `SOVEREIGN_*` variables still win. Start Ollama with the same tier (`start-ollama.ps1 -Tier …` or `start-ollama.sh --tier …`).
+
+| `SOVEREIGN_PROFILE` | Host | Users | Workers | Cited answer | Scan run |
+|---|---|:--:|:--:|---|---|
+| `laptop-8gb` | 8 GB, CPU only (the demo laptop) | 1 | 1 | 38–56 s, measured | ~100 s with the vision cache warm, ~290 s cold, measured |
+| `laptop-16gb` | 16 GB, 8+ cores, no GPU | 1–2 | 1 | ~17 s, estimated | 1.5–2 min, estimated |
+| `cpu-server` | 16–32 cores, 64–128 GB | 3–5 | 3 | ~13 s, estimated | not stated |
+| `gpu-server` | ≥ 12 GB VRAM, 64 GB RAM | 5–15 | 4 | ~7 s, estimated | under a minute, estimated |
+
+<sub>Figures from the header of each file in <a href="config/profiles/"><code>config/profiles/</code></a>, which says which are measured and which estimated. Tuning: <a href="docs/handbook/12-operations/05-performance.md#hardware-profiles">12.5 Performance</a>. The runbook for the 8 GB laptop: <a href="docs/handbook/14-demo-guide/03-demo-day.md">14.3 Demo day</a>.</sub>
+
+## Accounts and access
+
+There is no self sign-up. Every account is an administrator's decision ([3.1 Sign-in and accounts](docs/handbook/03-user-guide/01-sign-in.md)).
+
+| Path | How it works |
+|---|---|
+| **Setup token** | With demo mode off, a fresh host has no accounts. At startup it writes a one-time token, valid 24 h, to `storage/setup-token` and prints it in the API console. `/setup` uses it to create the first administrator |
+| **Invitation** | An administrator creates a code on **People**, with the role and department fixed. It is single-use, expires (3 days by default), and only its hash is stored |
+| **Access request** | `/request-access` creates an account that cannot sign in until an administrator approves it and chooses its role and department |
+| **Password reset** | An administrator issues a one-time `RESET-…` code. An air-gapped host has no mail, so there is no *forgot password* |
+
+Five failed sign-ins in five minutes lock an account. Self-registration exists in the API for development only and is off (`security.self_registration_enabled: false`).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U[Browser] --> N["Next.js console<br/>:3000"]
+    N -->|"/api/* proxy"| A["FastAPI<br/>127.0.0.1:8000"]
+    A -->|loopback only| O["Ollama<br/>127.0.0.1:11434"]
+    A --> D[("SQLite + files<br/>storage/")]
+    A --> L[["Audit chain<br/>storage/logs/audit.jsonl"]]
+    A --> X["Sandbox<br/>no network"]
+```
+
+Three processes on one host. Storage is SQLite plus files, vectors are computed in process, and the live trace is Server-Sent Events. There is no external database, queue or cloud service. More in [4 · Architecture](docs/handbook/04-architecture/README.md).
+
+| Folder | What is in it |
+|---|---|
+| [`backend/`](backend) | The FastAPI app: `agents/` (orchestrator, verifier), `rag/`, `knowledge/`, `engineering/` (formula registry, P&ID), `models_layer/` (registry, router, Ollama client), `policy/`, `security/`, `proof/`, `tools/` (sandbox), `api/` |
+| [`frontend/`](frontend) | The Next.js 16 console and the public landing page |
+| [`config/`](config) | `app.yaml`, `models.yaml`, `routing.yaml`, `classification.yaml`, hardware `profiles/`, prompts, skills, harnesses |
+| [`policies/`](policies) | Access control, approval rules, data classification, content scanning, tool permissions |
+| [`scripts/`](scripts) | `run.sh`, `start-ollama.*`, `warmup.*`, `seed_demo_data.py`, `golden_demo.py`, `red_team.py`, `backup.py`, `audit_tool.py`, the offline bundle |
+| [`sample_data/`](sample_data) | The synthetic plant: SOPs, records, scanned reports, a P&ID, attack files |
+| [`infrastructure/`](infrastructure) | `docker-compose.yml`, the sandbox container image, the nftables egress table |
+| [`tests/`](tests) | The pytest suite, including the adversarial tests; no test needs a model |
+| [`docs/`](docs) | The handbook and the project documents |
+| `storage/` | Runtime state: database, uploads, audit log, keys. Not committed |
+
+## Docs
+
+Start with **[What AEGIS implements today](docs/IMPLEMENTED.md)**: every capability, where it lives, and how to see it working. Then the **[handbook](docs/handbook/README.md)**:
+
+| Use it | Understand it | Run it safely | Build on it |
 |---|---|---|---|
-| `engineer` | Integrity engineer | Restricted | `/clause internal inspection of a pressure vessel in corrosive service` |
-| `reviewer` | Approving authority | Restricted | **Approvals**, then <kbd>A</kbd> |
-| `head_of_inspection` | Head of Inspection | Restricted | The first signature on a High finding: the **relief valve** starter card |
-| `plant_manager` | Plant Manager | Restricted | The second signature, which releases it |
-| `operator` | Plant operator | Confidential | The same question as the engineer: fewer passages |
-| `auditor` | Internal auditor | Restricted | **Audit → Verify chain** |
-| `admin` | Platform administrator | Restricted | Everything |
+| [01 Getting started](docs/handbook/01-getting-started/README.md) | [04 Architecture](docs/handbook/04-architecture/README.md) | [09 Security and governance](docs/handbook/09-security/README.md) | [13 Development](docs/handbook/13-development/README.md) |
+| [02 Core concepts](docs/handbook/02-concepts/README.md) | [05 Models and routing](docs/handbook/05-models-and-routing/README.md) | [10 Configuration](docs/handbook/10-configuration/README.md) | [14 Demo guide](docs/handbook/14-demo-guide/README.md) |
+| [03 Using the workbench](docs/handbook/03-user-guide/README.md) | [06 Knowledge and retrieval](docs/handbook/06-knowledge-and-retrieval/README.md) | [11 API reference](docs/handbook/11-api/README.md) | [15 FAQ and glossary](docs/handbook/15-reference/README.md) |
+| [Offline install](docs/handbook/01-getting-started/09-offline-install.md) | [07 Agents](docs/handbook/07-agents/README.md) · [08 Verification](docs/handbook/08-verification/README.md) | [12 Operations](docs/handbook/12-operations/README.md) | [Readiness review](docs/SIH-READINESS-REVIEW.md) |
 
-Password for all seven: `workbench` (`security.seed_user_password`). **Change it before any real use**, and bind the console to loopback (`npx next start -H 127.0.0.1`) on a shared network.
-
-→ Full setup, Windows, troubleshooting: **[Getting started](docs/handbook/01-getting-started/README.md)** · A guided tour: **[Your first hour](docs/handbook/01-getting-started/07-first-hour.md)**
-
----
-
-## 📚 The AEGIS Handbook
-
-A **111-page manual**, written from the code, that says where every control stops as well as what it does.
-
-> **Start here:** 🧾 **[What AEGIS implements today](docs/IMPLEMENTED.md)**, every capability with where it lives and how to see it working · 🏆 the **[SIH build plan](docs/SIH-WINNING-BUILD-PLAN.md)** and the **[readiness review](docs/SIH-READINESS-REVIEW.md)**, phase by phase, with what is still open
-
-<table>
-<tr>
-<td width="33%" valign="top">
-
-**🟧 Use it**
-- [01 · Getting started](docs/handbook/01-getting-started/README.md)
-- [02 · Core concepts](docs/handbook/02-concepts/README.md)
-- [03 · Using the workbench](docs/handbook/03-user-guide/README.md)
-
-**🟥 Understand it**
-- [04 · Architecture](docs/handbook/04-architecture/README.md)
-- [05 · Models and routing](docs/handbook/05-models-and-routing/README.md)
-
-</td>
-<td width="33%" valign="top">
-
-- [06 · Knowledge and retrieval](docs/handbook/06-knowledge-and-retrieval/README.md)
-- [07 · Agents and orchestration](docs/handbook/07-agents/README.md)
-- [08 · Verification](docs/handbook/08-verification/README.md)
-
-**🟪 Run it safely**
-- [09 · Security and governance](docs/handbook/09-security/README.md)
-- [10 · Configuration reference](docs/handbook/10-configuration/README.md)
-
-</td>
-<td width="33%" valign="top">
-
-- [11 · API reference](docs/handbook/11-api/README.md)
-- [12 · Operations](docs/handbook/12-operations/README.md)
-
-**🟦 Build on it**
-- [13 · Development](docs/handbook/13-development/README.md)
-- [14 · Demo guide](docs/handbook/14-demo-guide/README.md)
-- [15 · FAQ and glossary](docs/handbook/15-reference/README.md)
-
-</td>
-</tr>
-</table>
-
-Also: the scripted **[demo with correct answers](docs/DEMO.md)** · **[use cases](docs/USE-CASES.md)** · the **[runtime guarantees](docs/RUNTIME-ENVIRONMENT.md)** · the **[reference architecture](docs/reference-architecture.md)** · the **[brand kit](docs/assets/brand/README.md)**.
-
----
-
-## 🗺️ Roadmap
-
-**✅ Built**
-
-- [x] Local inference with a declared, policy-checked model registry; loopback enforced
-- [x] Per-stage routing with hard gates, reasons, residency management and per-run model choice
-- [x] Per-page multimodal reading: rasterising, batched vision, OCR fallback
-- [x] Retrieval with provenance and clearance before ranking; BM25 fallback
-- [x] Sandbox with static validation and OS limits on Linux, macOS and Windows
-- [x] Verification: claims, citations, page citations, recomputed figures, code, documents
-- [x] Default-deny policy gateway with rule IDs; classification raised by evidence
-- [x] Human approval with separation of duties
-- [x] Hash-chained audit, verified on the server and in the browser
-- [x] DOCX, XLSX, PPTX and Markdown deliverables, hashed and held
-- [x] Skills, harnesses, live trace, usage telemetry
-- [x] Full handbook and brand kit
-- [x] Console bound to loopback; self-registration off; hashed session tokens; sign-in throttling; model digests pinned
-- [x] Read confinement in the sandbox
-- [x] Deterministic, unit-aware engineering formulas with evidence-bound inputs; fail closed when a requested calculation was not computed
-- [x] Claim verdicts; conflict objects with human resolution; revision-aware retrieval
-- [x] Prompt-injection screening of evidence; upload quarantine by bytes and structure
-- [x] Ed25519-signed Merkle roots; per-run certificates; digest-bound approval; deliverables re-hashed on download
-- [x] A measured red-team suite; P&ID topology with isolation plans against the lockout procedure
-- [x] A rootless container runtime for generated code, used only when a probe proves it; on Linux without one, a private network namespace
-- [x] An nftables default-deny egress table with its kernel counters read back
-- [x] P&ID graphs read from the drawing image and compared with the authored graph
-- [x] Two signatures, in order, for a High finding; certificates carrying model digests, config hashes and provenance
-- [x] Proof Mode, a measurements dashboard, re-run and compare, and a golden demo check of the three judged moments
-- [x] Hybrid retrieval (vector and BM25 by Reciprocal Rank Fusion); content scanning for secrets, personal data and markings
-- [x] Read-only historian and OPC UA adapters; relief-device verdicts by SOP-INS-025, in the registry and in a run
-- [x] An offline installer bundle, verified before it installs; CI on Linux and Windows
-
-Everything built, with where it lives: **[docs/IMPLEMENTED.md](docs/IMPLEMENTED.md)**.
-
-**🔜 Next** ([what is still open, and why](docs/SIH-READINESS-REVIEW.md#what-still-stands-between-this-build-and-a-winning-demo))
-
-- [ ] Bind approval to the prompt, the evidence set, the policy files and the model digests, as it is already bound to the answer and the figures
-- [ ] Operating-envelope checks: operating pressure and temperature against design and MAWP
-- [ ] Frontend tests: a browser smoke test of each golden demo
-- [ ] Read-only CMMS, document-management and directory adapters
-- [ ] Off-host anchoring of signed roots; a hardware signing key
-
----
+For security reviewers: [threat model](docs/handbook/09-security/06-threat-model.md) · [sandbox](docs/handbook/09-security/03-sandbox.md) · [audit log](docs/handbook/09-security/05-audit-log.md) · [red team](docs/handbook/09-security/08-red-team.md) · [signed proof](docs/handbook/09-security/09-proof.md).
 
 ## ⚠️ Limitations
 
-Stated plainly, because they decide whether AEGIS is right for you.
-
-- **Latency is hardware-bound.** On a CPU laptop, a cited answer takes about 20–40 s and a drafted document from a scan several minutes. A GPU changes this substantially.
-- **Small models are small.** A 3B model drafts thin documents and leaves things out: asked for an isolation plan it once named one branch of five. The figures and the plan come from deterministic engines, so what it omits is restored and what it gets wrong fails verification, but its prose stays thin. [How the gap was closed](docs/handbook/08-verification/05-limits.md).
-- **The sandbox is a container only where its image is built.** Elsewhere its limits are runtime shims and rlimits in the API user's own process tree; on Linux the kernel still refuses its connections through a private network namespace. [Details](docs/handbook/09-security/03-sandbox.md).
-- **A drawing read from an image is a proposal.** The vision model's reading of a P&ID is compared with the authored graph and every disagreement reported; the isolation engine answers from the reviewed graph.
-- **Egress is measured for the workbench's own processes**, not the whole host. For a provable air gap, add a host firewall.
-- **Policy files are a sensible default**, not your organisation's policy. Some declared controls are not implemented yet, and the [configuration reference](docs/handbook/10-configuration/README.md) marks every one.
+- **Latency is hardware-bound.** On the 8 GB CPU laptop a cited answer takes 38–56 s and a scanned report takes minutes. Once the host swaps, a 70-second call can take 25 minutes ([12.5](docs/handbook/12-operations/05-performance.md)).
+- **Small models are small.** A 3B model drafts thin prose and leaves things out. Figures and isolation plans come from deterministic engines, so what it omits is restored and what it gets wrong fails verification, but the prose stays thin ([8.5](docs/handbook/08-verification/05-limits.md)).
+- **Claims are traced lexically.** A passage that carries a claim's terms supports it, which is not the same as entailing it. Engineering figures are the exception: they are recomputed.
+- **The sandbox is a container only where its image is built** (`infrastructure/sandbox/build.sh`). Elsewhere it is runtime shims and OS limits in the API user's own process tree; on Linux a private network namespace still refuses its connections ([9.3](docs/handbook/09-security/03-sandbox.md)).
+- **Egress is measured for the workbench's own processes, not the whole host.** For a provable air gap, add a host firewall. The nftables table and its counters are read back on Linux only.
+- **The signing key lives on the host it signs for.** Copy the public key and the sealed roots off-host.
+- **A drawing read from an image is a proposal.** It is compared with the authored graph, and the isolation engine answers from the reviewed graph.
+- **The policy files are a starting point, not your organisation's policy.** Some declared permissions are not enforced yet, and [9.1](docs/handbook/09-security/01-access-control.md) marks each one.
 - **Compliance is not a software property.** The audit chain supports an assurance process; it is not one.
-
----
 
 ## 👥 The team
 
@@ -452,20 +287,4 @@ Stated plainly, because they decide whether AEGIS is right for you.
 </tr>
 </table>
 
----
-
-<div align="center">
-
-<img src="docs/assets/brand/aegis-mark.svg" alt="AEGIS mark" width="72">
-
-### AEGIS
-
-`ON-PREMISE AGENTIC AI WORKBENCH`
-
-**UNDERSTAND → DECIDE → EXECUTE → PROVE**
-
-*Private intelligence. Provable control.*
-
-<sub>Built for Smart India Hackathon 2025 · Every claim above was checked against the code before it was written.</sub>
-
-</div>
+<p align="center"><sub>Built for Smart India Hackathon 2025.</sub></p>
