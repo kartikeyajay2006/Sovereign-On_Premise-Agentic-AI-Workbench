@@ -237,59 +237,72 @@ Everything, with where it lives and how to see it: **[docs/IMPLEMENTED.md](docs/
 
 ## Quickstart
 
-**You need:** Python 3.11+, Node.js 20+ (CI builds with 22), git, [Ollama](https://ollama.com) and about 15 GB of free disk. No GPU is required. Tesseract is an optional OCR fallback. Details: [1.2 Requirements](docs/handbook/01-getting-started/02-requirements.md).
+**You need** ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white) ![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-5fa04e?style=flat-square&logo=nodedotjs&logoColor=white) ![git](https://img.shields.io/badge/git-f05032?style=flat-square&logo=git&logoColor=white) [![Ollama](https://img.shields.io/badge/Ollama-000?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com) ![About 15 GB of free disk](https://img.shields.io/badge/disk-~15_GB_free-555?style=flat-square) ![No GPU required](https://img.shields.io/badge/GPU-not_required-2ea44f?style=flat-square)
+
+<sub>Tesseract is an optional OCR fallback; CI builds with Node 22. Details: [1.2 Requirements](docs/handbook/01-getting-started/02-requirements.md).</sub>
 
 ### Linux and macOS
 
 ```bash
+# 1 · install
 git clone https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench.git
 cd Sovereign-On_Premise-Agentic-AI-Workbench
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 (cd frontend && npm ci)
 
+# 2 · models and demo data
 ollama pull qwen2.5:3b && ollama pull qwen2.5vl:3b && ollama pull nomic-embed-text
 python scripts/seed_demo_data.py
 
-scripts/start-ollama.sh --tier laptop-8gb         # in its own terminal; runs `ollama serve`
-SOVEREIGN_PROFILE=laptop-8gb ./scripts/run.sh     # Linux: builds the console, starts API and console
+# 3 · run: Ollama in its own terminal, then the workbench
+scripts/start-ollama.sh --tier laptop-8gb
+SOVEREIGN_PROFILE=laptop-8gb ./scripts/run.sh     # Linux: builds, starts API and console
+
+# 4 · check
 .venv/bin/python scripts/warmup.py                # READY / NOT READY
 ```
 
-`scripts/run.sh` is written for Linux and also takes `--status`, `--stop` and `--dev`. On macOS, start the API and the console in two terminals with the commands below ([1.6 Seed and run](docs/handbook/01-getting-started/06-seed-and-run.md)).
+<sub><code>run.sh</code> is Linux only and also takes <code>--status</code>, <code>--stop</code> and <code>--dev</code>. On macOS, start the API and the console in two terminals: <a href="docs/handbook/01-getting-started/06-seed-and-run.md">1.6 Seed and run</a>.</sub>
 
 ### Windows (PowerShell)
 
 ```powershell
+# 1 · install
 git clone https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench.git
 cd Sovereign-On_Premise-Agentic-AI-Workbench
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 cd frontend; npm ci; cd ..
 
+# 2 · models and demo data
 ollama pull qwen2.5:3b; ollama pull qwen2.5vl:3b; ollama pull nomic-embed-text
 .\.venv\Scripts\python.exe scripts\seed_demo_data.py
 
-# Terminal 1: Ollama with the tier's variables (quit the tray app first)
-.\scripts\start-ollama.ps1 -Tier laptop-8gb
+# 3 · run: three terminals, same tier (quit the Ollama tray app first)
+.\scripts\start-ollama.ps1 -Tier laptop-8gb                 # terminal 1: Ollama
 
-# Terminal 2: the API, with the same tier
-$env:SOVEREIGN_PROFILE = 'laptop-8gb'
-.\.venv\Scripts\python.exe -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 75
+$env:SOVEREIGN_PROFILE = 'laptop-8gb'                        # terminal 2: the API
+.\.venv\Scripts\python.exe -m uvicorn backend.api.main:app `
+    --host 127.0.0.1 --port 8000 --timeout-keep-alive 75
 
-# Terminal 3: the console
-cd frontend; npm run build; npx next start -H 127.0.0.1
+cd frontend; npm run build; npx next start -H 127.0.0.1      # terminal 3: the console
 
-# Then: is the host ready?
-.\scripts\warmup.ps1
+# 4 · check
+.\scripts\warmup.ps1                                         # READY / NOT READY
 ```
 
-Full walk-through: [1.4 Install on Windows](docs/handbook/01-getting-started/04-install-windows.md). Air-gapped host: [1.9 Offline install](docs/handbook/01-getting-started/09-offline-install.md).
+<sub>Full walk-through: <a href="docs/handbook/01-getting-started/04-install-windows.md">1.4 Install on Windows</a> · Air-gapped host: <a href="docs/handbook/01-getting-started/09-offline-install.md">1.9 Offline install</a></sub>
 
-Open **http://127.0.0.1:3000**. An empty thread offers the golden demos as cards: pick one, press Run. Before judging, run `scripts/golden_demo.py` and `scripts/ui_check.py`; both create or open real runs, so don't point them at an instance whose history must stay as it is.
+### First run
 
-**Demo accounts.** With `demo.enabled: true` (the default), seven accounts are seeded and listed under the sign-in form, one click each: `engineer`, `reviewer`, `head_of_inspection`, `plant_manager`, `operator`, `auditor` and `admin`, sharing `security.seed_user_password`. Turn demo mode off for real use: the host then retires every demo account that still takes the shared password and issues a one-time setup token for the first administrator.
+| | |
+|---|---|
+| 🌐&nbsp;**Open** | **http://127.0.0.1:3000** |
+| 👤&nbsp;**Sign&nbsp;in** | Demo mode is on by default: seven accounts sit under the sign-in form, one click each (`engineer`, `reviewer`, `head_of_inspection`, `plant_manager`, `operator`, `auditor`, `admin`) |
+| ▶️&nbsp;**Run&nbsp;a&nbsp;demo** | An empty thread offers the golden demos as cards: pick one, press Run |
+| ✅&nbsp;**Before&nbsp;judging** | Run `scripts/golden_demo.py` and `scripts/ui_check.py`. Both create real runs, so keep them off an instance whose history must stay as it is |
+| 🔒&nbsp;**Real&nbsp;use** | Set `demo.enabled: false`. Demo accounts still on the shared `security.seed_user_password` are retired, and a one-time setup token creates the first administrator ([Accounts and access](#accounts-and-access)) |
 
 ## Hardware tiers
 
@@ -504,7 +517,6 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 <a href="https://github.com/pentest200"><img src="https://avatars.githubusercontent.com/u/197301328?v=4&s=200" width="120" alt="Ujjwal Shreshtha"></a>
 <br><b>Ujjwal Shreshtha</b>
 <br><a href="https://github.com/pentest200">@pentest200</a>
-<br><br><img src="https://img.shields.io/badge/research-analysis_·_SIH_deck-2563eb?style=flat-square" alt="Research and SIH deck">
 <br><br>
 <sub>Researched the problem space and carried the platform's engineering into the Smart India Hackathon pitch.</sub>
 <br><br>
