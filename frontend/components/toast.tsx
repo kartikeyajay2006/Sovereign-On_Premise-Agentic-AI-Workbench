@@ -90,6 +90,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               aria-hidden
               className={cn(
                 'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-ledger leading-none',
+                // TICK: the outcome's glyph lands once the notice has arrived.
+                'hv-tick [animation-delay:var(--spatial)]',
                 TONE[t.tone].mark,
               )}
             >
