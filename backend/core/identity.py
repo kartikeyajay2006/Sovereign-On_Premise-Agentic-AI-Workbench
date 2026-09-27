@@ -82,6 +82,31 @@ class IdentityService:
         self.audit = get_audit_log()
 
     # -- provisioning ------------------------------------------------------
+    def _restore_retired_seeds(self) -> list[str]:
+        """Bring back the demo accounts a production start retired, now the demo is on again.
+
+        Starting with the demo off deactivates every declared demo account
+        that still accepts the shared password (accounts.retire_demo_accounts).
+        Those are exactly the inactive seed rows that still accept it, so the
+        demo, switched back on, gets its accounts back rather than keeping
+        them locked out for good. One given its own password stays as it is.
+        """
+        shared = str(self.config.settings.security.get("seed_user_password") or "")
+        if not shared:
+            return []
+        restored: list[str] = []
+        for seed in self.config.access_control.get("seed_users", []):
+            record = self.db.get_user_by_username(seed["username"])
+            if record is not None and not bool(record["active"]) and verify_password(shared, record["password_hash"]):
+                self.db.update_user(record["id"], active=1)
+                restored.append(seed["username"])
+        if restored:
+            self.audit.record(
+                category="identity", action="seed_users_restored", actor="system",
+                detail={"usernames": restored, "reason": "demo mode is on"},
+            )
+        return restored
+
     def ensure_seed_users(self) -> list[str]:
         """Create each identity declared in access-control.yaml, once.
 
@@ -95,6 +120,7 @@ class IdentityService:
         production host starts with none and is claimed through the owner
         setup in ``accounts.py``.
         """
+        self._restore_retired_seeds()
         pending = [
             seed for seed in self.config.access_control.get("seed_users", [])
             if self.db.get_user_by_username(seed["username"]) is None

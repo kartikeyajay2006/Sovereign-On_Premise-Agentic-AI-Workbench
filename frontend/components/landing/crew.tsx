@@ -22,7 +22,7 @@ import type { CrewScenes, RelayCell } from './landing-data'
 const STAGGER_MS = 120
 /** The longest drawing, start to rest; a replay inside this window is ignored. */
 const PLAY_MS = 1900
-const RELAY_STEP_MS = 420
+// The relay's step (420ms per stage) is in landing.css, where the animation reads it.
 
 type Style = CSSProperties & Record<`--${string}`, string | number>
 const t = (ms: number, extra?: Style): Style => ({ '--t': `${ms}ms`, ...extra })

@@ -94,6 +94,28 @@ After the fixes: `scripts/golden_demo.py` ends **FINAL STATUS: READY**, the red 
 
 One finding is the model's, not the code's: on one run the 3B model drafted an approval note without the inline citations its prompt asks for. Document verification failed it and the run was held, which is the control working.
 
+## Second sweep, after PRs #8–#15
+
+The 101 commits merged on 27 September (Hi-Vis redesign, account provisioning, deployment readiness, Harness Control, a copy sweep), checked the same way, plus the new account doors exercised live on a separate production-mode instance with an empty database: owner setup, invitations, access requests, password resets, deactivation and code guessing, 30 checks, all held.
+
+| Check | Found |
+|---|---|
+| Suite, static analysis, types | 1094 passed; pyflakes clean; one unused constant in the landing page |
+| API, every GET as all 7 roles (504 calls) | no server error; the pre-pull database migrated without error |
+| Console, 22 routes as six signed-in roles (132 loads, sessions verified) | no exception or console error; the People page, opened by address without `users.manage`, requested three admin lists and was refused |
+| Golden demo, red team | READY; 31 of 31 held |
+| A relief-valve run on the new build | **every answer opened with a literal `[answer]`**, and a correct authority sentence was marked unsupported |
+| Demo host switched to production | **the seven demo accounts kept the shared password**: `admin` / `workbench` signed in and no setup token was issued |
+
+Fixed, each with a test:
+
+- **`[answer]` before every answer.** The new lede instruction illustrated the first sentence as `"<answer> [S2]."`, and the 3B model copied the placeholder; the thread set it as the lede. The prompt now has nothing to copy, and a leading label is removed from the model's text if one appears.
+- **A correct authority sentence marked unsupported.** "Recommended by the Inspection Engineer and the Head of Inspection, and approved by the Plant Manager" restates the registry's decision; it is now CALCULATED when each role is on the right side of "approved", and not when roles are swapped or an approver is added.
+- **Demo accounts in production.** Starting with the demo off now deactivates every declared demo account that still accepts the shared password, ends its sessions and audits it, and the setup token takes over; switched back on, the demo gets them back. The threat model's High risk 2 is now Low.
+- **The People page** asks for nothing the role cannot read; the unused landing constant is gone.
+
+After the fixes: 1111 passed, 13 skipped; the relief run opens with its cited answer, 8 of 8 checks, every claim calculated.
+
 ## What still stands between this build and a winning demo
 
 ### Before the judges (no code)

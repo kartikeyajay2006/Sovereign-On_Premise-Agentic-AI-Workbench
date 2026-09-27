@@ -1,6 +1,6 @@
 # What AEGIS implements today
 
-Everything below is in `main` on 27 September 2026, and every count was read
+Everything below is in `main` on 27 September 2026 (after PRs #8–#15), and every count was read
 from the running host or the tree on that date. Each line says where the code
 lives and how to see it working. What is not built yet is in
 [the readiness review](SIH-READINESS-REVIEW.md#what-still-stands-between-this-build-and-a-winning-demo).
@@ -10,15 +10,15 @@ lives and how to see it working. What is not built yet is in
 | | |
 |---|---|
 | Engineering formulas | **18**, versioned and clause-cited (vessel, piping, relief devices, severity, FFS, schedules) |
-| API | **68** operations on 63 paths, local only |
-| Console screens | **11** signed-in screens, plus sign-in and the public page |
+| API | **87** operations on 81 paths, local only |
+| Console screens | **12** signed-in screens, plus the public page, sign-in, owner setup, invitation, password reset and access request |
 | Agent tools | **6**: `knowledge_search`, `file_read`, `spreadsheet_analyze`, `python_exec`, `document_generate`, `historian_read` |
 | Skills and harnesses | **5** skills, **3** harnesses |
 | Models declared | **6** local models via Ollama, digests pinned |
 | Access control | **7** roles, **22** permissions, **7** demo accounts |
 | Approval rules | **11**, one of them requiring two signatures in order |
 | Red team | **31 of 31** attacks held on the live host |
-| Tests | **981 passed, 13 skipped** on Linux (Windows runs in CI) |
+| Tests | **1111 passed, 13 skipped** on Linux (Windows runs in CI) |
 | Handbook | **111** pages |
 | Demo corpus | **15** synthetic documents, **207** passages, a P&ID, scanned reports, a PSV test record |
 
@@ -85,6 +85,7 @@ Checks on every answer (`backend/agents/verifier.py`): source, citation, page ci
 | Approval rules | 11 rules hold a run: sensitive or restricted work, a deliverable, failed verification, low classification confidence, an unresolved conflict, a disposition only an authority can take, injected instructions, sensitive content found by scanning, an isolation plan, a High finding, a safety topic | `policies/approval-rules.yaml` |
 | Two signatures | A High finding needs the Head of Inspection and then the Plant Manager (SOP-OPS-008 Clauses 2.3 and 3.5), each a different person with that role | `backend/api/task_service.py` |
 | Separation of duties | Nobody decides their own run, whatever their role | same |
+| Accounts | No account exists without an administrator's act: a one-time owner setup token on a fresh production host, invitations that fix the role and department, access requests an administrator decides, administrator-issued password resets. Codes are 60-bit, stored only as hashes, one-time and throttled. A host switched from demo to production retires the demo accounts that still take the shared password | `backend/core/accounts.py`, `backend/api/routes/accounts.py` |
 | Bound to what was reviewed | A decision carries the review digest of the version read; a changed run voids the signatures already given | `backend/proof/certificate.py` |
 | Request revision | A reviewer can send a run back with a note | Approvals screen |
 
@@ -112,10 +113,14 @@ Checks on every answer (`backend/agents/verifier.py`): source, citation, page ci
 | Knowledge | What retrieval can cite for you, the models, drawings, formulas and a retrieval tester |
 | Assurance | Posture (egress, containment, policy), Sandbox, Audit, Measurements |
 | Proof, Compare | One run's chain; two runs side by side |
+| People | Access requests, invitations, accounts and resets, for `users.manage` |
 
 ## 9 · Running it
 
 - `scripts/run.sh` builds and starts the API and console, bound to loopback; `--status`, `--stop`, `--dev`.
+- Hardware tiers in `config/profiles/` (`laptop-8gb`, `laptop-16gb`, `cpu-server`, `gpu-server`), chosen by `SOVEREIGN_PROFILE`; `scripts/start-ollama.sh` starts the runtime with the tier's `OLLAMA_*` settings, and `scripts/warmup.py` loads the drafting model and says READY or NOT READY.
+- `GET /api/ready` answers a readiness probe without a session, booleans only; the model manager reconciles with what Ollama holds at startup.
+- `scripts/backup.py` takes an online backup with a SHA-256 manifest.
 - `scripts/offline_bundle.py` (and `.sh`, `.ps1`) builds an installer bundle on a connected machine, verified before anything installs on the air-gapped one.
 - `infrastructure/docker-compose.yml` and the Dockerfiles build the stack; host state stays out of the images.
 - CI runs the backend suite on Ubuntu and Windows, the red-team tests, and the frontend typecheck and build on every push.
@@ -128,4 +133,5 @@ Checks on every answer (`backend/agents/verifier.py`): source, citation, page ci
 | 21–24 Sep | Honesty pass (no claim the backend does not make), chat-first console, Windows Job Objects, harnesses, the synthetic plant, clearance before ranking, design system |
 | 25 Sep | Engineering engine, evidence and conflicts, ingestion guard and red team, signed proof, P&ID isolation, handbook |
 | 26 Sep | PR #6: the 23 items of the [build plan](SIH-WINNING-BUILD-PLAN.md), from the container runtime to Proof Mode, measurements and two signatures |
+| 27 Sep | PRs #8–#15: the Hi-Vis redesign, account provisioning and the People screen, hardware tiers and deployment readiness, Harness Control, answers that open with one cited sentence, a copy sweep |
 | 26–27 Sep | Relief devices in the registry and in runs, the network namespace, the signature footer, the [readiness review](SIH-READINESS-REVIEW.md), and a [codebase-wide error sweep](SIH-READINESS-REVIEW.md#error-sweep-27-september) that fixed the uploaded-survey reader and the golden demo's second moment |
