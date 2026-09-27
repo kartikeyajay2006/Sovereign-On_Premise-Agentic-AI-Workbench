@@ -44,10 +44,10 @@ const GALLERY: GallerySlide[] = [
     id: 'thread',
     label: 'Thread',
     title: 'Ask in plain language.',
-    body: 'A run reads like a terminal session: each step with its time, the passages it found, the model’s tokens and the checks, then the cited answer.',
+    body: 'Ask in plain words. The answer comes back as a brief: one cited line up top, each requirement numbered with its source, and a stamp once every check has passed.',
     light: '/landing/shots/thread-light.png',
     dark: '/landing/shots/thread-dark.png',
-    alt: 'The AEGIS thread: a /clause request delivered in 39.6 s with four of four checks passed, and the answer citing S1, SOP-INS-014 §2.2.',
+    alt: 'The AEGIS thread: a question on continued operation with a Medium finding, delivered in 48 s with four of four checks passed; the answer opens with its cited lede, lists three numbered claims with their sources in the margin, and is stamped Delivered.',
   },
   {
     id: 'skills',

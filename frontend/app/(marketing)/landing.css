@@ -23,7 +23,7 @@
 /* ==================================================================== */
 @layer components {
   /* ---- tokens ---------------------------------------------------------- */
-  .lp {
+  .lp { counter-reset: lp-chapter;
     --lp-bg: #070707;
     --lp-s0: #000000;
     --lp-s1: #111111;
@@ -114,6 +114,11 @@
     transition: color var(--lp-tick) ease;
   }
   .lp-nav a:hover, .lp-nav-link:hover { color: var(--lp-fg); }
+  .lp-nav a .n { margin-right: 7px; color: var(--lp-fg-3); transition: color 0.2s ease; }
+  .lp-nav a[aria-current] { color: var(--lp-fg); }
+  .lp-nav a[aria-current] .n { color: var(--lp-lime); }
+  /* Reading progress: the header's foot fills in lime as the page is read. */
+  .lp-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--lp-lime); transform-origin: left; transform: scaleX(0); pointer-events: none; }
   .lp-header .end { margin-left: auto; display: flex; align-items: center; gap: 20px; }
   @media (max-width: 1080px) { .lp-nav { display: none; } }
   @media (max-width: 420px) { .lp-header .end .lp-nav-link { display: none; } }
@@ -212,7 +217,8 @@
   /* ==================================================================== */
   /* SECTIONS, AND THE CHAPTER RULE BETWEEN THEM                           */
   /* ==================================================================== */
-  .lp-section { position: relative; padding-block: clamp(72px, 9vw, 128px); scroll-margin-top: 64px; }
+  .lp-section { position: relative; padding-block: clamp(56px, 6vw, 88px); scroll-margin-top: 64px; counter-increment: lp-chapter; }
+  .lp-section .lp-head .lp-eyebrow::before { content: counter(lp-chapter, decimal-leading-zero) ' / 04 · '; color: var(--lp-fg-3); }
   .lp-rule {
     position: absolute; top: 0; left: 50%; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
     width: min(calc(100% - 2 * var(--lp-pad)), calc(var(--lp-maxw) - 2 * var(--lp-pad))); height: 1px; transform: translateX(-50%);
@@ -241,7 +247,7 @@
   /* THE PROOF SEQUENCE                                                    */
   /* ==================================================================== */
   .lp-pf { margin: clamp(40px, 5vw, 64px) 0 0; padding: 0; list-style: none; }
-  .lp-pf .step { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 32px clamp(24px, 4vw, 56px); padding: clamp(32px, 4vw, 48px) 0; border-top: 1px solid var(--lp-line); }
+  .lp-pf .step { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 24px clamp(24px, 4vw, 56px); padding: clamp(24px, 3vw, 36px) 0; border-top: 1px solid var(--lp-line); }
   .lp-pf .cap .k { margin: 0; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lp-fg-3); }
   .lp-pf .cap .k span { margin-right: 8px; color: var(--lp-lime); }
   .lp-pf .cap .h { margin: 12px 0 0; font-size: clamp(1.6rem, 1.1rem + 1.2vw, 2.1rem); line-height: 1.08; color: var(--lp-fg); }
@@ -462,12 +468,23 @@
   .lp-footer-base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-block: 16px; border-top: 1px solid var(--lp-line-3); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lp-fg-3); }
   /* The name at 6% ink, sized to the viewport so the whole word always fits,
      fading into the ground towards its foot. */
-  .lp-giant { display: flex; justify-content: center; margin-top: clamp(4px, 1vw, 16px); overflow: hidden; pointer-events: none; user-select: none; }
-  .lp-giant span {
-    display: block; font-size: min(20.5vw, 17rem); font-weight: 800; font-stretch: 125%; font-variation-settings: 'wdth' 125; line-height: 0.8; letter-spacing: -0.02em; white-space: nowrap;
+  .lp-giant { position: relative; display: flex; justify-content: center; margin-top: clamp(4px, 1vw, 16px); overflow: hidden; pointer-events: none; user-select: none; }
+  .lp-giant .word {
+    position: relative; display: block; font-size: min(19vw, 16rem); font-weight: 800; font-stretch: 125%; font-variation-settings: 'wdth' 125; line-height: 0.8; letter-spacing: -0.02em; white-space: nowrap;
     color: rgb(247 247 244 / 0.06);
     -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
   }
+  /* The seal: the mark's lime square, set as the word's full stop. */
+  .lp-giant .seal { display: inline-block; width: 0.14em; height: 0.14em; margin-left: 0.05em; background: var(--lp-lime); opacity: 0.55; vertical-align: baseline; }
+  .lp-giant .scan { position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--lp-lime); opacity: 0; box-shadow: 0 -24px 32px 0 rgb(212 242 74 / 0.08); }
+  /* The close: the claim once more and the one action, on the page's rule. */
+  .lp-close { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 32px; padding-block: clamp(40px, 5vw, 64px); border-bottom: 1px solid var(--lp-line); }
+  .lp-close-title { margin: 0; font-size: clamp(2rem, 1.2rem + 2.6vw, 3.4rem); font-weight: 300; font-stretch: 88%; font-variation-settings: 'wdth' var(--lp-display-wdth); line-height: 1; letter-spacing: -0.035em; color: var(--lp-fg); }
+  .lp-close-title b { font-weight: 600; }
+  .lp-footer-grid a .out { display: inline-block; width: 12px; height: 12px; margin-left: 3px; vertical-align: -1px; opacity: 0.5; transition: opacity var(--lp-tick) ease, transform var(--lp-tick) ease; }
+  .lp-footer-grid a:hover .out { opacity: 1; transform: translate(1px, -1px); }
+  .lp-footer-grid a { text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+  .lp-footer-grid a:hover { text-decoration-color: var(--lp-lime); }
   @media (max-width: 1000px) { .lp-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lp-footer-grid > .brand { grid-column: 1 / -1; } }
   @media (max-width: 420px) { .lp-footer-grid { gap: 32px 20px; } }
 
@@ -664,3 +681,18 @@
 .lp .ae-btn:focus-visible { box-shadow: none; outline: 2px solid var(--lp-lime); outline-offset: 3px; }
 .lp .ae-tamper-block { border-radius: 2px; border-color: var(--lp-line); background: var(--lp-s0); }
 .lp .ae-tamper-link i { background: var(--lp-lime); }
+
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .lp-giant[data-play='armed'] .seal { opacity: 0; }
+    .lp-giant[data-play='on'] .scan { animation: lp-giant-scan 1400ms cubic-bezier(0.65, 0, 0.35, 1) both; }
+    .lp-giant[data-play='on'] .seal { animation: lp-giant-seal 120ms steps(2, end) 1250ms both; }
+    @keyframes lp-giant-scan {
+      0% { top: 0; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+    @keyframes lp-giant-seal { from { opacity: 0; } to { opacity: 0.55; } }
+  }
+}
