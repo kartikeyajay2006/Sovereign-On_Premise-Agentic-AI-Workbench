@@ -251,8 +251,8 @@ export function IntegrityCard({
           <span className="font-medium">
             {disputed.length ? disputed.map((c) => `${c.label} (${c.id})`).join(', ') : (assessment.conflicts ?? []).join(', ')}
           </span>
-          . No rate, remaining life, severity or due date is computed until a reviewer chooses the value; the
-          formulas then recompute from that choice.
+          . No {relief ? 'clause verdict, severity or bench-test date' : 'rate, remaining life, severity or due date'} is
+          computed until a reviewer chooses the value; the formulas then recompute from that choice.
         </p>
       ) : cannot ? (
         <p className="text-ui text-foreground">

@@ -75,6 +75,8 @@ class InputConflict:
     # resolves it. "medium": no formula reads it; recorded and shown only.
     impact: str
     values: list[BoundValue]
+    # What the reader is told, where the default wording does not fit.
+    note: str | None = None
 
 
 # Inputs no formula reads. A disagreement is still recorded and shown, but
