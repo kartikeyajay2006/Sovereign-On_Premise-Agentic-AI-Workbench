@@ -1,8 +1,8 @@
 # 3.9 · Audit
 
 <div align="center">
-<img src="../../assets/readme/screenshot-audit.webp#gh-light-mode-only" alt="The Audit screen: the chain recomputed by the server and in the browser to the same head" width="860">
-<img src="../../assets/readme/screenshot-audit-dark.webp#gh-dark-mode-only" alt="The Audit screen: the chain recomputed by the server and in the browser to the same head" width="860">
+<img src="../../assets/readme/audit-light.webp#gh-light-mode-only" alt="The Audit screen: the hash chain verified by the server and recomputed in the browser" width="860">
+<img src="../../assets/readme/audit-dark.webp#gh-dark-mode-only" alt="The Audit screen: the hash chain verified by the server and recomputed in the browser" width="860">
 </div>
 
 *Every task, model call, decision and sign-in on this host, hash-linked so that changing or removing a record breaks the chain.* Open it with <kbd>G</kbd> then <kbd>L</kbd>. The concept is explained in [2.6 The audit chain](../02-concepts/06-audit.md).

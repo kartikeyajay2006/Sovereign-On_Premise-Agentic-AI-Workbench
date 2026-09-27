@@ -3,8 +3,8 @@
 > Every screen, every control, and what each one tells you.
 
 <div align="center">
-<img src="../../assets/readme/screenshot-thread-answer.webp#gh-light-mode-only" alt="The AEGIS Thread with a delivered, cited answer" width="860">
-<img src="../../assets/readme/screenshot-thread-answer-dark.webp#gh-dark-mode-only" alt="The AEGIS Thread with a delivered, cited answer" width="860">
+<img src="../../assets/readme/thread-answer-light.webp#gh-light-mode-only" alt="The thread: a /clause question answered in one cited sentence, 48 months, SOP-INS-014 section 2.2, with its checks" width="860">
+<img src="../../assets/readme/thread-answer-dark.webp#gh-dark-mode-only" alt="The thread: a /clause question answered in one cited sentence, 48 months, SOP-INS-014 section 2.2, with its checks" width="860">
 </div>
 
 ## The layout

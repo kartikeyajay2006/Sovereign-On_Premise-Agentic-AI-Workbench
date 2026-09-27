@@ -1,8 +1,8 @@
 # 3.3 · Skills
 
 <div align="center">
-<img src="../../assets/readme/screenshot-skills.webp#gh-light-mode-only" alt="The Skills screen with the five built-in skills" width="860">
-<img src="../../assets/readme/screenshot-skills-dark.webp#gh-dark-mode-only" alt="The Skills screen with the five built-in skills" width="860">
+<img src="../../assets/readme/skills-light.webp#gh-light-mode-only" alt="The Skills screen: saved, hashed request templates called with a slash" width="860">
+<img src="../../assets/readme/skills-dark.webp#gh-dark-mode-only" alt="The Skills screen: saved, hashed request templates called with a slash" width="860">
 </div>
 
 The Skills screen lists every saved instruction you can call with `/` in the Thread. The idea is explained in [2.8 Skills and harnesses](../02-concepts/08-skills-harnesses.md); this page is about the screen.

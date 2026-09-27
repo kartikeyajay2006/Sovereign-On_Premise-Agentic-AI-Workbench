@@ -1,8 +1,8 @@
 # 3.8 · Sandbox
 
 <div align="center">
-<img src="../../assets/readme/screenshot-sandbox.webp#gh-light-mode-only" alt="The Sandbox screen with a memory bomb contained at the 1024 MB cap" width="860">
-<img src="../../assets/readme/screenshot-sandbox-dark.webp#gh-dark-mode-only" alt="The Sandbox screen with a memory bomb contained at the 1024 MB cap" width="860">
+<img src="../../assets/readme/sandbox-light.webp#gh-light-mode-only" alt="The Sandbox screen: a socket attack refused before it ran, in a private network namespace" width="860">
+<img src="../../assets/readme/sandbox-dark.webp#gh-dark-mode-only" alt="The Sandbox screen: a socket attack refused before it ran, in a private network namespace" width="860">
 </div>
 
 *Run Python under this host's limits and see exactly what it did, through the same gateway, checks and audit trail as an agent's own code.*

@@ -3,8 +3,8 @@
 The Thread is where you ask. It is a conversation-shaped view of runs: your request on the right, the workbench's answer on the left, and underneath every answer, a transcript of exactly how it was produced.
 
 <div align="center">
-<img src="../../assets/readme/screenshot-thread-answer.webp#gh-light-mode-only" alt="A delivered /clause answer with six of six checks passed" width="860">
-<img src="../../assets/readme/screenshot-thread-answer-dark.webp#gh-dark-mode-only" alt="A delivered /clause answer with six of six checks passed" width="860">
+<img src="../../assets/readme/thread-answer-light.webp#gh-light-mode-only" alt="The thread: a /clause question answered in one cited sentence, 48 months, SOP-INS-014 section 2.2, with its checks" width="860">
+<img src="../../assets/readme/thread-answer-dark.webp#gh-dark-mode-only" alt="The thread: a /clause question answered in one cited sentence, 48 months, SOP-INS-014 section 2.2, with its checks" width="860">
 </div>
 
 ## Starting a run
@@ -91,8 +91,8 @@ At the foot of a run, the **usage footer** totals what the models did: prompt an
 ## A held run
 
 <div align="center">
-<img src="../../assets/readme/screenshot-thread-held.webp#gh-light-mode-only" alt="A run held for review because a restricted memo was retrieved" width="860">
-<img src="../../assets/readme/screenshot-thread-held-dark.webp#gh-dark-mode-only" alt="A run held for review because a restricted memo was retrieved" width="860">
+<img src="../../assets/readme/thread-relief-light.webp#gh-light-mode-only" alt="A run held for review: the PSV-2104A relief device decision is High, and release needs the Head of Inspection then the Plant Manager" width="860">
+<img src="../../assets/readme/thread-relief-dark.webp#gh-dark-mode-only" alt="A run held for review: the PSV-2104A relief device decision is High, and release needs the Head of Inspection then the Plant Manager" width="860">
 </div>
 
 A held run shows **Held for review** and, beneath the answer, a line naming who may decide and why:

@@ -20,10 +20,10 @@ a run takes 20 to 70 seconds on a CPU, which has to be rehearsed.
 
 | Phase | Plan item | Status | Where it lives |
 |---|---|---|---|
-| 1 Engineering | Versioned, clause-cited formula registry | Done: 19 formulas | `backend/engineering/formulas.py` |
+| 1 Engineering | Versioned, clause-cited formula registry | Done: 21 formulas | `backend/engineering/formulas.py` |
 | | Corrosion rate, remaining life, interval, t-min, severity | Done | same |
 | | Relief-device checks | Done: SOP-INS-025 Clauses 2-5; every record in a run, records of one valve compared (`e1565bd`) | `relief.*` formulas, `backend/engineering/relief.py` |
-| | Pressure and temperature operating limits | Done as far as the corpus states them (`c7a3119`): SOP-INS-021 Clause 6.1, operating pressure ≤ 90% of MAWP in interim operation. No clause sets operating pressure against MAWP otherwise, or operating temperature against a design range | `envelope.interim_operating_pressure`, `backend/engineering/assessment.py` |
+| | Pressure and temperature operating limits | Done as far as the corpus states them (`c7a3119`): SOP-INS-021 Clause 6.1, operating pressure ≤ 90% of MAWP in interim operation. No clause sets operating pressure against MAWP otherwise, or operating temperature against a design range | `envelope.interim_operating_pressure`, `backend/engineering/assessment.py`; the rest of Clauses 5-6 as `ffs.rerated_mawp` and `ffs.interim_operation` |
 | | Unit-aware, dimension errors refused | Done | `backend/engineering/units.py` |
 | | Every input bound to evidence; hashes persisted | Done | `CalculationRecord` |
 | | *Cannot calculate* when an input is missing | Done | registry and integrity card |
@@ -117,6 +117,13 @@ Fixed, each with a test:
 
 After the fixes: 1111 passed, 13 skipped; the relief run opens with its cited answer, 8 of 8 checks, every claim calculated.
 
+## Third pass: what a judge will see
+
+- **Operating limits.** `ffs.rerated_mawp` (SOP-INS-021 Clause 5, with the procedure's 10.5 × 0.86 = 9.03 bar(g) example as a test) and `ffs.interim_operation` (Clauses 6.1-6.2: 90% of MAWP, 30-day inspections, 180 days), each naming its authority; the interim decision's pressure condition is `envelope.interim_operating_pressure`. 21 formulas.
+- **Citations that exist.** A conflict run holding only F1 and F2 cited `[S1].[S2]`, and an approval note cited `[S9]` where the run held C9; citation verification caught both and held the runs. The answer and drafting prompts now end their evidence with the identifiers the run holds. The same conflict question then passed 8 of 8 checks, and the approval note cited only V1, S1 and C9.
+- **A console check.** `scripts/ui_check.py`: 132 of 132 pages clean, as every account.
+- **Screens.** `scripts/capture_screens.py` takes every README image from the running console; the README is rebuilt around the judged moments with those images, and the handbook's user-guide pages use them.
+
 ## What still stands between this build and a winning demo
 
 ### Before the judges (no code)
@@ -152,8 +159,16 @@ After the fixes: 1111 passed, 13 skipped; the relief run opens with its cited an
    The corpus has no clause for operating pressure against MAWP outside
    interim operation, or operating temperature against a design range, so
    neither is registered; adding one needs a clause in the SOPs first.
+   The rest of Clauses 5 and 6 is registered too: `ffs.rerated_mawp@1`
+   (MAWP × RSF, the authority, and the nameplate, relief-reset and
+   change-management actions that follow) and `ffs.interim_operation@1`
+   (every Clause 6.1 condition, 30-day inspections and the 180-day end;
+   its pressure condition is the envelope formula, so the two cannot
+   disagree).
 3. ~~**Frontend tests.**~~ Done in `0bfd973`: Playwright smoke tests against a
-   mocked API, run in CI.
+   mocked API, run in CI. `scripts/ui_check.py` adds a runtime check
+   against a live console: every page as every account, failing on
+   exceptions, console errors, failed requests and blank pages.
 4. **CMMS adapter.** Read-only open work orders and notifications for a tag,
    behind `backend/connectors/base.py`, would let the approval note say
    whether a repair is already raised. Document-management and directory

@@ -9,7 +9,7 @@ lives and how to see it working. What is not built yet is in
 
 | | |
 |---|---|
-| Engineering formulas | **18**, versioned and clause-cited (vessel, piping, relief devices, severity, FFS, schedules) |
+| Engineering formulas | **20**, versioned and clause-cited (vessel, piping, relief devices, severity, FFS triggers, re-rating and interim operation, schedules) |
 | API | **87** operations on 81 paths, local only |
 | Console screens | **12** signed-in screens, plus the public page, sign-in, owner setup, invitation, password reset and access request |
 | Agent tools | **6**: `knowledge_search`, `file_read`, `spreadsheet_analyze`, `python_exec`, `document_generate`, `historian_read` |
@@ -18,7 +18,7 @@ lives and how to see it working. What is not built yet is in
 | Access control | **7** roles, **22** permissions, **7** demo accounts |
 | Approval rules | **11**, one of them requiring two signatures in order |
 | Red team | **31 of 31** attacks held on the live host |
-| Tests | **1111 passed, 13 skipped** on Linux (Windows runs in CI) |
+| Tests | **1131 passed, 13 skipped** on Linux (Windows runs in CI) |
 | Handbook | **111** pages |
 | Demo corpus | **15** synthetic documents, **207** passages, a P&ID, scanned reports, a PSV test record |
 
@@ -51,7 +51,7 @@ The model is told the figures. It is never asked for them.
 
 | Capability | What it does | Where | See it |
 |---|---|---|---|
-| Formula registry | 19 formulas, `id@version`, each citing its clause, with inputs, outputs, source hash, input hash and result hash; *cannot calculate* when an input is missing, *refused* for a wrong dimension | `backend/engineering/formulas.py`, `units.py` | `GET /api/engineering/formulas` |
+| Formula registry | 21 formulas, `id@version`, each citing its clause, with inputs, outputs, source hash, input hash and result hash; *cannot calculate* when an input is missing, *refused* for a wrong dimension | `backend/engineering/formulas.py`, `units.py` | `GET /api/engineering/formulas` |
 | Vessel assessment | Rates per location, governing location by **lowest remaining life**, severity, FFS triggers, next survey; withdrawn below t-min | `backend/engineering/assessment.py` | *Can V-2104 keep running?* |
 | Piping assessment | CML rates, remaining life, next measurement | same | The piping survey in the corpus |
 | Stated calculations | Values written in the question are bound only when the question writes them with the right unit | `backend/engineering/stated.py` | "12.0 to 9.4 mm in 4 years, t-min 6.0 mm: remaining life?" |
@@ -122,6 +122,7 @@ Checks on every answer (`backend/agents/verifier.py`): source, citation, page ci
 - Hardware tiers in `config/profiles/` (`laptop-8gb`, `laptop-16gb`, `cpu-server`, `gpu-server`), chosen by `SOVEREIGN_PROFILE`; `scripts/start-ollama.sh` starts the runtime with the tier's `OLLAMA_*` settings, and `scripts/warmup.py` loads the drafting model and says READY or NOT READY.
 - `GET /api/ready` answers a readiness probe without a session, booleans only; the model manager reconciles with what Ollama holds at startup.
 - `scripts/backup.py` takes an online backup with a SHA-256 manifest.
+- `scripts/ui_check.py` opens every console page as every demo account and signed out, and fails on any exception, console error, failed request or blank page; `scripts/capture_screens.py` retakes every README screenshot from the running console, in both themes.
 - `scripts/offline_bundle.py` (and `.sh`, `.ps1`) builds an installer bundle on a connected machine, verified before anything installs on the air-gapped one.
 - `infrastructure/docker-compose.yml` and the Dockerfiles build the stack; host state stays out of the images.
 - CI runs the backend suite on Ubuntu and Windows, the red-team tests, and the frontend typecheck and build on every push.

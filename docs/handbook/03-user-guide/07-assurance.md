@@ -1,8 +1,8 @@
 # 3.7 · Assurance
 
 <div align="center">
-<img src="../../assets/readme/screenshot-security.webp#gh-light-mode-only" alt="Assurance: egress measured at zero, containment 7 of 7, ten actions no role can take" width="860">
-<img src="../../assets/readme/screenshot-security-dark.webp#gh-dark-mode-only" alt="Assurance: egress measured at zero, containment 7 of 7, ten actions no role can take" width="860">
+<img src="../../assets/readme/assurance-light.webp#gh-light-mode-only" alt="Assurance: egress measured at 0, containment tested 8 of 8, 10 actions no role can take" width="860">
+<img src="../../assets/readme/assurance-dark.webp#gh-dark-mode-only" alt="Assurance: egress measured at 0, containment tested 8 of 8, 10 actions no role can take" width="860">
 </div>
 
 *What this host can show about its own conduct: what it measured, what it tested, and what it is configured to allow.* The Assurance place has three screens: **Posture** (<kbd>G</kbd> <kbd>P</kbd>), **Sandbox** (<kbd>G</kbd> <kbd>S</kbd>) and **Audit** (<kbd>G</kbd> <kbd>L</kbd>). This page is Posture.

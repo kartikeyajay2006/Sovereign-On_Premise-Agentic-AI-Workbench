@@ -102,7 +102,7 @@ npm run start     # serves the build; add -H 127.0.0.1 to bind to loopback
 npm run dev       # hot reload
 ```
 
-There is no lint script and no frontend test suite yet. `npx tsc --noEmit` is the type check.
+There is no lint script. `npx tsc --noEmit` is the type check, `npm run test:e2e` runs the Playwright smoke tests against a mocked API, and `scripts/ui_check.py` opens every page against the live backend ([13.2](../13-development/02-testing.md)).
 
 <!-- nav:start -->
 
