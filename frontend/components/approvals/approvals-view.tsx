@@ -380,7 +380,7 @@ export function ApprovalsView() {
         kind === 'approve' && awaiting
           ? {
               title: 'Signature recorded',
-              detail: `Nothing was released. Waiting for the ${awaiting.authority}, who ${awaiting.capacity} it. Recorded in the audit chain.`,
+              detail: `Nothing released yet. Waiting for the ${awaiting.authority}, who ${awaiting.capacity} it. Recorded in the audit chain.`,
               tone: 'default',
             }
           : kind === 'approve'
@@ -395,7 +395,7 @@ export function ApprovalsView() {
           : kind === 'revise'
             ? {
                 title: 'Returned for revision',
-                detail: 'Nothing was released. Your note went back to the submitter and into the audit chain.',
+                detail: 'Nothing released. Your note went to the submitter and into the audit chain.',
                 tone: 'default',
               }
             : {
@@ -425,7 +425,7 @@ export function ApprovalsView() {
     try {
       await setRole('reviewer')
     } catch (error: any) {
-      setSwitchError(error?.message ?? 'Could not sign in as the reviewer account.')
+      setSwitchError(error?.message ?? 'The reviewer account did not sign in.')
       setSwitching(false)
     }
   }
@@ -441,7 +441,7 @@ export function ApprovalsView() {
     <div className="flex flex-col lg:h-[calc(100dvh-var(--shell-top))]">
       <PageHeader
         title="Approvals"
-        description="Runs held for a person before anything they produced is released. Each decision is recorded against the reviewer who made it."
+        description="Runs held for a person before anything leaves. Every decision is recorded against its reviewer."
         // No row of readings: the counts are on the filter below, and who
         // signs is said beside the decision itself.
         actions={
@@ -454,8 +454,8 @@ export function ApprovalsView() {
                 className="flex items-center gap-2 text-[12.5px] text-foreground-muted"
                 title={
                   (live
-                    ? 'Connected to the event stream: held runs and decisions arrive without a reload.'
-                    : 'Not connected to the event stream: use Refresh to read the queue again.') +
+                    ? 'On the event stream: held runs and decisions arrive without a reload.'
+                    : 'Off the event stream: Refresh to read the queue again.') +
                   ` Read ${clockTime(queue.readAt)}.`
                 }
               >
@@ -502,13 +502,13 @@ export function ApprovalsView() {
           <>
             {queue.status === 'failed' && queue.failure && (
               <p role="alert" className="mt-4 text-ui text-critical-text">
-                The last refresh failed, so this is the queue as read at {clockTime(queue.readAt)}.{' '}
+                Refresh failed. Showing the queue as read at {clockTime(queue.readAt)}.{' '}
                 {queue.failure.detail ?? ''}
               </p>
             )}
             {data?.runs === null && (
               <p className="mt-4 text-ui text-foreground-muted">
-                The task list could not be read, so decided runs are not shown. Held runs are
+                The run list could not be read, so decided runs are missing. Held runs are
                 complete.
               </p>
             )}
@@ -612,7 +612,7 @@ export function ApprovalsView() {
                 ) : (
                   <EmptyState
                     title="Nothing to review"
-                    body="When a run in this view is held for a decision, it opens here with its deliverable, evidence and verification."
+                    body="Pick a held run to open its deliverable, evidence and verification here."
                   />
                 )}
               </div>
@@ -652,7 +652,7 @@ function QueueEmpty({
     return (
       <EmptyState
         title="Nothing at this classification"
-        body="No run in this view carries the classification selected."
+        body="No run in this view carries that classification."
         action={
           <Button variant="secondary" size="sm" onClick={() => onShow(status)}>
             Any classification
@@ -666,7 +666,7 @@ function QueueEmpty({
     return (
       <EmptyState
         title="Nothing is waiting for a decision"
-        body="Every held run has been released or returned. While this screen is connected to the event stream, a run that needs a signature appears here as soon as it is held."
+        body="Every held run has been decided. While the screen is live, the next held run appears here the moment it is held."
         action={
           decided > 0 ? (
             <Button variant="secondary" size="sm" onClick={() => onShow('all')}>
@@ -682,7 +682,7 @@ function QueueEmpty({
       title={status === 'all' ? 'No runs have needed approval' : `No ${status} runs`}
       body={
         status === 'all'
-          ? 'None of the runs this role can read was held for a decision.'
+          ? 'None of the runs this role can read was held.'
           : `None of the recent runs this role can read was ${status}.`
       }
     />
@@ -709,15 +709,15 @@ function ForbiddenNotice({
   const headline =
     held && held > 0
       ? allRuns
-        ? `${held} run${held === 1 ? ' is' : 's are'} held on this host, and releasing them is not this role's decision`
+        ? `${held} run${held === 1 ? ' is' : 's are'} held on this host. Releasing them is not this role's call`
         : `${held} of your run${held === 1 ? ' is' : 's are'} held for a reviewer`
       : 'This role cannot open the approval queue'
   return (
     <div className="mt-6 max-w-[72ch] border-l-2 border-approval bg-approval-surface px-4 py-4">
       <p className="text-body font-medium text-foreground">{headline}</p>
       <p className="mt-2 text-body text-foreground-secondary">
-        Approval is separated from execution on purpose: whoever ran a task does not sign it off. Your
-        role, <span className="font-mono text-ui text-foreground">{roleLabel}</span>, does not hold{' '}
+        Whoever runs work does not sign it off. Your role,{' '}
+        <span className="font-mono text-ui text-foreground">{roleLabel}</span>, lacks{' '}
         <span className="font-mono text-ui text-foreground">approval.read</span>, so the queue is closed
         to it.
       </p>
