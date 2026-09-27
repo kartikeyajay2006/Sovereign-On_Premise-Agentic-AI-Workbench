@@ -127,6 +127,6 @@ Everything in that picture runs on one machine. The model is reached over loopba
 
 **[Start reading →](01-getting-started/README.md)**
 
-<sub>AEGIS · On-Premise Agentic AI Workbench · Built for Smart India Hackathon 2025</sub>
+<sub>AEGIS · On-Premise Agentic AI Workbench · Built for Smart India Hackathon 2026</sub>
 
 </div>
