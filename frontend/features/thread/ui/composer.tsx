@@ -7,6 +7,7 @@ import { ArrowUp, Check, ChevronDown, Loader2, Paperclip, Square, X } from 'luci
 import { DELIVERABLE_FORMATS } from '@/lib/presentation'
 import type { ModelDescriptor, Skill } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useChangeCount } from '@/shared/motion'
 import { ModelMenu } from './model-menu'
 import { SlashMenu, slashItems, type HarnessEntry, type SlashItem } from './slash-menu'
 
@@ -201,6 +202,7 @@ export const Composer = memo(function Composer({
   const canSend = ready && !busy
   // While a run is in flight, Enter queues one request to follow it.
   const canQueue = ready && busy && queued === null
+  const sendArmed = useChangeCount(canSend)
 
   // Grow with the text, up to a ceiling. Measured before paint so the field
   // never shows a frame at the wrong height.
@@ -241,7 +243,7 @@ export const Composer = memo(function Composer({
       }}
       className={cn(
         // Square and ruled, not a floating pill: an instrument's input.
-        'rounded-[var(--radius-lg-token)] border border-line-default bg-surface shadow-[var(--elev-1)]',
+        'hv-focus-rule rounded-[var(--radius-lg-token)] border border-line-default bg-surface shadow-[var(--elev-1)]',
         'transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong',
         dragging && 'border-foreground shadow-[0_0_0_1px_var(--foreground)]',
       )}
@@ -358,16 +360,14 @@ export const Composer = memo(function Composer({
           {attachments.map((a) => (
             <li
               key={a.id}
-              className="flex max-w-full items-center gap-2 rounded-[var(--radius-xs)] bg-surface-sunken py-1 pl-2.5 pr-1.5 text-[12.5px]"
+              // TICK: the file was added. SCAN: it is uploading, until the
+              // stored id comes back.
+              className={cn('hv-tick flex max-w-full items-center gap-2 rounded-[var(--radius-xs)] bg-surface-sunken py-1 pl-2.5 pr-1.5 text-[12.5px]', a.uploading && 'hv-scan')}
             >
-              {a.uploading ? (
-                <Loader2 className="size-3.5 shrink-0 animate-spin text-foreground-muted motion-reduce:animate-none" aria-hidden />
-              ) : (
-                <Paperclip className="size-3.5 shrink-0 text-foreground-muted" aria-hidden />
-              )}
+              <Paperclip className="size-3.5 shrink-0 text-foreground-muted" aria-hidden />
               <span className="max-w-[220px] truncate font-medium text-foreground">{a.name}</span>
               {/* The classification comes back from the upload; it is not decided here. */}
-              <span className="shrink-0 text-foreground-muted">
+              <span key={a.uploading ? 'uploading' : 'stored'} className={cn('shrink-0 text-foreground-muted', !a.uploading && 'hv-tick')}>
                 {a.uploading ? 'uploading' : `${Math.max(1, Math.round(a.sizeBytes / 1024))} kB · ${a.classification}`}
               </span>
               <button
@@ -439,7 +439,17 @@ export const Composer = memo(function Composer({
           <ModelMenu models={models} error={modelsError} value={preferredModel} onChange={onPreferredModelChange} />
         )}
 
-        <div className="ml-auto">
+        <div className="relative ml-auto">
+          {/* LOCK: the reticle closes on Run when it becomes pressable, in
+              140ms, and stays while it is. Already pressable when the
+              composer mounted: shown closed, without the motion. */}
+          {canSend && !(busy && onStop) ? (
+            <span
+              key={sendArmed}
+              aria-hidden
+              className={cn('hv-lock-frame pointer-events-none', sendArmed > 0 && 'hv-lock hv-quick')}
+            />
+          ) : null}
           {busy && onStop ? (
             <button
               type="button"
