@@ -22,6 +22,7 @@
  */
 
 export type { MotionTag } from './appear'
+export { useChangeCount } from './change-count'
 export { Append, AppendScope, type AppendProps, type AppendTone } from './append'
 export { Disclose } from './disclose'
 export { Light, Release, type LightProps, type LightTone } from './light'
