@@ -24,7 +24,7 @@ function friendlyError(err: unknown): string {
     if (err.status === 401) return 'Your session has expired. Sign in again.'
     return err.detail ? String(err.detail) : err.message
   }
-  return 'Cannot reach the local workbench service.'
+  return 'The workbench service is unreachable.'
 }
 
 /** One payload in the list: what it is, and what the host should do with it. */
@@ -124,7 +124,7 @@ export function SandboxConsole() {
     <div className="pb-16">
       <PageHeader
         title="Sandbox"
-        description="Run Python under this host's limits and see exactly what it did — through the same gateway, checks and audit trail as an agent's own code."
+        description="Run Python under this host's limits and see exactly what it did. Same gateway, checks and audit trail as an agent's code."
         meta={[
           { label: 'Runtime', value: limits ? limits.runtime : '—', hint: limits?.configured_runtime && `configured: ${limits.configured_runtime}` },
           { label: 'Limits enforced by', value: limits ? sandboxMechanism(limits.backend) : '—', hint: limits?.backend },
@@ -175,7 +175,7 @@ export function SandboxConsole() {
           <div className="rounded-[16px] bg-approval-surface px-4 py-3">
             <p className="text-[14px] text-approval-text">{limits.reason}</p>
             <p className="mt-1 text-[12.5px] text-foreground-muted">
-              What would be refused is still shown; nothing is executed while the host cannot enforce its limits.
+              Refusals still show; nothing executes while the host cannot enforce its limits.
             </p>
           </div>
         )}
@@ -267,7 +267,7 @@ export function SandboxConsole() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-subtle px-4 py-2 text-[12px] text-foreground-muted">
-              <span>{preset ? `Expected: ${preset.expectation}` : 'Your own code: the validator reads it before anything runs.'}</span>
+              <span>{preset ? `Expected: ${preset.expectation}` : 'Your code. The validator reads it before anything runs.'}</span>
               <span>Ctrl + Enter to run</span>
             </div>
 

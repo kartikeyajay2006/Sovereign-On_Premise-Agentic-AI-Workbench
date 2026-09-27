@@ -281,8 +281,7 @@ export function SovereigntyStatus({ compact, placement = 'below' }: { compact?: 
 
           {!reachable && !loading ? (
             <p className="px-4 py-3 text-ui text-foreground-secondary">
-              The workbench service did not answer. Nothing on this panel is current, so no posture is
-              shown.
+              The workbench service did not answer, so no posture is shown.
             </p>
           ) : (
             <dl>
