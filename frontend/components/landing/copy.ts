@@ -19,23 +19,14 @@
 // Machine excerpts below are quoted verbatim from files in this repository,
 // and each carries the path it came from. None of them is illustrative.
 
-
 export const REPO_URL =
   'https://github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench'
-export const REPO_PATH = 'github.com/kartikeyajay2006/Sovereign-On_Premise-Agentic-AI-Workbench'
 
 export const META = {
   title: 'AEGIS — an air-gapped AI workbench for regulated industrial work',
   description:
     'AEGIS runs on one machine. Every answer is cited to a page, checked against your policy, and recorded in an append-only, hash-chained log.',
 } as const
-
-/**
- * A sentence with machine values in it. A plain string is prose; `{ v }` is a
- * value -- an id, a clause, a hash -- and is set in mono by whatever renders it.
- */
-export type Rich = ReadonlyArray<string | { v: string }>
-
 
 // --------------------------------------------------------------------------- //
 // Hero
@@ -50,14 +41,8 @@ export const HERO = {
   lede: 'AEGIS runs the model, the search and the checks on your own hardware, and hands over every answer with its sources, its checks and its record.',
   // The vessel is a drawing; the page says so where it is drawn.
   vesselNote: 'Illustration · label from the recorded run',
-  // Properties of the design, each enforced in code rather than promised:
-  // the inference client refuses a non-local endpoint, the verifier runs on
-  // every answer, and the audit log is a hash chain. (The sign-in panel reads these.)
-  proof: ['No cloud model calls', 'Every answer cited and checked', 'Every step hash-chained'],
   primary: { label: 'Open the workbench', href: '/sign-in' },
   how: { label: 'How a run is proved', href: '#proof' },
-  secondary: { label: 'Read the source', href: REPO_URL },
-  repoPath: REPO_PATH,
 } as const
 
 /** The meta rail beside the hero: labels only; every value is the run's. */
@@ -86,20 +71,26 @@ export const STATS = {
 } as const
 
 // --------------------------------------------------------------------------- //
-// Chapters: 01 retrieve, 02 verify, 03 seal
+// The crew: the pipeline's stages, named (the roster itself is lib/crew.ts)
 // --------------------------------------------------------------------------- //
 
-export const CHAPTERS = {
-  id: 'how',
-  eyebrow: 'How it works',
-  title: 'Three steps.',
-  titleKey: 'Each leaves a record.',
-  lede: 'The recorded run, step by step. Pick a step to see what it left behind.',
-  tabs: [
-    { key: 'retrieve', n: '01', label: 'Retrieve', line: 'Passages from the procedures on this host, ranked by how closely each one matches. Nothing is fetched from anywhere else.' },
-    { key: 'verify', n: '02', label: 'Verify', line: 'A verifier traces each claim to its passage and recomputes any figure. One failed check holds the run for a person.' },
-    { key: 'seal', n: '03', label: 'Seal', line: 'Each audit record carries the hash of the one before it, so changing any record breaks every hash after it.' },
-  ],
+export const CREW_COPY = {
+  id: 'crew',
+  eyebrow: 'The crew',
+  title: 'Ten stages.',
+  titleKey: 'One orchestrator.',
+  lede: 'A run passes through these stages in this order, driven by one orchestrator: they are named so they can be talked about, not because they act alone. WARDEN and NOTARY work across the whole run. Each card says what the stage runs on, a local model or no model at all.',
+  runsOn: 'Runs on',
+  across: 'across the run',
+  /** Said under every drawing, once, for the grid. */
+  note: 'Drawings are illustrations. Their labels are the recorded run’s, or a stage’s configuration.',
+  relay: {
+    label: 'The recorded run, stage by stage',
+    legend: 'Lit: ran, with what the record measured · Struck: skipped, with the record’s reason',
+    unrecorded: 'not recorded',
+    ran: 'ran',
+    skipped: 'skipped',
+  },
 } as const
 
 // --------------------------------------------------------------------------- //
@@ -124,22 +115,6 @@ export const PROOF_SEQ = {
 } as const
 
 // --------------------------------------------------------------------------- //
-// The replay
-// --------------------------------------------------------------------------- //
-
-export const REPLAY = {
-  id: 'replay',
-  eyebrow: 'Replay',
-  title: 'The run,',
-  titleKey: 'as it happened.',
-  lede: 'Its events in the order the record gives them. Clock times are the record’s own; stage lines print the duration it measured.',
-  speed: 'Replayed at 4×',
-  again: 'Replay',
-  skip: 'Show all',
-  still: 'The record, in full',
-} as const
-
-// --------------------------------------------------------------------------- //
 // Hash-chain verify
 // --------------------------------------------------------------------------- //
 
@@ -156,223 +131,24 @@ export const CHAIN_VERIFY = {
 } as const
 
 // --------------------------------------------------------------------------- //
-// Use cases: what people ask it
+// The tamper test, closing the proof
 // --------------------------------------------------------------------------- //
 
-/**
- * Requests from the demo script (docs/DEMO.md) and the built-in skills, each
- * one answerable from the corpus on the demo host. They are examples of what
- * to ask, not results: nothing here says how a run of them came out.
- */
-export const USE_CASES = {
-  id: 'use-cases',
-  eyebrow: 'Use cases',
-  title: 'Ask what your plant asks.',
-  titleTurn: 'Get the clause, cited.',
-  lede: 'Inspection intervals, severities, sign-off authority, remaining life, handovers. Typed in plain language or called as a skill with /.',
-  rows: [
-    [
-      { kind: 'Clause', text: 'What is the maximum interval between internal inspections of a vessel in corrosive service?' },
-      { kind: 'Severity', text: 'What severity applies when cladding damage exceeds 20% of an insulated section?' },
-      { kind: 'Sign-off', text: 'Who must approve continued operation with a Medium CUI finding?' },
-      { kind: 'Clause', text: 'When must a Fitness-For-Service assessment be raised?' },
-      { kind: 'Permit', text: 'What gas test results are required before hot work starts near the crude column?' },
-      { kind: 'Interval', text: 'Can a Low RBI ranking alone extend a vessel’s internal inspection interval?' },
-      { kind: 'Test', text: 'A PSV set at 10.5 bar(g) opened at 12.1 bar(g). Did it fail, and who must be told?' },
-    ],
-    [
-      { kind: 'Calculation', text: '/remaining-life  thickness survey for circuit P-2104-OVHD-01' },
-      { kind: 'Approval note', text: '/approval-note  continued operation of V-2104 with a Medium CUI finding' },
-      { kind: 'Skill', text: '/clause  internal inspection of a pressure vessel in corrosive service' },
-      { kind: 'Handover', text: '/handover  confined space entry on the crude column' },
-      { kind: 'Scanned report', text: 'Read the attached inspection report for V-2107. What severity is the worst finding?' },
-      { kind: 'Records', text: 'List every vessel whose next thickness survey was due before 1 October 2026' },
-      { kind: 'Harness', text: 'SOP question sweep: 25 questions, one verified answer matrix, one hashed report' },
-    ],
-  ],
-  note: 'Requests from the demo script and the built-in skills. Each is answered from the procedures on the host it runs on.',
-  // One of each kind of work, for the grid: [row, index] into `rows`.
-  grid: [
-    [0, 0],
-    [0, 1],
-    [0, 2],
-    [1, 0],
-    [1, 4],
-    [1, 6],
-  ],
+export const TAMPER = {
+  label: 'Tamper test',
+  title: 'Try to rewrite the record.',
+  line: 'The run’s last three records, re-hashed by your browser. Change one value and watch the chain refuse it.',
+  // The edit offered: who did it. Offered only when the stored record says so.
+  edit: { path: ['actor'], from: '"engineer"', to: '"reviewer"', label: 'Change who did it' },
+  restore: 'Put it back',
+  verified: 'All {n} records re-hash to their stored values here, and each one links to the one before it.',
+  broken: 'Seq {seq} no longer matches the hash stored with it, and seq {next} still points at the original. The edit shows.',
+  brokenLast: 'Seq {seq} no longer matches the hash stored with it. The edit shows.',
+  idle: 'Re-hashing in your browser when this is on screen.',
 } as const
 
 // --------------------------------------------------------------------------- //
-// Security: four proofs, each checkable from this page
-// --------------------------------------------------------------------------- //
-
-export const BENTO = {
-  tamper: {
-    title: 'Try to rewrite the record.',
-    line: 'Three records from the run above, re-hashed by your browser. Change one value and watch the chain refuse it.',
-    // The edit offered: who did it. Offered only when the stored record says so.
-    edit: { path: ['actor'], from: '"engineer"', to: '"reviewer"', label: 'Change who did it' },
-    restore: 'Put it back',
-    verified: 'All {n} records re-hash to their stored values here, and each one links to the one before it.',
-    broken: 'Seq {seq} no longer matches the hash stored with it, and seq {next} still points at the original. The edit shows.',
-    brokenLast: 'Seq {seq} no longer matches the hash stored with it. The edit shows.',
-    idle: 'Re-hashing in your browser when this is on screen.',
-  },
-  airgap: {
-    title: 'Egress, read live.',
-    line: 'The monitor watches the workbench’s own processes for any connection past loopback, and this page reads it live.',
-  },
-  attacks: {
-    title: 'Attacks, contained.',
-    line: 'The sandbox self-test this host recorded: each payload, and what the sandbox did with it.',
-  },
-  requests: {
-    title: 'This page talks to one place.',
-    line: 'Every request this page has made so far, counted by your browser. No CDN, no analytics, no third party.',
-  },
-} as const
-
-// --------------------------------------------------------------------------- //
-// 05 — Check it yourself
-// --------------------------------------------------------------------------- //
-
-export const PROOF = {
-  id: 'security',
-  eyebrow: 'Security',
-  title: 'Don’t take our word for it.',
-  titleTurn: 'Check it yourself.',
-  lede: 'No certifications and no benchmark yet. What AEGIS has is evidence, and every piece of it can be checked without asking us.',
-
-  cards: {
-    chain: {
-      title: 'An audit chain your browser re-hashes',
-      line: 'Every record hashes the one before it. Open the evidence and your browser recomputes the run’s last records itself.',
-    },
-    sandbox: {
-      fallbackTitle: 'Code runs in a sandbox',
-      line: 'Fixed attacks — network, filesystem, process escape, runaway memory and CPU — submitted to this host’s sandbox.',
-      caption: 'The last self-test this host recorded, read from its audit log: each payload and what the sandbox did with it.',
-    },
-    egress: {
-      title: 'Egress, read live',
-      line: 'What the monitor sees on this workbench’s own processes, read by your browser right now.',
-    },
-    page: {
-      title: 'This page fetches nothing external',
-      line: 'Served under a policy that allows this origin only: no CDN, no analytics, no third-party script. Check the network tab.',
-    },
-  },
-
-  chain: {
-    // The edit the reader can make: a failed verification, made to pass.
-    edit: { path: ['detail', 'valid'], value: 'true' },
-    labels: {
-      heading: 'Audit chain',
-      source: 'storage/logs/audit.jsonl',
-      idle: 'Not recomputed yet. It runs when this card is on screen.',
-      verified:
-        'Recomputed in this browser: all {records} records hash to the value stored with them, and each prev matches the hash above it.',
-      broken: 'The chain breaks at seq {seq}: that record no longer hashes to the value stored with it.',
-      brokenNext: ' Seq {next} still points at the old value.',
-      recomputed: 'here',
-      stored: 'stored',
-      matches: 'matches',
-      differs: 'does not match',
-      link: 'prev = hash of seq {seq}',
-      linkBroken: 'prev ≠ hash of seq {seq}',
-      storedLine: 'Line as stored',
-      tamper: 'Make the failed verification pass',
-      restore: 'Put the record back',
-    },
-  },
-
-  policy: {
-    label: 'The policy that refuses',
-    source: 'policies/tool-permissions.yaml',
-    lines: [
-      'python_exec:',
-      '  description: Execute generated Python inside the secure sandbox.',
-      '  allowed_roles: [operator, engineer, reviewer, administrator]',
-      '  max_data_classification: restricted',
-      '  side_effects: execute',
-      '  requires_approval: false',
-      '  constraints:',
-      '    sandbox_required: true',
-      '    network_allowed: false',
-    ],
-  },
-
-  sandbox: {
-    label: 'Sandbox self-test',
-  },
-
-  page: {
-    label: 'This page',
-    source: 'response header',
-    // The production header, verbatim from next.config.mjs.
-    lines: [
-      "Content-Security-Policy: default-src 'self';",
-      "  img-src 'self' data:; font-src 'self';",
-      "  script-src 'self' 'unsafe-inline';",
-      "  style-src 'self' 'unsafe-inline'; connect-src 'self';",
-      "  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-    ],
-  },
-} as const
-
-// --------------------------------------------------------------------------- //
-// 06 — What this is not
-// --------------------------------------------------------------------------- //
-
-export const LIMITS = {
-  id: 'limits',
-  eyebrow: 'Limits',
-  title: 'What this is not.',
-  titleTurn: 'Stated plainly.',
-  lede: 'These decide whether AEGIS is right for a deployment. The README has every item in full.',
-  brief: [
-    {
-      id: 'sandbox',
-      title: 'Not VM isolation',
-      line: 'Code runs in a limited subprocess, not a VM or container. Hostile input needs an OS boundary around it too.',
-    },
-    {
-      id: 'words',
-      title: 'Checks match words, not meaning',
-      line: 'A sentence can cite the right table and read the wrong row. That is why a person reviews what is held.',
-    },
-    {
-      id: 'chain',
-      title: 'Tamper-evident, not tamper-proof',
-      line: 'The audit chain shows an edit. An operator with write access can still rewrite the whole log.',
-    },
-    {
-      id: 'latency',
-      title: 'Latency is hardware-bound',
-      line: 'On a CPU-only host a question takes tens of seconds. A GPU changes this.',
-    },
-    {
-      id: 'policy',
-      title: 'Policies are a default',
-      line: 'The shipped roles, classifications and approval rules are sensible defaults, not your organisation’s.',
-    },
-    {
-      id: 'benchmark',
-      title: 'No certifications or benchmark yet',
-      line: 'Accuracy claims wait for an evaluation set. The audit chain supports an assurance process; it is not one.',
-    },
-  ],
-  // The run's own time, when the page has it.
-  latencyLine: (total: string) =>
-    `The run above took ${total} on a two-core laptop CPU with no GPU. A GPU changes this.`,
-  readme: {
-    label: 'Every limit, in full, in the README',
-    href: `${REPO_URL}#limits`,
-  },
-} as const
-
-// --------------------------------------------------------------------------- //
-// 07 — Run it
+// Run it
 // --------------------------------------------------------------------------- //
 
 export const RUN_IT = {
@@ -399,54 +175,69 @@ export const RUN_IT = {
 } as const
 
 // --------------------------------------------------------------------------- //
-// Footer
+// Header and footer
 // --------------------------------------------------------------------------- //
 
 /** The header's anchors, in page order. */
 export const NAV = [
-  { href: '#how', label: 'How it works' },
+  { href: '#crew', label: 'The crew' },
   { href: '#proof', label: 'Proof' },
-  { href: '#replay', label: 'Replay' },
-  { href: '#use-cases', label: 'Use cases' },
-  { href: '#security', label: 'Security' },
-  { href: '#limits', label: 'Limits' },
+  { href: '#product', label: 'Workbench' },
+  { href: '#run-it', label: 'Run it' },
 ] as const
 
+/**
+ * A file in the repository, on GitHub. Every path below was checked against
+ * the branch it names with `git ls-tree`: `main` where the file is there, and
+ * `redesign/hi-vis` only for a file that has not reached main yet.
+ */
+const onGitHub = (path: string, branch: 'main' | 'redesign/hi-vis' = 'main') => `${REPO_URL}/blob/${branch}/${path}`
+
 export const FOOTER = {
-  cta: {
-    eyebrow: 'On your own hardware',
-    title: 'Local is not enough.',
-    turn: 'So prove the rest.',
-    lede: 'Put a workbench on your own hardware whose every answer shows its sources, its checks and its record.',
-  },
-  blurb: 'An air-gapped AI workbench for regulated industrial work.',
-  // A property of the design, not a reading: the inference client refuses an
-  // endpoint that is not on this host.
-  status: 'Models, retrieval and audit on your own hardware',
+  blurb: 'An air-gapped AI workbench for regulated industrial work. Every answer cited, checked and recorded on the machine it ran on.',
   columns: [
     {
       heading: 'Product',
       links: [
+        { label: 'The crew', href: '#crew' },
+        { label: 'Proof', href: '#proof' },
+        { label: 'The workbench', href: '#product' },
         { label: 'Sign in', href: '/sign-in' },
-        { label: 'How a run is proved', href: '#proof' },
-        { label: 'The run, replayed', href: '#replay' },
-        { label: 'Use cases', href: '#use-cases' },
-        { label: 'What this is not', href: '#limits' },
       ],
     },
     {
-      heading: 'Source',
+      heading: 'Run it',
       links: [
-        { label: 'Repository', href: REPO_URL },
-        { label: 'Architecture notes', href: `${REPO_URL}/tree/main/docs` },
+        { label: 'Get started', href: '#run-it' },
+        { label: 'Hardware', href: `${onGitHub('docs/handbook/01-getting-started/02-requirements.md')}#hardware` },
+        { label: 'Install on Windows', href: onGitHub('docs/handbook/01-getting-started/04-install-windows.md') },
+        { label: 'Offline install', href: onGitHub('docs/handbook/01-getting-started/09-offline-install.md') },
+        { label: 'Demo-day runbook', href: onGitHub('docs/handbook/14-demo-guide/03-demo-day.md', 'redesign/hi-vis') },
+      ],
+    },
+    {
+      heading: 'Trust',
+      links: [
+        { label: 'The audit log', href: onGitHub('docs/handbook/09-security/05-audit-log.md') },
+        { label: 'Threat model', href: onGitHub('docs/handbook/09-security/06-threat-model.md') },
+        { label: 'The sandbox', href: onGitHub('docs/handbook/09-security/03-sandbox.md') },
+        // GitHub's anchor for "⚠️ Limitations" keeps the emoji's variation selector.
+        { label: 'Known limits', href: `${REPO_URL}#%EF%B8%8F-limitations` },
+        { label: 'What verification cannot catch', href: onGitHub('docs/handbook/08-verification/05-limits.md') },
+      ],
+    },
+    {
+      heading: 'Project',
+      links: [
+        { label: 'GitHub', href: REPO_URL },
+        { label: 'Handbook', href: onGitHub('docs/handbook/README.md') },
+        { label: 'What it implements today', href: onGitHub('docs/IMPLEMENTED.md') },
+        { label: 'Architecture', href: onGitHub('docs/handbook/04-architecture/README.md') },
       ],
     },
   ],
-  build: {
-    heading: 'Build',
-    lines: ['api 127.0.0.1:8000', 'inference 127.0.0.1:11434'],
-  },
-  bottomLeft: 'Smart India Hackathon 2026',
-  bottomRight: 'No analytics on this page.',
+  copyright: '© 2026 AEGIS',
+  // The page's CSP allows this origin only (next.config.mjs), so this is enforced, not promised.
+  bottomRight: 'No analytics on this page',
+  giant: 'AEGIS',
 } as const
-

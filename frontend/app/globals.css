@@ -1884,7 +1884,6 @@ html[data-theme='dark'],
   /* ---- the five scenes ------------------------------------------------------ */
 
   /* Each scene plays once as it becomes the current step. */
-  @keyframes ae-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 
   /* ---- security: the bento on the night band --------------------------------- */
 
@@ -1932,36 +1931,9 @@ html[data-theme='dark'],
 
   /* The machine, as a boundary. */
 
-  /* The recorded attacks, ticking in. */
-  .ae-atk-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; margin: 0; padding: 0; list-style: none; }
-  .ae-atk-list li { display: flex; align-items: baseline; gap: 10px; font-size: 0.9rem; line-height: 1.4; color: var(--foreground); }
-  .ae-atk-list .g { flex-shrink: 0; font-family: var(--font-mono); color: var(--sovereign-text); }
-  .ae-atk-list .no .g { color: var(--critical-text); }
-  :where(html[data-js]) .ae-atk-list li { opacity: 0; }
-  .ae-in .ae-atk-list li { opacity: 1; animation: ae-pop 0.45s var(--ae-ease) both; animation-delay: calc(var(--i) * 90ms + 250ms); }
-  .ae-atk-foot { margin: 16px 0 0; font-family: var(--font-mono); font-size: 0.72rem; color: color-mix(in oklab, var(--foreground) 52%, transparent); }
-  @media (min-width: 640px) and (max-width: 1023px) { .ae-atk-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
-  /* What this page has fetched, counted by the reader's browser. */
-  .ae-req-figure { display: flex; align-items: baseline; gap: 10px; margin: 0; }
-  .ae-req-figure .n { font-size: clamp(2.4rem, 4vw, 3.2rem); font-weight: 600; line-height: 1; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; color: var(--foreground); }
-  .ae-req-figure .u { font-size: 0.95rem; color: color-mix(in oklab, var(--foreground) 60%, transparent); }
-  .ae-req-line { margin: 8px 0 0; font-size: 0.92rem; color: color-mix(in oklab, var(--foreground) 75%, transparent); }
-  .ae-req-line.ok { color: var(--sovereign-text); }
-  .ae-req-line.no { color: var(--critical-text); }
-  .ae-req-list {
-    display: flex; flex-direction: column; gap: 5px; margin: 16px 0 0; padding: 12px 14px; list-style: none; border-radius: 12px;
-    border: 1px solid oklch(1 0 0 / 0.08); background: oklch(1 0 0 / 0.03);
-    font-family: var(--font-mono); font-size: 0.72rem; color: color-mix(in oklab, var(--foreground) 64%, transparent);
-  }
-  .ae-req-list li { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .ae-req-list li.no { color: var(--critical-text); }
-  .ae-req-list .host { margin-right: 6px; color: color-mix(in oklab, var(--foreground) 40%, transparent); }
-
   @media (prefers-reduced-motion: reduce) {
     .ae-tamper-link i, .ae-tamper-block { transition: none; }
-    .ae-in .ae-atk-list li, .ae-tamper-block.edited { animation: none !important; }
-    :where(html[data-js]) .ae-atk-list li { opacity: 1; }
+    .ae-tamper-block.edited { animation: none !important; }
   }
 }
 
@@ -2172,4 +2144,170 @@ html[data-theme='dark'],
 @keyframes thread-fade-out {
   from { opacity: 1; }
   to   { opacity: 0; }
+}
+
+/* ==================================================================== */
+/* THE BRIEF — a checked prose answer, typeset (features/thread/ui/brief) */
+/* Classy in the type: the lede in light, semi-condensed Archivo; claims  */
+/* numbered in Martian Mono between 1px rules; the sources the answer     */
+/* cites in the margin; a square stamp and the crew to sign it off.       */
+/* Playful in the motion, which only a live release gets: rows rise on a  */
+/* 40ms stagger, the stamp lands on the lock curve, the crew ticks on.    */
+/* ==================================================================== */
+.brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.brief-main { min-width: 0; }
+.brief-lede {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-stretch: 92%;
+  font-size: clamp(1.3rem, 2.4vw, 1.575rem);
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+.brief-claims {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.brief-claim {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  padding: 11px 0;
+  border-top: 1px solid var(--line-subtle);
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+.brief-index,
+.brief-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+}
+.brief-index { padding-top: 5px; font-variant-numeric: tabular-nums; }
+.brief-rail {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.brief-rail .brief-label { margin-bottom: 6px; }
+.brief-source {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-subtle);
+  text-align: left;
+  color: var(--foreground-secondary);
+  transition: color 0.12s ease;
+}
+.brief-source:hover,
+.brief-source[data-trace-lit] { color: var(--foreground); }
+.brief-source:focus-visible { outline: none; box-shadow: var(--focus-ring-on-paper); }
+.brief-source-name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brief-source-meta {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--foreground-muted);
+  font-variant-numeric: tabular-nums;
+}
+.brief-signoff {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-default);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+}
+.brief-stamp-tilt { display: inline-block; transform: rotate(-2deg); }
+.brief-stamp {
+  display: inline-block;
+  border: 1.5px solid currentColor;
+  border-radius: 0;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.brief-stamp-ok { color: var(--cite-ink); }
+.brief-stamp-held { color: var(--approval-text); }
+.brief-stamp-critical { color: var(--critical-text); }
+.brief-stamp-neutral { color: var(--foreground-secondary); }
+.brief-crew {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.brief-crew-chip {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  color: var(--foreground-secondary);
+  cursor: default;
+}
+.brief-crew-chip.is-skipped {
+  border-style: dashed;
+  border-color: var(--line-default);
+  color: color-mix(in oklab, var(--foreground-muted) 70%, transparent);
+}
+.brief-meta { margin-left: auto; text-transform: none; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+/* Two deliberate lines: the stamp and the run's time and model, then the */
+/* crew under them, rather than whatever the column width wraps into.     */
+.brief-signoff .brief-crew { order: 3; flex-basis: 100%; }
+.brief-signoff .brief-meta { order: 2; }
+
+/* The margin: beside the claims from 1024px, below them under that. */
+@media (min-width: 1024px) {
+  .brief { grid-template-columns: minmax(0, 1fr) 200px; column-gap: 28px; }
+  .brief-rail {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
+    padding-left: 16px;
+    border-left: 1px solid var(--line-default);
+  }
+  .brief-signoff { grid-column: 1 / -1; }
+}
+/* With room beside the 768px column -- at 1500px, past the 252px sidebar,  */
+/* 240px is free right of it -- the rail moves out into it, and the claims  */
+/* keep the column's full measure. Not while the evidence rail is docked    */
+/* on the right: it takes that room.                                        */
+@media (min-width: 1500px) {
+  .thread-column:not([data-rail-docked]) .brief {
+    grid-template-columns: minmax(0, 1fr) 220px;
+    margin-right: -248px;
+  }
+}
+
+/* Only on a live release; the component adds none of it under reduced motion. */
+.brief-rise {
+  animation: brief-rise 420ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+@keyframes brief-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brief-rise,
+  .brief .hv-lock,
+  .brief .hv-tick { animation: none; opacity: 1; transform: none; }
 }
