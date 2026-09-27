@@ -1,5 +1,6 @@
 'use client'
 
+import { spokenDuration } from '@/lib/duration'
 import { useState, type ReactNode, type RefObject } from 'react'
 import { ArrowLeft, Download } from 'lucide-react'
 import type { EvidenceItem, Task, VerificationReport } from '@/lib/types'
@@ -567,7 +568,7 @@ export function ReviewPane({
         <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-foreground-muted">
           <span>{item.submittedBy ? `Submitted by ${item.submittedBy}` : 'Submitter not recorded'}</span>
           <span>{stamp(item.createdAt)}</span>
-          {task?.duration_ms != null && <span>ran {(task.duration_ms / 1000).toFixed(1)} s</span>}
+          {task?.duration_ms != null && <span>ran {spokenDuration(task.duration_ms)}</span>}
           {task?.profile?.task_type && <span>{task.profile.task_type.replace(/_/g, ' ')}</span>}
         </p>
         {held && !canDecide && (

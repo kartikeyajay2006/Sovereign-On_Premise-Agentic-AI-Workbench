@@ -30,11 +30,10 @@ const reticle = R.reticleLabel ? R.reticleLabel.split(' · ') : []
 
 /** The meta rail: small uppercase lines, each value the record's. */
 const rail = ([
-  { k: RAIL.run, v: R.runId },
   R.total ? { k: RAIL.time, v: R.total } : null,
   R.modelName ? { k: RAIL.model, v: R.modelName } : null,
-  checksLine ? { k: RAIL.checks, v: `${R.passedChecks} / ${R.checks.length} passed` } : null,
-  R.headSeq !== null && R.hash8 ? { k: RAIL.chain, v: `#${R.headSeq} · ${R.hash8}` } : null,
+  checksLine ? { k: RAIL.checks, v: `${R.passedChecks} of ${R.checks.length} passed` } : null,
+  R.headSeq !== null && R.hash8 ? { k: RAIL.chain, v: `record #${R.headSeq}` } : null,
   { k: RAIL.recorded, v: R.capturedOn },
 ] as Array<{ k: string; v: string } | null>).filter((row): row is { k: string; v: string } => row !== null)
 
@@ -226,21 +225,16 @@ export default function LandingPage() {
               <b>{STATS.cited.value}</b>
               {R.cite && R.claims ? (
                 <span className="sub">
-                  this run: {R.claims.supported}/{R.claims.total} · {R.cite.id} {R.cite.label}
+                  this answer: {R.cite.label}, {R.claims.supported} of {R.claims.total} {R.claims.total === 1 ? 'claim' : 'claims'} traced
                 </span>
               ) : null}
-            </div>
-            <div className="cell">
-              <small>{STATS.formula.label}</small>
-              <b>{STATS.formula.value}</b>
-              <span className="sub">{STATS.formula.line}</span>
             </div>
             <div className="cell">
               <small>{STATS.sealed.label}</small>
               <b>{STATS.sealed.value}</b>
               {R.headSeq !== null && R.hash8 ? (
                 <span className="sub">
-                  this run: #{R.headSeq} · {R.hash8}
+                  this run: record #{R.headSeq}
                 </span>
               ) : null}
             </div>

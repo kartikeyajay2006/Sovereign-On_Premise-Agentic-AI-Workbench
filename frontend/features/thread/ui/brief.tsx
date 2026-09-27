@@ -1,5 +1,6 @@
 'use client'
 
+import { spokenDuration } from '@/lib/duration'
 import type { CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 import type { AssistantTurn } from '../model/types'
@@ -132,7 +133,7 @@ export function BriefAnswer({
         )}
         {(turn.elapsedMs !== null || models.length > 0) && (
           <span className="brief-label brief-meta">
-            {[turn.elapsedMs !== null ? `${(turn.elapsedMs / 1000).toFixed(1)} s` : null, models.join(' + ') || null]
+            {[turn.elapsedMs !== null ? spokenDuration(turn.elapsedMs) : null, models.join(' + ') || null]
               .filter(Boolean)
               .join(' · ')}
           </span>

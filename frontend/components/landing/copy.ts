@@ -49,10 +49,10 @@ export const HERO = {
 export const RAIL = {
   label: 'Recorded run',
   run: 'Run',
-  time: 'Question → answer',
+  time: 'Answered in',
   model: 'Model',
   checks: 'Checks',
-  chain: 'Chain',
+  chain: 'Sealed as',
   recorded: 'Recorded',
 } as const
 
@@ -61,12 +61,11 @@ export const STATS = {
   egress: {
     label: 'Egress',
     unit: (n: number) => (n === 1 ? 'connection' : 'connections'),
-    live: (since: string | null) => `read live from this host${since ? ` · since ${since} UTC` : ''}`,
-    recorded: (seq: number) => `this run, as its record #${seq} wrote it`,
-    reading: 'reading GET /api/status…',
+    live: (_since: string | null) => 'measured live on this machine',
+    recorded: (_seq: number) => 'as this run recorded it',
+    reading: 'measuring…',
   },
   cited: { label: 'Every answer', value: 'cited' },
-  formula: { label: 'Figures', value: 'by formula', line: 'recomputed before release; this run stated none' },
   sealed: { label: 'Record', value: 'sealed' },
 } as const
 
@@ -77,16 +76,16 @@ export const STATS = {
 export const CREW_COPY = {
   id: 'crew',
   eyebrow: 'The crew',
-  title: 'Ten stages.',
-  titleKey: 'One orchestrator.',
-  lede: 'A run passes through these stages in this order, driven by one orchestrator: they are named so they can be talked about, not because they act alone. WARDEN and NOTARY work across the whole run. Each card says what the stage runs on, a local model or no model at all.',
+  title: 'Ten steps.',
+  titleKey: 'One answer.',
+  lede: 'Every question takes the same path through your machine, one step after another. Each step has a name, one job, and the model it runs on, or none at all.',
   runsOn: 'Runs on',
   across: 'across the run',
   /** Said under every drawing, once, for the grid. */
-  note: 'Drawings are illustrations. Their labels are the recorded run’s, or a stage’s configuration.',
+  note: 'The drawings are illustrations. Their labels come from a real run.',
   relay: {
-    label: 'The recorded run, stage by stage',
-    legend: 'Lit: ran, with what the record measured · Struck: skipped, with the record’s reason',
+    label: 'One real question, step by step',
+    legend: 'Lit: worked on it · Struck through: not needed, and why',
     unrecorded: 'not recorded',
     ran: 'ran',
     skipped: 'skipped',
@@ -102,7 +101,7 @@ export const PROOF_SEQ = {
   eyebrow: 'Proof',
   title: 'From the page',
   titleKey: 'to the seal.',
-  lede: 'One answer, followed back to the paragraph it rests on and forward to the record that closes it. Every word below is the recorded run’s.',
+  lede: 'Follow one answer back to the paragraph it came from, and forward to the record that seals it.',
   steps: {
     document: { label: 'Document', title: 'The procedure it searched.' },
     excerpt: { label: 'Excerpt', title: 'The clause it found.' },
@@ -119,14 +118,14 @@ export const PROOF_SEQ = {
 // --------------------------------------------------------------------------- //
 
 export const CHAIN_VERIFY = {
-  label: 'Chain verify',
+  label: 'Check it yourself',
   title: 'Recomputed in your browser.',
-  line: 'The run’s last three audit records as captured, between the record before them, known by its hash, and the run’s sealed head. The capture holds these three records, so three are re-hashed.',
+  line: 'Your browser re-hashes the run’s last records and checks that each one links to the one before it.',
   before: 'before',
   beforeLine: 'known by its hash',
   head: 'run head',
-  idle: 'Re-hashes when this is on screen.',
-  verified: 'All {n} records hash to their stored values here, each prev matches the hash before it, and the head matches the run’s seal.',
+  idle: 'Checks itself when it comes on screen.',
+  verified: 'All {n} records check out, and the chain ends at the run’s seal.',
   broken: 'The chain breaks at {at}.',
 } as const
 
@@ -137,14 +136,14 @@ export const CHAIN_VERIFY = {
 export const TAMPER = {
   label: 'Tamper test',
   title: 'Try to rewrite the record.',
-  line: 'The run’s last three records, re-hashed by your browser. Change one value and watch the chain refuse it.',
+  line: 'Change one word in the record and watch the chain catch it.',
   // The edit offered: who did it. Offered only when the stored record says so.
   edit: { path: ['actor'], from: '"engineer"', to: '"reviewer"', label: 'Change who did it' },
   restore: 'Put it back',
-  verified: 'All {n} records re-hash to their stored values here, and each one links to the one before it.',
-  broken: 'Seq {seq} no longer matches the hash stored with it, and seq {next} still points at the original. The edit shows.',
-  brokenLast: 'Seq {seq} no longer matches the hash stored with it. The edit shows.',
-  idle: 'Re-hashing in your browser when this is on screen.',
+  verified: 'All {n} records check out.',
+  broken: 'Record {seq} no longer matches its seal, and record {next} still points at the original. The edit shows.',
+  brokenLast: 'Record {seq} no longer matches its seal. The edit shows.',
+  idle: 'Checks itself when it comes on screen.',
 } as const
 
 // --------------------------------------------------------------------------- //
@@ -169,8 +168,8 @@ export const RUN_IT = {
   ],
   next: [
     'Open http://127.0.0.1:3000 and sign in with one of the demo accounts.',
-    'Ask a question, or type / for a skill. Watch each step as it runs.',
-    'Sign in as the reviewer to release what was held.',
+    'Ask a question, or type / to pick a skill.',
+    'Sign in as the reviewer to release anything held.',
   ],
 } as const
 
