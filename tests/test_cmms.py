@@ -167,11 +167,18 @@ def test_cmms_read_failures_are_reported(tmp_path: Path, monkeypatch: pytest.Mon
 # ----------------------------------------------------------- the run's stage
 def _stage(task, orchestrator: AgentOrchestrator, tmp_path: Path, limitations: list[str] | None = None):
     audited: list[dict[str, Any]] = []
+    # The audit log is a process-wide singleton: record into a list for this
+    # stage only, and put the real method back, or every later test in the
+    # session loses its audit trail.
+    original = orchestrator.audit.record
     orchestrator.audit.record = lambda **entry: audited.append(entry)  # type: ignore[method-assign]
-    context = ToolContext(user=ENGINEER, task_id=task.id, sensitivity=task.profile.sensitivity,
-                          files=task.files, workspace=tmp_path)
-    sentence = asyncio.run(orchestrator._maintenance_stage(
-        task, context, EvidenceLedger(task.evidence), limitations if limitations is not None else []))
+    try:
+        context = ToolContext(user=ENGINEER, task_id=task.id, sensitivity=task.profile.sensitivity,
+                              files=task.files, workspace=tmp_path)
+        sentence = asyncio.run(orchestrator._maintenance_stage(
+            task, context, EvidenceLedger(task.evidence), limitations if limitations is not None else []))
+    finally:
+        orchestrator.audit.record = original  # type: ignore[method-assign]
     return sentence, audited
 
 
