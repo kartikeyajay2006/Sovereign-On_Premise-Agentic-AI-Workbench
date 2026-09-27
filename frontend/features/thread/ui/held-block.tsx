@@ -121,8 +121,8 @@ export function HeldBlock({ turn, canReview }: { turn: AssistantTurn; canReview:
           <p className="mt-1.5 text-meta text-foreground-secondary">
             <span className="text-foreground">Withheld: </span>
             {withheldFile
-              ? `${withheldFile}, which cannot be downloaded until it is released.`
-              : 'the release of this run. The answer above is shown for review, not released.'}
+              ? `${withheldFile}. No download until it is released.`
+              : 'the release of this run. The answer above is shown for review only.'}
           </p>
           {canReview && (
             <Link

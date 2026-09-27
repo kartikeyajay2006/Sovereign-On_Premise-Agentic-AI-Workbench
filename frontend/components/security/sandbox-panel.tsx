@@ -61,7 +61,7 @@ export function useSandboxTest() {
             : `Containment failure: ${report.total - report.passed} of ${report.total} did not hold`,
         detail: report.assessable
           ? `${report.duration_ms} ms. Recorded in the audit chain.`
-          : 'No payload was submitted, so no claim is made either way.',
+          : 'Nothing was submitted, so no claim either way.',
         tone: !report.assessable ? 'default' : report.all_passed ? 'sovereign' : 'critical',
       })
     } catch (error) {
@@ -132,7 +132,7 @@ export const SandboxPanel = memo(function SandboxPanel({
       <p className="text-ui text-foreground-muted">
         {run.phase === 'done' || run.phase === 'failed'
           ? 'Each run is recorded in the audit chain. '
-          : 'The self-test submits real payloads — a socket, a process escape, a write outside the workspace, runaway CPU and memory — and reports what the sandbox did with each. '}
+          : 'Real payloads — a socket, a process escape, a write outside the workspace, runaway CPU and memory — and what the sandbox did with each. '}
         <Link
           href="/sandbox"
           className="inline-flex items-center gap-1 font-medium text-foreground-secondary underline-offset-2 hover:text-foreground hover:underline"

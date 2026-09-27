@@ -204,8 +204,8 @@ export function ReadingLine({
         {slow && (
           <span className="text-foreground-muted">
             {' '}
-            The service shares this machine&rsquo;s CPU with local inference, so a run in progress
-            slows it down.
+            The service shares this machine&rsquo;s CPU with local inference; a run in progress slows
+            it.
           </span>
         )}
       </p>
@@ -224,12 +224,12 @@ function failureCopy(failure: ReadFailure, what: string): { headline: string; ne
     case 'timeout':
       return {
         headline: `No answer after ${failure.waitedS ?? '?'} s while reading ${what}.`,
-        next: 'Nothing is shown in its place. The service may be busy with a run on this machine; retry once it finishes.',
+        next: 'Nothing is shown in its place. The service may be busy with a run; retry when it finishes.',
       }
     case 'unreachable':
       return {
         headline: `Can't reach the workbench service to read ${what}.`,
-        next: 'Nothing is shown in its place. Check that the backend is running, then retry.',
+        next: 'Nothing is shown in its place. Start the backend, then retry.',
       }
     case 'unauthenticated':
       return {
@@ -248,7 +248,7 @@ function failureCopy(failure: ReadFailure, what: string): { headline: string; ne
       }
     case 'unreadable':
       return {
-        headline: `${what.charAt(0).toUpperCase()}${what.slice(1)} arrived in a form this page could not read.`,
+        headline: `${what.charAt(0).toUpperCase()}${what.slice(1)} arrived in a form this page cannot read.`,
         next: 'The error is below.',
       }
   }

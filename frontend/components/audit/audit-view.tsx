@@ -201,7 +201,7 @@ export function AuditView() {
     <div className="flex flex-col">
       <PageHeader
         title="Audit"
-        description="Every task, model call, decision and sign-in on this host, hash-linked so that changing or removing a record breaks the chain."
+        description="Every run, model call, decision and sign-in on this host, hash-linked: change or remove a record and the chain breaks."
         // The chain's state is the panel below, from the server and from this
         // browser; a row of the same readings above it said it twice.
         actions={
@@ -216,7 +216,7 @@ export function AuditView() {
                 icon={Download}
                 busy={exporting}
                 busyLabel="Exporting…"
-                title="Download the log as JSON lines. The export is recorded in the chain."
+                title="Download the log as JSON lines. The export itself is recorded in the chain."
                 onClick={() => void exportLog()}
               >
                 Export
@@ -267,7 +267,7 @@ export function AuditView() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search actions, actors, task ids — Enter to search"
+                placeholder="Search actions, actors, run ids — Enter to search"
                 aria-label="Search the audit trail"
                 className="hover-decay h-[var(--control-sm)] w-full rounded-[var(--radius)] bg-surface pl-8 pr-8 text-body text-foreground shadow-[0_0_0_1px_var(--control-default)] outline-none placeholder:text-foreground-muted hover:shadow-[0_0_0_1px_var(--control-strong)] focus:shadow-[var(--focus-halo)] [&::-webkit-search-cancel-button]:hidden"
               />
@@ -320,7 +320,7 @@ export function AuditView() {
 
           {records.status === 'failed' && records.data && (
             <p role="alert" className="text-ui text-critical-text">
-              The last refresh failed; these are the records read at {clockTime(records.readAt)}.{' '}
+              Refresh failed. Showing the records read at {clockTime(records.readAt)}.{' '}
               {records.failure?.detail ?? ''}
             </p>
           )}

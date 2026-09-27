@@ -70,7 +70,7 @@ export const OUTCOME: Record<HarnessOutcome, OutcomeSpec> = {
   },
   refused: {
     label: 'Refused',
-    meaning: 'Policy refused it before an answer was released. The system working, not failing.',
+    meaning: 'Policy refused it before any answer was released. That is the system working.',
     state: 'refused',
     // ⛔ followed by U+FE0E. The character defaults to emoji presentation,
     // which Windows draws as a colour emoji that ignores the glyph's ink;
@@ -85,7 +85,7 @@ export const OUTCOME: Record<HarnessOutcome, OutcomeSpec> = {
   },
   running: {
     label: 'Running',
-    meaning: 'The worker is executing it now.',
+    meaning: 'Running on the worker now.',
     state: 'active',
     glyph: '◐',
   },

@@ -124,8 +124,8 @@ export function VerificationPanel({
     } else {
       agreement = (
         <span className="text-critical-text">
-          The server and this browser disagree about this chain. Neither verdict should be relied on
-          until the log is inspected.
+          The server and this browser disagree about this chain. Trust neither verdict until the log is
+          inspected.
         </span>
       )
     }
@@ -140,8 +140,8 @@ export function VerificationPanel({
       <div className="flex flex-col gap-2">
         {chain.status === 'failed' && !server ? (
           <Verdict who="Server" glyph="?" tone="muted">
-            No verdict. The server&rsquo;s check could not be read, which says nothing about whether the
-            chain is intact.
+            No verdict. The server&rsquo;s check could not be read; that says nothing about the chain
+            itself.
           </Verdict>
         ) : !server ? (
           <Verdict who="Server" glyph="·" tone="muted">
@@ -162,8 +162,8 @@ export function VerificationPanel({
 
         {!canCheck ? (
           <Verdict who="This browser" glyph="—" tone="muted">
-            Not available to this role. Recomputing the chain needs the full log, and reading the full log
-            needs <span className="font-mono text-ui">audit.read.all</span>.
+            Not for this role. Recomputing the chain needs the full log, which needs{' '}
+            <span className="font-mono text-ui">audit.read.all</span>.
           </Verdict>
         ) : check.phase === 'idle' ? (
           <Verdict who="This browser" glyph="·" tone="muted">

@@ -298,7 +298,7 @@ export function CommandPalette() {
       id: 'action-new-run',
       group: 'Actions',
       label: 'New run',
-      hint: 'go to the thread, to ask something',
+      hint: 'ask in the thread',
       go: () => {
         router.push('/console')
         window.dispatchEvent(new Event(NEW_RUN_EVENT))
@@ -311,7 +311,7 @@ export function CommandPalette() {
       id: 'action-self-test',
       group: 'Actions',
       label: 'Containment self-test',
-      hint: 'on the Sandbox screen, where it runs against this host',
+      hint: 'on the Sandbox screen, against this host',
       go: () => router.push('/sandbox'),
     })
     for (const other of ROLES) {
@@ -329,7 +329,7 @@ export function CommandPalette() {
             const detail = (error as { message?: unknown })?.message
             push({
               title: `Could not sign in as ${other.label}`,
-              detail: typeof detail === 'string' ? detail : 'The workbench did not accept the switch.',
+              detail: typeof detail === 'string' ? detail : 'The workbench refused the switch.',
               tone: 'critical',
             })
           })

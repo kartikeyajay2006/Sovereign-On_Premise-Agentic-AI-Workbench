@@ -32,9 +32,9 @@ def readable_task(task_id: str, user: User) -> Task:
     """The run, if it exists and this person may read it; the same rule as GET /tasks/{id}."""
     task = get_task_service().get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task not found: {task_id}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run not found: {task_id}")
     if task.user_id != user.id and "task.read.all" not in get_config().role_permissions(user.role):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You may only read your own tasks")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You may only read your own runs")
     return task
 
 

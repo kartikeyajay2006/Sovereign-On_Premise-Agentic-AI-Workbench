@@ -47,7 +47,7 @@ function ServiceUnreachable({ api, className }: { api: string; className?: strin
     <div role="alert" className={className}>
       <ErrorState
         headline="The workbench service is not reachable from this browser."
-        nextAction="The sign-in got no answer, so this says nothing about the password. Start the backend on this machine, then sign in again."
+        nextAction="No answer came back, so this says nothing about your password. Start the backend on this machine, then sign in again."
         identifier={{ label: 'api', value: api }}
       />
     </div>
@@ -266,7 +266,7 @@ export function SignInView({ api }: { api: string }) {
             <ChevronRight aria-hidden className="size-3.5 text-foreground-muted transition-transform group-open:rotate-90 motion-reduce:transition-none" />
           </summary>
           <p className="mt-3 text-[0.8rem] leading-[1.5] text-foreground-muted">
-            Seeded because this host runs in demo mode. Each signs in with the shared demo password.
+            Seeded for demo mode. Each uses the shared demo password.
           </p>
           <ul className="mt-3 flex flex-col border-t border-line-subtle">
             {demo.map((account) => {

@@ -1783,7 +1783,7 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
-                    f"Reading {len(images)} visual input(s) with the vision model",
+                    f"Reading {len(images)} image(s) with the vision model",
                     phase="vision_extraction",
                 )
                 findings: list[dict[str, Any]] = []
@@ -1852,9 +1852,9 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.PLANNED,
-                    "Producing an execution plan"
+                    "Planning the run"
                     if template is None
-                    else f"Plan taken from the task shape: {template}",
+                    else f"Plan taken from the request shape: {template}",
                     None if template is None else {"template": True},
                     phase="planning",
                 )
@@ -1872,7 +1872,7 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.PLANNED,
-                    "No plan required: a single retrieval step with no code, files or deliverable",
+                    "No plan needed: one retrieval step, no code, files or deliverable",
                     {"skipped": True},
                     phase="planning",
                 )
@@ -1983,9 +1983,9 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
-                    "No generated code: the sources disagree, and no figure is computed until a person resolves it"
+                    "No code: the sources disagree, and no figure is computed until a person resolves it"
                     if task.assessment is not None and task.assessment.status == "conflicted"
-                    else "No generated code: every requested figure was computed by registered formulas",
+                    else "No code: every figure came from registered formulas",
                     {"skipped": True},
                     phase="code_execution",
                 )
@@ -1993,7 +1993,7 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
-                    "Generating and running code in the sandbox",
+                    "Writing and running code in the sandbox",
                     phase="code_execution",
                 )
                 self._mark_step(task, {"python_exec", "spreadsheet_analyze"}, "running")
@@ -2007,7 +2007,7 @@ class AgentOrchestrator:
             await self._stage(
                 task,
                 TaskStatus.EXECUTING,
-                "Reasoning over the gathered evidence",
+                "Reasoning over the evidence",
                 phase="reasoning",
             )
             self._mark_step(task, {"reason", "analysis"}, "running")
@@ -2029,7 +2029,7 @@ class AgentOrchestrator:
             await self._stage(
                 task,
                 TaskStatus.VERIFYING,
-                "Verifying evidence and calculations",
+                "Checking evidence and calculations",
                 phase="verification",
             )
 
@@ -2313,7 +2313,7 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.AWAITING_APPROVAL,
-                    "Held for human approval before release",
+                    "Held for review before release",
                     {"reasons": reasons, "approver_roles": approvers},
                 )
                 self.audit.record(
@@ -2332,7 +2332,7 @@ class AgentOrchestrator:
                     )
                     for deliverable in task.deliverables:
                         deliverable.released = True
-                await self._stage(task, TaskStatus.DELIVERED, "Task complete")
+                await self._stage(task, TaskStatus.DELIVERED, "Delivered")
                 task.completed_at = datetime.now(timezone.utc)
 
         except TaskCancelled:
@@ -2459,7 +2459,7 @@ class AgentOrchestrator:
             )
             if task.approval.required:
                 await self._stage(
-                    task, TaskStatus.AWAITING_APPROVAL, "Held for human approval before release",
+                    task, TaskStatus.AWAITING_APPROVAL, "Held for review before release",
                     {"reasons": task.approval.reasons, "approver_roles": task.approval.approver_roles},
                 )
             else:
@@ -2591,7 +2591,7 @@ class AgentOrchestrator:
                 await self._stage(
                     task,
                     TaskStatus.EXECUTING,
-                    "No inspection record in the evidence for the formula registry to assess",
+                    "No inspection record in the evidence for the formula registry",
                     {"skipped": True},
                     phase="engineering",
                 )
@@ -2685,7 +2685,7 @@ class AgentOrchestrator:
             TaskStatus.EXECUTING,
             "Sources contradict each other on "
             + ", ".join(record.label for record in fresh)
-            + ": held for a human resolution",
+            + ": held for a person to resolve",
             phase="engineering",
         )
         await self._announce_conflicts(task, user, known)

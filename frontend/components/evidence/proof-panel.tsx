@@ -92,7 +92,7 @@ export function ProofPanel({ taskId }: { taskId: string }) {
       </div>
       {!verified && !error && (
         <p className="text-ui text-foreground-muted">
-          Checks the run&apos;s certificate against this host&apos;s Ed25519 key, its sealed audit log and the
+          Checks the certificate against this host&apos;s Ed25519 key, the sealed audit log and the
           deliverable bytes on disk.
         </p>
       )}

@@ -77,7 +77,7 @@ export function RegistryView() {
     <div className="flex flex-col">
       <PageHeader
         title="Knowledge"
-        description="What retrieval can cite, the models on this host, and a tester for retrieval itself."
+        description="What retrieval can cite, the models on this host, and a retrieval tester."
         actions={
           <>
             <Button

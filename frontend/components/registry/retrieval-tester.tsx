@@ -210,7 +210,7 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
           <EmptyState
             className="rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]"
             title="No passage cleared the retrieval threshold"
-            body={`Nothing in the index this role can read scored high enough for “${result.query}”. A task asking this would retrieve no evidence, and any citation it made would resolve to nothing.`}
+            body={`Nothing this role can read scored high enough for “${result.query}”. A run asking this would retrieve no evidence, and its citations would point at nothing.`}
           />
         ) : (
           <ol className="overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]">
@@ -252,7 +252,7 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
                   setQuery('')
                 }
               }}
-              placeholder="Ask the index what a task would ask it, e.g. severity for cladding damage over 20%"
+              placeholder="Ask what a run would ask, e.g. severity for cladding damage over 20%"
               aria-label="Retrieval query"
               className="hover-decay h-[var(--control-lg)] w-full rounded-[var(--radius)] bg-surface pl-9 pr-10 text-body text-foreground shadow-[0_0_0_1px_var(--control-default)] outline-none placeholder:text-foreground-muted hover:shadow-[0_0_0_1px_var(--control-strong)] focus:shadow-[var(--focus-halo)] disabled:opacity-[var(--opacity-disabled)]"
             />
@@ -282,13 +282,12 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
         <p className="text-ui text-foreground-muted">
           {canSearch ? (
             <>
-              Runs as {searchedAs}. The service limits retrieval to the departments this role may read,
-              exactly as it does for a task.
+              Runs as {searchedAs}, limited to the departments this role may read, exactly as a run is.
             </>
           ) : (
             <>
-              Your role does not hold <span className="font-mono">knowledge.search</span>, so the service
-              refuses retrieval for it.
+              Your role lacks <span className="font-mono">knowledge.search</span>, so the service refuses
+              retrieval for it.
             </>
           )}
         </p>
@@ -307,7 +306,7 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
           <EmptyState
             className="px-0"
             title="No query run yet"
-            body="Results appear here with the mode the service used, what its scores mean, and how long it took."
+            body="Ask the index a question. Passages land here with the search mode, what the scores mean and the timing."
           />
         )}
       </div>
@@ -319,8 +318,7 @@ export function RetrievalTester({ canSearch, searchedAs }: { canSearch: boolean;
         </h3>
         {history.length === 0 ? (
           <p className="text-ui text-foreground-muted">
-            Each run is listed here until you reload, with its mode and timing, so runs can be compared.
-            Results are kept in memory only.
+            Each query stays listed here with its mode and timing until you reload. Kept in memory only.
           </p>
         ) : (
           <ol className="flex flex-col overflow-hidden rounded-[var(--radius)] bg-surface shadow-[var(--elev-0)]">

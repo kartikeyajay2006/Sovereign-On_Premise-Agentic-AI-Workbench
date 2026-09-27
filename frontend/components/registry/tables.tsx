@@ -98,7 +98,7 @@ export function DocumentsTable({ documents, emptyAction }: { documents: Knowledg
           className="grouped"
           art={<LineArt kind="shelf" />}
           title="No documents are indexed on this host"
-          body="Retrieval has nothing to search, so a task that needs evidence will find none. Ingest a document to make it citable."
+          body="Retrieval has nothing to search, so runs will find no evidence. Ingest a document to make it citable."
           action={emptyAction}
         />
       ) : (
@@ -223,7 +223,7 @@ export function UploadsTable({ files }: { files: StoredFile[] }) {
       <EmptyState
         className="grouped"
         title="No uploads visible to this role"
-        body="Files attached to runs appear here once they are stored. A role sees the uploads it is entitled to read."
+        body="Files attached to runs land here once stored. Each role sees only the uploads it may read."
       />
     )
   }

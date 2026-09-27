@@ -223,7 +223,7 @@ export function CompareScreen() {
     <div className="flex flex-col">
       <PageHeader
         title="Compare"
-        description="Two runs side by side. Every configuration and outcome that differs is named; what a run did not record says so, and is never shown as equal."
+        description="Two runs side by side, every difference named. What a run did not record says so, and never reads as equal."
         meta={
           data
             ? [
@@ -244,7 +244,7 @@ export function CompareScreen() {
         {!a || !b ? (
           <EmptyState
             title="Choose two runs"
-            body="Pick run A and run B above. From a run in the thread, Compare fills in B, and A too when B is a re-run."
+            body="Pick run A and run B above. Compare from a thread run fills in B, and A too when B is a re-run."
           />
         ) : data ? (
           <>

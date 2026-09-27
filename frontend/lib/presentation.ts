@@ -26,19 +26,19 @@ export const ROLES: Role[] = [
   {
     id: 'operator',
     label: 'Plant Operator',
-    description: 'Submits inspection and calculation tasks from the field.',
-    capabilities: ['Submit tasks', 'Upload documents', 'View own deliverables'],
+    description: 'Runs inspection and calculation requests from the field.',
+    capabilities: ['Start runs', 'Upload documents', 'View own deliverables'],
   },
   {
     id: 'engineer',
     label: 'Integrity Engineer',
-    description: 'Runs advanced sandboxed tooling and corrosion analysis.',
-    capabilities: ['Advanced tools', 'Sandbox execution', 'Semantic search', 'Submit tasks'],
+    description: 'Runs sandboxed code and corrosion analysis.',
+    capabilities: ['Advanced tools', 'Sandbox execution', 'Semantic search', 'Start runs'],
   },
   {
     id: 'reviewer',
     label: 'Approving Reviewer',
-    description: 'Reviews held deliverables and authorizes release.',
+    description: 'Reviews held runs and releases them.',
     capabilities: ['Approval queue', 'Release deliverables', 'Reject with notes'],
   },
   {

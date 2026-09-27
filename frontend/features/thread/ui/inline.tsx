@@ -100,7 +100,7 @@ export function Inline({
           return (
             <sup
               key={i}
-              title={`No evidence with id ${id} was recorded for this run. This citation supports nothing.`}
+              title={`No evidence ${id} was recorded for this run. This citation supports nothing.`}
               className="mx-px cursor-help font-mono text-[0.68em] text-critical-text decoration-dotted underline-offset-2 [text-decoration-line:underline]"
             >
               {id}

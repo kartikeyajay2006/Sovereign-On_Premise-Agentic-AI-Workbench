@@ -49,8 +49,8 @@ export function SelfTestPanel() {
               Containment self-test
             </h2>
             <p className="mt-1 text-[13.5px] leading-[1.55] text-foreground-secondary">
-              Submits fixed attacks to the sandbox on this host — network, filesystem, process escape, resource
-              exhaustion — and reports what each one actually did. Exercised, not asserted.
+              Fixed attacks against this host&apos;s sandbox — network, filesystem, process escape, resource
+              exhaustion — and what each one actually did. Exercised, not asserted.
             </p>
           </div>
         </div>
@@ -62,11 +62,11 @@ export function SelfTestPanel() {
       <div className="border-t border-line-subtle px-5 py-4 font-mono text-[12.5px] leading-[1.7]">
         {error ? (
           <p className="font-sans text-[13.5px] text-critical-text">
-            The self-test could not run: {error}. No result, so no claim either way.
+            The self-test did not run: {error}. No result, no claim either way.
           </p>
         ) : !report ? (
           <p className="font-sans text-[13.5px] text-foreground-muted">
-            Not run in this session. It takes a few seconds and changes nothing on the host.
+            Not run this session. Takes a few seconds; changes nothing on the host.
           </p>
         ) : (
           <div className="flex flex-col gap-2">

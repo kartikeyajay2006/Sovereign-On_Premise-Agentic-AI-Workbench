@@ -31,7 +31,7 @@ function Waiting({ since }: { since: number }) {
   return (
     <span
       className="tabular self-center font-mono text-ui text-foreground-muted"
-      title="Wall time in this browser since the upload was sent: parsing, chunking and embedding happen on the service in that time"
+      title="Wall time since the upload was sent. Parsing, chunking and embedding happen on the service meanwhile."
     >
       waiting {(Math.max(0, now - since) / 1000).toFixed(1)} s
     </span>
@@ -93,7 +93,7 @@ export function IngestDialog({
       const failure = describeFailure(err)
       setError(
         failure.kind === 'forbidden'
-          ? 'Your role does not hold knowledge.ingest, so the service refused the upload.'
+          ? 'Your role lacks knowledge.ingest, so the service refused the upload.'
           : failure.detail
             ? `Not indexed. The service said: ${failure.detail}`
             : 'Not indexed. The service could not be reached.',
@@ -111,7 +111,7 @@ export function IngestDialog({
         onClose()
       }}
       title="Ingest a document"
-      description="Parsed, chunked and indexed by the service on this machine. It becomes retrievable, and citable, as soon as it is indexed."
+      description="Parsed, chunked and indexed on this machine. Citable as soon as it is indexed."
       footer={
         <>
           {busy && <Waiting since={sentAt} />}
@@ -193,8 +193,8 @@ export function IngestDialog({
         </div>
 
         <p className="text-ui text-foreground-muted">
-          The classification is stored with each chunk and carried by every passage retrieved from it.
-          The ingest is recorded in the audit chain with the document&rsquo;s SHA-256.
+          Every chunk, and every passage retrieved from it, carries this classification. The ingest is
+          recorded in the audit chain with the document&rsquo;s SHA-256.
         </p>
 
         {error && (

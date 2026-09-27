@@ -32,8 +32,7 @@ export function AuditSeal({
   if (hash === null || seq === null) {
     return (
       <p className={cn(LABEL, 'normal-case tracking-normal')}>
-        No audit head is recorded for this version: auditing was off when it was written, or it was written before the
-        head was kept.
+        No audit head recorded for this version: auditing was off, or the version predates head records.
       </p>
     )
   }

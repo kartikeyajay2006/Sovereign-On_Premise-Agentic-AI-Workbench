@@ -88,7 +88,7 @@ export function InviteView() {
       <AuthHeading
         label="Accept an invitation"
         title="Join this workbench"
-        lede="Your administrator chose your role and department when they invited you. Choose the name you sign in with and a password."
+        lede="Your administrator set your role and department. Pick a username and a password."
       />
       <form onSubmit={submit} className="mt-10 flex flex-col gap-5" noValidate>
         <Field
@@ -195,7 +195,7 @@ export function ResetView() {
       <AuthHeading
         label="Password reset"
         title="Set a new password"
-        lede="Use the one-time code your administrator issued. Setting the password signs out anywhere the old one was in use."
+        lede="Use the one-time code your administrator issued. The new password signs out every session on the old one."
       />
       <form onSubmit={submit} className="mt-10 flex flex-col gap-5" noValidate>
         <Field

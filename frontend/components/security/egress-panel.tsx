@@ -123,7 +123,7 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
             label="Apart"
             value={gap === null ? '—' : `${gap.toFixed(1)} s`}
             tone={gap === null ? 'muted' : 'default'}
-            hint="Time between the last two samples this page received"
+            hint="Time between the last two samples received"
           />
           <Readout
             label="Loopback now"
@@ -143,8 +143,8 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
           </summary>
           <p className="mt-2 max-w-[80ch] text-ui text-foreground-secondary">
             Sampled from the workbench&rsquo;s own processes at an interval. A connection that opens and closes
-            between samples is not seen, and a monitor that cannot read the connection table reports an empty list,
-            which looks the same as a clean one.
+            between samples is missed, and a monitor that cannot read the connection table reports an empty list,
+            which looks exactly like a clean one.
           </p>
         </details>
       </div>
@@ -180,7 +180,7 @@ export function EgressPanel({ status, live }: { status: SovereigntyStatus; live:
           */}
           <p className="max-w-[80ch] text-ui text-foreground-muted">
             {upExternal.length > 0
-              ? `${upExternal.length} interface${upExternal.length === 1 ? ' is' : 's are'} up with a non-loopback address, so this host is attached to a network. The figure above is about the workbench's own connections; it is not a statement that the machine is physically isolated.`
+              ? `${upExternal.length} interface${upExternal.length === 1 ? ' is' : 's are'} up with a non-loopback address, so this host is on a network. The figure above counts the workbench's own connections; it does not say the machine is physically isolated.`
               : 'No interface is up with a non-loopback address in this reading.'}
           </p>
           <details className="group">

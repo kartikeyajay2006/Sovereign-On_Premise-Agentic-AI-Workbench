@@ -82,7 +82,7 @@ export function SecurityView() {
     <div className="flex flex-col">
       <PageHeader
         title="Assurance"
-        description="What this host can show about its own conduct: what it measured, what it tested, and what it is configured to allow."
+        description="What this host measured, what it tested, and what it is configured to allow."
       />
 
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-12 px-4 pb-16 pt-6 sm:px-6">
@@ -96,7 +96,7 @@ export function SecurityView() {
           id="egress"
           title="Egress"
           kind="Measured"
-          lede="The monitor samples the network connections of the workbench's own processes and counts any that leave loopback."
+          lede="Samples the workbench's own network connections and counts any that leave loopback."
         >
           {status ? (
             <EgressPanel status={status} live={connected} />
@@ -111,7 +111,7 @@ export function SecurityView() {
           id="sandbox"
           title="Containment"
           kind="Tested"
-          lede="Only what the sandbox did when payloads were submitted just now. Nothing is carried over from an earlier run."
+          lede="What the sandbox did with payloads submitted just now. Nothing carries over from earlier runs."
         >
           <SandboxPanel run={sandbox.run} onRun={() => void sandbox.start()} />
         </Section>
@@ -120,7 +120,7 @@ export function SecurityView() {
           id="policy"
           title="Policy"
           kind="Configured"
-          lede="What the gateway is told to allow and refuse, read from the policy files. It says what should happen; the audit chain records what did."
+          lede="What the gateway is told to allow and refuse, from the policy files. Policy says what should happen; the audit chain records what did."
         >
           <PolicyPanel policies={policies} currentRole={user?.role ?? null} />
         </Section>
