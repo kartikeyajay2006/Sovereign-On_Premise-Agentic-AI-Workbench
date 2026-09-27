@@ -355,9 +355,13 @@ span.hv-lock-frame {
   max-width: 240px;
   background: var(--line-subtle, #2b2b2b);
 }
+/* On a 1px track the scan's vertical line would be a dot: here the head
+   is a 48px lime segment with its tail behind it, on the same clock.
+   Reduced motion leaves it still at the track's far end. */
 .hv-scan-rule.hv-scan::after {
-  top: -1px;
-  bottom: -1px;
+  left: -48px;
+  width: 48px;
+  background: linear-gradient(to right, transparent, var(--hv-lime));
 }
 
 /* ==================================================================== */

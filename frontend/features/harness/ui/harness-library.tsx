@@ -6,6 +6,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { MeasuredNumber } from '@/shared/motion'
 import { ErrorState } from '@/shared/ui/data/error-state'
+import { LineArt } from '@/shared/ui/data/line-art'
 import { PageHeader } from '@/components/page-header'
 import { harnessApi } from '../api'
 import type { HarnessCatalogView, HarnessRunSummary, HarnessTally } from '../model/types'
@@ -134,7 +135,10 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
             />
           </div>
         ) : catalog === null ? (
-          <p className="px-4 py-6 font-mono text-meta text-foreground-muted">Reading definitions…</p>
+          <div role="status" className="flex flex-col gap-2 px-4 py-6">
+            <p className="font-mono text-meta text-foreground-muted">Reading definitions…</p>
+            <span aria-hidden className="hv-scan hv-scan-rule" />
+          </div>
         ) : harnesses.length === 0 ? (
           <p className="px-4 py-6 text-body text-foreground-secondary">
             No harness is defined on this host. Definitions live in{' '}
@@ -222,11 +226,17 @@ export function HarnessLibrary({ onConfigure, onOpenRun }: HarnessLibraryProps) 
             Past runs could not be read: {String(runsError.detail || runsError.message)}
           </p>
         ) : runs === null ? (
-          <p className="px-4 py-6 font-mono text-meta text-foreground-muted">Reading runs…</p>
+          <div role="status" className="flex flex-col gap-2 px-4 py-6">
+            <p className="font-mono text-meta text-foreground-muted">Reading runs…</p>
+            <span aria-hidden className="hv-scan hv-scan-rule" />
+          </div>
         ) : runs.length === 0 ? (
-          <p className="px-4 py-6 text-body text-foreground-secondary">
+          <div className="flex flex-col gap-3 px-4 py-6">
+            <LineArt kind="fanout" />
+            <p className="text-body text-foreground-secondary">
             No harness has run on this host yet.
-          </p>
+            </p>
+          </div>
         ) : (
           <ul role="list" className="flex list-none flex-col p-0">
             {runs.map((run) => {

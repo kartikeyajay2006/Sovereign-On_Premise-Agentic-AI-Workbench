@@ -213,6 +213,8 @@ export function ReadingLine({
         {source && <span>{source} · </span>}
         <span className="tabular">{seconds} s</span>
       </p>
+      {/* SCAN: mounted only while this read is in flight. */}
+      <span aria-hidden className="hv-scan hv-scan-rule mt-1" />
     </div>
   )
 }

@@ -330,7 +330,10 @@ const RunList = memo(function RunList({ activeId, onPick }: { activeId: string |
           list fades out under the foot rather than meeting it at an edge. */}
       <div className="side-scroll relative min-h-0 flex-1 overflow-y-auto px-2 pb-6">
         {loading ? (
-          <p className="px-2 py-2 text-[13px] text-foreground-muted">Loading runs…</p>
+          <div role="status" className="flex flex-col gap-1.5 px-2 py-2">
+            <p className="text-[13px] text-foreground-muted">Loading runs…</p>
+            <span aria-hidden className="hv-scan hv-scan-rule" />
+          </div>
         ) : error ? (
           <p className="flex items-start gap-1.5 px-2 py-2 text-meta text-critical-text">
             <RotateCw className="mt-0.5 size-3 shrink-0" aria-hidden />
