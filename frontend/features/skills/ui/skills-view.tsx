@@ -377,7 +377,7 @@ export function SkillsView() {
     <div className="pb-16">
       <PageHeader
         title="Skills"
-        description="Saved instructions you call in the thread with /. A skill shapes what a run is asked; every run still meets every check."
+        description="Saved instructions, called in the thread with /. A skill shapes what a run is asked; every run still meets every check."
         actions={
           canCreate && !creating ? (
             <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>
@@ -405,7 +405,7 @@ export function SkillsView() {
         {!canRun && (
           <p className="m-0 text-[13.5px] text-foreground-secondary">
             Your role reviews work rather than running it, so it has no skills to call. Every run a skill started is in
-            the audit chain, with the skill and the hash it was run at.
+            the audit chain, with the skill and its hash.
           </p>
         )}
         {error && <p className="m-0 text-[13.5px] text-critical-text">{error}</p>}
@@ -434,7 +434,7 @@ export function SkillsView() {
 
         {skills && (
           <p className="m-0 text-[13px] text-foreground-muted">
-            Need many runs and one signed report instead of one run?{' '}
+            Need many runs and one signed report?{' '}
             <Link href="/harnesses" className="font-medium text-foreground-secondary underline-offset-2 hover:text-foreground hover:underline">
               That is a harness
             </Link>

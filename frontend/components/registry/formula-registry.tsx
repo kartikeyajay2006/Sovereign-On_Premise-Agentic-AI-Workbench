@@ -13,9 +13,9 @@ export function FormulaRegistry({ formulas }: { formulas: FormulaEntry[] }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="max-w-[72ch] text-body text-foreground-secondary">
-        Figures in an integrity decision are computed by these formulas from inputs read out of the evidence, never by
-        the model. An input of the wrong dimension (a pressure where a thickness belongs) is refused, and a missing
-        one is reported as <span className="font-medium text-foreground">cannot calculate</span>.
+        Integrity figures come from these formulas, fed by inputs read from the evidence, never from the model. An
+        input of the wrong dimension (a pressure where a thickness belongs) is refused; a missing one reads{' '}
+        <span className="font-medium text-foreground">cannot calculate</span>.
       </p>
       <ul className="flex flex-col">
         {formulas.map((formula) => (
