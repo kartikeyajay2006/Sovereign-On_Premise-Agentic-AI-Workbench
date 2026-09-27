@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="docs/assets/brand/aegis-mark.svg" alt="" width="64">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/aegis-mark-white.svg">
+  <img src="docs/assets/brand/aegis-mark.svg" alt="" width="64">
+</picture>
 
 # AEGIS
 

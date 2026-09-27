@@ -8,9 +8,9 @@
 **Everything about the on-premise agentic AI workbench, in one place.**
 How to install it, how to use every screen, how every stage of a run works, and how to configure, secure, operate and extend it.
 
-![Sections](https://img.shields.io/badge/sections-15-ff6a1a?style=for-the-badge)
-![Audience](https://img.shields.io/badge/for-users%20·%20engineers%20·%20operators%20·%20judges-ff2d6f?style=for-the-badge)
-![Grounded](https://img.shields.io/badge/written%20from-the%20code-7c4dff?style=for-the-badge)
+![Sections](https://img.shields.io/badge/sections-15-070707?style=for-the-badge)
+![Audience](https://img.shields.io/badge/for-users%20·%20engineers%20·%20operators%20·%20judges-d4f24a?style=for-the-badge)
+![Grounded](https://img.shields.io/badge/written%20from-the%20code-070707?style=for-the-badge)
 
 </div>
 
