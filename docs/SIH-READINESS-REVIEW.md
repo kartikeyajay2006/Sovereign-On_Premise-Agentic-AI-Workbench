@@ -8,9 +8,10 @@ it says otherwise.
 
 ## Verdict
 
-The plan's six phases are built, with four gaps left open: operating-envelope
-checks, three of the five plant-system adapters, approval binding to the
-prompt, evidence, policy and model, and frontend tests. The three judged
+The plan's six phases are built, with three gaps left open: operating-envelope
+checks, three of the five plant-system adapters, and approval binding to the
+prompt, evidence, policy and model. Frontend smoke tests, the fourth, are
+done (`0bfd973`). The three judged
 moments run end to end, and the red team holds **31 of 31** attacks against
 the live host. What decides the result now is less the code than the demo
 machine: the sandbox image and the egress firewall are not set up on it, and
@@ -125,9 +126,13 @@ One finding is the model's, not the code's: on one run the 3B model drafted an a
 2. **Operating envelope.** Operating pressure and temperature against design
    and MAWP, and SOP-INS-021's interim limit of 90% of MAWP, as registered
    formulas. It is the last Phase 1 item.
-3. **Frontend tests.** The console has none; the "or" footer above was found
-   by reading a screenshot. A Playwright smoke test that opens each starter
-   card, runs it and reads the integrity card would catch that class of bug.
+3. ~~**Frontend tests.**~~ **Done** in `0bfd973`: 13 Playwright smoke tests
+   in `frontend/e2e`, run in CI against a production build with the API
+   mocked in the browser. One asserts the High finding's release line reads
+   "Head of Inspection, then Plant Manager", then "(1 of 2 signed)", the
+   class of bug found above by reading a screenshot. Still open: running a
+   starter card end to end against a live backend, which needs models
+   ([13.2](handbook/13-development/02-testing.md)).
 4. **CMMS adapter.** Read-only open work orders and notifications for a tag,
    behind `backend/connectors/base.py`, would let the approval note say
    whether a repair is already raised. Document-management and directory
