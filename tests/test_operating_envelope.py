@@ -63,7 +63,7 @@ class TestTheFormula:
         formula = FORMULAS[FORMULA]
         assert formula.clause == "SOP-INS-021 Clause 6.1"
         assert "0.90 × MAWP" in formula.expression
-        assert len(catalogue()) == 19
+        assert len(catalogue()) == 21
 
     def test_no_envelope_formula_is_registered_without_a_clause_for_it(self) -> None:
         # The corpus supports only the interim limit; operating ≤ MAWP and a
