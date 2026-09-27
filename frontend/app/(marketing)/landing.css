@@ -183,7 +183,7 @@
   }
 
   /* ---- the stat band ------------------------------------------------------------ */
-  .lp-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: clamp(48px, 6vw, 80px); border-top: 1px solid var(--lp-line); border-bottom: 1px solid var(--lp-line); }
+  .lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: clamp(48px, 6vw, 80px); border-top: 1px solid var(--lp-line); border-bottom: 1px solid var(--lp-line); }
   .lp-stats .cell { min-width: 0; padding: 18px 18px 20px; border-right: 1px solid var(--lp-line); }
   .lp-stats .cell:first-child { padding-left: 0; }
   .lp-stats .cell:last-child { border-right: 0; }

@@ -1,5 +1,6 @@
 'use client'
 
+import { spokenDuration } from '@/lib/duration'
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, Download, Lock } from 'lucide-react'
 import { ErrorState } from '@/shared/ui/data/error-state'
@@ -596,7 +597,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           {running && turn.stream === 'live' ? (
             <RunElapsed startedAt={turn.startedAt} />
           ) : !running && turn.elapsedMs !== null ? (
-            <span className="tabular">{(turn.elapsedMs / 1000).toFixed(1)} s</span>
+            <span className="tabular">{spokenDuration(turn.elapsedMs)}</span>
           ) : null}
           {/* The case this label exists for: a run that still reads as
               running but is no longer attached to anything that would tell

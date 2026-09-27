@@ -217,8 +217,11 @@ export const runId = `tsk_${run.task_id.slice(0, 8)}`
 /** 195249 -> "195.2 s"; 4625 -> "4.6 s"; 2 -> "2 ms". */
 export function seconds(ms: number | null | undefined): string | null {
   if (typeof ms !== 'number' || !Number.isFinite(ms)) return null
-  if (ms < 1000) return `${Math.round(ms)} ms`
-  return `${(ms / 1000).toFixed(1)} s`
+  // As a person would say it: 3 ms, 0.6 s, 40 s, 1 min 5 s.
+  if (ms < 100) return `${Math.round(ms)} ms`
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)} s`
+  const s = Math.round(ms / 1000)
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`
 }
 
 /** "SOP-INS-014 — Pressure Vessel ..." -> "SOP-INS-014". */

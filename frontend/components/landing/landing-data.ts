@@ -198,11 +198,11 @@ export const relay: RelayCell[] = CREW.map((member): RelayCell => {
     const events = run.policy_events
     if (events.length === 0) return unrecorded
     const decisions = Array.from(new Set(events.map((event) => event.decision)))
-    return { ...base, state: 'ran', value: decisions.join(' · '), sub: `${events.length} policy ${events.length === 1 ? 'event' : 'events'}` }
+    return { ...base, state: 'ran', value: decisions.map((d) => (d === 'allow' ? 'allowed' : d)).join(' · '), sub: `${events.length} policy ${events.length === 1 ? 'check' : 'checks'}` }
   }
   if (member.id === 'notary') {
     if (!auditRange) return unrecorded
-    return { ...base, state: 'ran', value: `#${auditRange.first}–${auditRange.last}`, sub: `${auditRange.count} records` }
+    return { ...base, state: 'ran', value: `${auditRange.count} records written`, sub: null }
   }
   const record = member.stage ? stageRecord(member.stage) : null
   if (!record) return unrecorded
@@ -241,6 +241,6 @@ export const crewScenes: CrewScenes = {
 }
 
 /** The relay's caption: the run, what was asked, how long it took, how it ended. */
-export const relayCaption = [runId, run.skill ? `/${run.skill.id}` : null, classifiedParts[0] ?? null, total, run.status].filter(
+export const relayCaption = [run.skill ? `/${run.skill.id}` : null, total ? `answered in ${total}` : null, run.status].filter(
   (part): part is string => Boolean(part),
 )
