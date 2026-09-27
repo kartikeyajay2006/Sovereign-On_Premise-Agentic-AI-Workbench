@@ -479,29 +479,39 @@ Three processes on one host. Storage is SQLite plus files, vectors are computed 
 <br><b>Raghav Sharma</b>
 <br><a href="https://github.com/raghav-shell">@raghav-shell</a>
 <br><br><img src="https://img.shields.io/badge/design-visual_system_·_motion-b23bd9?style=flat-square" alt="Design">
-<br><sub>Led the frontend visual system and motion design, shaping the workbench’s responsive interface, interaction patterns, and user experience. Also contributed to scanned-PDF extraction workflows and macOS sandbox integration to improve document handling, usability, and platform reliability.</sub>
+<br><br>
+<sub>Shaped how the workbench looks and moves, and told its story on video.</sub>
+<br><br>
+<sub>🎨 <b>Design</b>: the frontend visual system, motion and responsive interaction patterns</sub><br>
+<sub>📄 <b>Documents & platform</b>: scanned-PDF extraction and macOS sandbox integration</sub><br>
+<sub>🎬 <b>SIH video</b>: created the video for the Smart India Hackathon submission</sub>
 </td>
 <td align="center" width="20%" valign="top">
 <a href="https://github.com/ankit25bcs10610"><img src="https://avatars.githubusercontent.com/u/232535999?v=4&s=200" width="120" alt="Ankit Pandey"></a>
 <br><b>Ankit Pandey</b>
 <br><a href="https://github.com/ankit25bcs10610">@ankit25bcs10610</a>
 <br><br><img src="https://img.shields.io/badge/contributor-workbench-7c4dff?style=flat-square" alt="Contributor">
-<br><sub>Contributed to the development and refinement of the agentic workbench, supporting feature implementation, workflow integration, testing, and overall project improvements.</sub>
+<br><br>
+<sub>Helped develop and refine the agentic workbench.</sub>
+<br><br>
+<sub>🛠️ <b>Features</b>: feature implementation and workflow integration</sub><br>
+<sub>🧪 <b>Testing</b>: testing and overall project refinements</sub>
 </td>
 </tr>
 <tr>
 <td colspan="4" align="center" valign="top">
 <br>
-<a href="https://github.com/pentest200"><img src="https://avatars.githubusercontent.com/u/197301328?v=4&amp;s=200" width="120" alt="Ujjwal Shreshtha"></a>
+<a href="https://github.com/pentest200"><img src="https://avatars.githubusercontent.com/u/197301328?v=4&s=200" width="120" alt="Ujjwal Shreshtha"></a>
 <br><b>Ujjwal Shreshtha</b>
 <br><a href="https://github.com/pentest200">@pentest200</a>
-<br><br><img src="https://img.shields.io/badge/research-SIH_PPT-2563eb?style=flat-square" alt="Research and SIH PPT">
+<br><br><img src="https://img.shields.io/badge/research-analysis_·_SIH_deck-2563eb?style=flat-square" alt="Research and SIH deck">
 <br><br>
-<div align="left">
-🔬 <sub>Conducted technical analysis and contributed to the system architecture.</sub><br>
-🛡️ <sub>Documented implementation details, security considerations, and core engineering decisions.</sub><br>
-🎯 <sub>Translated key technical insights into the Smart India Hackathon presentation.</sub>
-</div>
+<sub>Researched the problem space and carried the platform's engineering into the Smart India Hackathon pitch.</sub>
+<br><br>
+<sub>🔬 <b>Research</b>: technical analysis that fed into the system architecture</sub><br>
+<sub>🛡️ <b>Documentation</b>: implementation details, security considerations and core engineering decisions</sub><br>
+<sub>🎯 <b>SIH presentation</b>: turned the key technical insights into the Smart India Hackathon deck</sub>
+<br><br>
 </td>
 </tr>
 </table>
