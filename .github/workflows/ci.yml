@@ -1,5 +1,5 @@
-# Continuous integration: the backend suite, the red-team suite and the
-# frontend build, on every push and pull request.
+# Continuous integration: the backend suite, the red-team suite, and the
+# frontend build with its smoke tests, on every push and pull request.
 #
 # No job needs a model. The tests replace every model call with a fake
 # (docs/handbook/13-development/02-testing.md), and nothing here installs or
@@ -80,9 +80,9 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider -rs
 
   frontend:
-    name: frontend (typecheck and build)
+    name: frontend (typecheck, build and smoke tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -100,3 +100,17 @@ jobs:
       # There is no lint script in package.json; add a step here when one is.
       - name: Build
         run: npx next build
+        env:
+          # The /api rewrite is fixed at build time. The smoke tests below
+          # serve this build, and a closed port means a request their mocks
+          # missed fails instead of reaching anything.
+          WORKBENCH_API_URL: http://127.0.0.1:9
+      # Playwright smoke tests (frontend/e2e), against `next start` on this
+      # build, with every /api call answered in the browser from fixtures.
+      # No backend, no Ollama. Chromium only, and only on this runner.
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Smoke tests
+        run: npm run test:e2e
+        env:
+          E2E_SKIP_BUILD: "1"
