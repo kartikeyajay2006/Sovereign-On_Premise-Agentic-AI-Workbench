@@ -287,4 +287,4 @@ For security reviewers: [threat model](docs/handbook/09-security/06-threat-model
 </tr>
 </table>
 
-<p align="center"><sub>Built for Smart India Hackathon 2025.</sub></p>
+<p align="center"><sub>Built for Smart India Hackathon 2026.</sub></p>
