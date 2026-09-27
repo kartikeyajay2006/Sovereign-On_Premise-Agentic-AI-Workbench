@@ -238,14 +238,14 @@ export function ReportPanel({
                   >
                     <Ledger className="text-foreground-secondary">{file.format}</Ledger>
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate font-mono text-meta text-foreground">{file.filename}</span>
+                      <span className="break-all font-mono text-meta text-foreground" title={file.filename}>{file.filename}</span>
                       {/* SEAL: the report released, when it is written or when
                           a reviewer releases it. A version held for sign-off
                           shows the dashed rule, because it is not released. */}
                       <CopyValue
                         label={`${file.format} sha256`}
                         value={file.sha256}
-                        display={`sha256 ${file.sha256.slice(0, 24)}…`}
+                        display={`sha256 ${file.sha256.slice(0, 12)}…`}
                         seal={{
                           sealed: record.released,
                           srLabel: record.released ? 'report file hash, released' : 'report file hash, not released',

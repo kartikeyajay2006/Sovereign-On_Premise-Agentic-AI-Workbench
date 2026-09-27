@@ -193,6 +193,7 @@ export const NAV = [
 const onGitHub = (path: string, branch: 'main' | 'redesign/hi-vis' = 'main') => `${REPO_URL}/blob/${branch}/${path}`
 
 export const FOOTER = {
+  close: { title: 'Answers your plant can', titleKey: 'prove.' },
   blurb: 'An air-gapped AI workbench for regulated industrial work. Every answer cited, checked and recorded on the machine it ran on.',
   columns: [
     {
@@ -222,7 +223,7 @@ export const FOOTER = {
         { label: 'The sandbox', href: onGitHub('docs/handbook/09-security/03-sandbox.md') },
         // GitHub's anchor for "⚠️ Limitations" keeps the emoji's variation selector.
         { label: 'Known limits', href: `${REPO_URL}#%EF%B8%8F-limitations` },
-        { label: 'What verification cannot catch', href: onGitHub('docs/handbook/08-verification/05-limits.md') },
+        { label: 'Verification limits', href: onGitHub('docs/handbook/08-verification/05-limits.md') },
       ],
     },
     {
